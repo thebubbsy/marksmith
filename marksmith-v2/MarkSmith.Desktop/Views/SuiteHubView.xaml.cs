@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -2538,6 +2538,25 @@ private async void OnAuditWorkspaceMarkdownTableAutoAlignAndExportClick(object s
         catch (Exception ex)
         {
             SetNotification($"Table restore failed: {ex.Message}", success: false);
+        }
+    }
+
+    private async void OnAuditWorkspaceBacklinksClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var files = App.RecentFiles?.Load() ?? new List<string>();
+            var result = RecentFilesService.AuditWorkspaceBacklinksAndUnreferencedAnchors(explicitFiles: files);
+            await Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            SetNotification(result.Summary, success: true);
+            if (RecentDocsActionBtn != null)
+            {
+                Services.CopyFeedback.ApplyButtonTick(RecentDocsActionBtn, null, "\u2713 Backlinks Audited");
+            }
+        }
+        catch (Exception ex)
+        {
+            SetNotification($"Backlink audit failed: {ex.Message}", success: false);
         }
     }
 

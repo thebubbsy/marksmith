@@ -3441,4 +3441,40 @@ public class HistoryPolishTests : IDisposable
         Assert.Equal(badAudit.Summary, formatted);
     }
 
+
+    [Fact]
+    public void Run205_AuditMemoryAndSpanSafety_DetectsAsyncSpansAndClosureEscapes()
+    {
+        // 1. Clean code
+        var cleanCode = string.Join("\n",
+            "public void Process(ReadOnlySpan<char> span)",
+            "{",
+            "    int length = span.Length;",
+            "}"
+        );
+        var cleanAudit = LineDiff.AuditMemoryAndSpanSafety("", cleanCode);
+        Assert.Equal(100.0, cleanAudit.MemorySafetyScore);
+        Assert.Equal(0, cleanAudit.AsyncSpanHazards);
+        Assert.Equal(0, cleanAudit.ClosureSpanHazards);
+
+        // 2. Dangerous async span and closure capture
+        var riskyCode = string.Join("\n",
+            "public async Task ExecuteAsync()",
+            "{",
+            "    Span<byte> span = stackalloc byte[128];",
+            "    await Task.Delay(10);",
+            "    Action act = () => span.Slice(0, 10);",
+            "}"
+        );
+        var riskyAudit = LineDiff.AuditMemoryAndSpanSafety("", riskyCode);
+        Assert.True(riskyAudit.AsyncSpanHazards >= 1 || riskyAudit.ClosureSpanHazards >= 1);
+        Assert.True(riskyAudit.MemorySafetyScore < 80.0);
+
+        string formatted = LineDiff.FormatMemorySpanSafetySummary(
+            riskyAudit.TotalModifiedLines, riskyAudit.AsyncSpanHazards, riskyAudit.ClosureSpanHazards,
+            riskyAudit.MemorySliceEscapes, riskyAudit.LoopClosureCaptures,
+            riskyAudit.MemorySafetyScore, riskyAudit.Category);
+        Assert.Equal(riskyAudit.Summary, formatted);
+    }
+
 }

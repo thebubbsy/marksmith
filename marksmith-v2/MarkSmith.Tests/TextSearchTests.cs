@@ -3693,4 +3693,53 @@ public class TextSearchTests
         Assert.True(brokenAudit.SpacingConsistencyScore < 80.0);
     }
 
+
+    [Fact]
+    public void Run205_AuditMarkdownDefinitionLists_ValidatesGlossaryConsistency()
+    {
+        var emptyAudit = TextSearch.AuditMarkdownDefinitionLists("");
+        Assert.Equal(0, emptyAudit.TotalTerms);
+        Assert.Equal(0, emptyAudit.TotalDefinitions);
+        Assert.Equal(100.0, emptyAudit.DefinitionHygieneScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+
+        var cleanDoc = string.Join("\n",
+            "# Glossary",
+            "",
+            "API",
+            ": Application Programming Interface",
+            "  provides programmatic contracts for services.",
+            "",
+            "GUI",
+            ": Graphical User Interface"
+        );
+        var cleanAudit = TextSearch.AuditMarkdownDefinitionLists(cleanDoc);
+        Assert.Equal(2, cleanAudit.TotalTerms);
+        Assert.Equal(2, cleanAudit.TotalDefinitions);
+        Assert.Equal(1, cleanAudit.MultiLineDefinitions);
+        Assert.Equal(0, cleanAudit.DuplicateTermCount);
+        Assert.Equal(0, cleanAudit.OrphanDefinitionCount);
+        Assert.True(cleanAudit.DefinitionHygieneScore >= 95.0);
+
+        string formatted = TextSearch.FormatDefinitionListsSummary(
+            cleanAudit.TotalTerms, cleanAudit.TotalDefinitions, cleanAudit.MultiLineDefinitions,
+            cleanAudit.DuplicateTermCount, cleanAudit.OrphanDefinitionCount,
+            cleanAudit.DefinitionHygieneScore, cleanAudit.Category);
+        Assert.Equal(cleanAudit.Summary, formatted);
+
+        var brokenDoc = string.Join("\n",
+            ": Orphan definition without preceding term",
+            "",
+            "API",
+            ": First definition",
+            "",
+            "API",
+            ": Duplicate term definition"
+        );
+        var brokenAudit = TextSearch.AuditMarkdownDefinitionLists(brokenDoc);
+        Assert.True(brokenAudit.OrphanDefinitionCount >= 1);
+        Assert.True(brokenAudit.DuplicateTermCount >= 1);
+        Assert.True(brokenAudit.DefinitionHygieneScore < 85.0);
+    }
+
 }

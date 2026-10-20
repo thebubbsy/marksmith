@@ -3860,6 +3860,161 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         return $"SmartArt chevron process geometry audit ({details} · {category} · {score:0.#}% score)";
     }
 
+    public SmartArtMatrixQuadrantGeometryAudit AuditMatrixQuadrantGeometry(string? markdown = null, string? layoutName = null)
+    {
+        string md = markdown ?? MarkdownText;
+        string layout = layoutName ?? SelectedLayout?.DisplayName ?? "Matrix";
+        return AuditMatrixQuadrantGeometry(md, layout, isStatic: false);
+    }
+
+    public static SmartArtMatrixQuadrantGeometryAudit AuditMatrixQuadrantGeometry(string? markdown, string? layoutName = null, bool isStatic = true)
+    {
+        string layout = layoutName ?? "Matrix";
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            string emptySummary = FormatMatrixQuadrantGeometrySummary(0, true, 0, 0.0, 0.0, 100.0, "Empty Outline", layout);
+            return new SmartArtMatrixQuadrantGeometryAudit(
+                0, true, 0, 0.0, 0.0, 100.0,
+                Array.Empty<MatrixQuadrantGeometryItem>(), "Empty Outline", layout, emptySummary);
+        }
+
+        var lines = markdown.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        var quadrants = new List<(string Label, List<string> Bullets)>();
+
+        foreach (var rawLine in lines)
+        {
+            var line = rawLine.Trim();
+            if (string.IsNullOrWhiteSpace(line)) continue;
+
+            if (line.StartsWith("#") || line.StartsWith("- ") || line.StartsWith("* "))
+            {
+                string text = line.TrimStart('#', '-', '*', ' ');
+                if (!rawLine.StartsWith("  ") && !rawLine.StartsWith("\t"))
+                {
+                    quadrants.Add((text, new List<string>()));
+                }
+                else if (quadrants.Count > 0)
+                {
+                    quadrants[^1].Bullets.Add(text);
+                }
+            }
+            else if (quadrants.Count > 0)
+            {
+                quadrants[^1].Bullets.Add(line);
+            }
+        }
+
+        int quadrantCount = quadrants.Count;
+        bool isStandard2x2 = quadrantCount == 4;
+
+        string[] standardQuadrantNames = new string[]
+        {
+            "Quadrant I (Top-Left)",
+            "Quadrant II (Top-Right)",
+            "Quadrant III (Bottom-Left)",
+            "Quadrant IV (Bottom-Right)"
+        };
+
+        var items = new List<MatrixQuadrantGeometryItem>();
+        int totalWords = 0;
+        var wordCounts = new List<int>();
+
+        for (int i = 0; i < quadrantCount; i++)
+        {
+            var q = quadrants[i];
+            string qName = i < 4 ? standardQuadrantNames[i] : $"Quadrant {i + 1} (Overflow)";
+            string fullContent = q.Label + " " + string.Join(" ", q.Bullets);
+            var words = fullContent.Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            int wordCount = words.Length;
+            int charCount = fullContent.Length;
+            int bulletCount = q.Bullets.Count;
+
+            totalWords += wordCount;
+            wordCounts.Add(wordCount);
+
+            items.Add(new MatrixQuadrantGeometryItem(
+                i + 1,
+                qName,
+                q.Label,
+                wordCount,
+                charCount,
+                bulletCount,
+                0.0,
+                ""));
+        }
+
+        double avgWords = quadrantCount > 0 ? (double)totalWords / quadrantCount : 0.0;
+        double varianceSum = 0;
+        foreach (var wc in wordCounts)
+        {
+            varianceSum += Math.Pow(wc - avgWords, 2);
+        }
+        double stdDev = quadrantCount > 1 ? Math.Sqrt(varianceSum / quadrantCount) : 0.0;
+        double cv = avgWords > 0 ? stdDev / avgWords : 0.0;
+
+        var finalItems = new List<MatrixQuadrantGeometryItem>();
+        for (int i = 0; i < items.Count; i++)
+        {
+            var it = items[i];
+            double share = totalWords > 0 ? Math.Round((double)it.WordCount / totalWords * 100.0, 1) : 25.0;
+            string rec = it.WordCount == 0
+                ? "Quadrant is empty; add label and descriptive bullets."
+                : it.WordCount > avgWords * 1.8
+                    ? "Quadrant content significantly exceeds average; consider trimming text."
+                    : it.WordCount < avgWords * 0.4 && totalWords > 10
+                        ? "Quadrant is sparse compared to peers; consider elaborating."
+                        : "Quadrant text volume is well balanced.";
+
+            if (i >= 4)
+            {
+                rec = "Overflow item beyond standard 2x2 grid; 4 quadrants recommended.";
+            }
+
+            finalItems.Add(it with { ContentSharePercent = share, Recommendation = rec });
+        }
+
+        double score = 100.0;
+        if (quadrantCount != 4)
+        {
+            score -= Math.Abs(quadrantCount - 4) * 18.0;
+        }
+        score -= Math.Min(40.0, cv * 45.0);
+        foreach (var it in finalItems)
+        {
+            if (it.WordCount == 0) score -= 15.0;
+        }
+        score = Math.Clamp(score, 0.0, 100.0);
+
+        string category = score switch
+        {
+            >= 90.0 => "Equilateral Quadrant Harmony",
+            >= 75.0 => "Well-Balanced Matrix Cells",
+            >= 55.0 => "Moderate Quadrant Imbalance",
+            _ => "Severe Asymmetric Text Load"
+        };
+
+        string summary = FormatMatrixQuadrantGeometrySummary(
+            quadrantCount, isStandard2x2, totalWords, avgWords, cv, score, category, layout);
+
+        return new SmartArtMatrixQuadrantGeometryAudit(
+            quadrantCount, isStandard2x2, totalWords, avgWords, cv, score, finalItems, category, layout, summary);
+    }
+
+    public static string FormatMatrixQuadrantGeometrySummary(
+        int quadrantCount, bool is2x2, int totalWords, double avgWords, double cv,
+        double score, string category, string layout)
+    {
+        if (quadrantCount == 0) return $"SmartArt matrix quadrant audit: Empty outline · {layout}";
+
+        var parts = new List<string>();
+        parts.Add(is2x2 ? "4 quadrants (2x2)" : $"{quadrantCount} quadrants (non-standard 2x2)");
+        parts.Add($"{totalWords} words (avg {avgWords:0.#}/quadrant)");
+        parts.Add($"CV {cv:0.##}");
+
+        string details = string.Join(" · ", parts);
+        return $"SmartArt matrix quadrant audit ({details} · {category} · {score:0.#}% symmetry score)";
+    }
+
     public SmartArtVennGeometryAudit AuditVennDiagramGeometry(string? markdown = null, string? layoutName = null)
     {
         string md = markdown ?? MarkdownText;
@@ -12567,6 +12722,28 @@ public sealed record VennSetItem(
     double Radius,
     int BulletCount,
     string Recommendation);
+
+public sealed record MatrixQuadrantGeometryItem(
+    int QuadrantIndex,
+    string QuadrantName,
+    string Label,
+    int WordCount,
+    int CharacterCount,
+    int BulletCount,
+    double ContentSharePercent,
+    string Recommendation);
+
+public sealed record SmartArtMatrixQuadrantGeometryAudit(
+    int QuadrantCount,
+    bool IsStandard2x2,
+    int TotalWordCount,
+    double AverageWordCount,
+    double CoefficientOfVariation,
+    double QuadrantSymmetryScore,
+    IReadOnlyList<MatrixQuadrantGeometryItem> Quadrants,
+    string Category,
+    string LayoutName,
+    string Summary);
 
 public sealed record SmartArtVennGeometryAudit(
     int SetCount,

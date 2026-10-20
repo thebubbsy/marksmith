@@ -3286,4 +3286,48 @@ public class SmartArtStudioPolishTests
         Assert.True(riskAudit.SetHarmonyScore < 95.0);
     }
 
+
+    [Fact]
+    public void Run205_AuditMatrixQuadrantGeometry_Validates2x2BalanceAndSymmetry()
+    {
+        // 1. Empty outline
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditMatrixQuadrantGeometry("");
+        Assert.Equal(0, emptyAudit.QuadrantCount);
+        Assert.Equal(100.0, emptyAudit.QuadrantSymmetryScore);
+        Assert.Equal("Empty Outline", emptyAudit.Category);
+
+        // 2. Harmonious 4-quadrant SWOT matrix
+        var swotMd = string.Join("\n",
+            "- Strengths",
+            "  High market velocity",
+            "- Weaknesses",
+            "  Legacy codebase debt",
+            "- Opportunities",
+            "  Enterprise cloud expansion",
+            "- Threats",
+            "  Aggressive startup competitors"
+        );
+        var swotAudit = SmartArtDesignStudioViewModel.AuditMatrixQuadrantGeometry(swotMd, "SWOT Matrix");
+        Assert.Equal(4, swotAudit.QuadrantCount);
+        Assert.True(swotAudit.IsStandard2x2);
+        Assert.True(swotAudit.QuadrantSymmetryScore >= 85.0);
+
+        string formatted = SmartArtDesignStudioViewModel.FormatMatrixQuadrantGeometrySummary(
+            swotAudit.QuadrantCount, swotAudit.IsStandard2x2, swotAudit.TotalWordCount,
+            swotAudit.AverageWordCount, swotAudit.CoefficientOfVariation,
+            swotAudit.QuadrantSymmetryScore, swotAudit.Category, "SWOT Matrix");
+        Assert.Equal(swotAudit.Summary, formatted);
+
+        // 3. Imbalanced matrix with missing 4th quadrant (only 3 items)
+        var brokenMd = string.Join("\n",
+            "- Quadrant One",
+            "- Quadrant Two",
+            "- Quadrant Three"
+        );
+        var brokenAudit = SmartArtDesignStudioViewModel.AuditMatrixQuadrantGeometry(brokenMd, "2x2 Matrix");
+        Assert.Equal(3, brokenAudit.QuadrantCount);
+        Assert.False(brokenAudit.IsStandard2x2);
+        Assert.True(brokenAudit.QuadrantSymmetryScore < 85.0);
+    }
+
 }

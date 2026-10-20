@@ -1,4 +1,4 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.UI.Composition.SystemBackdrops;
 using Microsoft.Windows.AppNotifications;
@@ -12127,6 +12127,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             AnnounceStatus(summary);
         };
         menu.Items.Add(auditHorizontalRulesItem);
+
+        var auditDefinitionListsConsistencyItem = new MenuFlyoutItem
+        {
+            Text = "Audit Markdown Definition Lists & Glossary Term Consistency",
+            Icon = new FontIcon { Glyph = "\uE8B9" }
+        };
+        auditDefinitionListsConsistencyItem.Click += (_, _) =>
+        {
+            var docText = EditorDocument();
+            var summary = MarkSmith.Services.TextSearch.AuditMarkdownDefinitionLists(docText).Summary;
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditDefinitionListsConsistencyItem);
 
         menu.ShowAt(anchor);
     }

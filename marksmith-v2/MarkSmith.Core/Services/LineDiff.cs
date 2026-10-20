@@ -18239,6 +18239,154 @@ public static class LineDiff
         return $"Semantic diff pattern matching audit ({details} · {category} · {score:0.#}% safety score)";
     }
 
+    public static DiffMemorySpanSafetyAudit AuditMemoryAndSpanSafety(string? beforeText, string? afterText)
+    {
+        var diff = Diff(beforeText ?? string.Empty, afterText ?? string.Empty);
+        var unified = BuildUnified(diff);
+        return AuditMemoryAndSpanSafety(unified);
+    }
+
+    public static DiffMemorySpanSafetyAudit AuditMemoryAndSpanSafety(
+        IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows == null)
+        {
+            string emptySummary = FormatMemorySpanSafetySummary(0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new DiffMemorySpanSafetyAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<MemorySpanHazardItem>(), "Clean Baseline", emptySummary);
+        }
+
+        var modifiedRows = unifiedRows
+            .Where(r => !r.IsGap && r.Kind == Kind.Added && !string.IsNullOrWhiteSpace(r.Text))
+            .ToList();
+
+        int totalModified = modifiedRows.Count;
+        if (totalModified == 0)
+        {
+            string emptySummary = FormatMemorySpanSafetySummary(0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new DiffMemorySpanSafetyAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<MemorySpanHazardItem>(), "Clean Baseline", emptySummary);
+        }
+
+        var hazards = new List<MemorySpanHazardItem>();
+        int asyncSpanCount = 0;
+        int closureSpanCount = 0;
+        int memorySliceEscapeCount = 0;
+        int loopClosureCaptureCount = 0;
+
+        var asyncSpanRegex = new Regex(@"(?:await\s+.*(?:Span<|ReadOnlySpan<|stackalloc\b))|(?:(?:Span<|ReadOnlySpan<|stackalloc\b).*await\s+)", RegexOptions.Compiled);
+        var closureSpanRegex = new Regex(@"(?:=>|delegate\b)[^;{}]*(?:Span<|ReadOnlySpan<|\.AsSpan\(\)|\.Slice\()", RegexOptions.Compiled);
+        var memoryEscapeRegex = new Regex(@"(?:MemoryMarshal\.(?:Cast|CreateSpan|GetReference)|(?:Memory<[^>]+>\s*\.Span))", RegexOptions.Compiled);
+        var loopClosureRegex = new Regex(@"(?:for\s*\(|foreach\s*\()[^)]*\)\s*.*(?:=>|delegate)", RegexOptions.Compiled);
+
+        bool insideAsyncMethod = false;
+
+        for (int i = 0; i < modifiedRows.Count; i++)
+        {
+            var row = modifiedRows[i];
+            string text = row.Text.Trim();
+            int lineNum = row.NewNumber ?? (i + 1);
+
+            if (text.StartsWith("//") || text.StartsWith("/*") || text.StartsWith("*"))
+                continue;
+
+            if (Regex.IsMatch(text, @"\basync\s+(Task|ValueTask|void)\b"))
+            {
+                insideAsyncMethod = true;
+            }
+
+            if ((insideAsyncMethod && Regex.IsMatch(text, @"\b(Span<|ReadOnlySpan<|stackalloc\b)")) || asyncSpanRegex.IsMatch(text))
+            {
+                asyncSpanCount++;
+                hazards.Add(new MemorySpanHazardItem(
+                    lineNum,
+                    text,
+                    "Async Span / Stackalloc Boundary Crossing",
+                    "High",
+                    text,
+                    "Ref struct (Span/ReadOnlySpan) cannot cross await points; use Memory<T> or ReadOnlyMemory<T> for async flows."));
+            }
+
+            if (closureSpanRegex.IsMatch(text))
+            {
+                closureSpanCount++;
+                hazards.Add(new MemorySpanHazardItem(
+                    lineNum,
+                    text,
+                    "Span Sliced Inside Lambda Closure",
+                    "Medium",
+                    text,
+                    "Span cannot be captured in heap closures; ensure delegate is synchronous or convert to Memory<T>."));
+            }
+
+            if (memoryEscapeRegex.IsMatch(text))
+            {
+                memorySliceEscapeCount++;
+                hazards.Add(new MemorySpanHazardItem(
+                    lineNum,
+                    text,
+                    "MemoryMarshal / Unsafe Memory Span Escape",
+                    "Medium",
+                    text,
+                    "Verify Memory<T>.Span lifetime does not outlive backing storage or async continuation."));
+            }
+
+            if (loopClosureRegex.IsMatch(text))
+            {
+                loopClosureCaptureCount++;
+                hazards.Add(new MemorySpanHazardItem(
+                    lineNum,
+                    text,
+                    "Loop Variable Captured in Closure",
+                    "Low",
+                    text,
+                    "Copy loop variable to a local variable inside loop body before capturing in lambda."));
+            }
+        }
+
+        double score = 100.0;
+        score -= asyncSpanCount * 25.0;
+        score -= closureSpanCount * 15.0;
+        score -= memorySliceEscapeCount * 12.0;
+        score -= loopClosureCaptureCount * 8.0;
+        score = Math.Clamp(score, 0.0, 100.0);
+
+        string category = score switch
+        {
+            >= 95.0 => "Zero Memory/Span Escape Hazards",
+            >= 80.0 => "Safe Span Lifetime Hygiene",
+            >= 60.0 => "Moderate Closure / Span Hazards",
+            _ => "Unsafe Ref Struct & Memory Escape Risks"
+        };
+
+        string summary = FormatMemorySpanSafetySummary(
+            totalModified, asyncSpanCount, closureSpanCount, memorySliceEscapeCount, loopClosureCaptureCount, score, category);
+
+        return new DiffMemorySpanSafetyAudit(
+            totalModified, asyncSpanCount, closureSpanCount, memorySliceEscapeCount, loopClosureCaptureCount, score, hazards, category, summary);
+    }
+
+    public static string FormatMemorySpanSafetySummary(
+        int totalModified, int asyncSpan, int closureSpan, int memoryEscape, int loopClosure, double score, string category)
+    {
+        if (totalModified == 0)
+            return "Semantic diff memory & span safety: Clean diff · 0 modified lines";
+
+        var parts = new List<string>();
+        parts.Add($"{totalModified} modified line{(totalModified == 1 ? "" : "s")}");
+        if (asyncSpan > 0) parts.Add($"🚨 {asyncSpan} async span hazard{(asyncSpan == 1 ? "" : "s")}");
+        if (closureSpan > 0) parts.Add($"⚠ {closureSpan} closure span{(closureSpan == 1 ? "" : "s")}");
+        if (memoryEscape > 0) parts.Add($"⚠ {memoryEscape} memory escape{(memoryEscape == 1 ? "" : "s")}");
+        if (loopClosure > 0) parts.Add($"ℹ {loopClosure} loop capture{(loopClosure == 1 ? "" : "s")}");
+        if (asyncSpan == 0 && closureSpan == 0 && memoryEscape == 0 && loopClosure == 0)
+            parts.Add("0 memory/span lifetime hazards");
+
+        string details = string.Join(" · ", parts);
+        return $"Semantic diff memory & span safety ({details} · {category} · {score:0.#}% safety score)";
+    }
+
     public static DiffStringInterpolationBoxingAudit AuditStringAllocationsAndSpanSafety(string? beforeText, string? afterText)
     {
         var diff = Diff(beforeText ?? string.Empty, afterText ?? string.Empty);
@@ -20454,6 +20602,25 @@ public sealed record StringInterpolationBoxingHazardItem(
     string TechnicalImpact,
     string Recommendation,
     string RiskCategory);
+
+public sealed record MemorySpanHazardItem(
+    int LineNumber,
+    string LineText,
+    string HazardType,
+    string RiskLevel,
+    string CodeSnippet,
+    string Recommendation);
+
+public sealed record DiffMemorySpanSafetyAudit(
+    int TotalModifiedLines,
+    int AsyncSpanHazards,
+    int ClosureSpanHazards,
+    int MemorySliceEscapes,
+    int LoopClosureCaptures,
+    double MemorySafetyScore,
+    IReadOnlyList<MemorySpanHazardItem> Hazards,
+    string Category,
+    string Summary);
 
 public sealed record DiffStringInterpolationBoxingAudit(
     int TotalModifiedLines,

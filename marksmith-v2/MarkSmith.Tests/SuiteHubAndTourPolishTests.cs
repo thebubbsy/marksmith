@@ -6654,4 +6654,75 @@ Some paragraph in between.
         Assert.Contains("AuditWorkspaceCrossFileLinks", suiteCs);
     }
 
+
+    [Fact]
+    public void Run205_AuditWorkspaceBacklinksAndUnreferencedAnchors_ValidatesCohesion()
+    {
+        var inMemoryDocs = new Dictionary<string, string>
+        {
+            [@"C:\workspace\index.md"] = "# Home\n\nSee [Architecture](arch.md#system-design).",
+            [@"C:\workspace\arch.md"] = "# System Design\n\nSystem architecture overview.\n\n## Unlinked Topic\n\nTopic details."
+        };
+
+        var audit = RecentFilesService.AuditWorkspaceBacklinksAndUnreferencedAnchors(
+            explicitFiles: new[] { @"C:\workspace\index.md", @"C:\workspace\arch.md" },
+            fileExistsProvider: p => inMemoryDocs.ContainsKey(p),
+            contentReader: p => inMemoryDocs[p]);
+
+        Assert.Equal(2, audit.TotalFilesScanned);
+        Assert.Equal(3, audit.TotalHeadingsFound);
+        Assert.Equal(1, audit.TotalBacklinksMapped);
+        Assert.Equal(1, audit.ReferencedHeadingsCount);
+        Assert.Equal(2, audit.UnreferencedHeadingsCount);
+        Assert.True(audit.BacklinkCohesionScore > 0.0);
+
+        string formatted = RecentFilesService.FormatWorkspaceBacklinksSummary(
+            audit.TotalFilesScanned, audit.TotalHeadingsFound, audit.ReferencedHeadingsCount,
+            audit.UnreferencedHeadingsCount, audit.TotalBacklinksMapped,
+            audit.BacklinkCohesionScore, audit.Category);
+        Assert.Equal(audit.Summary, formatted);
+    }
+
+    [Fact]
+    public void Run205_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // Surface 1: MainWindow - Markdown Definition Lists & Glossary Term Consistency Auditor
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("auditDefinitionListsConsistencyItem", mainCs);
+        Assert.Contains("AuditMarkdownDefinitionLists", mainCs);
+
+        // Surface 2: MindMapGalaxyWindow - Graph Closeness Centrality & Topological Median Placement Auditor
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditGraphMedianClosenessPlacementItem", galaxyXaml);
+        Assert.Contains("OnAuditGraphMedianClosenessPlacementClick", galaxyCs);
+        Assert.Contains("AuditGraphClosenessCentrality", galaxyCs);
+
+        // Surface 3: ShapeDesignStudioWindow - Diagram Isometric Grid & 30-Degree Projection Alignment Auditor
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditIsometricAlignmentItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditIsometricAlignmentClick", shapeCs);
+        Assert.Contains("AuditIsometricProjectionAlignment", shapeCs);
+
+        // Surface 4: SmartArtDesignStudioWindow - SmartArt 2x2 Matrix / Quadrant Geometry & Text Balance Symmetry Auditor
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineStatsAuditMatrixQuadrantGeometryItem", smartArtXaml);
+        Assert.Contains("OnOutlineStatsAuditMatrixQuadrantGeometryClick", smartArtCs);
+        Assert.Contains("AuditMatrixQuadrantGeometry", smartArtCs);
+
+        // Surface 5: HistoryWindow - Semantic Diff Memory<T> / Span<T> Slice Safety & Closure Capture Analyzer
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditMemorySpanSafety", historyCs);
+        Assert.Contains("AuditMemoryAndSpanSafety", historyCs);
+
+        // Surface 6: SuiteHubView - Workspace Markdown Backlinks & Unreferenced Anchors Cohesion Auditor
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("AuditWorkspaceBacklinksItem", suiteXaml);
+        Assert.Contains("OnAuditWorkspaceBacklinksClick", suiteCs);
+        Assert.Contains("AuditWorkspaceBacklinksAndUnreferencedAnchors", suiteCs);
+    }
+
 }

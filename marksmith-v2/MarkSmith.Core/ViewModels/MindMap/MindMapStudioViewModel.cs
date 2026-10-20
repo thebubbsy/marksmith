@@ -12837,6 +12837,224 @@ namespace MarkSmith.ViewModels.MindMap
             return $"Mind map graph diameter audit ({scope}{details} · {category} · {score:0.#}% breadth score)";
         }
 
+        public GraphMedianClosenessPlacementAudit AuditGraphClosenessCentrality(bool selectionOnly = false)
+        {
+            var selected = Nodes.Where(n => n.IsSelected).ToList();
+            var targetNodes = (selectionOnly && selected.Count > 0)
+                ? selected
+                : Nodes.ToList();
+
+            bool isSelection = selectionOnly && selected.Count > 0;
+            var nodeIds = new HashSet<string>(targetNodes.Select(n => n.Id));
+            var relevantLinks = Links.Where(l => nodeIds.Contains(l.SourceNodeId) && nodeIds.Contains(l.TargetNodeId)).ToList();
+
+            var audit = AuditGraphClosenessCentrality(targetNodes.Select(n => n.Model), relevantLinks.Select(l => l.Model), isSelection);
+            StatusMessage = audit.Summary;
+            return audit;
+        }
+
+        public static GraphMedianClosenessPlacementAudit AuditGraphClosenessCentrality(
+            IEnumerable<MindMapNode>? nodes,
+            IEnumerable<MindMapLink>? links,
+            bool isSelection = false)
+        {
+            var nodeList = nodes?.ToList() ?? new List<MindMapNode>();
+            var linkList = links?.ToList() ?? new List<MindMapLink>();
+            int totalNodes = nodeList.Count;
+            int totalEdges = linkList.Count;
+
+            if (totalNodes == 0)
+            {
+                string emptySummary = FormatClosenessCentralitySummary(0, 0, "", "", 0.0, "", 0.0, 0, 100.0, "Empty Galaxy", isSelection);
+                return new GraphMedianClosenessPlacementAudit(
+                    0, 0, "", "", 0.0, "", 0.0, 0, 100.0,
+                    Array.Empty<NodeClosenessPlacementItem>(), "Empty Galaxy", isSelection, emptySummary);
+            }
+
+            if (totalNodes == 1)
+            {
+                var single = nodeList[0];
+                var singleItem = new NodeClosenessPlacementItem(single.Id, single.Title, 0, 0, 0.0, 1.0, "Isolated Root", "Connect additional nodes to expand the graph.");
+                string singleSummary = FormatClosenessCentralitySummary(1, 0, single.Id, single.Title, 1.0, single.Title, 1.0, 1, 100.0, "Harmonically Centered Hub", isSelection);
+                return new GraphMedianClosenessPlacementAudit(
+                    1, 0, single.Id, single.Title, 1.0, single.Title, 1.0, 1, 100.0,
+                    new[] { singleItem }, "Harmonically Centered Hub", isSelection, singleSummary);
+            }
+
+            // Build undirected adjacency list
+            var adj = new Dictionary<string, HashSet<string>>();
+            var degrees = new Dictionary<string, int>();
+            foreach (var node in nodeList)
+            {
+                adj[node.Id] = new HashSet<string>();
+                degrees[node.Id] = 0;
+            }
+
+            foreach (var link in linkList)
+            {
+                if (adj.ContainsKey(link.SourceNodeId) && adj.ContainsKey(link.TargetNodeId))
+                {
+                    if (adj[link.SourceNodeId].Add(link.TargetNodeId))
+                    {
+                        degrees[link.SourceNodeId]++;
+                    }
+                    if (adj[link.TargetNodeId].Add(link.SourceNodeId))
+                    {
+                        degrees[link.TargetNodeId]++;
+                    }
+                }
+            }
+
+            // BFS from each node to calculate shortest distances to all reachable nodes
+            var nodeClosenessList = new List<(MindMapNode Node, int ReachableCount, double MeanDist, double Closeness, double Harmonic)>();
+            int connectedComponents = 0;
+            var visitedGlobal = new HashSet<string>();
+
+            // Count connected components
+            foreach (var node in nodeList)
+            {
+                if (visitedGlobal.Contains(node.Id)) continue;
+                connectedComponents++;
+                var q = new Queue<string>();
+                q.Enqueue(node.Id);
+                visitedGlobal.Add(node.Id);
+                while (q.Count > 0)
+                {
+                    var curr = q.Dequeue();
+                    foreach (var neighbor in adj[curr])
+                    {
+                        if (visitedGlobal.Add(neighbor))
+                        {
+                            q.Enqueue(neighbor);
+                        }
+                    }
+                }
+            }
+
+            foreach (var node in nodeList)
+            {
+                var dist = new Dictionary<string, int>();
+                dist[node.Id] = 0;
+                var q = new Queue<string>();
+                q.Enqueue(node.Id);
+
+                while (q.Count > 0)
+                {
+                    var u = q.Dequeue();
+                    int d = dist[u];
+                    foreach (var v in adj[u])
+                    {
+                        if (!dist.ContainsKey(v))
+                        {
+                            dist[v] = d + 1;
+                            q.Enqueue(v);
+                        }
+                    }
+                }
+
+                int reachable = dist.Count - 1;
+                double sumDist = 0;
+                double harmonicSum = 0;
+
+                foreach (var kvp in dist)
+                {
+                    if (kvp.Key == node.Id) continue;
+                    sumDist += kvp.Value;
+                    harmonicSum += 1.0 / kvp.Value;
+                }
+
+                double meanDist = reachable > 0 ? sumDist / reachable : 0.0;
+                double closeness = (reachable > 0 && sumDist > 0)
+                    ? ((double)reachable / (totalNodes - 1)) * ((double)reachable / sumDist)
+                    : 0.0;
+                double harmonic = harmonicSum / (totalNodes - 1);
+
+                nodeClosenessList.Add((node, reachable, meanDist, closeness, harmonic));
+            }
+
+            var sorted = nodeClosenessList.OrderByDescending(x => x.Harmonic).ThenBy(x => x.MeanDist).ToList();
+            var median = sorted.First();
+            var peripheral = sorted.Last();
+
+            double avgCloseness = sorted.Average(x => x.Harmonic);
+
+            var items = new List<NodeClosenessPlacementItem>();
+            for (int i = 0; i < sorted.Count; i++)
+            {
+                var entry = sorted[i];
+                string role = i == 0
+                    ? "Topological Median"
+                    : i < Math.Max(1, totalNodes * 0.25)
+                        ? "Core Hub"
+                        : i >= totalNodes * 0.7
+                            ? "Peripheral Node"
+                            : "Intermediate Node";
+
+                string rec = role switch
+                {
+                    "Topological Median" => "Primary topological center of the galaxy; ideal focal hub for graph layout.",
+                    "Core Hub" => "High centrality node; ensure balanced branch fan-out.",
+                    "Peripheral Node" => "Outer node; consider leaf grouping or sub-branch hierarchy.",
+                    _ => "Balanced intermediate node."
+                };
+
+                items.Add(new NodeClosenessPlacementItem(
+                    entry.Node.Id,
+                    entry.Node.Title,
+                    degrees[entry.Node.Id],
+                    entry.ReachableCount,
+                    entry.MeanDist,
+                    entry.Harmonic,
+                    role,
+                    rec));
+            }
+
+            double score = 100.0;
+            if (connectedComponents > 1)
+            {
+                score -= (connectedComponents - 1) * 12.0;
+            }
+            if (peripheral.Harmonic < 0.1 && totalNodes > 3)
+            {
+                score -= 10.0;
+            }
+            score = Math.Clamp(score, 0.0, 100.0);
+
+            string category = score switch
+            {
+                >= 90.0 => "Harmonically Centered Hub",
+                >= 75.0 => "Balanced Centrality Topology",
+                >= 60.0 => "Asymmetric Peripheral Drift",
+                _ => "Fragmented Centrality Distribution"
+            };
+
+            string summary = FormatClosenessCentralitySummary(
+                totalNodes, totalEdges, median.Node.Id, median.Node.Title, median.Harmonic,
+                peripheral.Node.Title, avgCloseness, connectedComponents, score, category, isSelection);
+
+            return new GraphMedianClosenessPlacementAudit(
+                totalNodes, totalEdges, median.Node.Id, median.Node.Title, median.Harmonic,
+                peripheral.Node.Title, avgCloseness, connectedComponents, score, items, category, isSelection, summary);
+        }
+
+        public static string FormatClosenessCentralitySummary(
+            int totalNodes, int totalEdges, string medianId, string medianTitle, double medianCloseness,
+            string peripheralTitle, double avgCloseness, int components, double score, string category, bool isSelection)
+        {
+            string scope = isSelection ? "Selection · " : "";
+            if (totalNodes == 0) return $"Mind map closeness centrality audit ({scope}0 nodes): Empty galaxy";
+
+            var parts = new List<string>();
+            parts.Add($"{totalNodes} nodes, {totalEdges} edges");
+            if (!string.IsNullOrEmpty(medianTitle)) parts.Add($"Median '{medianTitle}' (closeness {medianCloseness:0.##})");
+            parts.Add($"Avg closeness {avgCloseness:0.##}");
+            if (components > 1) parts.Add($"⚠ {components} disconnected components");
+            else parts.Add("1 component");
+
+            string details = string.Join(" · ", parts);
+            return $"Mind map closeness centrality audit ({scope}{details} · {category} · {score:0.#}% harmony score)";
+        }
+
 
         public static string FormatBipartitenessSummary(
             int totalNodes, int totalEdges, bool isBipartite, int oddCycles, int conflicts,
@@ -14536,6 +14754,31 @@ namespace MarkSmith.ViewModels.MindMap
         string FromTitle,
         string ToNodeId,
         string ToTitle);
+
+    public sealed record NodeClosenessPlacementItem(
+        string NodeId,
+        string Title,
+        int Degree,
+        int ReachableCount,
+        double MeanDistance,
+        double ClosenessScore,
+        string Role,
+        string Recommendation);
+
+    public sealed record GraphMedianClosenessPlacementAudit(
+        int TotalNodes,
+        int TotalEdges,
+        string MedianNodeId,
+        string MedianNodeTitle,
+        double MedianCloseness,
+        string PeripheralNodeTitle,
+        double AverageCloseness,
+        int ConnectedComponentsCount,
+        double CentralityHarmonyScore,
+        IReadOnlyList<NodeClosenessPlacementItem> Nodes,
+        string Category,
+        bool IsSelectionScope,
+        string Summary);
 
     public sealed record GraphDiameterGeodesicAudit(
         int TotalNodes,

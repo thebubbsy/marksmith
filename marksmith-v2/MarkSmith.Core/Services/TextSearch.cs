@@ -12918,6 +12918,225 @@ public static class TextSearch
         return $"Markdown thematic break audit ({details} · {category} · {score:0.#}% spacing score)";
     }
 
+    public static MarkdownDefinitionListAudit AuditMarkdownDefinitionLists(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            string emptySummary = FormatDefinitionListsSummary(0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new MarkdownDefinitionListAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<MarkdownDefinitionListItem>(),
+                "Clean Baseline", emptySummary);
+        }
+
+        var lines = markdownText.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        var items = new List<MarkdownDefinitionListItem>();
+
+        int totalTerms = 0;
+        int totalDefinitions = 0;
+        int multiLineDefinitions = 0;
+        int orphanDefinitions = 0;
+
+        var seenTerms = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        int duplicateTermsCount = 0;
+
+        // Track frontmatter
+        int frontmatterEndLine = -1;
+        if (lines.Length > 0 && lines[0].Trim() == "---")
+        {
+            for (int i = 1; i < lines.Length; i++)
+            {
+                if (lines[i].Trim() == "---")
+                {
+                    frontmatterEndLine = i;
+                    break;
+                }
+            }
+        }
+
+        bool insideCodeFence = false;
+        string? activeTerm = null;
+        int activeTermLine = -1;
+        bool precedingLineWasBlank = false;
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            if (i <= frontmatterEndLine) continue;
+
+            string line = lines[i];
+            string trimmed = line.Trim();
+
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+            {
+                insideCodeFence = !insideCodeFence;
+                activeTerm = null;
+                continue;
+            }
+
+            if (insideCodeFence) continue;
+
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                precedingLineWasBlank = true;
+                continue;
+            }
+
+            // Check if this line is a definition marker starting with ':'
+            // In Markdown definition lists: ': definition text' optionally preceded by up to 4 spaces or a tab
+            bool isDefMarker = false;
+            string defText = string.Empty;
+            int colonIndex = line.IndexOf(':');
+
+            if (colonIndex >= 0)
+            {
+                string prefix = line.Substring(0, colonIndex);
+                if (prefix.Length <= 4 && prefix.Trim().Length == 0)
+                {
+                    isDefMarker = true;
+                    defText = line.Substring(colonIndex + 1).Trim();
+                }
+            }
+
+            if (isDefMarker)
+            {
+                totalDefinitions++;
+                string termName;
+                bool isOrphan = false;
+
+                if (!string.IsNullOrEmpty(activeTerm))
+                {
+                    termName = activeTerm;
+                }
+                else
+                {
+                    isOrphan = true;
+                    orphanDefinitions++;
+                    termName = "[Orphan Definition]";
+                }
+
+                // Check for multi-line continuation in subsequent lines
+                bool isMultiLine = false;
+                int lookahead = i + 1;
+                while (lookahead < lines.Length)
+                {
+                    string nextLine = lines[lookahead];
+                    if (string.IsNullOrWhiteSpace(nextLine)) break;
+                    if (nextLine.TrimStart().StartsWith(":")) break;
+                    if (nextLine.StartsWith("  ") || nextLine.StartsWith("\t"))
+                    {
+                        isMultiLine = true;
+                        lookahead++;
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+
+                if (isMultiLine)
+                {
+                    multiLineDefinitions++;
+                }
+
+                bool isDuplicate = false;
+                if (!isOrphan && seenTerms.TryGetValue(termName, out int count))
+                {
+                    if (count > 1)
+                    {
+                        isDuplicate = true;
+                    }
+                }
+
+                string recommendation = isOrphan
+                    ? "Add a preceding term on the line above this definition."
+                    : isDuplicate
+                        ? "Consolidate duplicate glossary term definitions."
+                        : string.IsNullOrEmpty(defText)
+                            ? "Provide definition text following the colon marker."
+                            : "Clean glossary term-definition pair.";
+
+                items.Add(new MarkdownDefinitionListItem(
+                    i + 1,
+                    termName,
+                    defText,
+                    isMultiLine,
+                    precedingLineWasBlank,
+                    isDuplicate,
+                    recommendation));
+
+                precedingLineWasBlank = false;
+                continue;
+            }
+
+            // If not a definition marker, evaluate if this could be a Term
+            if (!line.StartsWith("  ") && !line.StartsWith("\t") && !trimmed.StartsWith("#") && !trimmed.StartsWith(">") && !trimmed.StartsWith("|") && !trimmed.StartsWith("- ") && !trimmed.StartsWith("* "))
+            {
+                activeTerm = trimmed;
+                activeTermLine = i + 1;
+
+                if (!seenTerms.ContainsKey(activeTerm))
+                {
+                    seenTerms[activeTerm] = 1;
+                    totalTerms++;
+                }
+                else
+                {
+                    seenTerms[activeTerm]++;
+                    duplicateTermsCount++;
+                }
+            }
+            else
+            {
+                activeTerm = null;
+            }
+
+            precedingLineWasBlank = false;
+        }
+
+        // Calculate score
+        double score = 100.0;
+        if (orphanDefinitions > 0) score -= orphanDefinitions * 15.0;
+        if (duplicateTermsCount > 0) score -= duplicateTermsCount * 10.0;
+        score = Math.Clamp(score, 0.0, 100.0);
+
+        string category = score switch
+        {
+            >= 95.0 => "Flawless Definition Glossary",
+            >= 80.0 => "Consistent Definition Lists",
+            >= 60.0 => "Moderate Formatting Discrepancies",
+            _ => "Malformed Definition Syntax"
+        };
+
+        string summary = FormatDefinitionListsSummary(
+            totalTerms, totalDefinitions, multiLineDefinitions,
+            duplicateTermsCount, orphanDefinitions, score, category);
+
+        return new MarkdownDefinitionListAudit(
+            totalTerms, totalDefinitions, multiLineDefinitions,
+            duplicateTermsCount, orphanDefinitions, score, items, category, summary);
+    }
+
+    public static string FormatDefinitionListsSummary(string? markdownText)
+        => AuditMarkdownDefinitionLists(markdownText).Summary;
+
+    public static string FormatDefinitionListsSummary(
+        int totalTerms, int totalDefinitions, int multiLineDefinitions,
+        int duplicateTerms, int orphanDefinitions, double score, string category)
+    {
+        if (totalDefinitions == 0)
+            return "Markdown definition list audit: Clean document · 0 glossary definitions detected";
+
+        var parts = new List<string>();
+        parts.Add($"{totalTerms} term{(totalTerms == 1 ? "" : "s")}");
+        parts.Add($"{totalDefinitions} definition{(totalDefinitions == 1 ? "" : "s")}");
+        if (multiLineDefinitions > 0) parts.Add($"{multiLineDefinitions} multi-line");
+        if (duplicateTerms > 0) parts.Add($"⚠ {duplicateTerms} duplicate term{(duplicateTerms == 1 ? "" : "s")}");
+        if (orphanDefinitions > 0) parts.Add($"🚨 {orphanDefinitions} orphan definition{(orphanDefinitions == 1 ? "" : "s")}");
+
+        string details = string.Join(" · ", parts);
+        return $"Markdown definition list audit ({details} · {category} · {score:0.#}% hygiene score)";
+    }
+
 }
 
 
@@ -14431,6 +14650,32 @@ public sealed record MarkdownHorizontalRuleItem(
 /// Represents the result of an audit of markdown horizontal rules (---, ***, ___), surrounding blank line whitespace hygiene,
 /// mixed marker styles, and thematic divider spacing consistency.
 /// </summary>
+/// <summary>
+/// Represents a single definition list item in markdown glossary auditing.
+/// </summary>
+public sealed record MarkdownDefinitionListItem(
+    int LineNumber,
+    string Term,
+    string DefinitionText,
+    bool IsMultiLine,
+    bool HasBlankLineSeparation,
+    bool IsDuplicate,
+    string Recommendation);
+
+/// <summary>
+/// Represents the result of an audit of markdown definition lists and glossary terms.
+/// </summary>
+public sealed record MarkdownDefinitionListAudit(
+    int TotalTerms,
+    int TotalDefinitions,
+    int MultiLineDefinitions,
+    int DuplicateTermCount,
+    int OrphanDefinitionCount,
+    double DefinitionHygieneScore,
+    IReadOnlyList<MarkdownDefinitionListItem> Items,
+    string Category,
+    string Summary);
+
 public sealed record MarkdownHorizontalRuleAudit(
     int TotalBreaks,
     int DashBreakCount,

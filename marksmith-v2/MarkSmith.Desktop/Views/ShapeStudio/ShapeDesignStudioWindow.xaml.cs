@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.UI.Xaml;
@@ -6708,6 +6708,14 @@ namespace MarkSmith.Views.ShapeStudio
     {
         if (ViewModel == null) return;
         var result = ViewModel.AuditConnectorAnchorSnapping();
+        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+        ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+    }
+
+    private void OnSelectionAuditIsometricAlignmentClick(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel == null) return;
+        var result = ViewModel.AuditIsometricProjectionAlignment();
         _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
         ViewModel.StatusMessage = $"\u2713 {result.Summary}";
     }

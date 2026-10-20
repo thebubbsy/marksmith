@@ -10017,6 +10017,139 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         return $"Connector port snapping audit ({scope}{details} · {category} · {score:0.#}% score)";
     }
 
+    public DiagramIsometricAlignmentAudit AuditIsometricProjectionAlignment(bool selectionOnly = false)
+    {
+        var selected = SelectedItems.ToList();
+        var targetShapes = (selectionOnly && selected.Count > 0) ? selected : Shapes.ToList();
+        bool isSelection = selectionOnly && selected.Count > 0;
+        var audit = AuditIsometricProjectionAlignment(targetShapes, Shapes.ToList(), isSelection);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static DiagramIsometricAlignmentAudit AuditIsometricProjectionAlignment(
+        IEnumerable<ShapeCanvasItemViewModel>? targetShapes,
+        IEnumerable<ShapeCanvasItemViewModel>? allShapes,
+        bool isSelection = false)
+    {
+        var list = (allShapes ?? Enumerable.Empty<ShapeCanvasItemViewModel>()).Where(s => s != null).ToList();
+        var targets = (targetShapes ?? list).Where(s => s != null && !s.IsLine).ToList();
+
+        int totalShapes = targets.Count;
+        if (totalShapes < 2)
+        {
+            string emptySummary = FormatIsometricAlignmentSummary(totalShapes, 0, 0, 0, 0, 100.0, "Clean Baseline", isSelection);
+            return new DiagramIsometricAlignmentAudit(
+                totalShapes, 0, 0, 0, 0, 100.0,
+                Array.Empty<IsometricShapeRayItem>(), "Clean Baseline", isSelection, emptySummary);
+        }
+
+        double[] isometricAxes = new double[] { 30.0, 90.0, 150.0, 210.0, 270.0, 330.0 };
+
+        var rays = new List<IsometricShapeRayItem>();
+        int alignedRays = 0;
+        int driftRays = 0;
+        int offAxisRays = 0;
+
+        for (int i = 0; i < targets.Count; i++)
+        {
+            var s1 = targets[i];
+            double c1X = s1.X + s1.Width / 2.0;
+            double c1Y = s1.Y + s1.Height / 2.0;
+
+            for (int j = i + 1; j < targets.Count; j++)
+            {
+                var s2 = targets[j];
+                double c2X = s2.X + s2.Width / 2.0;
+                double c2Y = s2.Y + s2.Height / 2.0;
+
+                double dx = c2X - c1X;
+                double dy = c2Y - c1Y;
+                double dist = Math.Sqrt(dx * dx + dy * dy);
+
+                if (dist < 5.0) continue;
+
+                double angleRad = Math.Atan2(dy, dx);
+                double angleDeg = (angleRad * 180.0 / Math.PI);
+                if (angleDeg < 0) angleDeg += 360.0;
+
+                double minDev = double.MaxValue;
+                double nearestAxis = 30.0;
+
+                foreach (var axis in isometricAxes)
+                {
+                    double diff = Math.Abs(angleDeg - axis);
+                    if (diff > 180.0) diff = 360.0 - diff;
+                    if (diff < minDev)
+                    {
+                        minDev = diff;
+                        nearestAxis = axis;
+                    }
+                }
+
+                bool isAligned = minDev <= 6.0;
+                bool isDrift = !isAligned && minDev <= 16.0;
+
+                if (isAligned) alignedRays++;
+                else if (isDrift) driftRays++;
+                else offAxisRays++;
+
+                string rec = isAligned
+                    ? "Conforms cleanly to isometric axis."
+                    : isDrift
+                        ? $"Snap angular position by {minDev:0.#}° to reach {nearestAxis:0}° isometric axis."
+                        : $"Freeform or orthogonal vector ({angleDeg:0.#}°).";
+
+                rays.Add(new IsometricShapeRayItem(
+                    s1.Id ?? $"shape_{i}",
+                    s1.Name ?? $"Shape {i + 1}",
+                    s2.Id ?? $"shape_{j}",
+                    s2.Name ?? $"Shape {j + 1}",
+                    Math.Round(angleDeg, 1),
+                    nearestAxis,
+                    Math.Round(minDev, 1),
+                    isAligned,
+                    rec));
+            }
+        }
+
+        int totalRays = rays.Count;
+        double score = totalRays > 0
+            ? Math.Clamp((alignedRays * 1.0 + driftRays * 0.4) / totalRays * 100.0, 0.0, 100.0)
+            : 100.0;
+
+        string category = score switch
+        {
+            >= 90.0 => "Exact Isometric Precision",
+            >= 70.0 => "Cohesive Isometric Projection",
+            >= 45.0 => "Moderate Angular Skew",
+            _ => "Freeform / Non-Isometric Layout"
+        };
+
+        string summary = FormatIsometricAlignmentSummary(
+            totalShapes, totalRays, alignedRays, driftRays, offAxisRays, score, category, isSelection);
+
+        return new DiagramIsometricAlignmentAudit(
+            totalShapes, totalRays, alignedRays, driftRays, offAxisRays, score, rays, category, isSelection, summary);
+    }
+
+    public static string FormatIsometricAlignmentSummary(
+        int totalShapes, int totalRays, int alignedRays, int driftRays, int offAxisRays,
+        double score, string category, bool isSelection)
+    {
+        string scope = isSelection ? "Selection · " : "";
+        if (totalShapes < 2) return $"Isometric alignment audit ({scope}{totalShapes} shapes): Clean Baseline";
+
+        var parts = new List<string>();
+        parts.Add($"{totalShapes} shapes, {totalRays} vectors");
+        parts.Add($"{alignedRays} isometric ({(totalRays > 0 ? (alignedRays * 100.0 / totalRays) : 100.0):0.#}%)");
+        if (driftRays > 0) parts.Add($"⚠ {driftRays} drift");
+        if (offAxisRays > 0) parts.Add($"{offAxisRays} off-axis");
+
+        string details = string.Join(" · ", parts);
+        return $"Isometric alignment audit ({scope}{details} · {category} · {score:0.#}% precision score)";
+    }
+
     public DiagramRadialAlignmentAudit AuditRadialAndConcentricAlignment(bool selectionOnly = false)
     {
         var selected = SelectedItems.ToList();
@@ -14311,6 +14444,29 @@ public sealed record RadialShapeItem(
     int AssignedRing,
     double DeviationFromRingMean,
     string Recommendation);
+
+public sealed record IsometricShapeRayItem(
+    string FromShapeId,
+    string FromShapeName,
+    string ToShapeId,
+    string ToShapeName,
+    double AngleDegrees,
+    double NearestIsometricAxis,
+    double AngularDeviation,
+    bool IsAligned,
+    string Recommendation);
+
+public sealed record DiagramIsometricAlignmentAudit(
+    int TotalShapes,
+    int TotalRays,
+    int AlignedRays,
+    int DriftRays,
+    int OffAxisRays,
+    double PrecisionScore,
+    IReadOnlyList<IsometricShapeRayItem> Rays,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);
 
 public sealed record DiagramRadialAlignmentAudit(
     int TotalShapes,

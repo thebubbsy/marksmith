@@ -4388,5 +4388,45 @@ namespace MarkSmith.Tests
             Assert.True(disconnectedAudit.NetworkBreadthScore < chainAudit.NetworkBreadthScore);
         }
 
+    
+        [Fact]
+        public void Run205_AuditGraphClosenessCentrality_IdentifiesMedianAndPeripheralNodes()
+        {
+            // 1. Empty galaxy
+            var emptyAudit = MindMapStudioViewModel.AuditGraphClosenessCentrality(null, null);
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.Equal(100.0, emptyAudit.CentralityHarmonyScore);
+            Assert.Equal("Empty Galaxy", emptyAudit.Category);
+
+            // 2. Star graph: Hub (H) connected to Leaves (L1, L2, L3)
+            var hub = new MindMapNode { Id = "H", Title = "Central Hub" };
+            var l1 = new MindMapNode { Id = "L1", Title = "Leaf 1" };
+            var l2 = new MindMapNode { Id = "L2", Title = "Leaf 2" };
+            var l3 = new MindMapNode { Id = "L3", Title = "Leaf 3" };
+
+            var links = new List<MindMapLink>
+            {
+                new MindMapLink { Id = "l1", SourceNodeId = "H", TargetNodeId = "L1" },
+                new MindMapLink { Id = "l2", SourceNodeId = "H", TargetNodeId = "L2" },
+                new MindMapLink { Id = "l3", SourceNodeId = "H", TargetNodeId = "L3" }
+            };
+
+            var starAudit = MindMapStudioViewModel.AuditGraphClosenessCentrality(
+                new[] { hub, l1, l2, l3 }, links);
+
+            Assert.Equal(4, starAudit.TotalNodes);
+            Assert.Equal(3, starAudit.TotalEdges);
+            Assert.Equal("H", starAudit.MedianNodeId);
+            Assert.Equal("Central Hub", starAudit.MedianNodeTitle);
+            Assert.Equal(1.0, starAudit.MedianCloseness); // distance 1 to all other 3 nodes => harmonic sum = 3 / 3 = 1.0
+            Assert.True(starAudit.CentralityHarmonyScore >= 90.0);
+
+            string formatted = MindMapStudioViewModel.FormatClosenessCentralitySummary(
+                starAudit.TotalNodes, starAudit.TotalEdges, starAudit.MedianNodeId, starAudit.MedianNodeTitle,
+                starAudit.MedianCloseness, starAudit.PeripheralNodeTitle, starAudit.AverageCloseness,
+                starAudit.ConnectedComponentsCount, starAudit.CentralityHarmonyScore, starAudit.Category, false);
+            Assert.Equal(starAudit.Summary, formatted);
+        }
+
     }
 }

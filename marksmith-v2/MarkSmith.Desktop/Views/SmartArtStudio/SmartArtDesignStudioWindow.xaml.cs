@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -5137,6 +5137,14 @@ namespace MarkSmith.Views.SmartArtStudio
     {
         if (ViewModel == null) return;
         var result = ViewModel.AuditChevronProcessGeometry();
+        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+        ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+    }
+
+    private void OnOutlineStatsAuditMatrixQuadrantGeometryClick(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel == null) return;
+        var result = ViewModel.AuditMatrixQuadrantGeometry();
         _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
         ViewModel.StatusMessage = $"\u2713 {result.Summary}";
     }

@@ -3692,4 +3692,33 @@ public class ShapeStudioPolishTests
         Assert.Equal(symAudit.Summary, formatted);
     }
 
+
+    [Fact]
+    public void Run205_AuditIsometricProjectionAlignment_EvaluatesAnglesAndAxes()
+    {
+        // 1. Single shape / empty canvas
+        var singleAudit = ShapeDesignStudioViewModel.AuditIsometricProjectionAlignment(
+            new[] { new ShapeCanvasItemViewModel { Id = "s0", Name = "Lone", X = 100, Y = 100, Width = 50, Height = 50 } }, null);
+        Assert.Equal(1, singleAudit.TotalShapes);
+        Assert.Equal(100.0, singleAudit.PrecisionScore);
+        Assert.Equal("Clean Baseline", singleAudit.Category);
+
+        // 2. Pair aligned precisely at 30 degrees isometric angle: dx = 86.6, dy = 50.0 => atan2(50, 86.6) = 30.0 deg
+        var s1 = new ShapeCanvasItemViewModel { Id = "s1", Name = "Origin", X = 0, Y = 0, Width = 40, Height = 40 };
+        var s2 = new ShapeCanvasItemViewModel { Id = "s2", Name = "IsoPoint", X = 86.6, Y = 50.0, Width = 40, Height = 40 };
+        var shapes = new[] { s1, s2 };
+
+        var isoAudit = ShapeDesignStudioViewModel.AuditIsometricProjectionAlignment(shapes, shapes);
+        Assert.Equal(2, isoAudit.TotalShapes);
+        Assert.Equal(1, isoAudit.TotalRays);
+        Assert.Equal(1, isoAudit.AlignedRays);
+        Assert.Equal(0, isoAudit.OffAxisRays);
+        Assert.True(isoAudit.PrecisionScore >= 95.0);
+
+        string formatted = ShapeDesignStudioViewModel.FormatIsometricAlignmentSummary(
+            isoAudit.TotalShapes, isoAudit.TotalRays, isoAudit.AlignedRays, isoAudit.DriftRays,
+            isoAudit.OffAxisRays, isoAudit.PrecisionScore, isoAudit.Category, false);
+        Assert.Equal(isoAudit.Summary, formatted);
+    }
+
 }

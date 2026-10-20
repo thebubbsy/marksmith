@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -4172,6 +4172,14 @@ namespace MarkSmith.Views.MindMap
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditGraphEdgeIntersectionPlanarity();
+            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+        }
+
+        private void OnAuditGraphMedianClosenessPlacementClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditGraphClosenessCentrality();
             _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
             ViewModel.StatusMessage = $"\u2713 {result.Summary}";
         }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Threading.Tasks;
 using MarkSmith.Services;
@@ -3854,6 +3854,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"\u2713 {audit.Summary}");
                 };
                 menu.Items.Add(auditStringInterpolationBoxing);
+
+                var auditMemorySpanSafety = new MenuFlyoutItem
+                {
+                    Text = "Audit semantic diff Memory<T> / Span<T> slice safety & closure captures",
+                    Icon = new FontIcon { Glyph = "\uE8B9" }
+                };
+                auditMemorySpanSafety.Click += (_, _) =>
+                {
+                    var audit = MarkSmith.Services.LineDiff.AuditMemoryAndSpanSafety(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+                    _vm.ShowNotice($"\u2713 {audit.Summary}");
+                };
+                menu.Items.Add(auditMemorySpanSafety);
 
 
 

@@ -450,6 +450,9 @@
                                     <MenuFlyoutItem x:Name="OutlineStatsAuditChevronGeometryItem" Text="Audit chevron / process arrow gap &amp; angle consistency" Click="OnOutlineStatsAuditChevronGeometryClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="OutlineStatsAuditMatrixQuadrantGeometryItem" Text="Audit 2x2 matrix / quadrant geometry &amp; text balance symmetry" Click="OnOutlineStatsAuditMatrixQuadrantGeometryClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem x:Name="OutlineStatsAuditVennGeometryItem" Text="Audit Venn diagram &amp; overlapping set geometry harmony" Click="OnOutlineStatsAuditVennGeometryClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

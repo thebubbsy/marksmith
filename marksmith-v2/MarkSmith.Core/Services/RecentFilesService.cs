@@ -5851,6 +5851,206 @@ public sealed class RecentFilesService
         return new WorkspaceTableRollbackResult(filesScanned, filesRestored, summary);
     }
 
+    public static WorkspaceBacklinkCohesionAudit AuditWorkspaceBacklinksAndUnreferencedAnchors(
+        IReadOnlyList<string>? explicitFiles = null,
+        Func<string, bool>? fileExistsProvider = null,
+        Func<string, string>? contentReader = null)
+    {
+        var files = (explicitFiles ?? Array.Empty<string>())
+            .Where(f => !string.IsNullOrWhiteSpace(f) && !f.EndsWith(".bak.md", StringComparison.OrdinalIgnoreCase))
+            .Distinct()
+            .ToList();
+
+        if (files.Count == 0)
+        {
+            string emptySummary = FormatWorkspaceBacklinksSummary(0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new WorkspaceBacklinkCohesionAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<WorkspaceHeadingAnchorItem>(),
+                Array.Empty<WorkspaceBacklinkEntry>(),
+                "Clean Baseline", emptySummary);
+        }
+
+        var linkRegex = new Regex(@"\[(?<text>[^\]]+)\]\((?<url>[^)\s]+)(?:\s+""[^""]*"")?\)");
+        var headingRegex = new Regex(@"^(#{1,6})\s+(?<title>.+)$", RegexOptions.Multiline);
+
+        var fileContents = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var fileHeadings = new Dictionary<string, List<(string Title, string Slug, int LineNumber)>>(StringComparer.OrdinalIgnoreCase);
+
+        int filesScanned = 0;
+        int totalHeadings = 0;
+
+        foreach (var file in files)
+        {
+            bool exists = fileExistsProvider?.Invoke(file) ?? System.IO.File.Exists(file);
+            if (!exists) continue;
+
+            string content;
+            try
+            {
+                content = contentReader?.Invoke(file) ?? System.IO.File.ReadAllText(file);
+            }
+            catch
+            {
+                continue;
+            }
+
+            filesScanned++;
+            fileContents[file] = content;
+
+            var headings = new List<(string Title, string Slug, int LineNumber)>();
+            var lines = content.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+            for (int i = 0; i < lines.Length; i++)
+            {
+                var match = headingRegex.Match(lines[i]);
+                if (match.Success)
+                {
+                    string title = match.Groups["title"].Value.Trim();
+                    string slug = Regex.Replace(title.ToLowerInvariant(), @"[^\w\- ]", "")
+                                       .Replace(' ', '-');
+                    headings.Add((title, slug, i + 1));
+                    totalHeadings++;
+                }
+            }
+            fileHeadings[file] = headings;
+        }
+
+        var backlinkEntries = new List<WorkspaceBacklinkEntry>();
+        var incomingCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var fileIncomingCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var sourceFile in fileContents.Keys)
+        {
+            string content = fileContents[sourceFile];
+            var lines = content.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+            string? sourceDir = System.IO.Path.GetDirectoryName(sourceFile);
+
+            for (int i = 0; i < lines.Length; i++)
+            {
+                var matches = linkRegex.Matches(lines[i]);
+                foreach (Match m in matches)
+                {
+                    string rawUrl = m.Groups["url"].Value.Trim();
+                    string linkText = m.Groups["text"].Value.Trim();
+
+                    if (rawUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                        rawUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+                        rawUrl.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    string targetFile;
+                    string? targetAnchor = null;
+
+                    int hashIndex = rawUrl.IndexOf('#');
+                    if (hashIndex >= 0)
+                    {
+                        targetAnchor = rawUrl.Substring(hashIndex + 1);
+                        string filePathPart = rawUrl.Substring(0, hashIndex);
+                        if (string.IsNullOrEmpty(filePathPart))
+                        {
+                            targetFile = sourceFile;
+                        }
+                        else
+                        {
+                            targetFile = !string.IsNullOrEmpty(sourceDir)
+                                ? System.IO.Path.GetFullPath(System.IO.Path.Combine(sourceDir, filePathPart))
+                                : filePathPart;
+                        }
+                    }
+                    else
+                    {
+                        targetFile = !string.IsNullOrEmpty(sourceDir)
+                            ? System.IO.Path.GetFullPath(System.IO.Path.Combine(sourceDir, rawUrl))
+                            : rawUrl;
+                    }
+
+                    backlinkEntries.Add(new WorkspaceBacklinkEntry(
+                        sourceFile,
+                        i + 1,
+                        linkText,
+                        targetFile,
+                        targetAnchor));
+
+                    if (!fileIncomingCounts.ContainsKey(targetFile)) fileIncomingCounts[targetFile] = 0;
+                    fileIncomingCounts[targetFile]++;
+
+                    string anchorKey = $"{targetFile}|{targetAnchor ?? ""}";
+                    if (!incomingCounts.ContainsKey(anchorKey)) incomingCounts[anchorKey] = 0;
+                    incomingCounts[anchorKey]++;
+                }
+            }
+        }
+
+        var headingItems = new List<WorkspaceHeadingAnchorItem>();
+        int referencedHeadings = 0;
+        int unreferencedHeadings = 0;
+
+        foreach (var file in fileHeadings.Keys)
+        {
+            foreach (var h in fileHeadings[file])
+            {
+                string anchorKey = $"{file}|{h.Slug}";
+                bool isReferenced = incomingCounts.ContainsKey(anchorKey) && incomingCounts[anchorKey] > 0;
+
+                int incoming = isReferenced ? incomingCounts[anchorKey] : 0;
+                if (isReferenced) referencedHeadings++;
+                else unreferencedHeadings++;
+
+                string rec = isReferenced
+                    ? $"Active anchor target referenced by {incoming} backlink{(incoming == 1 ? "" : "s")}."
+                    : "Unreferenced heading anchor; consider linking from relevant overview documents.";
+
+                headingItems.Add(new WorkspaceHeadingAnchorItem(
+                    file,
+                    h.Title,
+                    h.Slug,
+                    h.LineNumber,
+                    incoming,
+                    isReferenced,
+                    rec));
+            }
+        }
+
+        int totalBacklinks = backlinkEntries.Count;
+        double refRatio = totalHeadings > 0 ? (double)referencedHeadings / totalHeadings : 1.0;
+        double cohesionScore = filesScanned > 1
+            ? Math.Clamp(refRatio * 60.0 + Math.Min(40.0, totalBacklinks * 10.0 / filesScanned), 0.0, 100.0)
+            : 100.0;
+
+        string category = cohesionScore switch
+        {
+            >= 90.0 => "Interconnected Workspace Mesh",
+            >= 70.0 => "Well-Referenced Document Graph",
+            >= 50.0 => "Moderate Isolated Clusters",
+            _ => "Fragmented Siloed Documents"
+        };
+
+        string summary = FormatWorkspaceBacklinksSummary(
+            filesScanned, totalHeadings, referencedHeadings, unreferencedHeadings, totalBacklinks, cohesionScore, category);
+
+        return new WorkspaceBacklinkCohesionAudit(
+            filesScanned, totalHeadings, referencedHeadings, unreferencedHeadings, totalBacklinks, cohesionScore,
+            headingItems, backlinkEntries, category, summary);
+    }
+
+    public static string FormatWorkspaceBacklinksSummary(
+        int filesScanned, int totalHeadings, int referencedHeadings, int unreferencedHeadings,
+        int totalBacklinks, double cohesionScore, string category)
+    {
+        if (filesScanned == 0) return "Workspace backlink audit: Clean baseline · 0 markdown files scanned";
+
+        var parts = new List<string>();
+        parts.Add($"{filesScanned} file{(filesScanned == 1 ? "" : "s")}");
+        parts.Add($"{totalBacklinks} backlink{(totalBacklinks == 1 ? "" : "s")}");
+        parts.Add($"{referencedHeadings}/{totalHeadings} headings referenced");
+        if (unreferencedHeadings > 0) parts.Add($"ℹ {unreferencedHeadings} unreferenced anchor{(unreferencedHeadings == 1 ? "" : "s")}");
+
+        string details = string.Join(" · ", parts);
+        return $"Workspace backlink audit ({details} · {category} · {cohesionScore:0.#}% cohesion score)";
+    }
+
     public static WorkspaceCrossFileLinkAudit AuditWorkspaceCrossFileLinks(
         IReadOnlyList<string>? explicitFiles = null,
         Func<string, bool>? fileExistsProvider = null,
@@ -11566,6 +11766,34 @@ public sealed record WorkspaceTableAutoFixResult(
 public sealed record WorkspaceTableRollbackResult(
     int TotalBackupsScanned,
     int TotalFilesRestored,
+    string Summary);
+
+public sealed record WorkspaceBacklinkEntry(
+    string SourceFilePath,
+    int LineNumber,
+    string LinkText,
+    string TargetFilePath,
+    string? TargetAnchor);
+
+public sealed record WorkspaceHeadingAnchorItem(
+    string FilePath,
+    string HeadingTitle,
+    string AnchorSlug,
+    int LineNumber,
+    int IncomingBacklinkCount,
+    bool IsReferenced,
+    string Recommendation);
+
+public sealed record WorkspaceBacklinkCohesionAudit(
+    int TotalFilesScanned,
+    int TotalHeadingsFound,
+    int ReferencedHeadingsCount,
+    int UnreferencedHeadingsCount,
+    int TotalBacklinksMapped,
+    double BacklinkCohesionScore,
+    IReadOnlyList<WorkspaceHeadingAnchorItem> Headings,
+    IReadOnlyList<WorkspaceBacklinkEntry> Backlinks,
+    string Category,
     string Summary);
 
 public sealed record WorkspaceCrossFileLinkItem(
