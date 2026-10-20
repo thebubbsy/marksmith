@@ -3750,4 +3750,32 @@ public class ShapeStudioPolishTests
         Assert.Equal(obliqueAudit.Summary, formatted);
     }
 
+
+    [Fact]
+    public void Run207_AuditDimetricProjectionAlignment_EvaluatesDimetricAxes()
+    {
+        var singleAudit = ShapeDesignStudioViewModel.AuditDimetricProjectionAlignment(
+            new[] { new ShapeCanvasItemViewModel { Id = "s0", Name = "Lone", X = 100, Y = 100, Width = 50, Height = 50 } }, null);
+        Assert.Equal(1, singleAudit.TotalShapes);
+        Assert.Equal(100.0, singleAudit.ConsistencyScore);
+        Assert.Equal("Clean Baseline", singleAudit.Category);
+
+        var s1 = new ShapeCanvasItemViewModel { Id = "s1", Name = "Base", X = 0, Y = 0, Width = 40, Height = 40 };
+        var s2 = new ShapeCanvasItemViewModel { Id = "s2", Name = "DimetricRay", X = 96.6, Y = 25.9, Width = 40, Height = 40 };
+        var shapes = new[] { s1, s2 };
+
+        var dimAudit = ShapeDesignStudioViewModel.AuditDimetricProjectionAlignment(shapes, shapes);
+        Assert.Equal(2, dimAudit.TotalShapes);
+        Assert.Equal(1, dimAudit.TotalRays);
+        Assert.Equal(1, dimAudit.AlignedRays);
+        Assert.Equal(1, dimAudit.ShallowRays);
+        Assert.True(dimAudit.ConsistencyScore >= 95.0);
+
+        string formatted = ShapeDesignStudioViewModel.FormatDimetricAlignmentSummary(
+            dimAudit.TotalShapes, dimAudit.TotalRays, dimAudit.AlignedRays, dimAudit.ShallowRays,
+            dimAudit.SteepRays, dimAudit.DriftRays, dimAudit.OffAxisRays,
+            dimAudit.ConsistencyScore, dimAudit.Category, false);
+        Assert.Equal(dimAudit.Summary, formatted);
+    }
+
 }

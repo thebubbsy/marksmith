@@ -10291,6 +10291,176 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         return $"Oblique projection audit ({scope}{details} · {category} · {score:0.#}% consistency score)";
     }
 
+    public DiagramDimetricAlignmentAudit AuditDimetricProjectionAlignment(bool selectionOnly = false)
+    {
+        var selected = SelectedItems.ToList();
+        var targetShapes = (selectionOnly && selected.Count > 0) ? selected : Shapes.ToList();
+        bool isSelection = selectionOnly && selected.Count > 0;
+        var audit = AuditDimetricProjectionAlignment(targetShapes, Shapes.ToList(), isSelection);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static DiagramDimetricAlignmentAudit AuditDimetricProjectionAlignment(
+        IEnumerable<ShapeCanvasItemViewModel>? targetShapes,
+        IEnumerable<ShapeCanvasItemViewModel>? allShapes,
+        bool isSelection = false)
+    {
+        var list = (allShapes ?? Enumerable.Empty<ShapeCanvasItemViewModel>()).Where(s => s != null).ToList();
+        var targets = (targetShapes ?? list).Where(s => s != null && !s.IsLine).ToList();
+
+        int totalShapes = targets.Count;
+        if (totalShapes < 2)
+        {
+            string emptySummary = FormatDimetricAlignmentSummary(totalShapes, 0, 0, 0, 0, 0, 0, 100.0, "Clean Baseline", isSelection);
+            return new DiagramDimetricAlignmentAudit(
+                totalShapes, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<DimetricShapeRayItem>(), "Clean Baseline", isSelection, emptySummary);
+        }
+
+        double[] dimetricAxes = new double[]
+        {
+            15.0, 75.0, 105.0, 165.0, 195.0, 255.0, 285.0, 345.0,
+            26.6, 63.4, 116.6, 153.4, 206.6, 243.4, 296.6, 333.4
+        };
+
+        var rays = new List<DimetricShapeRayItem>();
+        int alignedRays = 0;
+        int shallowRays = 0;
+        int steepRays = 0;
+        int driftRays = 0;
+        int offAxisRays = 0;
+
+        for (int i = 0; i < targets.Count; i++)
+        {
+            var s1 = targets[i];
+            double c1X = s1.X + s1.Width / 2.0;
+            double c1Y = s1.Y + s1.Height / 2.0;
+
+            for (int j = i + 1; j < targets.Count; j++)
+            {
+                var s2 = targets[j];
+                double c2X = s2.X + s2.Width / 2.0;
+                double c2Y = s2.Y + s2.Height / 2.0;
+
+                double dx = c2X - c1X;
+                double dy = c2Y - c1Y;
+                double dist = Math.Sqrt(dx * dx + dy * dy);
+
+                if (dist < 5.0) continue;
+
+                double angleRad = Math.Atan2(dy, dx);
+                double angleDeg = (angleRad * 180.0 / Math.PI);
+                if (angleDeg < 0) angleDeg += 360.0;
+
+                double minDev = double.MaxValue;
+                double nearestAxis = 15.0;
+
+                foreach (var axis in dimetricAxes)
+                {
+                    double diff = Math.Abs(angleDeg - axis);
+                    if (diff > 180.0) diff = 360.0 - diff;
+                    if (diff < minDev)
+                    {
+                        minDev = diff;
+                        nearestAxis = axis;
+                    }
+                }
+
+                bool isAligned = minDev <= 5.5;
+                bool isDrift = !isAligned && minDev <= 15.0;
+
+                string projType = "Orthogonal/Freeform";
+                if (isAligned || isDrift)
+                {
+                    if (Math.Abs(nearestAxis - 15.0) < 1.0 || Math.Abs(nearestAxis - 165.0) < 1.0 ||
+                        Math.Abs(nearestAxis - 195.0) < 1.0 || Math.Abs(nearestAxis - 345.0) < 1.0)
+                    {
+                        projType = "Shallow Dimetric (15°)";
+                        if (isAligned) shallowRays++;
+                    }
+                    else if (Math.Abs(nearestAxis - 75.0) < 1.0 || Math.Abs(nearestAxis - 105.0) < 1.0 ||
+                             Math.Abs(nearestAxis - 255.0) < 1.0 || Math.Abs(nearestAxis - 285.0) < 1.0)
+                    {
+                        projType = "Steep Dimetric (75°)";
+                        if (isAligned) steepRays++;
+                    }
+                    else if (Math.Abs(nearestAxis - 26.6) < 1.0 || Math.Abs(nearestAxis - 153.4) < 1.0 ||
+                             Math.Abs(nearestAxis - 206.6) < 1.0 || Math.Abs(nearestAxis - 333.4) < 1.0)
+                    {
+                        projType = "Classic 1:2 Dimetric (26.6°)";
+                        if (isAligned) shallowRays++;
+                    }
+                    else
+                    {
+                        projType = "Steep 1:2 Dimetric (63.4°)";
+                        if (isAligned) steepRays++;
+                    }
+                }
+
+                if (isAligned) alignedRays++;
+                else if (isDrift) driftRays++;
+                else offAxisRays++;
+
+                string rec = isAligned
+                    ? $"Conforms to {projType} projection axis ({nearestAxis:0.#}°)."
+                    : isDrift
+                        ? $"Snap angular vector by {minDev:0.#}° to reach {nearestAxis:0.#}° dimetric axis."
+                        : $"Freeform vector ({angleDeg:0.#}°).";
+
+                rays.Add(new DimetricShapeRayItem(
+                    s1.Id ?? $"shape_{i}",
+                    s1.Name ?? $"Shape {i + 1}",
+                    s2.Id ?? $"shape_{j}",
+                    s2.Name ?? $"Shape {j + 1}",
+                    Math.Round(angleDeg, 1),
+                    nearestAxis,
+                    Math.Round(minDev, 1),
+                    projType,
+                    isAligned,
+                    rec));
+            }
+        }
+
+        int totalRays = rays.Count;
+        double score = totalRays > 0
+            ? Math.Clamp((alignedRays * 1.0 + driftRays * 0.4) / totalRays * 100.0, 0.0, 100.0)
+            : 100.0;
+
+        string category = score switch
+        {
+            >= 90.0 => "Precision Dimetric Projection",
+            >= 70.0 => "Cohesive Asymmetric Axonometry",
+            >= 45.0 => "Moderate Dimetric Drift",
+            _ => "Freeform / Planar Alignment"
+        };
+
+        string summary = FormatDimetricAlignmentSummary(
+            totalShapes, totalRays, alignedRays, shallowRays, steepRays, driftRays, offAxisRays, score, category, isSelection);
+
+        return new DiagramDimetricAlignmentAudit(
+            totalShapes, totalRays, alignedRays, shallowRays, steepRays, driftRays, offAxisRays, score, rays, category, isSelection, summary);
+    }
+
+    public static string FormatDimetricAlignmentSummary(
+        int totalShapes, int totalRays, int alignedRays, int shallowRays, int steepRays, int driftRays, int offAxisRays,
+        double score, string category, bool isSelection)
+    {
+        string scope = isSelection ? "Selection · " : "";
+        if (totalShapes < 2) return $"Dimetric projection audit ({scope}{totalShapes} shapes): Clean Baseline";
+
+        var parts = new List<string>();
+        parts.Add($"{totalShapes} shapes, {totalRays} vectors");
+        parts.Add($"{alignedRays} dimetric ({(totalRays > 0 ? (alignedRays * 100.0 / totalRays) : 100.0):0.#}%)");
+        if (shallowRays > 0) parts.Add($"{shallowRays} shallow (15°/26°)");
+        if (steepRays > 0) parts.Add($"{steepRays} steep (75°/63°)");
+        if (driftRays > 0) parts.Add($"⚠ {driftRays} drift");
+        if (offAxisRays > 0) parts.Add($"{offAxisRays} off-axis");
+
+        string details = string.Join(" · ", parts);
+        return $"Dimetric projection audit ({scope}{details} · {category} · {score:0.#}% consistency score)";
+    }
+
     public static string FormatIsometricAlignmentSummary(
         int totalShapes, int totalRays, int alignedRays, int driftRays, int offAxisRays,
         double score, string category, bool isSelection)
@@ -14662,6 +14832,32 @@ public sealed record DiagramRadialAlignmentAudit(
     double AngularEvennessScore,
     double RotationalBalanceScore,
     IReadOnlyList<RadialShapeItem> Shapes,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);
+
+public sealed record DimetricShapeRayItem(
+    string FromShapeId,
+    string FromShapeName,
+    string ToShapeId,
+    string ToShapeName,
+    double AngleDegrees,
+    double NearestDimetricAxis,
+    double AngularDeviation,
+    string ProjectionType,
+    bool IsAligned,
+    string Recommendation);
+
+public sealed record DiagramDimetricAlignmentAudit(
+    int TotalShapes,
+    int TotalRays,
+    int AlignedRays,
+    int ShallowRays,
+    int SteepRays,
+    int DriftRays,
+    int OffAxisRays,
+    double ConsistencyScore,
+    IReadOnlyList<DimetricShapeRayItem> Rays,
     string Category,
     bool IsSelectionScope,
     string Summary);

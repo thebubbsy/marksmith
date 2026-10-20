@@ -456,6 +456,9 @@
                                     <MenuFlyoutItem x:Name="OutlineStatsAuditPyramidHierarchyGeometryItem" Text="Audit pyramid / funnel tier hierarchy symmetry &amp; apex readability" Click="OnOutlineStatsAuditPyramidHierarchyGeometryClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="OutlineStatsAuditChevronProcessStrideGeometryItem" Text="Audit chevron &amp; arrow process flow stride proportionality &amp; phase length" Click="OnOutlineStatsAuditChevronProcessStrideGeometryClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem x:Name="OutlineStatsAuditVennGeometryItem" Text="Audit Venn diagram &amp; overlapping set geometry harmony" Click="OnOutlineStatsAuditVennGeometryClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

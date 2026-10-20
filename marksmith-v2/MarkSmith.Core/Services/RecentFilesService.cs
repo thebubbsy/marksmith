@@ -6229,6 +6229,212 @@ public sealed class RecentFilesService
         return $"Workspace media attachment audit ({details} · {category} · {mediaHealthScore:0.#}% health score)";
     }
 
+    public static WorkspaceMathDelimiterHealthAudit AuditWorkspaceMathFormulasAndDelimiters(
+        IReadOnlyList<string>? explicitFiles = null,
+        Func<string, bool>? fileExistsProvider = null,
+        Func<string, string>? contentReader = null)
+    {
+        var files = (explicitFiles ?? Array.Empty<string>())
+            .Where(f => !string.IsNullOrWhiteSpace(f) && !f.EndsWith(".bak.md", StringComparison.OrdinalIgnoreCase))
+            .Distinct()
+            .ToList();
+
+        if (files.Count == 0)
+        {
+            string emptySummary = FormatWorkspaceMathFormulasSummary(0, 0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new WorkspaceMathDelimiterHealthAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<WorkspaceMathDelimiterHealthItem>(),
+                "Clean Baseline", emptySummary);
+        }
+
+        var items = new List<WorkspaceMathDelimiterHealthItem>();
+        int filesScanned = 0;
+        int totalMathFormulas = 0;
+        int inlineMathCount = 0;
+        int displayMathCount = 0;
+        int unbalancedDelimiterCount = 0;
+        int environmentMismatchCount = 0;
+
+        var displayMathRegex = new Regex(@"(?<!\\)\$\$(?<formula>[\s\S]*?)(?<!\\)\$\$|(?<!\\)\\\[(?<formula>[\s\S]*?)(?<!\\)\\\]");
+        var inlineMathRegex = new Regex(@"(?<!\\)\$(?<formula>[^\$\n]+?)(?<!\\)\$|(?<!\\)\\\((?<formula>.*?)(?<!\\)\\\)");
+        var beginEnvRegex = new Regex(@"\\begin\{(?<env>[a-zA-Z*]+)\}");
+        var endEnvRegex = new Regex(@"\\end\{(?<env>[a-zA-Z*]+)\}");
+
+        foreach (var file in files)
+        {
+            bool exists = fileExistsProvider?.Invoke(file) ?? System.IO.File.Exists(file);
+            if (!exists) continue;
+
+            string content;
+            try
+            {
+                content = contentReader?.Invoke(file) ?? System.IO.File.ReadAllText(file);
+            }
+            catch
+            {
+                continue;
+            }
+
+            filesScanned++;
+            var lines = content.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+            bool insideCodeFence = false;
+
+            int singleDollarCount = 0;
+            int doubleDollarCount = 0;
+
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string line = lines[i];
+                string trimmed = line.Trim();
+
+                if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+                {
+                    insideCodeFence = !insideCodeFence;
+                    continue;
+                }
+
+                if (insideCodeFence) continue;
+
+                int idx = 0;
+                while ((idx = line.IndexOf("$$", idx, StringComparison.Ordinal)) != -1)
+                {
+                    if (idx == 0 || line[idx - 1] != '\\')
+                    {
+                        doubleDollarCount++;
+                    }
+                    idx += 2;
+                }
+
+                for (int c = 0; c < line.Length; c++)
+                {
+                    if (line[c] == '$')
+                    {
+                        bool isEscaped = c > 0 && line[c - 1] == '\\';
+                        bool isDoubleNext = c + 1 < line.Length && line[c + 1] == '$';
+                        bool isDoublePrev = c > 0 && line[c - 1] == '$';
+
+                        if (!isEscaped && !isDoubleNext && !isDoublePrev)
+                        {
+                            singleDollarCount++;
+                        }
+                    }
+                }
+
+                var begins = beginEnvRegex.Matches(line);
+                var ends = endEnvRegex.Matches(line);
+                foreach (Match b in begins)
+                {
+                    string env = b.Groups["env"].Value;
+                    bool hasMatchingEnd = ends.Cast<Match>().Any(e => e.Groups["env"].Value == env);
+                    if (!hasMatchingEnd && !content.Contains($"\\end{{{env}}}"))
+                    {
+                        environmentMismatchCount++;
+                        items.Add(new WorkspaceMathDelimiterHealthItem(
+                            file,
+                            i + 1,
+                            b.Value,
+                            "LaTeX Environment Mismatch",
+                            $"\\begin{{{env}}} without matching \\end{{{env}}}; unclosed math block."));
+                    }
+                }
+
+                var dispMatches = displayMathRegex.Matches(line);
+                foreach (Match m in dispMatches)
+                {
+                    totalMathFormulas++;
+                    displayMathCount++;
+                    items.Add(new WorkspaceMathDelimiterHealthItem(
+                        file,
+                        i + 1,
+                        m.Value,
+                        "Display Math Block",
+                        "Valid display math formula."));
+                }
+
+                var inlineMatches = inlineMathRegex.Matches(line);
+                foreach (Match m in inlineMatches)
+                {
+                    totalMathFormulas++;
+                    inlineMathCount++;
+                    string formula = m.Groups["formula"].Value;
+
+                    bool looksLikeCurrency = Regex.IsMatch(formula, @"^\s*\d+([.,]\d+)?\s*(USD|AUD|EUR|GBP)?\s*$");
+                    if (looksLikeCurrency)
+                    {
+                        items.Add(new WorkspaceMathDelimiterHealthItem(
+                            file,
+                            i + 1,
+                            m.Value,
+                            "Currency Syntax Ambiguity",
+                            $"Formula '${formula}$' appears to be currency; escape as '\\${formula}' to avoid KaTeX rendering."));
+                    }
+                }
+            }
+
+            if (doubleDollarCount % 2 != 0)
+            {
+                unbalancedDelimiterCount++;
+                items.Add(new WorkspaceMathDelimiterHealthItem(
+                    file,
+                    1,
+                    "$$",
+                    "Unbalanced Display Math Delimiters",
+                    $"File contains {doubleDollarCount} '$$' delimiters (odd count); unclosed display math block."));
+            }
+
+            if (singleDollarCount % 2 != 0)
+            {
+                unbalancedDelimiterCount++;
+                items.Add(new WorkspaceMathDelimiterHealthItem(
+                    file,
+                    1,
+                    "$",
+                    "Unbalanced Inline Math Delimiters",
+                    $"File contains {singleDollarCount} '$' delimiters (odd count); unclosed inline math expression or unescaped currency."));
+            }
+        }
+
+        double score = 100.0;
+        if (unbalancedDelimiterCount > 0) score -= unbalancedDelimiterCount * 25.0;
+        if (environmentMismatchCount > 0) score -= environmentMismatchCount * 20.0;
+        score = Math.Clamp(score, 0.0, 100.0);
+
+        string category = score switch
+        {
+            >= 95.0 => "All Math Formulas Intact & Valid",
+            >= 80.0 => "Consistent KaTeX / LaTeX Syntax",
+            >= 55.0 => "Math Syntax Warnings / Currency Collisions",
+            _ => "Unbalanced Math Delimiters & Broken Environments"
+        };
+
+        string summary = FormatWorkspaceMathFormulasSummary(
+            filesScanned, totalMathFormulas, inlineMathCount, displayMathCount,
+            unbalancedDelimiterCount, environmentMismatchCount, score, category);
+
+        return new WorkspaceMathDelimiterHealthAudit(
+            filesScanned, totalMathFormulas, inlineMathCount, displayMathCount,
+            unbalancedDelimiterCount, environmentMismatchCount, score, items, category, summary);
+    }
+
+    public static string FormatWorkspaceMathFormulasSummary(
+        int filesScanned, int totalFormulas, int inlineCount, int displayCount,
+        int unbalancedDelimiters, int environmentMismatches, double healthScore, string category)
+    {
+        if (filesScanned == 0 || totalFormulas == 0)
+            return "Workspace math formula audit: Clean baseline · 0 math formulas detected";
+
+        var parts = new List<string>();
+        parts.Add($"{filesScanned} file{(filesScanned == 1 ? "" : "s")}");
+        parts.Add($"{totalFormulas} formula{(totalFormulas == 1 ? "" : "s")} ({inlineCount} inline, {displayCount} display)");
+        if (unbalancedDelimiters > 0) parts.Add($"🚨 {unbalancedDelimiters} unbalanced delimiter{(unbalancedDelimiters == 1 ? "" : "s")}");
+        if (environmentMismatches > 0) parts.Add($"⚠ {environmentMismatches} unclosed environment{(environmentMismatches == 1 ? "" : "s")}");
+        if (unbalancedDelimiters == 0 && environmentMismatches == 0) parts.Add("100% formulas balanced");
+
+        string details = string.Join(" · ", parts);
+        return $"Workspace math formula audit ({details} · {category} · {healthScore:0.#}% health score)";
+    }
+
     public static string FormatWorkspaceBacklinksSummary(
         int filesScanned, int totalHeadings, int referencedHeadings, int unreferencedHeadings,
         int totalBacklinks, double cohesionScore, string category)
@@ -12032,6 +12238,25 @@ public sealed record WorkspaceCrossFileLinkAudit(
     int ExternalLinksCount,
     double HyperlinkCohesionScore,
     IReadOnlyList<WorkspaceCrossFileLinkItem> Items,
+    string Category,
+    string Summary);
+
+public sealed record WorkspaceMathDelimiterHealthItem(
+    string SourceFilePath,
+    int LineNumber,
+    string FormulaSnippet,
+    string FormulaType,
+    string Recommendation);
+
+public sealed record WorkspaceMathDelimiterHealthAudit(
+    int TotalFilesScanned,
+    int TotalMathFormulas,
+    int InlineMathCount,
+    int DisplayMathCount,
+    int UnbalancedDelimitersCount,
+    int EnvironmentMismatchesCount,
+    double FormulaHealthScore,
+    IReadOnlyList<WorkspaceMathDelimiterHealthItem> Items,
     string Category,
     string Summary);
 

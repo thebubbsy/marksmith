@@ -13329,3 +13329,57 @@ Reviewed: Run #206 Blueprint — executed the 3-block cycle covering all 6 MarkS
 6. **SuiteHubView (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #206 Block 3 Idea 6]**:
    - **Refinement Target**: Workspace Markdown Math / KaTeX Formula Syntax & Delimiter Health Auditor.
    - **Deliverable**: Extend `RecentFilesService.AuditWorkspaceMediaAndImageAttachments` to scan workspace documents for math formulas (`$...$`, `$$...$$`, `\(...\)`, `\[...\]`), detect unbalanced delimiters and missing LaTeX math escapes, and calculate workspace formula health score ($0-100\%$).
+
+---
+
+### 2026-10-21 (scheduled routine run #207)
+
+Reviewed: Run #207 Blueprint — executed the 3-block cycle covering all 6 MarkSmith WinUI 3 surfaces with 100% full implementation, zero placeholders, empirical verification (0 errors, 7 passing unit tests), and desktop smoke launch verification.
+
+**Shipped** (commit follows this entry):
+- **Block 1**:
+  - **Surface 1 (MainWindow)**: Implemented `TextSearch.AuditMarkdownTableCellWrapping(markdownText)`, `FormatTableCellWrappingSummary(...)`, `MarkdownTableCellRowItem`, and `MarkdownTableCellAudit` in `TextSearch.cs`. Scans document markdown tables for unescaped pipes, inconsistent cell column counts, multi-line row wrapping anomalies, and long cell contents exceeding wrapping thresholds, scoring table cell structural hygiene ($0-100\%$). Wired to `ShowLintIssueContextMenu` in `MainWindow.xaml.cs` via `auditTableCellWrappingConsistencyItem` (`\uE8B9`).
+  - **Surface 2 (MindMapGalaxyWindow)**: Implemented `MindMapStudioViewModel.AuditGraphBetweennessCentrality()`, `FormatBetweennessCentralitySummary(...)`, `NodeBetweennessItem`, and `GraphBetweennessBottleneckAudit` in `MindMapStudioViewModel.cs`. Implemented Brandes' algorithm to compute node betweenness centrality ($C_B(v) = \sum_{s \neq v \neq t} \frac{\sigma_{st}(v)}{\sigma_{st}}$), identify structural bottleneck vertices and critical network bridge nodes, and score graph topology bottleneck resilience ($0-100\%$). Wired to `ArrangeDropDownButton.Flyout` in `MindMapGalaxyWindow.xaml` and `MindMapGalaxyWindow.xaml.cs` via `AuditGraphBetweennessBottlenecksItem` (`\uE8B9`) and `OnAuditGraphBetweennessBottlenecksClick`.
+- **Block 2**:
+  - **Surface 3 (ShapeDesignStudioWindow)**: Implemented `ShapeDesignStudioViewModel.AuditDimetricProjectionAlignment(shapes)`, `FormatDimetricAlignmentSummary(...)`, `DimetricShapeRayItem`, and `DiagramDimetricAlignmentAudit` in `ShapeDesignStudioViewModel.cs`. Evaluates diagram shapes for alignment along dimetric projection axes (e.g. $15^\circ$ shallow, $45^\circ$ steep, $90^\circ$ vertical), identifying angular drift, off-axis placement, and scoring dimetric pseudo-3D alignment consistency ($0-100\%$). Wired to `SelectionBoundsBorder.ContextFlyout` in `ShapeDesignStudioWindow.xaml` and `ShapeDesignStudioWindow.xaml.cs` via `SelectionAuditDimetricAlignmentItem` (`\uE8B9`) and `OnSelectionAuditDimetricAlignmentClick`.
+  - **Surface 4 (SmartArtDesignStudioWindow)**: Implemented `SmartArtDesignStudioViewModel.AuditChevronProcessStrideGeometry(markdown, layoutName)`, `FormatChevronProcessStrideSummary(...)`, `ChevronStageGeometryItem`, and `SmartArtChevronProcessStrideAudit` in `SmartArtDesignStudioViewModel.cs`. Validates linear and pentagon chevron process diagrams (`chevron`, `process`, `arrow`, `timeline`) for equal chevron body width, arrow tip notch depth matching, phase text length balance, and scores chevron process geometric stride symmetry ($0-100\%$). Wired to `OutlineStatsFlyout` in `SmartArtDesignStudioWindow.xaml` and `SmartArtDesignStudioWindow.xaml.cs` via `OutlineStatsAuditChevronProcessStrideGeometryItem` (`\uE8B9`) and `OnOutlineStatsAuditChevronProcessStrideGeometryClick`.
+- **Block 3**:
+  - **Surface 5 (HistoryWindow)**: Implemented `LineDiff.AuditValueTaskAndAsyncAllocationHazards(diff)`, `FormatValueTaskHazardsSummary(...)`, `ValueTaskHazardItem`, and `DiffValueTaskAllocationAudit` in `LineDiff.cs`. Evaluates diff additions for multiple awaits on single `ValueTask` instances, conversion of `ValueTask` to `Task` without `.AsTask()`, hot-path heap allocations, and scores async allocation safety ($0-100\%$). Wired to `TimelineHeaderBorder.ContextFlyout` in `HistoryWindow.xaml.cs` via `auditValueTaskHazards` (`\uE8B9`).
+  - **Surface 6 (SuiteHubView)**: Implemented `RecentFilesService.AuditWorkspaceMathFormulasAndDelimiters(...)`, `FormatWorkspaceMathFormulasSummary(...)`, `WorkspaceMathDelimiterHealthItem`, and `WorkspaceMathDelimiterHealthAudit` in `RecentFilesService.cs`. Scans workspace documents for inline (`$...$`, `\(...\)`) and display (`$$...$$`, `\[...\]`) math formulas, detects unbalanced delimiters, unclosed math blocks, LaTeX environment mismatches, and scores math formula delimiter health ($0-100\%$). Wired to `RecentDocsFlyout` in `SuiteHubView.xaml` and `SuiteHubView.xaml.cs` via `AuditWorkspaceMathDelimitersItem` (`\uE8B9`) and `OnAuditWorkspaceMathDelimitersClick`.
+- **Execution Phase Refinements**:
+  - Implemented comprehensive unit tests across all 6 surfaces:
+    - `TextSearchTests.Run207_AuditMarkdownTableCellWrapping_ValidatesGridHygiene`
+    - `MindMapGalaxyPolishTests.Run207_AuditGraphBetweennessCentrality_IdentifiesBottlenecksAndBridges`
+    - `ShapeStudioPolishTests.Run207_AuditDimetricProjectionAlignment_EvaluatesDimetricAxes`
+    - `SmartArtStudioPolishTests.Run207_AuditChevronProcessStrideGeometry_ValidatesStrideAndTextBalance`
+    - `HistoryPolishTests.Run207_AuditValueTaskAndAsyncAllocationHazards_DetectsMultipleAwaitsAndTaskHazards`
+    - `SuiteHubAndTourPolishTests.Run207_AuditWorkspaceMathFormulasAndDelimiters_ValidatesSyntaxAndEnvironments`
+    - `SuiteHubAndTourPolishTests.Run207_AllSixSurfacesXamlAndCodeBehindWiring`
+
+**Verified:**
+- `dotnet build` (`marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj` - Debug/x64): 0 errors, 24 warnings.
+- `dotnet build` (`marksmith-v2/MarkSmith.Tests/MarkSmith.Tests.csproj` - Debug): 0 errors.
+- `dotnet test` (Run207 filter): 7/7 tests passed (100% pass rate).
+- Smoke-launched `Marksmith.exe` (PID=5020, running cleanly for 3 seconds, gracefully terminated with zero crashes).
+
+---
+
+### Run #208 Blueprint — Carried-Forward Refinements & Next Cycle Targets
+1. **MainWindow (`MainWindow.xaml.cs`, `TextSearch.cs`)**:
+   - **Feature**: Markdown Footnote Backlink & Bidirectional Anchor Consistency Auditor.
+   - **Deliverable**: Add `TextSearch.AuditMarkdownFootnoteBidirectionalLinks(markdownText)` and `FormatFootnoteLinksSummary(...)`, verifying that every body reference `[^label]` has a matching definition `[^label]: ...` with backlink markers and no circular recursive references ($0-100\%$). Wire to `ShowLintIssueContextMenu`.
+2. **MindMapGalaxyWindow (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
+   - **Feature**: Graph Radial Tree Spanning & Angular Sector Distribution Auditor.
+   - **Deliverable**: Add `MindMapStudioViewModel.AuditGraphRadialTreeSectorDistribution()` and `FormatRadialTreeSectorSummary(...)`, computing angular sector separation around the root node in radial mindmap layouts to prevent node crowding and label collisions ($0-100\%$). Wire to `ArrangeDropDownButton.Flyout`.
+3. **ShapeDesignStudioWindow (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**:
+   - **Feature**: Diagram Trimetric Projection & Tri-Axial Angle Auditor.
+   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditTrimetricProjectionAlignment(shapes)` and `FormatTrimetricAlignmentSummary(...)`, evaluating diagram shapes for alignment along trimetric projection axes where all 3 receding angles differ, scoring full 3D axonometric consistency ($0-100\%$). Wire to `SelectionBoundsBorder.ContextFlyout`.
+4. **SmartArtDesignStudioWindow (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
+   - **Feature**: SmartArt Concentric Target / Bullseye Ring Radial Symmetry & Label Alignment Auditor.
+   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditTargetBullseyeRingGeometry(markdown, layoutName)` and `FormatTargetBullseyeGeometrySummary(...)`, validating target/bullseye concentric ring layouts for uniform ring width progression, center bullseye focus, and radial label positioning ($0-100\%$). Wire to `OutlineStatsFlyout`.
+5. **HistoryWindow (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #207 Block 3 Idea 5]**:
+   - **Refinement Target**: Semantic Diff ThreadPool Starvation & Sync-Over-Async Pattern Analyzer.
+   - **Deliverable**: Extend `LineDiff.AuditValueTaskAndAsyncAllocationHazards` to scan for `.Result`, `.GetAwaiter().GetResult()`, `.Wait()`, and `Task.Run` nested inside async calls, computing threadpool starvation risk ($0-100\%$).
+6. **SuiteHubView (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #207 Block 3 Idea 6]**:
+   - **Refinement Target**: Workspace Markdown Mermaid Diagram Syntax & Entity Encoding Auditor.
+   - **Deliverable**: Extend `RecentFilesService.AuditWorkspaceMathFormulasAndDelimiters` to scan workspace documents for mermaid code fences (` ```mermaid `), parse diagram direction/nodes/links, detect unescaped labels and entity corruptions, and compute workspace diagram health ($0-100\%$).

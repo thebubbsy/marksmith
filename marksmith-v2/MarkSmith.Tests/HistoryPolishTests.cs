@@ -3508,4 +3508,35 @@ public class HistoryPolishTests : IDisposable
         Assert.Equal(riskyAudit.Summary, formatted);
     }
 
+
+    [Fact]
+    public void Run207_AuditValueTaskAndAsyncAllocationHazards_DetectsMultipleAwaitsAndTaskHazards()
+    {
+        var cleanCode = string.Join("\n",
+            "public async ValueTask<int> GetDataAsync()",
+            "{",
+            "    return await FetchFromCacheAsync();",
+            "}"
+        );
+        var cleanAudit = LineDiff.AuditValueTaskAndAsyncAllocationHazards("", cleanCode);
+        Assert.Equal(100.0, cleanAudit.ValueTaskSafetyScore);
+        Assert.Equal(0, cleanAudit.MultipleAwaitsCount);
+
+        var riskyCode = string.Join("\n",
+            "ValueTask<int> computeVt = ComputeAsync();",
+            "int a = await computeVt;",
+            "int b = await computeVt;",
+            "var taskResult = new ValueTask<string>(Task.FromResult(\"redundant\"));"
+        );
+        var riskyAudit = LineDiff.AuditValueTaskAndAsyncAllocationHazards("", riskyCode);
+        Assert.True(riskyAudit.MultipleAwaitsCount >= 1 || riskyAudit.RedundantTaskAllocationCount >= 1);
+        Assert.True(riskyAudit.ValueTaskSafetyScore < 80.0);
+
+        string formatted = LineDiff.FormatValueTaskHazardsSummary(
+            riskyAudit.TotalModifiedLines, riskyAudit.MultipleAwaitsCount, riskyAudit.SyncBlockingCount,
+            riskyAudit.RedundantTaskAllocationCount, riskyAudit.DiscardedValueTaskCount,
+            riskyAudit.ValueTaskSafetyScore, riskyAudit.Category);
+        Assert.Equal(riskyAudit.Summary, formatted);
+    }
+
 }

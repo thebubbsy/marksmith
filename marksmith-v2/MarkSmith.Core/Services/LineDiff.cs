@@ -18512,6 +18512,201 @@ public static class LineDiff
         return $"Semantic diff channel & stream safety ({details} · {category} · {score:0.#}% safety score)";
     }
 
+    public static DiffValueTaskAllocationAudit AuditValueTaskAndAsyncAllocationHazards(string? beforeText, string? afterText)
+    {
+        var diff = Diff(beforeText ?? string.Empty, afterText ?? string.Empty);
+        var unified = BuildUnified(diff);
+        return AuditValueTaskAndAsyncAllocationHazards(unified);
+    }
+
+    public static DiffValueTaskAllocationAudit AuditValueTaskAndAsyncAllocationHazards(
+        IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows == null)
+        {
+            string emptySummary = FormatValueTaskHazardsSummary(0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new DiffValueTaskAllocationAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<ValueTaskHazardItem>(), "Clean Baseline", emptySummary);
+        }
+
+        var modifiedRows = unifiedRows
+            .Where(r => !r.IsGap && r.Kind == Kind.Added && !string.IsNullOrWhiteSpace(r.Text))
+            .ToList();
+
+        int totalModified = modifiedRows.Count;
+        if (totalModified == 0)
+        {
+            string emptySummary = FormatValueTaskHazardsSummary(0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new DiffValueTaskAllocationAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<ValueTaskHazardItem>(), "Clean Baseline", emptySummary);
+        }
+
+        var hazards = new List<ValueTaskHazardItem>();
+        int multipleAwaitCount = 0;
+        int syncBlockingCount = 0;
+        int redundantTaskCount = 0;
+        int discardedValueTaskCount = 0;
+
+        var awaitedVars = new HashSet<string>(StringComparer.Ordinal);
+        var awaitRegex = new Regex(@"\bawait\s+(?<var>[A-Za-z_]\w*)(\s*;|\s*\))", RegexOptions.Compiled);
+        var valueTaskDeclRegex = new Regex(@"\bValueTask(<[^>]+>)?\s+(?<var>[A-Za-z_]\w*)\s*=", RegexOptions.Compiled);
+        var valueTaskVars = new HashSet<string>(StringComparer.Ordinal);
+
+        var syncBlockRegex = new Regex(@"\b(?<var>[A-Za-z_]\w*)\.(Result|GetAwaiter\(\)\.GetResult\(\))", RegexOptions.Compiled);
+        var redundantTaskFromResultRegex = new Regex(@"new\s+ValueTask(<[^>]+>)?\s*\(\s*Task\.FromResult", RegexOptions.Compiled);
+        var newVtTaskCompletedRegex = new Regex(@"new\s+ValueTask\s*\(\s*Task\.CompletedTask\s*\)", RegexOptions.Compiled);
+        var taskRunInVtRegex = new Regex(@"new\s+ValueTask(<[^>]+>)?\s*\(\s*Task\.Run\s*\(", RegexOptions.Compiled);
+        var discardVtRegex = new Regex(@"^\s*_\s*=\s*\w+Async\s*\(", RegexOptions.Compiled);
+
+        for (int i = 0; i < modifiedRows.Count; i++)
+        {
+            var row = modifiedRows[i];
+            string text = row.Text.Trim();
+            int lineNum = row.NewNumber ?? (i + 1);
+
+            if (text.StartsWith("//") || text.StartsWith("/*") || text.StartsWith("*"))
+                continue;
+
+            var vtDeclMatch = valueTaskDeclRegex.Match(text);
+            if (vtDeclMatch.Success)
+            {
+                valueTaskVars.Add(vtDeclMatch.Groups["var"].Value);
+            }
+
+            var awaitMatch = awaitRegex.Match(text);
+            if (awaitMatch.Success)
+            {
+                string varName = awaitMatch.Groups["var"].Value;
+                if (valueTaskVars.Contains(varName) || varName.EndsWith("Vt", StringComparison.OrdinalIgnoreCase) || varName.EndsWith("ValueTask", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (awaitedVars.Contains(varName))
+                    {
+                        multipleAwaitCount++;
+                        hazards.Add(new ValueTaskHazardItem(
+                            lineNum,
+                            text,
+                            "Multiple Await on ValueTask",
+                            "Critical",
+                            text,
+                            $"ValueTask '{varName}' awaited multiple times; ValueTask can only be awaited once. Use .AsTask() or .Preserve() if multiple awaits are required."));
+                    }
+                    else
+                    {
+                        awaitedVars.Add(varName);
+                    }
+                }
+            }
+
+            var syncBlockMatch = syncBlockRegex.Match(text);
+            if (syncBlockMatch.Success)
+            {
+                string varName = syncBlockMatch.Groups["var"].Value;
+                if (valueTaskVars.Contains(varName) || varName.EndsWith("Vt", StringComparison.OrdinalIgnoreCase))
+                {
+                    syncBlockingCount++;
+                    hazards.Add(new ValueTaskHazardItem(
+                        lineNum,
+                        text,
+                        "ValueTask Synchronous Blocking",
+                        "High",
+                        text,
+                        $"Directly calling .Result or .GetAwaiter().GetResult() on ValueTask '{varName}' causes thread starvation; await asynchronously or call .AsTask()."));
+                }
+            }
+
+            if (redundantTaskFromResultRegex.IsMatch(text))
+            {
+                redundantTaskCount++;
+                hazards.Add(new ValueTaskHazardItem(
+                    lineNum,
+                    text,
+                    "Redundant Task.FromResult in ValueTask",
+                    "Medium",
+                    text,
+                    "Wrapping Task.FromResult in new ValueTask<T> defeats zero-allocation optimization; use ValueTask.FromResult<T>(...) directly."));
+            }
+
+            if (newVtTaskCompletedRegex.IsMatch(text))
+            {
+                redundantTaskCount++;
+                hazards.Add(new ValueTaskHazardItem(
+                    lineNum,
+                    text,
+                    "Redundant Task.CompletedTask in ValueTask",
+                    "Medium",
+                    text,
+                    "Wrapping Task.CompletedTask in new ValueTask(...) allocates; use ValueTask.CompletedTask or default(ValueTask)."));
+            }
+
+            if (taskRunInVtRegex.IsMatch(text))
+            {
+                redundantTaskCount++;
+                hazards.Add(new ValueTaskHazardItem(
+                    lineNum,
+                    text,
+                    "Task.Run Instantiation in ValueTask",
+                    "Low",
+                    text,
+                    "new ValueTask(Task.Run(...)) wraps an allocated Task; consider returning Task directly unless implementing an interface contract."));
+            }
+
+            if (discardVtRegex.IsMatch(text) && text.Contains("ValueTask"))
+            {
+                discardedValueTaskCount++;
+                hazards.Add(new ValueTaskHazardItem(
+                    lineNum,
+                    text,
+                    "Discarded ValueTask Assignment",
+                    "Medium",
+                    text,
+                    "Discarding ValueTask with '_ =' may hide unobserved exceptions; await the ValueTask or handle with .AsTask()."));
+            }
+        }
+
+        double score = 100.0;
+        score -= multipleAwaitCount * 30.0;
+        score -= syncBlockingCount * 25.0;
+        score -= redundantTaskCount * 15.0;
+        score -= discardedValueTaskCount * 10.0;
+        score = Math.Clamp(score, 0.0, 100.0);
+
+        string category = score switch
+        {
+            >= 95.0 => "Flawless ValueTask Allocation & Safety",
+            >= 80.0 => "Sound Async ValueTask Hygiene",
+            >= 60.0 => "Moderate ValueTask Anti-Patterns",
+            _ => "Unsafe Multiple Awaits & Allocation Hazards"
+        };
+
+        string summary = FormatValueTaskHazardsSummary(
+            totalModified, multipleAwaitCount, syncBlockingCount, redundantTaskCount, discardedValueTaskCount, score, category);
+
+        return new DiffValueTaskAllocationAudit(
+            totalModified, multipleAwaitCount, syncBlockingCount, redundantTaskCount, discardedValueTaskCount, score, hazards, category, summary);
+    }
+
+    public static string FormatValueTaskHazardsSummary(
+        int totalModified, int multipleAwaits, int syncBlocking, int redundantTasks, int discardedValueTasks,
+        double score, string category)
+    {
+        if (totalModified == 0)
+            return "Semantic diff ValueTask safety: Clean diff · 0 modified lines";
+
+        var parts = new List<string>();
+        parts.Add($"{totalModified} modified line{(totalModified == 1 ? "" : "s")}");
+        if (multipleAwaits > 0) parts.Add($"🚨 {multipleAwaits} multiple await hazard{(multipleAwaits == 1 ? "" : "s")}");
+        if (syncBlocking > 0) parts.Add($"⚠ {syncBlocking} sync blocking");
+        if (redundantTasks > 0) parts.Add($"ℹ {redundantTasks} redundant Task wrapper{(redundantTasks == 1 ? "" : "s")}");
+        if (discardedValueTasks > 0) parts.Add($"ℹ {discardedValueTasks} discarded");
+        if (multipleAwaits == 0 && syncBlocking == 0 && redundantTasks == 0 && discardedValueTasks == 0)
+            parts.Add("0 ValueTask hazards");
+
+        string details = string.Join(" · ", parts);
+        return $"Semantic diff ValueTask safety ({details} · {category} · {score:0.#}% safety score)";
+    }
+
     public static string FormatMemorySpanSafetySummary(
         int totalModified, int asyncSpan, int closureSpan, int memoryEscape, int loopClosure, double score, string category)
     {
@@ -20336,6 +20531,8 @@ public sealed record DiffMemoryAllocationAudit(
 
     public int TotalHazardsCount => TotalHazards;
 
+
+
 }
 
 
@@ -20794,6 +20991,25 @@ public sealed record DiffStringInterpolationBoxingAudit(
     int LoggingEagerInterpolationCount,
     double AllocationSafetyScore,
     IReadOnlyList<StringInterpolationBoxingHazardItem> Items,
+    string Category,
+    string Summary);
+
+public sealed record ValueTaskHazardItem(
+    int LineNumber,
+    string LineText,
+    string HazardType,
+    string RiskLevel,
+    string CodeSnippet,
+    string Recommendation);
+
+public sealed record DiffValueTaskAllocationAudit(
+    int TotalModifiedLines,
+    int MultipleAwaitsCount,
+    int SyncBlockingCount,
+    int RedundantTaskAllocationCount,
+    int DiscardedValueTaskCount,
+    double ValueTaskSafetyScore,
+    IReadOnlyList<ValueTaskHazardItem> Hazards,
     string Category,
     string Summary);
 

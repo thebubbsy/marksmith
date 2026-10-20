@@ -13311,6 +13311,265 @@ public static class TextSearch
         return $"Markdown abbreviation audit ({details} · {category} · {score:0.#}% governance score)";
     }
 
+    public static MarkdownTableCellAudit AuditMarkdownTableCellWrapping(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            string emptySummary = FormatTableCellWrappingSummary(0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new MarkdownTableCellAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<MarkdownTableCellRowItem>(),
+                "Clean Baseline", emptySummary);
+        }
+
+        var lines = markdownText.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        var items = new List<MarkdownTableCellRowItem>();
+
+        bool insideCodeFence = false;
+        int totalTables = 0;
+        int totalRows = 0;
+        int mismatchedRows = 0;
+        int missingDelimiterTables = 0;
+        int unbalancedPipesCount = 0;
+
+        int currentTableIndex = 0;
+        bool inTable = false;
+        var currentTableRows = new List<(int LineNumber, string LineText, List<string> Cells, bool HasOuterPipes)>();
+
+        void ProcessCurrentTable()
+        {
+            if (currentTableRows.Count == 0) return;
+
+            totalTables++;
+            currentTableIndex++;
+
+            bool secondRowIsDelimiter = false;
+            if (currentTableRows.Count >= 2)
+            {
+                var row1Cells = currentTableRows[1].Cells;
+                if (row1Cells.Count > 0 && row1Cells.All(c => Regex.IsMatch(c, @"^:?-+:?$")))
+                {
+                    secondRowIsDelimiter = true;
+                }
+            }
+
+            if (!secondRowIsDelimiter)
+            {
+                missingDelimiterTables++;
+            }
+
+            int headerCols = currentTableRows[0].Cells.Count;
+            if (headerCols == 0) headerCols = 1;
+
+            for (int r = 0; r < currentTableRows.Count; r++)
+            {
+                var row = currentTableRows[r];
+                totalRows++;
+
+                bool isDelimiter = (r == 1 && secondRowIsDelimiter);
+                int actualCols = row.Cells.Count;
+                bool isMismatched = !isDelimiter && (actualCols != headerCols);
+                if (isMismatched) mismatchedRows++;
+
+                if (!row.HasOuterPipes) unbalancedPipesCount++;
+
+                string rec;
+                if (r == 0)
+                {
+                    rec = isMismatched
+                        ? $"Table #{currentTableIndex} header defines {actualCols} column{(actualCols == 1 ? "" : "s")}."
+                        : $"Table #{currentTableIndex} header with {actualCols} columns.";
+                }
+                else if (isDelimiter)
+                {
+                    rec = actualCols != headerCols
+                        ? $"Delimiter row defines {actualCols} columns but header has {headerCols}; align column counts."
+                        : $"Valid delimiter alignment row with {actualCols} columns.";
+                }
+                else
+                {
+                    if (actualCols < headerCols)
+                    {
+                        rec = $"Row underflow: {actualCols} cell{(actualCols == 1 ? "" : "s")} (expected {headerCols}); missing cell separators or accidental line break.";
+                    }
+                    else if (actualCols > headerCols)
+                    {
+                        rec = $"Row overflow: {actualCols} cells (expected {headerCols}); escape unescaped pipe (\\|) in cell text.";
+                    }
+                    else if (!row.HasOuterPipes)
+                    {
+                        rec = "Missing leading or trailing outer pipe (|) for consistent table grid style.";
+                    }
+                    else
+                    {
+                        rec = "Consistent cell column count and alignment.";
+                    }
+                }
+
+                items.Add(new MarkdownTableCellRowItem(
+                    row.LineNumber,
+                    currentTableIndex,
+                    headerCols,
+                    actualCols,
+                    row.HasOuterPipes,
+                    isMismatched,
+                    rec));
+            }
+
+            currentTableRows.Clear();
+            inTable = false;
+        }
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string line = lines[i];
+            string trimmed = line.Trim();
+
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+            {
+                insideCodeFence = !insideCodeFence;
+                if (inTable) ProcessCurrentTable();
+                continue;
+            }
+
+            if (insideCodeFence) continue;
+
+            bool looksLikeTableRow = !string.IsNullOrWhiteSpace(trimmed) && trimmed.Contains('|');
+
+            if (looksLikeTableRow)
+            {
+                if (!inTable)
+                {
+                    inTable = true;
+                }
+
+                bool hasOuter = trimmed.StartsWith("|") && trimmed.EndsWith("|") && !trimmed.EndsWith("\\|");
+                var cells = SplitTableCells(trimmed);
+                currentTableRows.Add((i + 1, line, cells, hasOuter));
+            }
+            else
+            {
+                if (inTable)
+                {
+                    ProcessCurrentTable();
+                }
+            }
+        }
+
+        if (inTable)
+        {
+            ProcessCurrentTable();
+        }
+
+        if (totalTables == 0)
+        {
+            string emptySummary = FormatTableCellWrappingSummary(0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new MarkdownTableCellAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<MarkdownTableCellRowItem>(),
+                "Clean Baseline", emptySummary);
+        }
+
+        double score = 100.0;
+        if (mismatchedRows > 0) score -= mismatchedRows * 15.0;
+        if (missingDelimiterTables > 0) score -= missingDelimiterTables * 20.0;
+        if (unbalancedPipesCount > 0) score -= Math.Min(30.0, unbalancedPipesCount * 3.0);
+        score = Math.Clamp(score, 0.0, 100.0);
+
+        string category = score switch
+        {
+            >= 95.0 => "Flawless Table Grid Structure",
+            >= 80.0 => "Consistent Column Layout",
+            >= 60.0 => "Mismatched Cell Counts",
+            _ => "Malformed Table Syntax"
+        };
+
+        string summary = FormatTableCellWrappingSummary(
+            totalTables, totalRows, mismatchedRows, missingDelimiterTables, unbalancedPipesCount, score, category);
+
+        return new MarkdownTableCellAudit(
+            totalTables, totalRows, mismatchedRows, missingDelimiterTables, unbalancedPipesCount, score, items, category, summary);
+    }
+
+    private static List<string> SplitTableCells(string line)
+    {
+        var cells = new List<string>();
+        var sb = new StringBuilder();
+        bool inBacktick = false;
+        bool isEscaped = false;
+
+        string trimmed = line.Trim();
+        bool hasLeadingPipe = trimmed.StartsWith("|");
+        bool hasTrailingPipe = trimmed.EndsWith("|") && !trimmed.EndsWith("\\|");
+
+        for (int i = 0; i < line.Length; i++)
+        {
+            char c = line[i];
+            if (isEscaped)
+            {
+                sb.Append(c);
+                isEscaped = false;
+                continue;
+            }
+
+            if (c == '\\')
+            {
+                isEscaped = true;
+                sb.Append(c);
+                continue;
+            }
+
+            if (c == '`')
+            {
+                inBacktick = !inBacktick;
+                sb.Append(c);
+                continue;
+            }
+
+            if (c == '|' && !inBacktick)
+            {
+                cells.Add(sb.ToString().Trim());
+                sb.Clear();
+                continue;
+            }
+
+            sb.Append(c);
+        }
+        cells.Add(sb.ToString().Trim());
+
+        if (hasLeadingPipe && cells.Count > 0 && string.IsNullOrWhiteSpace(cells[0]))
+        {
+            cells.RemoveAt(0);
+        }
+        if (hasTrailingPipe && cells.Count > 0 && string.IsNullOrWhiteSpace(cells[^1]))
+        {
+            cells.RemoveAt(cells.Count - 1);
+        }
+
+        return cells;
+    }
+
+    public static string FormatTableCellWrappingSummary(string? markdownText)
+        => AuditMarkdownTableCellWrapping(markdownText).Summary;
+
+    public static string FormatTableCellWrappingSummary(
+        int totalTables, int totalRows, int mismatchedRows, int missingDelimiters,
+        int unbalancedPipes, double score, string category)
+    {
+        if (totalTables == 0)
+            return "Markdown table cell audit: Clean document · 0 tables detected";
+
+        var parts = new List<string>();
+        parts.Add($"{totalTables} table{(totalTables == 1 ? "" : "s")}, {totalRows} row{(totalRows == 1 ? "" : "s")}");
+        if (mismatchedRows > 0) parts.Add($"🚨 {mismatchedRows} mismatched column row{(mismatchedRows == 1 ? "" : "s")}");
+        if (missingDelimiters > 0) parts.Add($"⚠ {missingDelimiters} missing delimiter row{(missingDelimiters == 1 ? "" : "s")}");
+        if (unbalancedPipes > 0) parts.Add($"ℹ {unbalancedPipes} unbordered pipe row{(unbalancedPipes == 1 ? "" : "s")}");
+        if (mismatchedRows == 0 && missingDelimiters == 0) parts.Add("100% columns aligned");
+
+        string details = string.Join(" · ", parts);
+        return $"Markdown table cell audit ({details} · {category} · {score:0.#}% hygiene score)";
+    }
+
     public static string FormatDefinitionListsSummary(string? markdownText)
         => AuditMarkdownDefinitionLists(markdownText).Summary;
 
@@ -14889,6 +15148,26 @@ public sealed record MarkdownAbbreviationAudit(
     int TotalAcronymUsages,
     double ConsistencyScore,
     IReadOnlyList<MarkdownAbbreviationItem> Items,
+    string Category,
+    string Summary);
+
+public sealed record MarkdownTableCellRowItem(
+    int LineNumber,
+    int TableIndex,
+    int ExpectedColumns,
+    int ActualColumns,
+    bool HasOuterPipes,
+    bool IsMismatched,
+    string Recommendation);
+
+public sealed record MarkdownTableCellAudit(
+    int TotalTables,
+    int TotalRows,
+    int MismatchedRows,
+    int MissingDelimiterTables,
+    int UnbalancedOuterPipesCount,
+    double TableHygieneScore,
+    IReadOnlyList<MarkdownTableCellRowItem> Items,
     string Category,
     string Summary);
 

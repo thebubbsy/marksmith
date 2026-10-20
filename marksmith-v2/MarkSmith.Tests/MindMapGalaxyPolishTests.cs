@@ -4471,5 +4471,36 @@ namespace MarkSmith.Tests
             Assert.True(disconnectedAudit.AccessibilityHarmonyScore < starAudit.AccessibilityHarmonyScore);
         }
 
+    [Fact]
+    public void Run207_AuditGraphBetweennessCentrality_IdentifiesBottlenecksAndBridges()
+    {
+        var emptyAudit = MindMapStudioViewModel.AuditGraphBetweennessCentrality(null, null);
+        Assert.Equal(0, emptyAudit.TotalNodes);
+        Assert.Equal(100.0, emptyAudit.ResilienceScore);
+        Assert.Equal("Empty Galaxy", emptyAudit.Category);
+
+        var a = new MindMapNode { Id = "A", Title = "Cluster 1" };
+        var b = new MindMapNode { Id = "B", Title = "Central Bridge" };
+        var c = new MindMapNode { Id = "C", Title = "Cluster 2" };
+
+        var links = new List<MindMapLink>
+        {
+            new MindMapLink { Id = "e1", SourceNodeId = "A", TargetNodeId = "B" },
+            new MindMapLink { Id = "e2", SourceNodeId = "B", TargetNodeId = "C" }
+        };
+
+        var lineAudit = MindMapStudioViewModel.AuditGraphBetweennessCentrality(new[] { a, b, c }, links);
+        Assert.Equal(3, lineAudit.TotalNodes);
+        Assert.Equal(2, lineAudit.TotalEdges);
+        Assert.Equal("B", lineAudit.TopBridgeNodeId);
+        Assert.Equal(1.0, lineAudit.MaxBetweennessScore);
+        Assert.Equal("Critical Bottleneck Bridge", lineAudit.Nodes.First(n => n.NodeId == "B").NetworkRole);
+
+        string formatted = MindMapStudioViewModel.FormatBetweennessCentralitySummary(
+            lineAudit.TotalNodes, lineAudit.TotalEdges, lineAudit.TopBridgeNodeId, lineAudit.TopBridgeNodeTitle,
+            lineAudit.MaxBetweennessScore, lineAudit.CriticalBottlenecksCount,
+            lineAudit.ResilienceScore, lineAudit.Category, false);
+        Assert.Equal(lineAudit.Summary, formatted);
+    }
     }
 }

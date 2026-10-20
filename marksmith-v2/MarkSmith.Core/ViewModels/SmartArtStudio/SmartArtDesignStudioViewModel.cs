@@ -4151,6 +4151,145 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         return $"SmartArt pyramid hierarchy audit ({details} · {category} · {score:0.#}% symmetry score)";
     }
 
+    public SmartArtChevronProcessStrideAudit AuditChevronProcessStrideGeometry(string? markdown = null, string? layoutName = null)
+    {
+        string md = markdown ?? MarkdownText;
+        string layout = layoutName ?? SelectedLayout?.DisplayName ?? "Chevron Process";
+        return AuditChevronProcessStrideGeometry(md, layout, isStatic: false);
+    }
+
+    public static SmartArtChevronProcessStrideAudit AuditChevronProcessStrideGeometry(string? markdown, string? layoutName = null, bool isStatic = true)
+    {
+        string layout = layoutName ?? "Chevron Process";
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            string emptySummary = FormatChevronProcessStrideSummary(0, 0, 0.0, 0, 100.0, "Empty Outline", layout);
+            return new SmartArtChevronProcessStrideAudit(
+                0, 0, 0.0, 0, 100.0,
+                Array.Empty<ChevronStageGeometryItem>(), "Empty Outline", layout, emptySummary);
+        }
+
+        var lines = markdown.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        var stages = new List<(string Label, List<string> SubItems)>();
+
+        foreach (var rawLine in lines)
+        {
+            var line = rawLine.Trim();
+            if (string.IsNullOrWhiteSpace(line)) continue;
+
+            if (line.StartsWith("#") || line.StartsWith("- ") || line.StartsWith("* "))
+            {
+                string text = line.TrimStart('#', '-', '*', ' ');
+                if (!rawLine.StartsWith("  ") && !rawLine.StartsWith("\t"))
+                {
+                    stages.Add((text, new List<string>()));
+                }
+                else if (stages.Count > 0)
+                {
+                    stages[^1].SubItems.Add(text);
+                }
+            }
+            else if (stages.Count > 0)
+            {
+                stages[^1].SubItems.Add(line);
+            }
+        }
+
+        int stageCount = stages.Count;
+        var items = new List<ChevronStageGeometryItem>();
+        int totalWords = 0;
+        int truncationRiskCount = 0;
+        var wordCounts = new List<int>();
+
+        double standardStridePercent = stageCount > 0 ? Math.Round(100.0 / stageCount, 1) : 100.0;
+        double arrowNotchDepthPercent = 18.0;
+
+        for (int i = 0; i < stageCount; i++)
+        {
+            var s = stages[i];
+            string fullContent = s.Label + " " + string.Join(" ", s.SubItems);
+            var words = fullContent.Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            int wordCount = words.Length;
+            int charCount = fullContent.Length;
+
+            totalWords += wordCount;
+            wordCounts.Add(wordCount);
+
+            bool isTruncationRisk = wordCount > 10 || charCount > 40;
+            if (isTruncationRisk) truncationRiskCount++;
+
+            string stageRole = (i == 0) ? "Initiation Stage" : (i == stageCount - 1) ? "Final Milestone" : $"Phase {i + 1}";
+
+            string rec = "";
+            if (wordCount == 0)
+            {
+                rec = "Empty phase label; provide concise action verb.";
+            }
+            else if (wordCount > 10)
+            {
+                rec = $"Lengthy text ({wordCount} words) risks arrow tip truncation; condense to <= 6 words.";
+            }
+            else if (charCount > 35)
+            {
+                rec = $"Character count ({charCount} chars) exceeds standard chevron body box; shorten title.";
+            }
+            else
+            {
+                rec = "Optimal chevron body stride and concise phase text.";
+            }
+
+            items.Add(new ChevronStageGeometryItem(
+                i + 1,
+                stageRole,
+                s.Label,
+                wordCount,
+                charCount,
+                standardStridePercent,
+                arrowNotchDepthPercent,
+                isTruncationRisk,
+                rec));
+        }
+
+        double avgWords = stageCount > 0 ? (double)totalWords / stageCount : 0.0;
+        double score = 100.0;
+
+        if (stageCount < 2) score -= 30.0;
+        else if (stageCount > 6) score -= (stageCount - 6) * 10.0;
+
+        if (truncationRiskCount > 0) score -= truncationRiskCount * 12.0;
+        score = Math.Clamp(score, 0.0, 100.0);
+
+        string category = score switch
+        {
+            >= 90.0 => "Equidistant Chevron Pacing",
+            >= 75.0 => "Balanced Sequential Stride",
+            >= 55.0 => "Chevron Text Congestion / Truncation",
+            _ => "Unbalanced Process Flow Stride"
+        };
+
+        string summary = FormatChevronProcessStrideSummary(
+            stageCount, totalWords, avgWords, truncationRiskCount, score, category, layout);
+
+        return new SmartArtChevronProcessStrideAudit(
+            stageCount, totalWords, avgWords, truncationRiskCount, score, items, category, layout, summary);
+    }
+
+    public static string FormatChevronProcessStrideSummary(
+        int stageCount, int totalWords, double avgWordsPerStage, int truncationRisks,
+        double score, string category, string layout)
+    {
+        if (stageCount == 0) return $"SmartArt chevron stride audit: Empty outline · {layout}";
+
+        var parts = new List<string>();
+        parts.Add($"{stageCount} process phase{(stageCount == 1 ? "" : "s")}");
+        parts.Add($"{totalWords} words (avg {avgWordsPerStage:0.#}/phase)");
+        if (truncationRisks > 0) parts.Add($"⚠ {truncationRisks} chevron tip truncation risk{(truncationRisks == 1 ? "" : "s")}");
+        else parts.Add("0 text overflow risks");
+
+        string details = string.Join(" · ", parts);
+        return $"SmartArt chevron stride audit ({details} · {category} · {score:0.#}% stride score)";
+    }
+
     public static string FormatMatrixQuadrantGeometrySummary(
         int quadrantCount, bool is2x2, int totalWords, double avgWords, double cv,
         double score, string category, string layout)
@@ -11478,6 +11617,28 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         return $"SmartArt Venn diagram overlap & cardinality audit ({details} · {category} · {score:0.#}% clarity score)";
     }
 
+
+public sealed record ChevronStageGeometryItem(
+    int StageIndex,
+    string StageRole,
+    string Label,
+    int WordCount,
+    int CharacterCount,
+    double StridePercent,
+    double ArrowNotchDepthPercent,
+    bool HasTruncationRisk,
+    string Recommendation);
+
+public sealed record SmartArtChevronProcessStrideAudit(
+    int StageCount,
+    int TotalWordCount,
+    double AverageWordCount,
+    int TruncationRiskCount,
+    double StrideSymmetryScore,
+    IReadOnlyList<ChevronStageGeometryItem> Stages,
+    string Category,
+    string LayoutName,
+    string Summary);
 }
 
 /// <summary>

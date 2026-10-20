@@ -6072,6 +6072,231 @@ namespace MarkSmith.ViewModels.MindMap
             return $"Mind map harmonic centrality audit ({scope}{details} · {category} · {score:0.#}% accessibility score)";
         }
 
+        public GraphBetweennessBottleneckAudit AuditGraphBetweennessCentrality(bool selectionOnly = false)
+        {
+            var selected = Nodes.Where(n => n.IsSelected).ToList();
+            var targetNodes = (selectionOnly && selected.Count > 0)
+                ? selected
+                : Nodes.ToList();
+
+            bool isSelection = selectionOnly && selected.Count > 0;
+            var nodeIds = new HashSet<string>(targetNodes.Select(n => n.Id));
+            var relevantLinks = Links.Where(l => nodeIds.Contains(l.SourceNodeId) && nodeIds.Contains(l.TargetNodeId)).ToList();
+
+            var audit = AuditGraphBetweennessCentrality(targetNodes.Select(n => n.Model), relevantLinks.Select(l => l.Model), isSelection);
+            StatusMessage = audit.Summary;
+            return audit;
+        }
+
+        public static GraphBetweennessBottleneckAudit AuditGraphBetweennessCentrality(
+            IEnumerable<MindMapNode>? nodes,
+            IEnumerable<MindMapLink>? links,
+            bool isSelection = false)
+        {
+            var nodeList = nodes?.ToList() ?? new List<MindMapNode>();
+            var linkList = links?.ToList() ?? new List<MindMapLink>();
+            int totalNodes = nodeList.Count;
+            int totalEdges = linkList.Count;
+
+            if (totalNodes == 0)
+            {
+                string emptySummary = FormatBetweennessCentralitySummary(0, 0, "", "", 0.0, 0, 100.0, "Empty Galaxy", isSelection);
+                return new GraphBetweennessBottleneckAudit(
+                    0, 0, "", "", 0.0, 0, 100.0,
+                    Array.Empty<NodeBetweennessItem>(), "Empty Galaxy", isSelection, emptySummary);
+            }
+
+            if (totalNodes == 1)
+            {
+                var single = nodeList[0];
+                var singleItem = new NodeBetweennessItem(single.Id, single.Title, 0, 0.0, 0.0, "Isolated Root", "Connect additional nodes to expand the graph.");
+                string singleSummary = FormatBetweennessCentralitySummary(1, 0, single.Id, single.Title, 0.0, 0, 100.0, "Balanced Distributed Topology", isSelection);
+                return new GraphBetweennessBottleneckAudit(
+                    1, 0, single.Id, single.Title, 0.0, 0, 100.0,
+                    new[] { singleItem }, "Balanced Distributed Topology", isSelection, singleSummary);
+            }
+
+            var adj = new Dictionary<string, HashSet<string>>();
+            var degrees = new Dictionary<string, int>();
+            foreach (var node in nodeList)
+            {
+                adj[node.Id] = new HashSet<string>();
+                degrees[node.Id] = 0;
+            }
+
+            foreach (var link in linkList)
+            {
+                if (adj.ContainsKey(link.SourceNodeId) && adj.ContainsKey(link.TargetNodeId))
+                {
+                    if (adj[link.SourceNodeId].Add(link.TargetNodeId))
+                    {
+                        degrees[link.SourceNodeId]++;
+                    }
+                    if (adj[link.TargetNodeId].Add(link.SourceNodeId))
+                    {
+                        degrees[link.TargetNodeId]++;
+                    }
+                }
+            }
+
+            var cb = new Dictionary<string, double>();
+            foreach (var node in nodeList)
+            {
+                cb[node.Id] = 0.0;
+            }
+
+            // Brandes' Algorithm for undirected unweighted graphs
+            foreach (var s in nodeList)
+            {
+                var S = new Stack<string>();
+                var P = new Dictionary<string, List<string>>();
+                var sigma = new Dictionary<string, double>();
+                var d = new Dictionary<string, int>();
+                var delta = new Dictionary<string, double>();
+
+                foreach (var v in nodeList)
+                {
+                    P[v.Id] = new List<string>();
+                    sigma[v.Id] = 0.0;
+                    d[v.Id] = -1;
+                    delta[v.Id] = 0.0;
+                }
+
+                sigma[s.Id] = 1.0;
+                d[s.Id] = 0;
+
+                var Q = new Queue<string>();
+                Q.Enqueue(s.Id);
+
+                while (Q.Count > 0)
+                {
+                    string v = Q.Dequeue();
+                    S.Push(v);
+
+                    foreach (var w in adj[v])
+                    {
+                        if (d[w] < 0)
+                        {
+                            d[w] = d[v] + 1;
+                            Q.Enqueue(w);
+                        }
+                        if (d[w] == d[v] + 1)
+                        {
+                            sigma[w] += sigma[v];
+                            P[w].Add(v);
+                        }
+                    }
+                }
+
+                while (S.Count > 0)
+                {
+                    string w = S.Pop();
+                    foreach (var v in P[w])
+                    {
+                        if (sigma[w] > 0)
+                        {
+                            delta[v] += (sigma[v] / sigma[w]) * (1.0 + delta[w]);
+                        }
+                    }
+                    if (w != s.Id)
+                    {
+                        cb[w] += delta[w];
+                    }
+                }
+            }
+
+            // Undirected graph correction: divide by 2
+            foreach (var k in nodeList)
+            {
+                cb[k.Id] /= 2.0;
+            }
+
+            double scale = (totalNodes > 2) ? (2.0 / ((totalNodes - 1) * (totalNodes - 2))) : 1.0;
+            var normalizedCb = new Dictionary<string, double>();
+            foreach (var k in nodeList)
+            {
+                normalizedCb[k.Id] = Math.Clamp(cb[k.Id] * scale, 0.0, 1.0);
+            }
+
+            var sorted = nodeList.OrderByDescending(n => normalizedCb[n.Id]).ToList();
+            var topBridge = sorted[0];
+            double maxBetweenness = normalizedCb[topBridge.Id];
+
+            int bottleneckCount = 0;
+            var items = new List<NodeBetweennessItem>();
+            foreach (var node in sorted)
+            {
+                double norm = normalizedCb[node.Id];
+                double raw = cb[node.Id];
+                int deg = degrees[node.Id];
+
+                string role = norm switch
+                {
+                    >= 0.5 => "Critical Bottleneck Bridge",
+                    >= 0.25 => "Major Routing Conduit",
+                    >= 0.08 => "Intermediate Relay",
+                    _ => deg <= 1 ? "Leaf / Peripheral Node" : "Low Betweenness Mesh Node"
+                };
+
+                if (norm >= 0.35) bottleneckCount++;
+
+                string rec = role switch
+                {
+                    "Critical Bottleneck Bridge" => "Top network bottleneck; severing this node fragments the galaxy. Add redundant links.",
+                    "Major Routing Conduit" => "High traffic relay node; balance load with parallel connections.",
+                    "Intermediate Relay" => "Well-distributed intermediary across clusters.",
+                    "Leaf / Peripheral Node" => "Terminal endpoint; does not bridge other document clusters.",
+                    _ => "Resilient mesh participant."
+                };
+
+                items.Add(new NodeBetweennessItem(
+                    node.Id,
+                    node.Title,
+                    deg,
+                    Math.Round(raw, 2),
+                    Math.Round(norm, 3),
+                    role,
+                    rec));
+            }
+
+            double score = 100.0;
+            if (maxBetweenness >= 0.6 && totalNodes >= 4) score -= 25.0;
+            else if (maxBetweenness >= 0.4 && totalNodes >= 4) score -= 15.0;
+            if (bottleneckCount > 1) score -= (bottleneckCount - 1) * 10.0;
+            score = Math.Clamp(score, 0.0, 100.0);
+
+            string category = score switch
+            {
+                >= 90.0 => "Balanced Distributed Topology",
+                >= 75.0 => "Resilient Multi-Path Network",
+                >= 55.0 => "Moderate Bottleneck Vulnerability",
+                _ => "Fragile Single-Point-of-Failure Bridge"
+            };
+
+            string summary = FormatBetweennessCentralitySummary(
+                totalNodes, totalEdges, topBridge.Id, topBridge.Title, maxBetweenness, bottleneckCount, score, category, isSelection);
+
+            return new GraphBetweennessBottleneckAudit(
+                totalNodes, totalEdges, topBridge.Id, topBridge.Title, maxBetweenness, bottleneckCount, score, items, category, isSelection, summary);
+        }
+
+        public static string FormatBetweennessCentralitySummary(
+            int totalNodes, int totalEdges, string topBridgeId, string topBridgeTitle, double maxBetweenness,
+            int bottleneckCount, double score, string category, bool isSelection)
+        {
+            string scope = isSelection ? "Selection · " : "";
+            if (totalNodes == 0) return $"Mind map betweenness centrality audit ({scope}0 nodes): Empty galaxy";
+
+            var parts = new List<string>();
+            parts.Add($"{totalNodes} nodes, {totalEdges} edges");
+            if (!string.IsNullOrEmpty(topBridgeTitle)) parts.Add($"Top bridge '{topBridgeTitle}' (betweenness {maxBetweenness:0.##})");
+            if (bottleneckCount > 0) parts.Add($"⚠ {bottleneckCount} critical bottleneck{(bottleneckCount == 1 ? "" : "s")}");
+            else parts.Add("0 single-point bottlenecks");
+
+            string details = string.Join(" · ", parts);
+            return $"Mind map betweenness centrality audit ({scope}{details} · {category} · {score:0.#}% resilience score)";
+        }
+
         public static string FormatClosenessCentralitySummary(
             int nodeCount, int linkCount, int components, double meanHarmonic, double graphEfficiency,
             IReadOnlyList<string> topHubs, int peripheralCount, string category, bool isSelection)
@@ -15041,4 +15266,26 @@ namespace MarkSmith.ViewModels.MindMap
         bool IsSelectionScope,
         string Summary);
 
+
+    public sealed record NodeBetweennessItem(
+        string NodeId,
+        string Title,
+        int Degree,
+        double RawBetweenness,
+        double NormalizedBetweenness,
+        string NetworkRole,
+        string Recommendation);
+
+    public sealed record GraphBetweennessBottleneckAudit(
+        int TotalNodes,
+        int TotalEdges,
+        string TopBridgeNodeId,
+        string TopBridgeNodeTitle,
+        double MaxBetweennessScore,
+        int CriticalBottlenecksCount,
+        double ResilienceScore,
+        IReadOnlyList<NodeBetweennessItem> Nodes,
+        string Category,
+        bool IsSelectionScope,
+        string Summary);
 }

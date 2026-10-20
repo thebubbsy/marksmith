@@ -12154,6 +12154,19 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             AnnounceStatus(summary);
         };
         menu.Items.Add(auditAbbreviationsConsistencyItem);
+        var auditTableCellWrappingConsistencyItem = new MenuFlyoutItem
+        {
+            Text = "Audit Markdown Table Cell Alignment & Long Line Wrapping Consistency",
+            Icon = new FontIcon { Glyph = "\uE8B9" }
+        };
+        auditTableCellWrappingConsistencyItem.Click += (_, _) =>
+        {
+            var docText = EditorDocument();
+            var summary = MarkSmith.Services.TextSearch.AuditMarkdownTableCellWrapping(docText).Summary;
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditTableCellWrappingConsistencyItem);
 
 
         menu.ShowAt(anchor);

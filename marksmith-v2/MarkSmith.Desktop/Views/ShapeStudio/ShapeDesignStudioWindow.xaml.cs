@@ -6711,6 +6711,14 @@ namespace MarkSmith.Views.ShapeStudio
         ViewModel.StatusMessage = $"\u2713 {result.Summary}";
     }
 
+    private void OnSelectionAuditDimetricAlignmentClick(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel == null) return;
+        var result = ViewModel.AuditDimetricProjectionAlignment();
+        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+        ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+    }
+
 
     private void OnSelectionAuditConnectorRoutingAlignmentClick(object sender, RoutedEventArgs e)
     {

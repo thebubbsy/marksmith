@@ -3361,4 +3361,39 @@ public class SmartArtStudioPolishTests
         Assert.True(funnelAudit.IsInvertedPyramid);
     }
 
+
+    [Fact]
+    public void Run207_AuditChevronProcessStrideGeometry_ValidatesStrideAndTextBalance()
+    {
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditChevronProcessStrideGeometry("");
+        Assert.Equal(0, emptyAudit.StageCount);
+        Assert.Equal(100.0, emptyAudit.StrideSymmetryScore);
+        Assert.Equal("Empty Outline", emptyAudit.Category);
+
+        var processMd = string.Join("\n",
+            "- Discover",
+            "- Design",
+            "- Develop",
+            "- Deliver"
+        );
+        var goodAudit = SmartArtDesignStudioViewModel.AuditChevronProcessStrideGeometry(processMd, "Chevron Process");
+        Assert.Equal(4, goodAudit.StageCount);
+        Assert.Equal(0, goodAudit.TruncationRiskCount);
+        Assert.True(goodAudit.StrideSymmetryScore >= 90.0);
+
+        string formatted = SmartArtDesignStudioViewModel.FormatChevronProcessStrideSummary(
+            goodAudit.StageCount, goodAudit.TotalWordCount, goodAudit.AverageWordCount,
+            goodAudit.TruncationRiskCount, goodAudit.StrideSymmetryScore, goodAudit.Category, "Chevron Process");
+        Assert.Equal(goodAudit.Summary, formatted);
+
+        var riskMd = string.Join("\n",
+            "- Step One",
+            "- This is an extremely long chevron process step description with way too many words overflowing the body container box",
+            "- Step Three"
+        );
+        var riskAudit = SmartArtDesignStudioViewModel.AuditChevronProcessStrideGeometry(riskMd, "Chevron Process");
+        Assert.True(riskAudit.TruncationRiskCount >= 1);
+        Assert.True(riskAudit.StrideSymmetryScore < 90.0);
+    }
+
 }

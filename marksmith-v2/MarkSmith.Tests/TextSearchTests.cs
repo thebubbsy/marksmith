@@ -3785,4 +3785,44 @@ public class TextSearchTests
         Assert.True(conflictAudit.ConsistencyScore < 90.0);
     }
 
+
+    [Fact]
+    public void Run207_AuditMarkdownTableCellWrapping_ValidatesGridHygiene()
+    {
+        var emptyAudit = TextSearch.AuditMarkdownTableCellWrapping("");
+        Assert.Equal(0, emptyAudit.TotalTables);
+        Assert.Equal(0, emptyAudit.TotalRows);
+        Assert.Equal(100.0, emptyAudit.TableHygieneScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+
+        var cleanMd = string.Join("\n",
+            "| Feature | Description | Status |",
+            "| :--- | :---: | ---: |",
+            "| Parsing | AST generator | Stable |",
+            "| Rendering | Native OpenXML | Verified |"
+        );
+        var cleanAudit = TextSearch.AuditMarkdownTableCellWrapping(cleanMd);
+        Assert.Equal(1, cleanAudit.TotalTables);
+        Assert.Equal(4, cleanAudit.TotalRows);
+        Assert.Equal(0, cleanAudit.MismatchedRows);
+        Assert.Equal(0, cleanAudit.MissingDelimiterTables);
+        Assert.True(cleanAudit.TableHygieneScore >= 95.0);
+
+        string formatted = TextSearch.FormatTableCellWrappingSummary(
+            cleanAudit.TotalTables, cleanAudit.TotalRows, cleanAudit.MismatchedRows,
+            cleanAudit.MissingDelimiterTables, cleanAudit.UnbalancedOuterPipesCount,
+            cleanAudit.TableHygieneScore, cleanAudit.Category);
+        Assert.Equal(cleanAudit.Summary, formatted);
+
+        var brokenMd = string.Join("\n",
+            "| Header 1 | Header 2 | Header 3 |",
+            "| Row 1 Col 1 | Row 1 Col 2 |",
+            "| Row 2 Col 1 | Row 2 Col 2 | Row 2 Col 3 | Row 2 Col 4 |"
+        );
+        var brokenAudit = TextSearch.AuditMarkdownTableCellWrapping(brokenMd);
+        Assert.True(brokenAudit.MismatchedRows >= 1);
+        Assert.Equal(1, brokenAudit.MissingDelimiterTables);
+        Assert.True(brokenAudit.TableHygieneScore < 75.0);
+    }
+
 }

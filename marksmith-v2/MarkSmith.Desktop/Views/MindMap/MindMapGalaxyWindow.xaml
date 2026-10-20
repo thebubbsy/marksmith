@@ -363,6 +363,9 @@
                                     <MenuFlyoutItem x:Name="AuditGraphHarmonicCentralityItem" Text="Audit graph harmonic centrality &amp; network accessibility" Click="OnAuditGraphHarmonicCentralityClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditGraphBetweennessBottlenecksItem" Text="Audit graph betweenness centrality &amp; bridge bottleneck identification" Click="OnAuditGraphBetweennessBottlenecksClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem x:Name="AuditGraphDiameterAndGeodesicPathsItem" Text="Audit graph diameter, longest geodesic path &amp; network breadth" Click="OnAuditGraphDiameterAndGeodesicPathsClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

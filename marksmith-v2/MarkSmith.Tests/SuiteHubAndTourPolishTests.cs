@@ -6801,4 +6801,72 @@ Some paragraph in between.
         Assert.Contains("AuditWorkspaceMediaAndImageAttachments", suiteCs);
     }
 
+
+    [Fact]
+    public void Run207_AuditWorkspaceMathFormulasAndDelimiters_ValidatesSyntaxAndEnvironments()
+    {
+        var inMemoryDocs = new Dictionary<string, string>
+        {
+            [@"C:\workspace\math.md"] = "# Physics\n\nInline $E = mc^2$ and display:\n\n$$\\int_0^1 x^2 dx = \\frac{1}{3}$$\n\nUnclosed math: $100 and unclosed $$"
+        };
+
+        var audit = RecentFilesService.AuditWorkspaceMathFormulasAndDelimiters(
+            explicitFiles: new[] { @"C:\workspace\math.md" },
+            fileExistsProvider: p => inMemoryDocs.ContainsKey(p),
+            contentReader: p => inMemoryDocs[p]);
+
+        Assert.Equal(1, audit.TotalFilesScanned);
+        Assert.True(audit.TotalMathFormulas >= 2);
+        Assert.True(audit.UnbalancedDelimitersCount >= 1);
+        Assert.True(audit.FormulaHealthScore < 85.0);
+
+        string formatted = RecentFilesService.FormatWorkspaceMathFormulasSummary(
+            audit.TotalFilesScanned, audit.TotalMathFormulas, audit.InlineMathCount,
+            audit.DisplayMathCount, audit.UnbalancedDelimitersCount,
+            audit.EnvironmentMismatchesCount, audit.FormulaHealthScore, audit.Category);
+        Assert.Equal(audit.Summary, formatted);
+    }
+
+    [Fact]
+    public void Run207_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // Surface 1: MainWindow - Table Cell Alignment & Wrapping Consistency Auditor
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("auditTableCellWrappingConsistencyItem", mainCs);
+        Assert.Contains("AuditMarkdownTableCellWrapping", mainCs);
+
+        // Surface 2: MindMapGalaxyWindow - Graph Betweenness Centrality & Bridge Bottleneck Identification Auditor
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditGraphBetweennessBottlenecksItem", galaxyXaml);
+        Assert.Contains("OnAuditGraphBetweennessBottlenecksClick", galaxyCs);
+        Assert.Contains("AuditGraphBetweennessCentrality", galaxyCs);
+
+        // Surface 3: ShapeDesignStudioWindow - Diagram Dimetric Projection & Asymmetric Receding Axis Angle Auditor
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditDimetricAlignmentItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditDimetricAlignmentClick", shapeCs);
+        Assert.Contains("AuditDimetricProjectionAlignment", shapeCs);
+
+        // Surface 4: SmartArtDesignStudioWindow - SmartArt Chevron & Arrow Process Flow Stride Proportionality & Phase Length Auditor
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineStatsAuditChevronProcessStrideGeometryItem", smartArtXaml);
+        Assert.Contains("OnOutlineStatsAuditChevronProcessStrideGeometryClick", smartArtCs);
+        Assert.Contains("AuditChevronProcessStrideGeometry", smartArtCs);
+
+        // Surface 5: HistoryWindow - Semantic Diff ValueTask vs Task Allocation & Async State Machine Overhead Analyzer
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditValueTaskHazards", historyCs);
+        Assert.Contains("AuditValueTaskAndAsyncAllocationHazards", historyCs);
+
+        // Surface 6: SuiteHubView - Workspace Markdown Math / KaTeX Formula Syntax & Delimiter Health Auditor
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("AuditWorkspaceMathDelimitersItem", suiteXaml);
+        Assert.Contains("OnAuditWorkspaceMathDelimitersClick", suiteCs);
+        Assert.Contains("AuditWorkspaceMathFormulasAndDelimiters", suiteCs);
+    }
+
 }

@@ -829,6 +829,9 @@
                                     <MenuFlyoutItem x:Name="SelectionAuditObliqueAlignmentItem" Text="Audit diagram oblique projection (cabinet/cavalier 30°/45°/60°) angles" Click="OnSelectionAuditObliqueAlignmentClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="SelectionAuditDimetricAlignmentItem" Text="Audit diagram dimetric projection (15°/75°/26.6°) angles" Click="OnSelectionAuditDimetricAlignmentClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                     <MenuFlyoutItem x:Name="SelectionAuditRadialAlignmentItem" Text="Audit diagram radial &amp; concentric ring alignment" Click="OnSelectionAuditRadialAlignmentClick">
                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                     </MenuFlyoutItem>
