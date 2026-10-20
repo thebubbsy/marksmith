@@ -4428,5 +4428,48 @@ namespace MarkSmith.Tests
             Assert.Equal(starAudit.Summary, formatted);
         }
 
+
+        [Fact]
+        public void Run206_AuditGraphHarmonicCentrality_HandlesDisconnectedAndHubNodes()
+        {
+            var emptyAudit = MindMapStudioViewModel.AuditGraphHarmonicCentrality(null, null);
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.Equal(100.0, emptyAudit.AccessibilityHarmonyScore);
+            Assert.Equal("Empty Galaxy", emptyAudit.Category);
+
+            var hub = new MindMapNode { Id = "H", Title = "Main Hub" };
+            var l1 = new MindMapNode { Id = "L1", Title = "Worker 1" };
+            var l2 = new MindMapNode { Id = "L2", Title = "Worker 2" };
+            var l3 = new MindMapNode { Id = "L3", Title = "Worker 3" };
+
+            var links = new List<MindMapLink>
+            {
+                new MindMapLink { Id = "l1", SourceNodeId = "H", TargetNodeId = "L1" },
+                new MindMapLink { Id = "l2", SourceNodeId = "H", TargetNodeId = "L2" },
+                new MindMapLink { Id = "l3", SourceNodeId = "H", TargetNodeId = "L3" }
+            };
+
+            var starAudit = MindMapStudioViewModel.AuditGraphHarmonicCentrality(
+                new[] { hub, l1, l2, l3 }, links);
+
+            Assert.Equal(4, starAudit.TotalNodes);
+            Assert.Equal(3, starAudit.TotalEdges);
+            Assert.Equal("H", starAudit.TopHubNodeId);
+            Assert.Equal(1.0, starAudit.MaxHarmonicScore);
+            Assert.True(starAudit.AccessibilityHarmonyScore >= 90.0);
+
+            string formatted = MindMapStudioViewModel.FormatHarmonicCentralitySummary(
+                starAudit.TotalNodes, starAudit.TotalEdges, starAudit.TopHubNodeId, starAudit.TopHubNodeTitle,
+                starAudit.MaxHarmonicScore, starAudit.LowestHarmonicNodeTitle, starAudit.AverageHarmonicScore,
+                starAudit.ConnectedComponentsCount, starAudit.AccessibilityHarmonyScore, starAudit.Category, false);
+            Assert.Equal(starAudit.Summary, formatted);
+
+            var isolated = new MindMapNode { Id = "ISO", Title = "Isolated Island" };
+            var disconnectedAudit = MindMapStudioViewModel.AuditGraphHarmonicCentrality(
+                new[] { hub, l1, l2, l3, isolated }, links);
+            Assert.Equal(2, disconnectedAudit.ConnectedComponentsCount);
+            Assert.True(disconnectedAudit.AccessibilityHarmonyScore < starAudit.AccessibilityHarmonyScore);
+        }
+
     }
 }

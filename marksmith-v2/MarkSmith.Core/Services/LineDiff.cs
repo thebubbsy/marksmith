@@ -18368,6 +18368,150 @@ public static class LineDiff
             totalModified, asyncSpanCount, closureSpanCount, memorySliceEscapeCount, loopClosureCaptureCount, score, hazards, category, summary);
     }
 
+
+    public static DiffChannelAndStreamAudit AuditChannelAndAsyncStreamHazards(string? beforeText, string? afterText)
+    {
+        var diff = Diff(beforeText ?? string.Empty, afterText ?? string.Empty);
+        var unified = BuildUnified(diff);
+        return AuditChannelAndAsyncStreamHazards(unified);
+    }
+
+    public static DiffChannelAndStreamAudit AuditChannelAndAsyncStreamHazards(
+        IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows == null)
+        {
+            string emptySummary = FormatChannelStreamHazardsSummary(0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new DiffChannelAndStreamAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<ChannelStreamHazardItem>(), "Clean Baseline", emptySummary);
+        }
+
+        var modifiedRows = unifiedRows
+            .Where(r => !r.IsGap && r.Kind == Kind.Added && !string.IsNullOrWhiteSpace(r.Text))
+            .ToList();
+
+        int totalModified = modifiedRows.Count;
+        if (totalModified == 0)
+        {
+            string emptySummary = FormatChannelStreamHazardsSummary(0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new DiffChannelAndStreamAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<ChannelStreamHazardItem>(), "Clean Baseline", emptySummary);
+        }
+
+        var hazards = new List<ChannelStreamHazardItem>();
+        int unboundedCount = 0;
+        int unhandledCompletionCount = 0;
+        int missingCancellationCount = 0;
+        int unbufferedStreamCount = 0;
+
+        var unboundedRegex = new Regex(@"\bChannel\.CreateUnbounded\s*<", RegexOptions.Compiled);
+        var asyncEnumerableRegex = new Regex(@"\bIAsyncEnumerable<[^>]+>\s+\w+\s*\([^)]*\)", RegexOptions.Compiled);
+
+        for (int i = 0; i < modifiedRows.Count; i++)
+        {
+            var row = modifiedRows[i];
+            string text = row.Text.Trim();
+            int lineNum = row.NewNumber ?? (i + 1);
+
+            if (text.StartsWith("//") || text.StartsWith("/*") || text.StartsWith("*"))
+                continue;
+
+            if (asyncEnumerableRegex.IsMatch(text))
+            {
+                bool hasEnumeratorCancellation = text.Contains("[EnumeratorCancellation]") || text.Contains("CancellationToken");
+                if (!hasEnumeratorCancellation)
+                {
+                    missingCancellationCount++;
+                    hazards.Add(new ChannelStreamHazardItem(
+                        lineNum,
+                        text,
+                        "Async Stream Missing CancellationToken",
+                        "High",
+                        text,
+                        "Add [EnumeratorCancellation] CancellationToken cancellationToken = default to allow cooperative async stream cancellation."));
+                }
+            }
+
+            if (unboundedRegex.IsMatch(text))
+            {
+                unboundedCount++;
+                hazards.Add(new ChannelStreamHazardItem(
+                    lineNum,
+                    text,
+                    "Unbounded Channel Backpressure Risk",
+                    "High",
+                    text,
+                    "Channel.CreateUnbounded creates unbounded buffer; use Channel.CreateBounded<T>(capacity, options) with BoundedChannelFullMode."));
+            }
+
+            if (text.Contains("CreateBounded") && !text.Contains("FullMode") && !text.Contains("options"))
+            {
+                unbufferedStreamCount++;
+                hazards.Add(new ChannelStreamHazardItem(
+                    lineNum,
+                    text,
+                    "Bounded Channel Default FullMode",
+                    "Medium",
+                    text,
+                    "Specify BoundedChannelFullMode (Wait, DropOldest, DropNewest, DropWrite) explicitly to control producer backpressure."));
+            }
+
+            if (text.Contains(".WriteAsync(") && !text.Contains("cancellationToken") && !text.Contains("ct"))
+            {
+                unhandledCompletionCount++;
+                hazards.Add(new ChannelStreamHazardItem(
+                    lineNum,
+                    text,
+                    "Channel WriteAsync Missing CancellationToken",
+                    "Low",
+                    text,
+                    "Pass cancellation token to ChannelWriter.WriteAsync to prevent producer deadlocks if reader faults."));
+            }
+        }
+
+        double score = 100.0;
+        score -= unboundedCount * 25.0;
+        score -= missingCancellationCount * 20.0;
+        score -= unbufferedStreamCount * 10.0;
+        score -= unhandledCompletionCount * 5.0;
+        score = Math.Clamp(score, 0.0, 100.0);
+
+        string category = score switch
+        {
+            >= 95.0 => "Zero Stream / Channel Hazards",
+            >= 80.0 => "Sound Async Stream Backpressure",
+            >= 60.0 => "Moderate Backpressure Risks",
+            _ => "Unbounded Memory & Cancellation Hazards"
+        };
+
+        string summary = FormatChannelStreamHazardsSummary(
+            totalModified, unboundedCount, unhandledCompletionCount, missingCancellationCount, unbufferedStreamCount, score, category);
+
+        return new DiffChannelAndStreamAudit(
+            totalModified, unboundedCount, unhandledCompletionCount, missingCancellationCount, unbufferedStreamCount, score, hazards, category, summary);
+    }
+
+    public static string FormatChannelStreamHazardsSummary(
+        int totalModified, int unbounded, int unhandledCompletion, int missingCancellation, int unbuffered, double score, string category)
+    {
+        if (totalModified == 0)
+            return "Semantic diff channel & async stream safety: Clean diff · 0 modified lines";
+
+        var parts = new List<string>();
+        parts.Add($"{totalModified} modified line{(totalModified == 1 ? "" : "s")}");
+        if (unbounded > 0) parts.Add($"🚨 {unbounded} unbounded channel{(unbounded == 1 ? "" : "s")}");
+        if (missingCancellation > 0) parts.Add($"⚠ {missingCancellation} uncancelled stream{(missingCancellation == 1 ? "" : "s")}");
+        if (unbuffered > 0) parts.Add($"⚠ {unbuffered} default fullmode");
+        if (unhandledCompletion > 0) parts.Add($"ℹ {unhandledCompletion} write token");
+        if (unbounded == 0 && missingCancellation == 0 && unbuffered == 0 && unhandledCompletion == 0)
+            parts.Add("0 stream/channel backpressure hazards");
+
+        string details = string.Join(" · ", parts);
+        return $"Semantic diff channel & stream safety ({details} · {category} · {score:0.#}% safety score)";
+    }
+
     public static string FormatMemorySpanSafetySummary(
         int totalModified, int asyncSpan, int closureSpan, int memoryEscape, int loopClosure, double score, string category)
     {
@@ -20610,6 +20754,26 @@ public sealed record MemorySpanHazardItem(
     string RiskLevel,
     string CodeSnippet,
     string Recommendation);
+
+
+public sealed record ChannelStreamHazardItem(
+    int LineNumber,
+    string LineText,
+    string HazardType,
+    string RiskLevel,
+    string CodeSnippet,
+    string Recommendation);
+
+public sealed record DiffChannelAndStreamAudit(
+    int TotalModifiedLines,
+    int UnboundedChannelCount,
+    int UnhandledCompletionCount,
+    int MissingCancellationTokenCount,
+    int UnbufferedStreamCount,
+    double StreamSafetyScore,
+    IReadOnlyList<ChannelStreamHazardItem> Hazards,
+    string Category,
+    string Summary);
 
 public sealed record DiffMemorySpanSafetyAudit(
     int TotalModifiedLines,

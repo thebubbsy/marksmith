@@ -4000,6 +4000,157 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
             quadrantCount, isStandard2x2, totalWords, avgWords, cv, score, finalItems, category, layout, summary);
     }
 
+
+    public SmartArtPyramidHierarchyGeometryAudit AuditPyramidHierarchyGeometry(string? markdown = null, string? layoutName = null)
+    {
+        string md = markdown ?? MarkdownText;
+        string layout = layoutName ?? SelectedLayout?.DisplayName ?? "Pyramid";
+        return AuditPyramidHierarchyGeometry(md, layout, isStatic: false);
+    }
+
+    public static SmartArtPyramidHierarchyGeometryAudit AuditPyramidHierarchyGeometry(string? markdown, string? layoutName = null, bool isStatic = true)
+    {
+        string layout = layoutName ?? "Pyramid";
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            string emptySummary = FormatPyramidHierarchySummary(0, false, 0, 0.0, 1.0, 100.0, "Empty Outline", layout);
+            return new SmartArtPyramidHierarchyGeometryAudit(
+                0, false, 0, 0.0, 1.0, 100.0,
+                Array.Empty<PyramidTierGeometryItem>(), "Empty Outline", layout, emptySummary);
+        }
+
+        var lines = markdown.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        var tiers = new List<(string Label, List<string> Bullets)>();
+
+        foreach (var rawLine in lines)
+        {
+            var line = rawLine.Trim();
+            if (string.IsNullOrWhiteSpace(line)) continue;
+
+            if (line.StartsWith("#") || line.StartsWith("- ") || line.StartsWith("* "))
+            {
+                string text = line.TrimStart('#', '-', '*', ' ');
+                if (!rawLine.StartsWith("  ") && !rawLine.StartsWith("\t"))
+                {
+                    tiers.Add((text, new List<string>()));
+                }
+                else if (tiers.Count > 0)
+                {
+                    tiers[^1].Bullets.Add(text);
+                }
+            }
+            else if (tiers.Count > 0)
+            {
+                tiers[^1].Bullets.Add(line);
+            }
+        }
+
+        int tierCount = tiers.Count;
+        bool isInverted = layout.Contains("invert", StringComparison.OrdinalIgnoreCase) ||
+                          layout.Contains("funnel", StringComparison.OrdinalIgnoreCase) ||
+                          layout.Contains("reverse", StringComparison.OrdinalIgnoreCase);
+
+        var items = new List<PyramidTierGeometryItem>();
+        int totalWords = 0;
+        var wordCounts = new List<int>();
+
+        for (int i = 0; i < tierCount; i++)
+        {
+            var t = tiers[i];
+            string fullContent = t.Label + " " + string.Join(" ", t.Bullets);
+            var words = fullContent.Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            int wordCount = words.Length;
+            int charCount = fullContent.Length;
+
+            totalWords += wordCount;
+            wordCounts.Add(wordCount);
+
+            double step = tierCount > 1 ? (0.7 / (tierCount - 1)) : 0.0;
+            double widthRatio = isInverted
+                ? Math.Round(1.0 - (i * step), 2)
+                : Math.Round(0.3 + (i * step), 2);
+
+            double heightShare = tierCount > 0 ? Math.Round(100.0 / tierCount, 1) : 100.0;
+
+            string tierName;
+            if (isInverted)
+            {
+                tierName = i == 0 ? "Top Intake / Funnel Mouth" : i == tierCount - 1 ? "Narrow Bottom Apex" : $"Tier {i + 1}";
+            }
+            else
+            {
+                tierName = i == 0 ? "Apex Peak" : i == tierCount - 1 ? "Broad Base Foundation" : $"Tier {i + 1}";
+            }
+
+            string rec = "";
+            if (wordCount == 0)
+            {
+                rec = "Tier has no descriptive text; add clear tier label.";
+            }
+            else if ((!isInverted && i == 0 && wordCount > 8) || (isInverted && i == tierCount - 1 && wordCount > 8))
+            {
+                rec = "Apex tier has excessive word count; condense text to avoid truncation in narrow geometric tip.";
+            }
+            else
+            {
+                rec = "Balanced tier text volume.";
+            }
+
+            items.Add(new PyramidTierGeometryItem(
+                i + 1,
+                tierName,
+                t.Label,
+                wordCount,
+                charCount,
+                widthRatio,
+                heightShare,
+                rec));
+        }
+
+        double avgWords = tierCount > 0 ? (double)totalWords / tierCount : 0.0;
+        double score = 100.0;
+
+        if (tierCount < 2) score -= 30.0;
+        else if (tierCount > 7) score -= (tierCount - 7) * 8.0;
+
+        if (items.Count > 0)
+        {
+            var apex = isInverted ? items[^1] : items[0];
+            if (apex.WordCount > 10) score -= 15.0;
+        }
+
+        score = Math.Clamp(score, 0.0, 100.0);
+
+        string category = score switch
+        {
+            >= 90.0 => "Equilateral Pyramid Harmony",
+            >= 75.0 => "Balanced Hierarchical Tiers",
+            >= 55.0 => "Tier Congestion / Asymmetric Load",
+            _ => "Unbalanced Pyramid Structure"
+        };
+
+        double proportionality = tierCount > 1 ? 1.0 : 0.5;
+        string summary = FormatPyramidHierarchySummary(
+            tierCount, isInverted, totalWords, avgWords, proportionality, score, category, layout);
+
+        return new SmartArtPyramidHierarchyGeometryAudit(
+            tierCount, isInverted, totalWords, avgWords, proportionality, score, items, category, layout, summary);
+    }
+
+    public static string FormatPyramidHierarchySummary(
+        int tierCount, bool isInverted, int totalWords, double avgWordsPerTier, double tierHeightRatio,
+        double score, string category, string layout)
+    {
+        if (tierCount == 0) return $"SmartArt pyramid hierarchy audit: Empty outline · {layout}";
+
+        var parts = new List<string>();
+        parts.Add(isInverted ? $"{tierCount} inverted tiers (funnel)" : $"{tierCount} tiered layers");
+        parts.Add($"{totalWords} words (avg {avgWordsPerTier:0.#}/tier)");
+
+        string details = string.Join(" · ", parts);
+        return $"SmartArt pyramid hierarchy audit ({details} · {category} · {score:0.#}% symmetry score)";
+    }
+
     public static string FormatMatrixQuadrantGeometrySummary(
         int quadrantCount, bool is2x2, int totalWords, double avgWords, double cv,
         double score, string category, string layout)
@@ -12732,6 +12883,29 @@ public sealed record MatrixQuadrantGeometryItem(
     int BulletCount,
     double ContentSharePercent,
     string Recommendation);
+
+
+public sealed record PyramidTierGeometryItem(
+    int TierIndex,
+    string TierName,
+    string Label,
+    int WordCount,
+    int CharacterCount,
+    double RelativeWidthRatio,
+    double RelativeHeightShare,
+    string Recommendation);
+
+public sealed record SmartArtPyramidHierarchyGeometryAudit(
+    int TierCount,
+    bool IsInvertedPyramid,
+    int TotalWordCount,
+    double AverageWordCount,
+    double TierHeightProportionality,
+    double PyramidSymmetryScore,
+    IReadOnlyList<PyramidTierGeometryItem> Tiers,
+    string Category,
+    string LayoutName,
+    string Summary);
 
 public sealed record SmartArtMatrixQuadrantGeometryAudit(
     int QuadrantCount,

@@ -3867,6 +3867,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"\u2713 {audit.Summary}");
                 };
                 menu.Items.Add(auditMemorySpanSafety);
+                var auditChannelStreamHazards = new MenuFlyoutItem
+                {
+                    Text = "Audit semantic diff Channel<T> backpressure & IAsyncEnumerable stream completion hazards",
+                    Icon = new FontIcon { Glyph = "\uE8B9" }
+                };
+                auditChannelStreamHazards.Click += (_, _) =>
+                {
+                    var audit = MarkSmith.Services.LineDiff.AuditChannelAndAsyncStreamHazards(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+                    _vm.ShowNotice($"\u2713 {audit.Summary}");
+                };
+                menu.Items.Add(auditChannelStreamHazards);
+
 
 
 

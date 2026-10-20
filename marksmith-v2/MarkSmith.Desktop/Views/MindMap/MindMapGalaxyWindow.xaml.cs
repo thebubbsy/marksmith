@@ -4167,6 +4167,14 @@ namespace MarkSmith.Views.MindMap
             _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
             ViewModel.StatusMessage = $"\u2713 {result.Summary}";
         }
+        private void OnAuditGraphHarmonicCentralityClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditGraphHarmonicCentrality();
+            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+        }
+
 
         private void OnAuditGraphEdgeIntersectionPlanarityClick(object sender, RoutedEventArgs e)
         {

@@ -417,6 +417,9 @@
                                     <MenuFlyoutItem x:Name="AuditWorkspaceBacklinksItem" Text="Audit workspace backlinks, document graph &amp; unreferenced anchors" Click="OnAuditWorkspaceBacklinksClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditWorkspaceMediaAttachmentsItem" Text="Audit workspace markdown images &amp; local media attachment integrity" Click="OnAuditWorkspaceMediaAttachmentsClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem x:Name="AuditWorkspaceCrossFileLinksItem" Text="Audit workspace markdown cross-file links &amp; anchor reference integrity" Click="OnAuditWorkspaceCrossFileLinksClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

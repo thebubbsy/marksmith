@@ -10133,6 +10133,164 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
             totalShapes, totalRays, alignedRays, driftRays, offAxisRays, score, rays, category, isSelection, summary);
     }
 
+
+    public DiagramObliqueAlignmentAudit AuditObliqueProjectionAlignment(bool selectionOnly = false)
+    {
+        var selected = SelectedItems.ToList();
+        var targetShapes = (selectionOnly && selected.Count > 0) ? selected : Shapes.ToList();
+        bool isSelection = selectionOnly && selected.Count > 0;
+        var audit = AuditObliqueProjectionAlignment(targetShapes, Shapes.ToList(), isSelection);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static DiagramObliqueAlignmentAudit AuditObliqueProjectionAlignment(
+        IEnumerable<ShapeCanvasItemViewModel>? targetShapes,
+        IEnumerable<ShapeCanvasItemViewModel>? allShapes,
+        bool isSelection = false)
+    {
+        var list = (allShapes ?? Enumerable.Empty<ShapeCanvasItemViewModel>()).Where(s => s != null).ToList();
+        var targets = (targetShapes ?? list).Where(s => s != null && !s.IsLine).ToList();
+
+        int totalShapes = targets.Count;
+        if (totalShapes < 2)
+        {
+            string emptySummary = FormatObliqueAlignmentSummary(totalShapes, 0, 0, 0, 0, 0, 0, 100.0, "Clean Baseline", isSelection);
+            return new DiagramObliqueAlignmentAudit(
+                totalShapes, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<ObliqueShapeRayItem>(), "Clean Baseline", isSelection, emptySummary);
+        }
+
+        double[] obliqueAxes = new double[] { 30.0, 45.0, 60.0, 210.0, 225.0, 240.0 };
+
+        var rays = new List<ObliqueShapeRayItem>();
+        int alignedRays = 0;
+        int cabinetRays = 0;
+        int cavalierRays = 0;
+        int driftRays = 0;
+        int offAxisRays = 0;
+
+        for (int i = 0; i < targets.Count; i++)
+        {
+            var s1 = targets[i];
+            double c1X = s1.X + s1.Width / 2.0;
+            double c1Y = s1.Y + s1.Height / 2.0;
+
+            for (int j = i + 1; j < targets.Count; j++)
+            {
+                var s2 = targets[j];
+                double c2X = s2.X + s2.Width / 2.0;
+                double c2Y = s2.Y + s2.Height / 2.0;
+
+                double dx = c2X - c1X;
+                double dy = c2Y - c1Y;
+                double dist = Math.Sqrt(dx * dx + dy * dy);
+
+                if (dist < 5.0) continue;
+
+                double angleRad = Math.Atan2(dy, dx);
+                double angleDeg = (angleRad * 180.0 / Math.PI);
+                if (angleDeg < 0) angleDeg += 360.0;
+
+                double minDev = double.MaxValue;
+                double nearestAxis = 45.0;
+
+                foreach (var axis in obliqueAxes)
+                {
+                    double diff = Math.Abs(angleDeg - axis);
+                    if (diff > 180.0) diff = 360.0 - diff;
+                    if (diff < minDev)
+                    {
+                        minDev = diff;
+                        nearestAxis = axis;
+                    }
+                }
+
+                bool isAligned = minDev <= 6.0;
+                bool isDrift = !isAligned && minDev <= 16.0;
+
+                string projType = "Orthogonal/Freeform";
+                if (isAligned || isDrift)
+                {
+                    if (Math.Abs(nearestAxis - 45.0) < 1.0 || Math.Abs(nearestAxis - 225.0) < 1.0)
+                    {
+                        projType = "Cabinet/Cavalier (45°)";
+                        if (isAligned) cabinetRays++;
+                    }
+                    else if (Math.Abs(nearestAxis - 30.0) < 1.0 || Math.Abs(nearestAxis - 210.0) < 1.0)
+                    {
+                        projType = "Low-Angle Oblique (30°)";
+                        if (isAligned) cavalierRays++;
+                    }
+                    else
+                    {
+                        projType = "High-Angle Oblique (60°)";
+                    }
+                }
+
+                if (isAligned) alignedRays++;
+                else if (isDrift) driftRays++;
+                else offAxisRays++;
+
+                string rec = isAligned
+                    ? $"Conforms to oblique {projType} projection axis ({nearestAxis:0}°)."
+                    : isDrift
+                        ? $"Snap angular vector by {minDev:0.#}° to reach {nearestAxis:0}° oblique axis."
+                        : $"Freeform vector ({angleDeg:0.#}°).";
+
+                rays.Add(new ObliqueShapeRayItem(
+                    s1.Id ?? $"shape_{i}",
+                    s1.Name ?? $"Shape {i + 1}",
+                    s2.Id ?? $"shape_{j}",
+                    s2.Name ?? $"Shape {j + 1}",
+                    Math.Round(angleDeg, 1),
+                    nearestAxis,
+                    Math.Round(minDev, 1),
+                    projType,
+                    isAligned,
+                    rec));
+            }
+        }
+
+        int totalRays = rays.Count;
+        double score = totalRays > 0
+            ? Math.Clamp((alignedRays * 1.0 + driftRays * 0.4) / totalRays * 100.0, 0.0, 100.0)
+            : 100.0;
+
+        string category = score switch
+        {
+            >= 90.0 => "Precision Oblique Projection",
+            >= 70.0 => "Cohesive Axonometric Alignment",
+            >= 45.0 => "Moderate Oblique Drift",
+            _ => "Freeform / Planar Alignment"
+        };
+
+        string summary = FormatObliqueAlignmentSummary(
+            totalShapes, totalRays, alignedRays, cabinetRays, cavalierRays, driftRays, offAxisRays, score, category, isSelection);
+
+        return new DiagramObliqueAlignmentAudit(
+            totalShapes, totalRays, alignedRays, cabinetRays, cavalierRays, driftRays, offAxisRays, score, rays, category, isSelection, summary);
+    }
+
+    public static string FormatObliqueAlignmentSummary(
+        int totalShapes, int totalRays, int alignedRays, int cabinetRays, int cavalierRays, int driftRays, int offAxisRays,
+        double score, string category, bool isSelection)
+    {
+        string scope = isSelection ? "Selection · " : "";
+        if (totalShapes < 2) return $"Oblique projection audit ({scope}{totalShapes} shapes): Clean Baseline";
+
+        var parts = new List<string>();
+        parts.Add($"{totalShapes} shapes, {totalRays} vectors");
+        parts.Add($"{alignedRays} oblique ({(totalRays > 0 ? (alignedRays * 100.0 / totalRays) : 100.0):0.#}%)");
+        if (cabinetRays > 0) parts.Add($"{cabinetRays} 45° cabinet");
+        if (cavalierRays > 0) parts.Add($"{cavalierRays} 30° cavalier");
+        if (driftRays > 0) parts.Add($"⚠ {driftRays} drift");
+        if (offAxisRays > 0) parts.Add($"{offAxisRays} off-axis");
+
+        string details = string.Join(" · ", parts);
+        return $"Oblique projection audit ({scope}{details} · {category} · {score:0.#}% consistency score)";
+    }
+
     public static string FormatIsometricAlignmentSummary(
         int totalShapes, int totalRays, int alignedRays, int driftRays, int offAxisRays,
         double score, string category, bool isSelection)
@@ -14455,6 +14613,33 @@ public sealed record IsometricShapeRayItem(
     double AngularDeviation,
     bool IsAligned,
     string Recommendation);
+
+
+public sealed record ObliqueShapeRayItem(
+    string FromShapeId,
+    string FromShapeName,
+    string ToShapeId,
+    string ToShapeName,
+    double AngleDegrees,
+    double NearestObliqueAxis,
+    double AngularDeviation,
+    string ProjectionType,
+    bool IsAligned,
+    string Recommendation);
+
+public sealed record DiagramObliqueAlignmentAudit(
+    int TotalShapes,
+    int TotalRays,
+    int AlignedRays,
+    int CabinetRays,
+    int CavalierRays,
+    int DriftRays,
+    int OffAxisRays,
+    double ConsistencyScore,
+    IReadOnlyList<ObliqueShapeRayItem> Rays,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);
 
 public sealed record DiagramIsometricAlignmentAudit(
     int TotalShapes,

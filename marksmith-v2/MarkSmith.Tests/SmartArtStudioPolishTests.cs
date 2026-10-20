@@ -3330,4 +3330,35 @@ public class SmartArtStudioPolishTests
         Assert.True(brokenAudit.QuadrantSymmetryScore < 85.0);
     }
 
+
+
+    [Fact]
+    public void Run206_AuditPyramidHierarchyGeometry_ValidatesTiersAndApexSymmetry()
+    {
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditPyramidHierarchyGeometry("");
+        Assert.Equal(0, emptyAudit.TierCount);
+        Assert.Equal(100.0, emptyAudit.PyramidSymmetryScore);
+        Assert.Equal("Empty Outline", emptyAudit.Category);
+
+        var pyramidMd = string.Join("\n",
+            "- Strategic Vision",
+            "- Executive Leadership",
+            "- Operational Management",
+            "- Frontline Execution"
+        );
+        var pyramidAudit = SmartArtDesignStudioViewModel.AuditPyramidHierarchyGeometry(pyramidMd, "Pyramid");
+        Assert.Equal(4, pyramidAudit.TierCount);
+        Assert.False(pyramidAudit.IsInvertedPyramid);
+        Assert.True(pyramidAudit.PyramidSymmetryScore >= 90.0);
+
+        string formatted = SmartArtDesignStudioViewModel.FormatPyramidHierarchySummary(
+            pyramidAudit.TierCount, pyramidAudit.IsInvertedPyramid, pyramidAudit.TotalWordCount,
+            pyramidAudit.AverageWordCount, pyramidAudit.TierHeightProportionality,
+            pyramidAudit.PyramidSymmetryScore, pyramidAudit.Category, "Pyramid");
+        Assert.Equal(pyramidAudit.Summary, formatted);
+
+        var funnelAudit = SmartArtDesignStudioViewModel.AuditPyramidHierarchyGeometry(pyramidMd, "Inverted Funnel");
+        Assert.True(funnelAudit.IsInvertedPyramid);
+    }
+
 }

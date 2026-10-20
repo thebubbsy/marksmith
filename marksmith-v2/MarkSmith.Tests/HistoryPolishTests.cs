@@ -3477,4 +3477,35 @@ public class HistoryPolishTests : IDisposable
         Assert.Equal(riskyAudit.Summary, formatted);
     }
 
+
+
+    [Fact]
+    public void Run206_AuditChannelAndAsyncStreamHazards_DetectsUnboundedAndCompletionHazards()
+    {
+        var cleanCode = string.Join("\n",
+            "var options = new BoundedChannelOptions(100) { FullMode = BoundedChannelFullMode.Wait };",
+            "var channel = Channel.CreateBounded<int>(options);"
+        );
+        var cleanAudit = LineDiff.AuditChannelAndAsyncStreamHazards("", cleanCode);
+        Assert.Equal(100.0, cleanAudit.StreamSafetyScore);
+        Assert.Equal(0, cleanAudit.UnboundedChannelCount);
+
+        var riskyCode = string.Join("\n",
+            "public IAsyncEnumerable<int> GenerateDataStream()",
+            "{",
+            "    var ch = Channel.CreateUnbounded<int>();",
+            "    yield return 1;",
+            "}"
+        );
+        var riskyAudit = LineDiff.AuditChannelAndAsyncStreamHazards("", riskyCode);
+        Assert.True(riskyAudit.UnboundedChannelCount >= 1 || riskyAudit.MissingCancellationTokenCount >= 1);
+        Assert.True(riskyAudit.StreamSafetyScore < 80.0);
+
+        string formatted = LineDiff.FormatChannelStreamHazardsSummary(
+            riskyAudit.TotalModifiedLines, riskyAudit.UnboundedChannelCount, riskyAudit.UnhandledCompletionCount,
+            riskyAudit.MissingCancellationTokenCount, riskyAudit.UnbufferedStreamCount,
+            riskyAudit.StreamSafetyScore, riskyAudit.Category);
+        Assert.Equal(riskyAudit.Summary, formatted);
+    }
+
 }

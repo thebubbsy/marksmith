@@ -3742,4 +3742,47 @@ public class TextSearchTests
         Assert.True(brokenAudit.DefinitionHygieneScore < 85.0);
     }
 
+
+
+    [Fact]
+    public void Run206_AuditMarkdownAbbreviations_ValidatesAcronymConsistency()
+    {
+        var emptyAudit = TextSearch.AuditMarkdownAbbreviations("");
+        Assert.Equal(0, emptyAudit.TotalAbbreviations);
+        Assert.Equal(0, emptyAudit.DefinedAcronyms);
+        Assert.Equal(100.0, emptyAudit.ConsistencyScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+
+        var cleanDoc = string.Join("\n",
+            "# Architecture Overview",
+            "",
+            "*[API]: Application Programming Interface",
+            "*[GUI]: Graphical User Interface",
+            "",
+            "The client connects to the backend API via a modern GUI.",
+            "Both the API and GUI communicate using JSON protocols."
+        );
+        var cleanAudit = TextSearch.AuditMarkdownAbbreviations(cleanDoc);
+        Assert.Equal(2, cleanAudit.TotalAbbreviations);
+        Assert.Equal(2, cleanAudit.DefinedAcronyms);
+        Assert.Equal(0, cleanAudit.ConflictingDefinitions);
+        Assert.True(cleanAudit.ConsistencyScore >= 90.0);
+
+        string formatted = TextSearch.FormatAbbreviationsSummary(
+            cleanAudit.TotalAbbreviations, cleanAudit.DefinedAcronyms, cleanAudit.UndefinedAcronyms,
+            cleanAudit.ConflictingDefinitions, cleanAudit.TotalAcronymUsages,
+            cleanAudit.ConsistencyScore, cleanAudit.Category);
+        Assert.Equal(cleanAudit.Summary, formatted);
+
+        var conflictDoc = string.Join("\n",
+            "*[RAM]: Random Access Memory",
+            "*[RAM]: Reliability Availability and Maintainability",
+            "",
+            "The system requires fast RAM."
+        );
+        var conflictAudit = TextSearch.AuditMarkdownAbbreviations(conflictDoc);
+        Assert.True(conflictAudit.ConflictingDefinitions >= 1);
+        Assert.True(conflictAudit.ConsistencyScore < 90.0);
+    }
+
 }

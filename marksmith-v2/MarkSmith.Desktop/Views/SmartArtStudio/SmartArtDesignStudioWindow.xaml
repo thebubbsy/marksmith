@@ -453,6 +453,9 @@
                                     <MenuFlyoutItem x:Name="OutlineStatsAuditMatrixQuadrantGeometryItem" Text="Audit 2x2 matrix / quadrant geometry &amp; text balance symmetry" Click="OnOutlineStatsAuditMatrixQuadrantGeometryClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="OutlineStatsAuditPyramidHierarchyGeometryItem" Text="Audit pyramid / funnel tier hierarchy symmetry &amp; apex readability" Click="OnOutlineStatsAuditPyramidHierarchyGeometryClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem x:Name="OutlineStatsAuditVennGeometryItem" Text="Audit Venn diagram &amp; overlapping set geometry harmony" Click="OnOutlineStatsAuditVennGeometryClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

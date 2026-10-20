@@ -2559,6 +2559,25 @@ private async void OnAuditWorkspaceMarkdownTableAutoAlignAndExportClick(object s
             SetNotification($"Backlink audit failed: {ex.Message}", success: false);
         }
     }
+    private async void OnAuditWorkspaceMediaAttachmentsClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var files = App.RecentFiles?.Load() ?? new List<string>();
+            var result = RecentFilesService.AuditWorkspaceMediaAndImageAttachments(explicitFiles: files);
+            await Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            SetNotification(result.Summary, success: true);
+            if (RecentDocsActionBtn != null)
+            {
+                Services.CopyFeedback.ApplyButtonTick(RecentDocsActionBtn, null, "\u2713 Media Audited");
+            }
+        }
+        catch (Exception ex)
+        {
+            SetNotification($"Media audit failed: {ex.Message}", success: false);
+        }
+    }
+
 
     private async void OnAuditWorkspaceCrossFileLinksClick(object sender, RoutedEventArgs e)
     {

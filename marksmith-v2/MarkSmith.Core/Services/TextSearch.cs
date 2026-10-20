@@ -13116,6 +13116,201 @@ public static class TextSearch
             duplicateTermsCount, orphanDefinitions, score, items, category, summary);
     }
 
+
+    public static MarkdownAbbreviationAudit AuditMarkdownAbbreviations(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            string emptySummary = FormatAbbreviationsSummary(0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new MarkdownAbbreviationAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<MarkdownAbbreviationItem>(),
+                "Clean Baseline", emptySummary);
+        }
+
+        var lines = markdownText.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        var items = new List<MarkdownAbbreviationItem>();
+
+        var abbrDeclRegex = new Regex(@"^\*\[(?<abbr>[A-Za-z0-9_\-\.]+?)\]:\s*(?<def>.*)$");
+        var declaredAbbrs = new Dictionary<string, (string Definition, int LineNumber)>(StringComparer.OrdinalIgnoreCase);
+        var conflictingAbbrs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        int conflictCount = 0;
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var match = abbrDeclRegex.Match(lines[i].Trim());
+            if (match.Success)
+            {
+                string abbr = match.Groups["abbr"].Value.Trim();
+                string def = match.Groups["def"].Value.Trim();
+
+                if (declaredAbbrs.TryGetValue(abbr, out var existing))
+                {
+                    if (!string.Equals(existing.Definition, def, StringComparison.OrdinalIgnoreCase))
+                    {
+                        conflictingAbbrs.Add(abbr);
+                        conflictCount++;
+                    }
+                }
+                else
+                {
+                    declaredAbbrs[abbr] = (def, i + 1);
+                }
+            }
+        }
+
+        int frontmatterEndLine = -1;
+        if (lines.Length > 0 && lines[0].Trim() == "---")
+        {
+            for (int i = 1; i < lines.Length; i++)
+            {
+                if (lines[i].Trim() == "---")
+                {
+                    frontmatterEndLine = i;
+                    break;
+                }
+            }
+        }
+
+        bool insideCodeFence = false;
+        var acronymUsages = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var acronymFirstLine = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+        var acronymTokenRegex = new Regex(@"\b[A-Z][A-Z0-9]{1,5}\b");
+        var inlineCodeRegex = new Regex(@"`[^`]*`");
+        var linkUrlRegex = new Regex(@"\[(?<text>[^\]]*)\]\((?<url>[^)\s]+)\)");
+        var rawUrlRegex = new Regex(@"https?://\S+");
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            if (i <= frontmatterEndLine) continue;
+
+            string line = lines[i];
+            string trimmed = line.Trim();
+
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+            {
+                insideCodeFence = !insideCodeFence;
+                continue;
+            }
+
+            if (insideCodeFence) continue;
+            if (abbrDeclRegex.IsMatch(trimmed)) continue;
+
+            string cleanLine = inlineCodeRegex.Replace(line, " ");
+            cleanLine = linkUrlRegex.Replace(cleanLine, "${text}");
+            cleanLine = rawUrlRegex.Replace(cleanLine, " ");
+
+            var matches = acronymTokenRegex.Matches(cleanLine);
+            foreach (Match m in matches)
+            {
+                string token = m.Value;
+                if (token.Length < 2) continue;
+
+                if (!acronymUsages.ContainsKey(token))
+                {
+                    acronymUsages[token] = 0;
+                    acronymFirstLine[token] = i + 1;
+                }
+                acronymUsages[token]++;
+            }
+        }
+
+        int definedCount = 0;
+        int undefinedCount = 0;
+        int totalUsages = 0;
+
+        foreach (var kvp in declaredAbbrs)
+        {
+            string abbr = kvp.Key;
+            string def = kvp.Value.Definition;
+            int lineNum = kvp.Value.LineNumber;
+            int usages = acronymUsages.TryGetValue(abbr, out int u) ? u : 0;
+            totalUsages += usages;
+            definedCount++;
+
+            bool hasConflict = conflictingAbbrs.Contains(abbr);
+            string rec = hasConflict
+                ? $"Resolve conflicting expansions for abbreviation '{abbr}'."
+                : usages == 0
+                    ? $"Abbreviation '{abbr}' is defined but never used in document body."
+                    : $"Documented abbreviation '{abbr}' with {usages} occurrence{(usages == 1 ? "" : "s")}.";
+
+            items.Add(new MarkdownAbbreviationItem(
+                lineNum,
+                abbr,
+                def,
+                usages,
+                true,
+                hasConflict,
+                rec));
+        }
+
+        foreach (var kvp in acronymUsages)
+        {
+            string token = kvp.Key;
+            if (declaredAbbrs.ContainsKey(token)) continue;
+
+            int usages = kvp.Value;
+            totalUsages += usages;
+            undefinedCount++;
+            int lineNum = acronymFirstLine[token];
+
+            string rec = usages > 1
+                ? $"Acronym '{token}' appears {usages} times; define with *[{token}]: Full Expansion."
+                : $"Single-occurrence acronym '{token}'; consider defining with *[{token}]: Full Expansion.";
+
+            items.Add(new MarkdownAbbreviationItem(
+                lineNum,
+                token,
+                null,
+                usages,
+                false,
+                false,
+                rec));
+        }
+
+        int totalAbbreviations = declaredAbbrs.Count;
+        double score = 100.0;
+        if (conflictCount > 0) score -= conflictCount * 15.0;
+        if (undefinedCount > 0) score -= Math.Min(50.0, undefinedCount * 4.0);
+        score = Math.Clamp(score, 0.0, 100.0);
+
+        string category = score switch
+        {
+            >= 95.0 => "Flawless Abbreviation Governance",
+            >= 80.0 => "Consistent Acronym Usage",
+            >= 60.0 => "Unreferenced Acronyms",
+            _ => "Malformed or Conflicting Abbreviations"
+        };
+
+        string summary = FormatAbbreviationsSummary(
+            totalAbbreviations, definedCount, undefinedCount, conflictCount, totalUsages, score, category);
+
+        return new MarkdownAbbreviationAudit(
+            totalAbbreviations, definedCount, undefinedCount, conflictCount, totalUsages, score, items, category, summary);
+    }
+
+    public static string FormatAbbreviationsSummary(string? markdownText)
+        => AuditMarkdownAbbreviations(markdownText).Summary;
+
+    public static string FormatAbbreviationsSummary(
+        int totalAbbreviations, int definedAcronyms, int undefinedAcronyms, int conflictingDefinitions,
+        int totalUsages, double score, string category)
+    {
+        if (totalAbbreviations == 0 && undefinedAcronyms == 0)
+            return "Markdown abbreviation audit: Clean document · 0 acronyms or abbreviation markers detected";
+
+        var parts = new List<string>();
+        parts.Add($"{totalAbbreviations} defined abbreviation{(totalAbbreviations == 1 ? "" : "s")}");
+        if (undefinedAcronyms > 0) parts.Add($"ℹ {undefinedAcronyms} undefined acronym{(undefinedAcronyms == 1 ? "" : "s")}");
+        if (conflictingDefinitions > 0) parts.Add($"⚠ {conflictingDefinitions} conflicting definition{(conflictingDefinitions == 1 ? "" : "s")}");
+        parts.Add($"{totalUsages} body usage{(totalUsages == 1 ? "" : "s")}");
+
+        string details = string.Join(" · ", parts);
+        return $"Markdown abbreviation audit ({details} · {category} · {score:0.#}% governance score)";
+    }
+
     public static string FormatDefinitionListsSummary(string? markdownText)
         => AuditMarkdownDefinitionLists(markdownText).Summary;
 
@@ -14673,6 +14868,27 @@ public sealed record MarkdownDefinitionListAudit(
     int OrphanDefinitionCount,
     double DefinitionHygieneScore,
     IReadOnlyList<MarkdownDefinitionListItem> Items,
+    string Category,
+    string Summary);
+
+
+public sealed record MarkdownAbbreviationItem(
+    int LineNumber,
+    string Acronym,
+    string? Expansion,
+    int UsagesInDocument,
+    bool HasDefinition,
+    bool HasConflict,
+    string Recommendation);
+
+public sealed record MarkdownAbbreviationAudit(
+    int TotalAbbreviations,
+    int DefinedAcronyms,
+    int UndefinedAcronyms,
+    int ConflictingDefinitions,
+    int TotalAcronymUsages,
+    double ConsistencyScore,
+    IReadOnlyList<MarkdownAbbreviationItem> Items,
     string Category,
     string Summary);
 

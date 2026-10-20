@@ -5850,6 +5850,228 @@ namespace MarkSmith.ViewModels.MindMap
         /// <summary>
         /// Formats a human-readable summary of graph closeness centrality and harmonic distance.
         /// </summary>
+
+        public GraphHarmonicCentralityAudit AuditGraphHarmonicCentrality(bool selectionOnly = false)
+        {
+            var selected = Nodes.Where(n => n.IsSelected).ToList();
+            var targetNodes = (selectionOnly && selected.Count > 0)
+                ? selected
+                : Nodes.ToList();
+
+            bool isSelection = selectionOnly && selected.Count > 0;
+            var nodeIds = new HashSet<string>(targetNodes.Select(n => n.Id));
+            var relevantLinks = Links.Where(l => nodeIds.Contains(l.SourceNodeId) && nodeIds.Contains(l.TargetNodeId)).ToList();
+
+            var audit = AuditGraphHarmonicCentrality(targetNodes.Select(n => n.Model), relevantLinks.Select(l => l.Model), isSelection);
+            StatusMessage = audit.Summary;
+            return audit;
+        }
+
+        public static GraphHarmonicCentralityAudit AuditGraphHarmonicCentrality(
+            IEnumerable<MindMapNode>? nodes,
+            IEnumerable<MindMapLink>? links,
+            bool isSelection = false)
+        {
+            var nodeList = nodes?.ToList() ?? new List<MindMapNode>();
+            var linkList = links?.ToList() ?? new List<MindMapLink>();
+            int totalNodes = nodeList.Count;
+            int totalEdges = linkList.Count;
+
+            if (totalNodes == 0)
+            {
+                string emptySummary = FormatHarmonicCentralitySummary(0, 0, "", "", 0.0, "", 0.0, 0, 100.0, "Empty Galaxy", isSelection);
+                return new GraphHarmonicCentralityAudit(
+                    0, 0, "", "", 0.0, "", 0.0, 0, 100.0,
+                    Array.Empty<NodeHarmonicCentralityItem>(), "Empty Galaxy", isSelection, emptySummary);
+            }
+
+            if (totalNodes == 1)
+            {
+                var single = nodeList[0];
+                var singleItem = new NodeHarmonicCentralityItem(single.Id, single.Title, 0, 0, 0.0, 1.0, "Isolated Root", "Connect additional nodes to expand the graph.");
+                string singleSummary = FormatHarmonicCentralitySummary(1, 0, single.Id, single.Title, 1.0, single.Title, 1.0, 1, 100.0, "Optimal Harmonic Accessibility", isSelection);
+                return new GraphHarmonicCentralityAudit(
+                    1, 0, single.Id, single.Title, 1.0, single.Title, 1.0, 1, 100.0,
+                    new[] { singleItem }, "Optimal Harmonic Accessibility", isSelection, singleSummary);
+            }
+
+            var adj = new Dictionary<string, HashSet<string>>();
+            var degrees = new Dictionary<string, int>();
+            foreach (var node in nodeList)
+            {
+                adj[node.Id] = new HashSet<string>();
+                degrees[node.Id] = 0;
+            }
+
+            foreach (var link in linkList)
+            {
+                if (adj.ContainsKey(link.SourceNodeId) && adj.ContainsKey(link.TargetNodeId))
+                {
+                    if (adj[link.SourceNodeId].Add(link.TargetNodeId))
+                    {
+                        degrees[link.SourceNodeId]++;
+                    }
+                    if (adj[link.TargetNodeId].Add(link.SourceNodeId))
+                    {
+                        degrees[link.TargetNodeId]++;
+                    }
+                }
+            }
+
+            var visitedGlobal = new HashSet<string>();
+            int connectedComponents = 0;
+            foreach (var node in nodeList)
+            {
+                if (!visitedGlobal.Contains(node.Id))
+                {
+                    connectedComponents++;
+                    var qComp = new Queue<string>();
+                    qComp.Enqueue(node.Id);
+                    visitedGlobal.Add(node.Id);
+                    while (qComp.Count > 0)
+                    {
+                        var curr = qComp.Dequeue();
+                        foreach (var neighbor in adj[curr])
+                        {
+                            if (visitedGlobal.Add(neighbor))
+                            {
+                                qComp.Enqueue(neighbor);
+                            }
+                        }
+                    }
+                }
+            }
+
+            var centralityList = new List<(MindMapNode Node, int Degree, int Reachable, double RawHarmonic, double NormalizedHarmonic)>();
+
+            foreach (var source in nodeList)
+            {
+                var dist = new Dictionary<string, int>();
+                var queue = new Queue<string>();
+
+                dist[source.Id] = 0;
+                queue.Enqueue(source.Id);
+
+                while (queue.Count > 0)
+                {
+                    var u = queue.Dequeue();
+                    int d = dist[u];
+
+                    foreach (var v in adj[u])
+                    {
+                        if (!dist.ContainsKey(v))
+                        {
+                            dist[v] = d + 1;
+                            queue.Enqueue(v);
+                        }
+                    }
+                }
+
+                double rawHarmonic = 0.0;
+                int reachable = 0;
+                foreach (var pair in dist)
+                {
+                    if (pair.Key != source.Id && pair.Value > 0)
+                    {
+                        rawHarmonic += 1.0 / pair.Value;
+                        reachable++;
+                    }
+                }
+
+                double normalizedHarmonic = totalNodes > 1 ? rawHarmonic / (totalNodes - 1) : 1.0;
+                centralityList.Add((source, degrees[source.Id], reachable, rawHarmonic, normalizedHarmonic));
+            }
+
+            var sorted = centralityList.OrderByDescending(x => x.NormalizedHarmonic).ThenByDescending(x => x.Degree).ToList();
+            var topHub = sorted.First();
+            var lowest = sorted.Last();
+
+            double avgHarmonic = sorted.Average(x => x.NormalizedHarmonic);
+
+            var items = new List<NodeHarmonicCentralityItem>();
+            for (int i = 0; i < sorted.Count; i++)
+            {
+                var entry = sorted[i];
+                string role = i == 0
+                    ? "Top Network Broadcaster"
+                    : entry.NormalizedHarmonic >= 0.7
+                        ? "High Accessibility Hub"
+                        : entry.Reachable == 0
+                            ? "Isolated Node"
+                            : entry.NormalizedHarmonic <= 0.3
+                                ? "Peripheral Reach"
+                                : "Intermediate Node";
+
+                string rec = role switch
+                {
+                    "Top Network Broadcaster" => "Highest network accessibility; optimal broadcast and routing vertex.",
+                    "High Accessibility Hub" => "Well-connected distribution hub; maintain low hop counts.",
+                    "Isolated Node" => "Node is completely unreachable from other clusters; connect to a hub.",
+                    "Peripheral Reach" => "Low harmonic score; distant or weakly connected to main cluster.",
+                    _ => "Balanced intermediate accessibility."
+                };
+
+                items.Add(new NodeHarmonicCentralityItem(
+                    entry.Node.Id,
+                    entry.Node.Title,
+                    entry.Degree,
+                    entry.Reachable,
+                    Math.Round(entry.RawHarmonic, 3),
+                    Math.Round(entry.NormalizedHarmonic, 3),
+                    role,
+                    rec));
+            }
+
+            double score = 100.0;
+            if (connectedComponents > 1)
+            {
+                score -= (connectedComponents - 1) * 10.0;
+            }
+            if (lowest.NormalizedHarmonic == 0.0 && totalNodes > 1)
+            {
+                score -= 10.0;
+            }
+            if (avgHarmonic < 0.4)
+            {
+                score -= 15.0;
+            }
+            score = Math.Clamp(score, 0.0, 100.0);
+
+            string category = score switch
+            {
+                >= 90.0 => "Optimal Harmonic Accessibility",
+                >= 75.0 => "Well-Connected Distributed Network",
+                >= 55.0 => "High Geodesic Latency / Disconnects",
+                _ => "Fragmented Network Island Topology"
+            };
+
+            string summary = FormatHarmonicCentralitySummary(
+                totalNodes, totalEdges, topHub.Node.Id, topHub.Node.Title, topHub.NormalizedHarmonic,
+                lowest.Node.Title, avgHarmonic, connectedComponents, score, category, isSelection);
+
+            return new GraphHarmonicCentralityAudit(
+                totalNodes, totalEdges, topHub.Node.Id, topHub.Node.Title, topHub.NormalizedHarmonic,
+                lowest.Node.Title, avgHarmonic, connectedComponents, score, items, category, isSelection, summary);
+        }
+
+        public static string FormatHarmonicCentralitySummary(
+            int totalNodes, int totalEdges, string topHubId, string topHubTitle, double maxHarmonic,
+            string isolatedTitle, double avgHarmonic, int components, double score, string category, bool isSelection)
+        {
+            string scope = isSelection ? "Selection · " : "";
+            if (totalNodes == 0) return $"Mind map harmonic centrality audit ({scope}0 nodes): Empty galaxy";
+
+            var parts = new List<string>();
+            parts.Add($"{totalNodes} nodes, {totalEdges} edges");
+            if (!string.IsNullOrEmpty(topHubTitle)) parts.Add($"Hub '{topHubTitle}' (harmonic {maxHarmonic:0.##})");
+            parts.Add($"Avg harmonic {avgHarmonic:0.##}");
+            if (components > 1) parts.Add($"⚠ {components} disconnected components");
+            else parts.Add("1 component");
+
+            string details = string.Join(" · ", parts);
+            return $"Mind map harmonic centrality audit ({scope}{details} · {category} · {score:0.#}% accessibility score)";
+        }
+
         public static string FormatClosenessCentralitySummary(
             int nodeCount, int linkCount, int components, double meanHarmonic, double graphEfficiency,
             IReadOnlyList<string> topHubs, int peripheralCount, string category, bool isSelection)
@@ -14764,6 +14986,32 @@ namespace MarkSmith.ViewModels.MindMap
         double ClosenessScore,
         string Role,
         string Recommendation);
+
+
+    public sealed record NodeHarmonicCentralityItem(
+        string NodeId,
+        string Title,
+        int Degree,
+        int ReachableCount,
+        double RawHarmonicSum,
+        double NormalizedHarmonicScore,
+        string NetworkRole,
+        string Recommendation);
+
+    public sealed record GraphHarmonicCentralityAudit(
+        int TotalNodes,
+        int TotalEdges,
+        string TopHubNodeId,
+        string TopHubNodeTitle,
+        double MaxHarmonicScore,
+        string LowestHarmonicNodeTitle,
+        double AverageHarmonicScore,
+        int ConnectedComponentsCount,
+        double AccessibilityHarmonyScore,
+        IReadOnlyList<NodeHarmonicCentralityItem> Nodes,
+        string Category,
+        bool IsSelectionScope,
+        string Summary);
 
     public sealed record GraphMedianClosenessPlacementAudit(
         int TotalNodes,

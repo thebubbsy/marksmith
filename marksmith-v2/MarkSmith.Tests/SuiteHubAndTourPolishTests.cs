@@ -6725,4 +6725,80 @@ Some paragraph in between.
         Assert.Contains("AuditWorkspaceBacklinksAndUnreferencedAnchors", suiteCs);
     }
 
+
+
+    [Fact]
+    public void Run206_AuditWorkspaceMediaAndImageAttachments_ValidatesLocalAndAltTags()
+    {
+        var inMemoryDocs = new Dictionary<string, string>
+        {
+            [@"C:\workspace\readme.md"] = "# Readme\n\n![Architecture](diagram.png)\n\n![](missing.jpg)\n\n<img src=\"https://example.com/banner.svg\" alt=\"Banner\">"
+        };
+        var existingAssets = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            @"C:\workspace\diagram.png"
+        };
+
+        var audit = RecentFilesService.AuditWorkspaceMediaAndImageAttachments(
+            explicitFiles: new[] { @"C:\workspace\readme.md" },
+            fileExistsProvider: p => inMemoryDocs.ContainsKey(p) || existingAssets.Contains(p),
+            contentReader: p => inMemoryDocs[p]);
+
+        Assert.Equal(1, audit.TotalFilesScanned);
+        Assert.Equal(3, audit.TotalMediaReferences);
+        Assert.Equal(2, audit.LocalMediaReferences);
+        Assert.Equal(1, audit.RemoteMediaReferences);
+        Assert.Equal(1, audit.MissingLocalAssetsCount);
+        Assert.Equal(1, audit.EmptyAltTextCount);
+        Assert.True(audit.MediaHealthScore < 85.0);
+
+        string formatted = RecentFilesService.FormatWorkspaceMediaAttachmentsSummary(
+            audit.TotalFilesScanned, audit.TotalMediaReferences, audit.LocalMediaReferences,
+            audit.MissingLocalAssetsCount, audit.EmptyAltTextCount,
+            audit.MediaHealthScore, audit.Category);
+        Assert.Equal(audit.Summary, formatted);
+    }
+
+    [Fact]
+    public void Run206_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // Surface 1: MainWindow - Markdown Abbreviations & Acronym Glossary Consistency Auditor
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("auditAbbreviationsConsistencyItem", mainCs);
+        Assert.Contains("AuditMarkdownAbbreviations", mainCs);
+
+        // Surface 2: MindMapGalaxyWindow - Graph Harmonic Centrality & Network Accessibility Auditor
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditGraphHarmonicCentralityItem", galaxyXaml);
+        Assert.Contains("OnAuditGraphHarmonicCentralityClick", galaxyCs);
+        Assert.Contains("AuditGraphHarmonicCentrality", galaxyCs);
+
+        // Surface 3: ShapeDesignStudioWindow - Diagram Oblique Cabinet & Cavalier Projection Angle Auditor
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditObliqueAlignmentItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditObliqueAlignmentClick", shapeCs);
+        Assert.Contains("AuditObliqueProjectionAlignment", shapeCs);
+
+        // Surface 4: SmartArtDesignStudioWindow - SmartArt Pyramid / Funnel Tier Hierarchy Symmetry & Apex Readability Auditor
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineStatsAuditPyramidHierarchyGeometryItem", smartArtXaml);
+        Assert.Contains("OnOutlineStatsAuditPyramidHierarchyGeometryClick", smartArtCs);
+        Assert.Contains("AuditPyramidHierarchyGeometry", smartArtCs);
+
+        // Surface 5: HistoryWindow - Semantic Diff Channel<T> Backpressure & IAsyncEnumerable Stream Hazard Analyzer
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditChannelStreamHazards", historyCs);
+        Assert.Contains("AuditChannelAndAsyncStreamHazards", historyCs);
+
+        // Surface 6: SuiteHubView - Workspace Markdown Broken Image & Local Asset Attachment Health Auditor
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("AuditWorkspaceMediaAttachmentsItem", suiteXaml);
+        Assert.Contains("OnAuditWorkspaceMediaAttachmentsClick", suiteCs);
+        Assert.Contains("AuditWorkspaceMediaAndImageAttachments", suiteCs);
+    }
+
 }

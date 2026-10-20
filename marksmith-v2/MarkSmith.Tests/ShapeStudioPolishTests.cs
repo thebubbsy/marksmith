@@ -3721,4 +3721,33 @@ public class ShapeStudioPolishTests
         Assert.Equal(isoAudit.Summary, formatted);
     }
 
+
+
+    [Fact]
+    public void Run206_AuditObliqueProjectionAlignment_EvaluatesCabinetAndCavalierAxes()
+    {
+        var singleAudit = ShapeDesignStudioViewModel.AuditObliqueProjectionAlignment(
+            new[] { new ShapeCanvasItemViewModel { Id = "s0", Name = "Lone", X = 100, Y = 100, Width = 50, Height = 50 } }, null);
+        Assert.Equal(1, singleAudit.TotalShapes);
+        Assert.Equal(100.0, singleAudit.ConsistencyScore);
+        Assert.Equal("Clean Baseline", singleAudit.Category);
+
+        var s1 = new ShapeCanvasItemViewModel { Id = "s1", Name = "FrontFace", X = 0, Y = 0, Width = 40, Height = 40 };
+        var s2 = new ShapeCanvasItemViewModel { Id = "s2", Name = "CabinetDepth", X = 70.7, Y = 70.7, Width = 40, Height = 40 };
+        var shapes = new[] { s1, s2 };
+
+        var obliqueAudit = ShapeDesignStudioViewModel.AuditObliqueProjectionAlignment(shapes, shapes);
+        Assert.Equal(2, obliqueAudit.TotalShapes);
+        Assert.Equal(1, obliqueAudit.TotalRays);
+        Assert.Equal(1, obliqueAudit.AlignedRays);
+        Assert.Equal(1, obliqueAudit.CabinetRays);
+        Assert.True(obliqueAudit.ConsistencyScore >= 95.0);
+
+        string formatted = ShapeDesignStudioViewModel.FormatObliqueAlignmentSummary(
+            obliqueAudit.TotalShapes, obliqueAudit.TotalRays, obliqueAudit.AlignedRays, obliqueAudit.CabinetRays,
+            obliqueAudit.CavalierRays, obliqueAudit.DriftRays, obliqueAudit.OffAxisRays,
+            obliqueAudit.ConsistencyScore, obliqueAudit.Category, false);
+        Assert.Equal(obliqueAudit.Summary, formatted);
+    }
+
 }

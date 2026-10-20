@@ -6035,6 +6035,200 @@ public sealed class RecentFilesService
             headingItems, backlinkEntries, category, summary);
     }
 
+
+    public static WorkspaceMediaAttachmentAudit AuditWorkspaceMediaAndImageAttachments(
+        IReadOnlyList<string>? explicitFiles = null,
+        Func<string, bool>? fileExistsProvider = null,
+        Func<string, string>? contentReader = null)
+    {
+        var files = (explicitFiles ?? Array.Empty<string>())
+            .Where(f => !string.IsNullOrWhiteSpace(f) && !f.EndsWith(".bak.md", StringComparison.OrdinalIgnoreCase))
+            .Distinct()
+            .ToList();
+
+        if (files.Count == 0)
+        {
+            string emptySummary = FormatWorkspaceMediaAttachmentsSummary(0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new WorkspaceMediaAttachmentAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<WorkspaceMediaAttachmentItem>(),
+                "Clean Baseline", emptySummary);
+        }
+
+        var mdImgRegex = new Regex(@"!\[(?<alt>[^\]]*)\]\((?<url>[^)\s]+)(?:\s+""[^""]*"")?\)");
+        var htmlImgRegex = new Regex(@"<img\s+[^>]*src=[""'](?<url>[^""']+)[""'][^>]*>", RegexOptions.IgnoreCase);
+        var altAttrRegex = new Regex(@"alt=[""'](?<alt>[^""']*)[""']", RegexOptions.IgnoreCase);
+
+        var items = new List<WorkspaceMediaAttachmentItem>();
+        int filesScanned = 0;
+        int totalMedia = 0;
+        int localMedia = 0;
+        int remoteMedia = 0;
+        int missingLocalAssets = 0;
+        int emptyAltTextCount = 0;
+
+        foreach (var file in files)
+        {
+            bool exists = fileExistsProvider?.Invoke(file) ?? System.IO.File.Exists(file);
+            if (!exists) continue;
+
+            string content;
+            try
+            {
+                content = contentReader?.Invoke(file) ?? System.IO.File.ReadAllText(file);
+            }
+            catch
+            {
+                continue;
+            }
+
+            filesScanned++;
+            string? fileDir = System.IO.Path.GetDirectoryName(file);
+            var lines = content.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string line = lines[i];
+
+                var mdMatches = mdImgRegex.Matches(line);
+                foreach (Match m in mdMatches)
+                {
+                    totalMedia++;
+                    string raw = m.Value;
+                    string alt = m.Groups["alt"].Value;
+                    string url = m.Groups["url"].Value.Trim();
+
+                    bool hasAlt = !string.IsNullOrWhiteSpace(alt);
+                    if (!hasAlt) emptyAltTextCount++;
+
+                    bool isRemote = url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                                    url.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+                                    url.StartsWith("data:", StringComparison.OrdinalIgnoreCase);
+
+                    bool localExists = true;
+                    if (isRemote)
+                    {
+                        remoteMedia++;
+                    }
+                    else
+                    {
+                        localMedia++;
+                        string unescaped = Uri.UnescapeDataString(url);
+                        string fullPath = System.IO.Path.IsPathRooted(unescaped)
+                            ? unescaped
+                            : (string.IsNullOrEmpty(fileDir) ? unescaped : System.IO.Path.GetFullPath(System.IO.Path.Combine(fileDir, unescaped)));
+
+                        localExists = fileExistsProvider?.Invoke(fullPath) ?? System.IO.File.Exists(fullPath);
+                        if (!localExists) missingLocalAssets++;
+                    }
+
+                    string rec = !localExists
+                        ? $"Missing local image asset '{url}' on disk."
+                        : !hasAlt
+                            ? $"Image '{url}' lacks descriptive alt text for accessibility."
+                            : "Healthy image reference.";
+
+                    items.Add(new WorkspaceMediaAttachmentItem(
+                        file,
+                        i + 1,
+                        raw,
+                        url,
+                        !isRemote,
+                        localExists,
+                        hasAlt,
+                        rec));
+                }
+
+                var htmlMatches = htmlImgRegex.Matches(line);
+                foreach (Match m in htmlMatches)
+                {
+                    totalMedia++;
+                    string raw = m.Value;
+                    string url = m.Groups["url"].Value.Trim();
+
+                    var altMatch = altAttrRegex.Match(raw);
+                    bool hasAlt = altMatch.Success && !string.IsNullOrWhiteSpace(altMatch.Groups["alt"].Value);
+                    if (!hasAlt) emptyAltTextCount++;
+
+                    bool isRemote = url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                                    url.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+                                    url.StartsWith("data:", StringComparison.OrdinalIgnoreCase);
+
+                    bool localExists = true;
+                    if (isRemote)
+                    {
+                        remoteMedia++;
+                    }
+                    else
+                    {
+                        localMedia++;
+                        string unescaped = Uri.UnescapeDataString(url);
+                        string fullPath = System.IO.Path.IsPathRooted(unescaped)
+                            ? unescaped
+                            : (string.IsNullOrEmpty(fileDir) ? unescaped : System.IO.Path.GetFullPath(System.IO.Path.Combine(fileDir, unescaped)));
+
+                        localExists = fileExistsProvider?.Invoke(fullPath) ?? System.IO.File.Exists(fullPath);
+                        if (!localExists) missingLocalAssets++;
+                    }
+
+                    string rec = !localExists
+                        ? $"Missing local image asset '{url}' on disk."
+                        : !hasAlt
+                            ? $"HTML <img> '{url}' lacks alt attribute for accessibility."
+                            : "Healthy image reference.";
+
+                    items.Add(new WorkspaceMediaAttachmentItem(
+                        file,
+                        i + 1,
+                        raw,
+                        url,
+                        !isRemote,
+                        localExists,
+                        hasAlt,
+                        rec));
+                }
+            }
+        }
+
+        double score = 100.0;
+        if (missingLocalAssets > 0) score -= missingLocalAssets * 20.0;
+        if (emptyAltTextCount > 0) score -= Math.Min(30.0, emptyAltTextCount * 5.0);
+        score = Math.Clamp(score, 0.0, 100.0);
+
+        string category = score switch
+        {
+            >= 95.0 => "All Media Assets Intact & Accessible",
+            >= 80.0 => "Consistent Media Attachments",
+            >= 55.0 => "Missing Alt Text / Unchecked Assets",
+            _ => "Broken Local Image References"
+        };
+
+        string summary = FormatWorkspaceMediaAttachmentsSummary(
+            filesScanned, totalMedia, localMedia, missingLocalAssets, emptyAltTextCount, score, category);
+
+        return new WorkspaceMediaAttachmentAudit(
+            filesScanned, totalMedia, localMedia, remoteMedia, missingLocalAssets, emptyAltTextCount, score, items, category, summary);
+    }
+
+    public static string FormatWorkspaceMediaAttachmentsSummary(
+        int filesScanned, int totalMediaReferences, int localMediaReferences, int missingLocalAssets,
+        int emptyAltTextCount, double mediaHealthScore, string category)
+    {
+        if (filesScanned == 0 || totalMediaReferences == 0)
+            return "Workspace media attachment audit: Clean baseline · 0 image references detected";
+
+        var parts = new List<string>();
+        parts.Add($"{filesScanned} file{(filesScanned == 1 ? "" : "s")}");
+        parts.Add($"{totalMediaReferences} image{(totalMediaReferences == 1 ? "" : "s")}");
+        if (localMediaReferences > 0) parts.Add($"{localMediaReferences} local");
+        if (missingLocalAssets > 0) parts.Add($"🚨 {missingLocalAssets} missing asset{(missingLocalAssets == 1 ? "" : "s")}");
+        if (emptyAltTextCount > 0) parts.Add($"⚠ {emptyAltTextCount} empty alt");
+        if (missingLocalAssets == 0 && emptyAltTextCount == 0) parts.Add("100% assets verified");
+
+        string details = string.Join(" · ", parts);
+        return $"Workspace media attachment audit ({details} · {category} · {mediaHealthScore:0.#}% health score)";
+    }
+
     public static string FormatWorkspaceBacklinksSummary(
         int filesScanned, int totalHeadings, int referencedHeadings, int unreferencedHeadings,
         int totalBacklinks, double cohesionScore, string category)
@@ -11783,6 +11977,29 @@ public sealed record WorkspaceHeadingAnchorItem(
     int IncomingBacklinkCount,
     bool IsReferenced,
     string Recommendation);
+
+
+public sealed record WorkspaceMediaAttachmentItem(
+    string SourceFilePath,
+    int LineNumber,
+    string RawSyntax,
+    string MediaSource,
+    bool IsLocalFile,
+    bool ExistsOnDisk,
+    bool HasAltText,
+    string Recommendation);
+
+public sealed record WorkspaceMediaAttachmentAudit(
+    int TotalFilesScanned,
+    int TotalMediaReferences,
+    int LocalMediaReferences,
+    int RemoteMediaReferences,
+    int MissingLocalAssetsCount,
+    int EmptyAltTextCount,
+    double MediaHealthScore,
+    IReadOnlyList<WorkspaceMediaAttachmentItem> Items,
+    string Category,
+    string Summary);
 
 public sealed record WorkspaceBacklinkCohesionAudit(
     int TotalFilesScanned,

@@ -12141,6 +12141,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             AnnounceStatus(summary);
         };
         menu.Items.Add(auditDefinitionListsConsistencyItem);
+        var auditAbbreviationsConsistencyItem = new MenuFlyoutItem
+        {
+            Text = "Audit Markdown Abbreviations & Acronym Glossary Consistency",
+            Icon = new FontIcon { Glyph = "\uE8B9" }
+        };
+        auditAbbreviationsConsistencyItem.Click += (_, _) =>
+        {
+            var docText = EditorDocument();
+            var summary = MarkSmith.Services.TextSearch.AuditMarkdownAbbreviations(docText).Summary;
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditAbbreviationsConsistencyItem);
+
 
         menu.ShowAt(anchor);
     }
