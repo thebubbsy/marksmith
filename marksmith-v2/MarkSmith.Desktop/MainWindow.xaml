@@ -2359,6 +2359,18 @@
                         </StackPanel>
                     </HyperlinkButton>
                     <Border Width="1" Height="12" Background="{ThemeResource CardStrokeColorDefaultBrush}" VerticalAlignment="Center" />
+                    <HyperlinkButton x:Name="StatusCopyFootnotesButton"
+                                     Click="OnStatusCopyFootnotesButtonClick"
+                                     RightTapped="OnStatusCopyFootnotesButtonRightTapped"
+                                     Padding="5,1" FontSize="11.5" Opacity="0.85"
+                                     ToolTipService.ToolTip="Copy all Markdown footnotes ([^id] references &amp; [^id]: definitions) to clipboard · Right-click for definitions-only, orphan/missing audit, or Footnote Inventory Table"
+                                     AutomationProperties.Name="Copy Markdown footnotes">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <FontIcon Glyph="&#xE8A1;" FontSize="11" />
+                            <TextBlock x:Name="StatusCopyFootnotesText" Text="Copy Footnotes" />
+                        </StackPanel>
+                    </HyperlinkButton>
+                    <Border Width="1" Height="12" Background="{ThemeResource CardStrokeColorDefaultBrush}" VerticalAlignment="Center" />
                     <TextBlock x:Name="CursorPosText" Text="Ln 1, Col 1" VerticalAlignment="Center"
                                FontFamily="Consolas" FontSize="11.5" Opacity="0.7"
                                Tapped="OnCursorPosTextTapped" DoubleTapped="OnCursorPosTextDoubleTapped"

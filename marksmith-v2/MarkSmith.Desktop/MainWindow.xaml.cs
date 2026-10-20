@@ -13338,6 +13338,225 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         menu.ShowAt(anchor);
     }
 
+    private sealed record ExtractedFootnoteEntry(
+        string Id,
+        int ReferenceCount,
+        System.Collections.Generic.IReadOnlyList<int> ReferenceLines,
+        int? DefinitionLine,
+        string DefinitionText);
+
+    private System.Collections.Generic.List<ExtractedFootnoteEntry> ExtractMarkdownFootnotes()
+    {
+        var results = new System.Collections.Generic.List<ExtractedFootnoteEntry>();
+        var md = EditorDocument();
+        if (string.IsNullOrWhiteSpace(md))
+            return results;
+
+        var lines = md.Replace("\r\n", "\n").Split('\n');
+        var defRegex = new System.Text.RegularExpressions.Regex(@"^\s*\[\^([^\]]+)\]:\s*(.*)$");
+        var refRegex = new System.Text.RegularExpressions.Regex(@"\[\^([^\]]+)\](?!:)");
+
+        var order = new System.Collections.Generic.List<string>();
+        var refLinesById = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.List<int>>(System.StringComparer.OrdinalIgnoreCase);
+        var defLineById = new System.Collections.Generic.Dictionary<string, int>(System.StringComparer.OrdinalIgnoreCase);
+        var defTextById = new System.Collections.Generic.Dictionary<string, string>(System.StringComparer.OrdinalIgnoreCase);
+
+        bool inFence = false;
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i];
+            var trimmed = line.TrimStart();
+            if (trimmed.StartsWith("```", System.StringComparison.Ordinal) ||
+                trimmed.StartsWith("~~~", System.StringComparison.Ordinal))
+            {
+                inFence = !inFence;
+                continue;
+            }
+            if (inFence)
+                continue;
+
+            int lineNum = i + 1;
+            var defMatch = defRegex.Match(line);
+            if (defMatch.Success)
+            {
+                var id = defMatch.Groups[1].Value.Trim();
+                var text = defMatch.Groups[2].Value.Trim();
+                if (!order.Contains(id, System.StringComparer.OrdinalIgnoreCase))
+                    order.Add(id);
+                if (!defLineById.ContainsKey(id))
+                    defLineById[id] = lineNum;
+                defTextById[id] = text;
+                continue;
+            }
+
+            foreach (System.Text.RegularExpressions.Match m in refRegex.Matches(line))
+            {
+                var id = m.Groups[1].Value.Trim();
+                if (string.IsNullOrEmpty(id))
+                    continue;
+                if (!order.Contains(id, System.StringComparer.OrdinalIgnoreCase))
+                    order.Add(id);
+                if (!refLinesById.TryGetValue(id, out var list))
+                {
+                    list = new System.Collections.Generic.List<int>();
+                    refLinesById[id] = list;
+                }
+                list.Add(lineNum);
+            }
+        }
+
+        foreach (var id in order)
+        {
+            var refs = refLinesById.TryGetValue(id, out var rList)
+                ? rList
+                : new System.Collections.Generic.List<int>();
+            int? defLn = defLineById.TryGetValue(id, out var dLn) ? dLn : null;
+            var defTxt = defTextById.TryGetValue(id, out var dTxt) ? dTxt : string.Empty;
+            results.Add(new ExtractedFootnoteEntry(id, refs.Count, refs, defLn, defTxt));
+        }
+
+        return results;
+    }
+
+    private void OnStatusCopyFootnotesButtonClick(object sender, RoutedEventArgs e)
+    {
+        var footnotes = ExtractMarkdownFootnotes();
+        if (footnotes.Count == 0)
+        {
+            AnnounceStatus("No Markdown footnotes ([^id]) found in document");
+            return;
+        }
+
+        var sb = new System.Text.StringBuilder();
+        foreach (var fn in footnotes)
+        {
+            var defPart = fn.DefinitionLine.HasValue
+                ? fn.DefinitionText
+                : "(missing definition)";
+            sb.AppendLine($"[^{fn.Id}]: {defPart}");
+        }
+
+        _ = Services.ClipboardWriter.TrySetTextAsync(sb.ToString().TrimEnd());
+        int missingDef = footnotes.Count(f => !f.DefinitionLine.HasValue);
+        int unreferenced = footnotes.Count(f => f.ReferenceCount == 0);
+        AnnounceStatus($"Copied {footnotes.Count:N0} footnote(s) ({missingDef:N0} missing definition, {unreferenced:N0} unreferenced) to clipboard");
+    }
+
+    private void OnStatusCopyFootnotesButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (sender is not FrameworkElement anchor)
+            return;
+
+        var menu = new MenuFlyout();
+
+        var copyAllItem = new MenuFlyoutItem
+        {
+            Text = "Copy all footnote definitions ([^id]: text)",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyAllItem.Click += (_, _) => OnStatusCopyFootnotesButtonClick(anchor, new RoutedEventArgs());
+        menu.Items.Add(copyAllItem);
+
+        var copyAuditItem = new MenuFlyoutItem
+        {
+            Text = "Copy orphan / missing footnote audit report",
+            Icon = new FontIcon { Glyph = "\uE7BA" }
+        };
+        copyAuditItem.Click += (_, _) =>
+        {
+            var footnotes = ExtractMarkdownFootnotes();
+            var issues = footnotes.Where(f => !f.DefinitionLine.HasValue || f.ReferenceCount == 0).ToList();
+            if (issues.Count == 0)
+            {
+                AnnounceStatus(footnotes.Count == 0
+                    ? "No footnotes found in document"
+                    : $"All {footnotes.Count:N0} footnote(s) have matching inline references and definitions!");
+                return;
+            }
+            var sb = new System.Text.StringBuilder();
+            foreach (var fn in issues)
+            {
+                var status = !fn.DefinitionLine.HasValue
+                    ? $"MISSING DEFINITION (referenced on Ln {string.Join(", Ln ", fn.ReferenceLines)})"
+                    : $"UNREFERENCED DEFINITION (defined on Ln {fn.DefinitionLine})";
+                sb.AppendLine($"[^{fn.Id}] — {status}");
+            }
+            _ = Services.ClipboardWriter.TrySetTextAsync(sb.ToString().TrimEnd());
+            AnnounceStatus($"Copied {issues.Count:N0} footnote audit issue(s) to clipboard");
+        };
+        menu.Items.Add(copyAuditItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var copyTableItem = new MenuFlyoutItem
+        {
+            Text = "Copy as Footnote Inventory Markdown Table",
+            Icon = new FontIcon { Glyph = "\uE8A1" }
+        };
+        copyTableItem.Click += (_, _) =>
+        {
+            var footnotes = ExtractMarkdownFootnotes();
+            if (footnotes.Count == 0)
+            {
+                AnnounceStatus("No footnotes found in document");
+                return;
+            }
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine($"**Footnote Inventory**: {footnotes.Count:N0} footnote(s)");
+            sb.AppendLine();
+            sb.AppendLine("| # | Footnote ID | Refs | Ref Lines | Def Line | Status | Definition Text |");
+            sb.AppendLine("| ---: | :--- | ---: | :--- | :--- | :---: | :--- |");
+            for (int idx = 0; idx < footnotes.Count; idx++)
+            {
+                var fn = footnotes[idx];
+                var refLinesStr = fn.ReferenceLines.Count > 0 ? string.Join(", ", fn.ReferenceLines.Select(l => $"Ln {l}")) : "—";
+                var defLineStr = fn.DefinitionLine.HasValue ? $"Ln {fn.DefinitionLine.Value}" : "—";
+                var status = !fn.DefinitionLine.HasValue ? "Missing Def" : (fn.ReferenceCount == 0 ? "Unreferenced" : "OK");
+                var cleanDef = string.IsNullOrWhiteSpace(fn.DefinitionText) ? "_(none)_" : fn.DefinitionText.Replace("|", "\\|");
+                sb.AppendLine($"| {idx + 1} | `[^{fn.Id}]` | {fn.ReferenceCount} | {refLinesStr} | {defLineStr} | {status} | {cleanDef} |");
+            }
+            _ = Services.ClipboardWriter.TrySetTextAsync(sb.ToString().TrimEnd());
+            AnnounceStatus($"Copied Footnote Inventory Table ({footnotes.Count:N0} footnotes) to clipboard");
+        };
+        menu.Items.Add(copyTableItem);
+
+        var insertTableItem = new MenuFlyoutItem
+        {
+            Text = "Insert Footnote Inventory Table at cursor",
+            Icon = new FontIcon { Glyph = "\uE70F" }
+        };
+        insertTableItem.Click += (_, _) =>
+        {
+            var footnotes = ExtractMarkdownFootnotes();
+            if (footnotes.Count == 0)
+            {
+                AnnounceStatus("No footnotes found in document");
+                return;
+            }
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine($"## Footnote Inventory ({footnotes.Count:N0} Footnotes)");
+            sb.AppendLine();
+            sb.AppendLine("| # | Footnote ID | Refs | Ref Lines | Def Line | Status | Definition Text |");
+            sb.AppendLine("| ---: | :--- | ---: | :--- | :--- | :---: | :--- |");
+            for (int idx = 0; idx < footnotes.Count; idx++)
+            {
+                var fn = footnotes[idx];
+                var refLinesStr = fn.ReferenceLines.Count > 0 ? string.Join(", ", fn.ReferenceLines.Select(l => $"Ln {l}")) : "—";
+                var defLineStr = fn.DefinitionLine.HasValue ? $"Ln {fn.DefinitionLine.Value}" : "—";
+                var status = !fn.DefinitionLine.HasValue ? "Missing Def" : (fn.ReferenceCount == 0 ? "Unreferenced" : "OK");
+                var cleanDef = string.IsNullOrWhiteSpace(fn.DefinitionText) ? "_(none)_" : fn.DefinitionText.Replace("|", "\\|");
+                sb.AppendLine($"| {idx + 1} | `[^{fn.Id}]` | {fn.ReferenceCount} | {refLinesStr} | {defLineStr} | {status} | {cleanDef} |");
+            }
+            sb.AppendLine();
+            InsertMarkdown(sb.ToString());
+            AnnounceStatus($"Inserted Footnote Inventory Table ({footnotes.Count:N0} footnotes) at cursor");
+        };
+        menu.Items.Add(insertTableItem);
+
+        menu.ShowAt(anchor);
+    }
+
     private void OnStatusCopyMarkdownButtonClick(object sender, RoutedEventArgs e)
     {
         var selected = PasteTextBox?.SelectedText;
