@@ -12251,6 +12251,20 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         };
         menu.Items.Add(auditHtmlSanitizationItem);
 
+        var auditYamlFrontmatterSchemaItem = new MenuFlyoutItem
+        {
+            Text = "Audit Markdown YAML Frontmatter Schema & Delimiter Strictness",
+            Icon = new FontIcon { Glyph = "\uE8B9" }
+        };
+        auditYamlFrontmatterSchemaItem.Click += (_, _) =>
+        {
+            var docText = EditorDocument();
+            var summary = MarkSmith.Services.TextSearch.AuditMarkdownYamlFrontmatterSchema(docText).Summary;
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditYamlFrontmatterSchemaItem);
+
 
 
         menu.ShowAt(anchor);

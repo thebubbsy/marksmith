@@ -3968,6 +3968,19 @@ var auditResourceDisposalLeaksItem = new MenuFlyoutItem
                 };
                 menu.Items.Add(auditLockHierarchyItem);
 
+                var auditPatternMatchingGuardsItem = new MenuFlyoutItem
+                {
+                    Text = "Audit Semantic Diff Pattern Matching Guards & Expression Bodies",
+                    Icon = new FontIcon { Glyph = "\uE8B9" }
+                };
+                auditPatternMatchingGuardsItem.Click += (_, _) =>
+                {
+                    var audit = MarkSmith.Services.LineDiff.AuditPatternMatchingGuardsAndExpressionBodies(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+                    _vm.ShowNotice($"\u2713 {audit.Summary}");
+                };
+                menu.Items.Add(auditPatternMatchingGuardsItem);
+
 
 
 

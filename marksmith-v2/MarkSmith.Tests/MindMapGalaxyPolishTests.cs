@@ -4702,5 +4702,42 @@ namespace MarkSmith.Tests
         var badAudit = MindMapStudioViewModel.AuditGraphColorContrastAccessibility(new[] { nBad }, canvasBackgroundHex: "#FFFFFF");
         Assert.True(badAudit.TextContrastFailureCount >= 1 || badAudit.CardBoundaryWarningCount >= 1);
     }
+
+    [Fact]
+    public void Run214_AuditGraphCriticalPathAndDepth_ComputesLongestChainAndCycles()
+    {
+        var emptyAudit = MindMapStudioViewModel.AuditGraphCriticalPathAndDepth(null);
+        Assert.Equal(0, emptyAudit.TotalNodes);
+        Assert.Equal(100.0, emptyAudit.CriticalPathHierarchyScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+
+        var nRoot = new MindMapNode { Id = "Root", Title = "Root System" };
+        var nMid = new MindMapNode { Id = "Mid", Title = "Middle Layer", ParentId = "Root" };
+        var nLeaf = new MindMapNode { Id = "Leaf", Title = "Leaf Component", ParentId = "Mid" };
+        nRoot.ChildIds.Add("Mid");
+        nMid.ChildIds.Add("Leaf");
+
+        var audit = MindMapStudioViewModel.AuditGraphCriticalPathAndDepth(new[] { nRoot, nMid, nLeaf });
+        Assert.Equal(3, audit.TotalNodes);
+        Assert.Equal(3, audit.MaxCriticalPathLength);
+        Assert.False(audit.HasCycles);
+        Assert.Equal(1, audit.RootNodeCount);
+        Assert.Equal(1, audit.LeafNodeCount);
+        Assert.Contains("Root System", audit.CriticalPathSummary);
+        Assert.Contains("Leaf Component", audit.CriticalPathSummary);
+        Assert.True(audit.CriticalPathHierarchyScore >= 90.0);
+
+        string formatted = MindMapStudioViewModel.FormatCriticalPathSummary(
+            audit.TotalNodes, audit.TotalEdges, audit.MaxCriticalPathLength,
+            audit.RootNodeCount, audit.LeafNodeCount, audit.HasCycles,
+            audit.CriticalPathSummary, audit.CriticalPathHierarchyScore, audit.Category, false);
+        Assert.Equal(audit.Summary, formatted);
+
+        // Test cycle detection
+        var linkCycle = new MindMapLink { SourceNodeId = "Leaf", TargetNodeId = "Root" };
+        var cycleAudit = MindMapStudioViewModel.AuditGraphCriticalPathAndDepth(new[] { nRoot, nMid, nLeaf }, new[] { linkCycle });
+        Assert.True(cycleAudit.HasCycles);
+        Assert.True(cycleAudit.CriticalPathHierarchyScore < 80.0);
+    }
 }
 }

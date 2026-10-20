@@ -5310,6 +5310,25 @@ private async void OnAuditWorkspaceMarkdownTableAutoAlignAndExportClick(object s
 
 
 
+    private async void OnAuditWorkspaceHeadingSlugCollisionsClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var files = App.RecentFiles?.Load() ?? new List<string>();
+            var result = RecentFilesService.AuditWorkspaceHeadingSlugCollisions(explicitFiles: files);
+            await Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            SetNotification(result.Summary, success: true);
+            if (RecentDocsActionBtn != null)
+            {
+                RecentDocsActionBtn.Content = "Slugs Audited";
+            }
+        }
+        catch (Exception ex)
+        {
+            SetNotification($"Failed to audit workspace heading slugs: {ex.Message}", success: false);
+        }
+    }
+
     private async void OnAuditWorkspaceCodeBlockLanguageTagsClick(object sender, RoutedEventArgs e)
 
     {

@@ -13995,6 +13995,127 @@ public static string FormatGroupNestingSummary(
         return $"Diagram shape visual occlusion audit ({scope}{details} · {category} · {score:0.#}% hygiene score)";
     }
 
+    public DiagramSnapGridAlignmentAudit AuditDiagramCoordinateSnapGridAlignment(bool selectionOnly = false, double gridSize = 8.0)
+    {
+        var selected = SelectedItems.ToList();
+        var targetShapes = (selectionOnly && selected.Count > 0) ? selected : Shapes.ToList();
+        bool isSelection = selectionOnly && selected.Count > 0;
+        var audit = AuditDiagramCoordinateSnapGridAlignment(targetShapes, gridSize, isSelection);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static DiagramSnapGridAlignmentAudit AuditDiagramCoordinateSnapGridAlignment(
+        IEnumerable<ShapeCanvasItemViewModel>? targetShapes,
+        double gridSize = 8.0,
+        bool isSelection = false)
+    {
+        if (gridSize <= 0.0) gridSize = 8.0;
+
+        var targetList = (targetShapes ?? Enumerable.Empty<ShapeCanvasItemViewModel>()).Where(s => s != null).ToList();
+        int totalShapes = targetList.Count;
+
+        if (totalShapes == 0)
+        {
+            string emptySummary = FormatSnapGridSummary(0, 0, 0, 0, 0.0, 100.0, "Clean Baseline", gridSize, isSelection);
+            return new DiagramSnapGridAlignmentAudit(
+                0, 0, 0, 0, 0.0, 100.0,
+                Array.Empty<ShapeSnapGridAlignmentItem>(), gridSize, "Clean Baseline", isSelection, emptySummary);
+        }
+
+        var items = new List<ShapeSnapGridAlignmentItem>();
+        int alignedCount = 0;
+        int offGridCoordCount = 0;
+        int subPixelJitterCount = 0;
+        double maxDrift = 0.0;
+
+        for (int i = 0; i < targetList.Count; i++)
+        {
+            var shape = targetList[i];
+            double x = shape.X;
+            double y = shape.Y;
+            double w = shape.Width;
+            double h = shape.Height;
+
+            double snapX = Math.Round(x / gridSize) * gridSize;
+            double snapY = Math.Round(y / gridSize) * gridSize;
+            double driftX = Math.Abs(x - snapX);
+            double driftY = Math.Abs(y - snapY);
+            double maxCoordDrift = Math.Max(driftX, driftY);
+
+            if (maxCoordDrift > maxDrift)
+                maxDrift = maxCoordDrift;
+
+            bool isSubPixel = Math.Abs(x - Math.Round(x)) > 0.001 || Math.Abs(y - Math.Round(y)) > 0.001;
+            bool isOffGrid = driftX > 0.05 || driftY > 0.05;
+
+            if (isSubPixel) subPixelJitterCount++;
+            if (isOffGrid) offGridCoordCount++;
+            if (!isOffGrid && !isSubPixel) alignedCount++;
+
+            string status = (!isOffGrid && !isSubPixel)
+                ? "Aligned"
+                : (isSubPixel ? "SubPixelJitter" : "OffGridDrift");
+
+            string rec = (!isOffGrid && !isSubPixel)
+                ? "Perfect snap alignment to design grid."
+                : $"Snap coordinates to grid ({snapX:0.#}, {snapY:0.#}), drift: X={x - snapX:+0.#;-0.#;0}px, Y={y - snapY:+0.#;-0.#;0}px.";
+
+            items.Add(new ShapeSnapGridAlignmentItem(
+                shape.Id,
+                shape.Name,
+                x, y, w, h,
+                snapX, snapY,
+                Math.Round(driftX, 2),
+                Math.Round(driftY, 2),
+                isSubPixel,
+                isOffGrid,
+                status,
+                rec));
+        }
+
+        double score = 100.0;
+        score -= offGridCoordCount * (50.0 / totalShapes);
+        score -= subPixelJitterCount * (30.0 / totalShapes);
+        score = Math.Clamp(score, 0.0, 100.0);
+
+        string category = score switch
+        {
+            >= 95.0 => "High Cardinal Precision",
+            >= 80.0 => "Minor Layout Drift",
+            >= 60.0 => "Moderate Coordinate Misalignment",
+            _ => "Unsnapped / Subpixel Jitter"
+        };
+
+        string summary = FormatSnapGridSummary(
+            totalShapes, alignedCount, offGridCoordCount, subPixelJitterCount,
+            Math.Round(maxDrift, 1), score, category, gridSize, isSelection);
+
+        return new DiagramSnapGridAlignmentAudit(
+            totalShapes, alignedCount, offGridCoordCount, subPixelJitterCount,
+            Math.Round(maxDrift, 1), score, items, gridSize, category, isSelection, summary);
+    }
+
+    public static string FormatSnapGridSummary(
+        int total, int aligned, int offGrid, int subPixel,
+        double maxDrift, double score, string category, double gridSize, bool isSelection)
+    {
+        string scope = isSelection ? "Selection · " : "";
+        if (total == 0)
+            return $"Diagram coordinate snap grid audit ({scope}Clean artboard · 0 shapes evaluated)";
+
+        var parts = new List<string>();
+        parts.Add($"{total} shape{(total == 1 ? "" : "s")}");
+        parts.Add($"{gridSize:0.#}px grid");
+        if (aligned > 0) parts.Add($"\u2713 {aligned} snapped");
+        if (offGrid > 0) parts.Add($"\u26a0 {offGrid} off-grid");
+        if (subPixel > 0) parts.Add($"\ud83d\udea8 {subPixel} sub-pixel jitter");
+        if (maxDrift > 0) parts.Add($"max drift {maxDrift:0.#}px");
+
+        string details = string.Join(" · ", parts);
+        return $"Diagram coordinate snap grid audit ({scope}{details} · {category} · {score:0.#}% precision score)";
+    }
+
 }
 
 /// <summary>
@@ -15787,3 +15908,33 @@ public sealed record DiagramShapeOcclusionAudit(
     bool IsSelectionScope,
     string Summary);
 
+
+
+public sealed record ShapeSnapGridAlignmentItem(
+    string ShapeId,
+    string ShapeName,
+    double X,
+    double Y,
+    double Width,
+    double Height,
+    double SnappedX,
+    double SnappedY,
+    double DriftX,
+    double DriftY,
+    bool HasSubPixelJitter,
+    bool IsOffGrid,
+    string Status,
+    string Recommendation);
+
+public sealed record DiagramSnapGridAlignmentAudit(
+    int TotalShapes,
+    int AlignedCount,
+    int OffGridCount,
+    int SubPixelJitterCount,
+    double MaxCoordinateDrift,
+    double LayoutPrecisionScore,
+    IReadOnlyList<ShapeSnapGridAlignmentItem> Items,
+    double GridSize,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);

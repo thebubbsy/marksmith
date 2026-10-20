@@ -14655,6 +14655,205 @@ namespace MarkSmith.ViewModels.MindMap
             return $"Graph color contrast accessibility audit ({scope}{details} · {category} · {score:0.#}% accessibility score)";
         }
 
+        public GraphCriticalPathAudit AuditGraphCriticalPathAndDepth(bool selectionOnly = false)
+        {
+            var selected = Nodes.Where(n => n.IsSelected).ToList();
+            var targetNodes = (selectionOnly && selected.Count > 0) ? selected : Nodes.ToList();
+            bool isSelection = selectionOnly && selected.Count > 0;
+            var audit = AuditGraphCriticalPathAndDepth(targetNodes.Select(n => n.Model), Document.Links, isSelection);
+            StatusMessage = audit.Summary;
+            return audit;
+        }
+
+        public static GraphCriticalPathAudit AuditGraphCriticalPathAndDepth(
+            IEnumerable<MindMapNode>? nodes,
+            IEnumerable<MindMapLink>? links = null,
+            bool isSelection = false)
+        {
+            var nodeList = nodes?.ToList() ?? new List<MindMapNode>();
+            int totalNodes = nodeList.Count;
+
+            if (totalNodes == 0)
+            {
+                string emptySummary = FormatCriticalPathSummary(0, 0, 0, 0, 0, false, "N/A", 100.0, "Clean Baseline", isSelection);
+                return new GraphCriticalPathAudit(
+                    0, 0, 0, 0, 0, false, "N/A", 100.0,
+                    Array.Empty<GraphCriticalPathNodeItem>(), "Clean Baseline", isSelection, emptySummary);
+            }
+
+            var nodeMap = nodeList.ToDictionary(n => n.Id, n => n);
+            var linkList = (links ?? Enumerable.Empty<MindMapLink>()).ToList();
+
+            var adj = new Dictionary<string, HashSet<string>>();
+            var inDegree = new Dictionary<string, int>();
+
+            foreach (var node in nodeList)
+            {
+                adj[node.Id] = new HashSet<string>();
+                inDegree[node.Id] = 0;
+            }
+
+            foreach (var node in nodeList)
+            {
+                if (node.ChildIds != null)
+                {
+                    foreach (var cid in node.ChildIds)
+                    {
+                        if (nodeMap.ContainsKey(cid))
+                        {
+                            if (adj[node.Id].Add(cid))
+                                inDegree[cid]++;
+                        }
+                    }
+                }
+                if (!string.IsNullOrEmpty(node.ParentId) && nodeMap.ContainsKey(node.ParentId))
+                {
+                    if (adj[node.ParentId].Add(node.Id))
+                        inDegree[node.Id]++;
+                }
+            }
+
+            foreach (var link in linkList)
+            {
+                if (nodeMap.ContainsKey(link.SourceNodeId) && nodeMap.ContainsKey(link.TargetNodeId))
+                {
+                    if (adj[link.SourceNodeId].Add(link.TargetNodeId))
+                        inDegree[link.TargetNodeId]++;
+                }
+            }
+
+            int totalEdges = adj.Values.Sum(set => set.Count);
+            var rootNodes = nodeList.Where(n => inDegree[n.Id] == 0).ToList();
+            var leafNodes = nodeList.Where(n => adj[n.Id].Count == 0).ToList();
+
+            var memo = new Dictionary<string, (int Length, List<string> Path)>();
+            var visiting = new HashSet<string>();
+            bool hasCycle = false;
+
+            (int Length, List<string> Path) Dfs(string currentId)
+            {
+                if (visiting.Contains(currentId))
+                {
+                    hasCycle = true;
+                    return (1, new List<string> { currentId });
+                }
+
+                if (memo.TryGetValue(currentId, out var cached))
+                    return cached;
+
+                visiting.Add(currentId);
+                int maxChildLen = 0;
+                List<string> bestChildPath = new List<string>();
+
+                foreach (var neighbor in adj[currentId])
+                {
+                    var (childLen, childPath) = Dfs(neighbor);
+                    if (childLen > maxChildLen)
+                    {
+                        maxChildLen = childLen;
+                        bestChildPath = childPath;
+                    }
+                }
+
+                visiting.Remove(currentId);
+
+                var path = new List<string> { currentId };
+                path.AddRange(bestChildPath);
+                var result = (1 + maxChildLen, path);
+                memo[currentId] = result;
+                return result;
+            }
+
+            int maxPathLength = 0;
+            List<string> longestPathIds = new List<string>();
+
+            var searchStarts = rootNodes.Count > 0 ? rootNodes : nodeList;
+            foreach (var start in searchStarts)
+            {
+                var (len, path) = Dfs(start.Id);
+                if (len > maxPathLength)
+                {
+                    maxPathLength = len;
+                    longestPathIds = path;
+                }
+            }
+
+            var criticalPathSet = new HashSet<string>(longestPathIds);
+            string criticalPathSummary = longestPathIds.Count > 0
+                ? string.Join(" \u2192 ", longestPathIds.Select(id => nodeMap.TryGetValue(id, out var n) ? n.Title : id))
+                : "Single Node";
+
+            var items = new List<GraphCriticalPathNodeItem>();
+            for (int i = 0; i < longestPathIds.Count; i++)
+            {
+                var id = longestPathIds[i];
+                var node = nodeMap[id];
+                items.Add(new GraphCriticalPathNodeItem(
+                    i + 1,
+                    id,
+                    node.Title,
+                    adj[id].Count,
+                    inDegree[id],
+                    true,
+                    $"Critical path stage {i + 1} of {longestPathIds.Count}",
+                    "Bottleneck candidate on primary critical chain; verify completion sequencing."));
+            }
+
+            foreach (var node in nodeList.Where(n => !criticalPathSet.Contains(n.Id)))
+            {
+                items.Add(new GraphCriticalPathNodeItem(
+                    0,
+                    node.Id,
+                    node.Title,
+                    adj[node.Id].Count,
+                    inDegree[node.Id],
+                    false,
+                    $"Off critical path (In-degree {inDegree[node.Id]}, Out-degree {adj[node.Id].Count})",
+                    inDegree[node.Id] == 0 && adj[node.Id].Count == 0 ? "Orphaned node with no dependencies" : "Parallel branch item"));
+            }
+
+            double score = 100.0;
+            if (hasCycle) score -= 30.0;
+            if (maxPathLength > 8) score -= (maxPathLength - 8) * 3.0;
+            int orphanCount = nodeList.Count(n => inDegree[n.Id] == 0 && adj[n.Id].Count == 0 && totalNodes > 1);
+            score -= orphanCount * 5.0;
+            score = Math.Clamp(score, 0.0, 100.0);
+
+            string category = score switch
+            {
+                >= 90.0 => "Optimal Hierarchy",
+                >= 75.0 => "Balanced Tree Structure",
+                >= 50.0 => "Deep Sequential Chain",
+                _ => "Cyclic / Bottleneck Complex"
+            };
+
+            string summary = FormatCriticalPathSummary(
+                totalNodes, totalEdges, maxPathLength, rootNodes.Count, leafNodes.Count, hasCycle, criticalPathSummary, score, category, isSelection);
+
+            return new GraphCriticalPathAudit(
+                totalNodes, totalEdges, maxPathLength, rootNodes.Count, leafNodes.Count, hasCycle, criticalPathSummary,
+                score, items, category, isSelection, summary);
+        }
+
+        public static string FormatCriticalPathSummary(
+            int totalNodes, int totalEdges, int maxDepth, int rootCount, int leafCount, bool hasCycles, string pathSummary, double score, string category, bool isSelection)
+        {
+            string scope = isSelection ? "Selection · " : "";
+            if (totalNodes == 0)
+                return $"Graph critical path audit ({scope}Clean galaxy · 0 nodes evaluated)";
+
+            var parts = new List<string>();
+            parts.Add($"{totalNodes} node{(totalNodes == 1 ? "" : "s")}");
+            parts.Add($"{totalEdges} link{(totalEdges == 1 ? "" : "s")}");
+            parts.Add($"critical path len {maxDepth}");
+            if (hasCycles) parts.Add("\ud83d\udea8 cyclic dependency detected");
+            if (rootCount > 0) parts.Add($"{rootCount} root{(rootCount == 1 ? "" : "s")}");
+            if (leafCount > 0) parts.Add($"{leafCount} leaf{(leafCount == 1 ? "" : "s")}");
+
+            string details = string.Join(" · ", parts);
+            return $"Graph critical path audit ({scope}{details} · {category} · {score:0.#}% hierarchy score)";
+        }
+
     }
 
 
@@ -16312,6 +16511,30 @@ namespace MarkSmith.ViewModels.MindMap
         bool PassesCardContrast,
         string Status,
         string Recommendation);
+
+    public sealed record GraphCriticalPathNodeItem(
+        int Depth,
+        string NodeId,
+        string NodeTitle,
+        int OutDegree,
+        int InDegree,
+        bool IsOnCriticalPath,
+        string Excerpt,
+        string Recommendation);
+
+    public sealed record GraphCriticalPathAudit(
+        int TotalNodes,
+        int TotalEdges,
+        int MaxCriticalPathLength,
+        int RootNodeCount,
+        int LeafNodeCount,
+        bool HasCycles,
+        string CriticalPathSummary,
+        double CriticalPathHierarchyScore,
+        IReadOnlyList<GraphCriticalPathNodeItem> Items,
+        string Category,
+        bool IsSelectionScope,
+        string Summary);
 
     public sealed record GraphColorContrastAccessibilityAudit(
         int TotalNodes,

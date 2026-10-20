@@ -847,6 +847,9 @@
                                     <MenuFlyoutItem x:Name="SelectionAuditDiagramViewportBleedItem" Text="Audit vector diagram canvas viewport margins &amp; bleed edge safety" Click="OnSelectionAuditDiagramViewportBleedClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="SelectionAuditDiagramCoordinateSnapGridAlignmentItem" Text="Audit Diagram Coordinate Snap Grid &amp; Cardinal Alignment" Click="OnSelectionAuditDiagramCoordinateSnapGridAlignmentClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem x:Name="SelectionAuditShapeOcclusionAndStackingOrderItem" Text="Audit Shape Z-Index Stacking Order &amp; Visual Occlusion" Click="OnSelectionAuditShapeOcclusionAndStackingOrderClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

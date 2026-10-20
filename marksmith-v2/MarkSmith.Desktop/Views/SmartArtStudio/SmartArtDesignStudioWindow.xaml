@@ -474,6 +474,9 @@
                                     <MenuFlyoutItem x:Name="OutlineStatsAuditCycleProcessDirectionalityItem" Text="Audit cycle process flow closed-loop directionality &amp; arrow parity" Click="OnOutlineStatsAuditCycleProcessDirectionalityClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="OutlineStatsAuditMatrixQuadrantCoordinateParityItem" Text="Audit Matrix / Quad-Quadrant Layout Symmetry &amp; Coordinate Parity" Click="OnOutlineStatsAuditMatrixQuadrantCoordinateParityClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem x:Name="OutlineStatsAuditPyramidFunnelHierarchyInversionItem" Text="Audit Pyramid / Funnel Inverted Geometry &amp; Hierarchy Inversion" Click="OnOutlineStatsAuditPyramidFunnelHierarchyInversionClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

@@ -3646,4 +3646,56 @@ public class SmartArtStudioPolishTests
         var funnelAudit = SmartArtDesignStudioViewModel.AuditPyramidFunnelHierarchyInversion(uprightMd, "Inverted Funnel");
         Assert.True(funnelAudit.IsInvertedLayout);
     }
+
+    [Fact]
+    public void Run214_AuditMatrixQuadrantCoordinateParity_ValidatesQuadrantParityAndBalance()
+    {
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditMatrixQuadrantCoordinateParity(null, "Matrix");
+        Assert.Equal(0, emptyAudit.TotalQuadrants);
+        Assert.Equal(100.0, emptyAudit.MatrixSymmetryScore);
+        Assert.Equal("Empty Outline", emptyAudit.Category);
+
+        var swotMd = string.Join("\n",
+            "- Strengths",
+            "    - Proprietary Technology",
+            "    - Strong Brand",
+            "- Weaknesses",
+            "    - High Debt Ratio",
+            "    - Limited Distribution",
+            "- Opportunities",
+            "    - Emerging Markets",
+            "    - AI Automation",
+            "- Threats",
+            "    - Regulatory Scrutiny",
+            "    - Competitor Price Cuts"
+        );
+        var audit = SmartArtDesignStudioViewModel.AuditMatrixQuadrantCoordinateParity(swotMd, "SWOT Matrix");
+        Assert.Equal(4, audit.TotalQuadrants);
+        Assert.Equal(0, audit.EmptyQuadrantCount);
+        Assert.Equal(0, audit.ImbalancedQuadrantCount);
+        Assert.Equal(2.0, audit.AverageItemsPerQuadrant);
+        Assert.Equal(100.0, audit.MatrixSymmetryScore);
+        Assert.Equal("High Matrix Symmetry", audit.Category);
+
+        string formatted = SmartArtDesignStudioViewModel.FormatMatrixCoordinateParitySummary(
+            audit.TotalQuadrants, audit.EmptyQuadrantCount, audit.ImbalancedQuadrantCount,
+            audit.AverageItemsPerQuadrant, audit.MatrixSymmetryScore, audit.Category, "SWOT Matrix");
+        Assert.Equal(audit.Summary, formatted);
+
+        var imbalancedMd = string.Join("\n",
+            "- Quadrant 1",
+            "    - Item 1",
+            "    - Item 2",
+            "    - Item 3",
+            "    - Item 4",
+            "    - Item 5",
+            "- Quadrant 2",
+            "- Quadrant 3",
+            "    - Item A"
+        );
+        var imbalancedAudit = SmartArtDesignStudioViewModel.AuditMatrixQuadrantCoordinateParity(imbalancedMd, "Matrix");
+        Assert.Equal(3, imbalancedAudit.TotalQuadrants);
+        Assert.Equal(1, imbalancedAudit.EmptyQuadrantCount);
+        Assert.True(imbalancedAudit.MatrixSymmetryScore < 80.0);
+    }
 }

@@ -4207,6 +4207,14 @@ namespace MarkSmith.Views.MindMap
             ViewModel.StatusMessage = $"\u2713 {result.Summary}";
         }
 
+        private void OnAuditGraphCriticalPathClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditGraphCriticalPathAndDepth();
+            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+        }
+
         private void OnAuditGraphColorContrastAccessibilityClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;

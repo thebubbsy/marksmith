@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -14830,6 +14830,228 @@ public static class TextSearch
         return $"Markdown HTML sanitization audit ({details} · {category} · {score:0.#}% safety score)";
     }
 
+    public static MarkdownYamlFrontmatterAudit AuditMarkdownYamlFrontmatterSchema(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            string emptySummary = FormatYamlFrontmatterSummary(false, 0, 0, 0, 0, 100.0, "Clean Baseline · No YAML Frontmatter");
+            return new MarkdownYamlFrontmatterAudit(
+                false, 0, 0, 0, 0, 100.0,
+                Array.Empty<MarkdownYamlFrontmatterItem>(),
+                "Clean Baseline · No YAML Frontmatter", emptySummary);
+        }
+
+        var normalized = markdownText.TrimStart('\uFEFF');
+        var lines = normalized.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+
+        bool startsWithOpening = lines.Length > 0 && lines[0].Trim() == "---";
+        if (!startsWithOpening)
+        {
+            int misplacedIdx = -1;
+            for (int i = 1; i < Math.Min(lines.Length, 15); i++)
+            {
+                if (lines[i].Trim() == "---")
+                {
+                    misplacedIdx = i;
+                    break;
+                }
+            }
+
+            if (misplacedIdx != -1)
+            {
+                var itemsMisplaced = new List<MarkdownYamlFrontmatterItem>
+                {
+                    new MarkdownYamlFrontmatterItem(
+                        misplacedIdx + 1,
+                        "---",
+                        "DelimiterError",
+                        "Warning",
+                        lines[misplacedIdx],
+                        "YAML frontmatter delimiter '---' found after line 1; frontmatter blocks must start at line 1.")
+                };
+                string summaryMisplaced = FormatYamlFrontmatterSummary(false, 0, 1, 0, 0, 80.0, "Misplaced Frontmatter Delimiter");
+                return new MarkdownYamlFrontmatterAudit(
+                    false, 0, 1, 0, 0, 80.0,
+                    itemsMisplaced, "Misplaced Frontmatter Delimiter", summaryMisplaced);
+            }
+
+            string cleanSummary = FormatYamlFrontmatterSummary(false, 0, 0, 0, 0, 100.0, "Clean Baseline · No YAML Frontmatter");
+            return new MarkdownYamlFrontmatterAudit(
+                false, 0, 0, 0, 0, 100.0,
+                Array.Empty<MarkdownYamlFrontmatterItem>(),
+                "Clean Baseline · No YAML Frontmatter", cleanSummary);
+        }
+
+        int closingIdx = -1;
+        for (int i = 1; i < lines.Length; i++)
+        {
+            var trimmed = lines[i].Trim();
+            if (trimmed == "---" || trimmed == "...")
+            {
+                closingIdx = i;
+                break;
+            }
+        }
+
+        var items = new List<MarkdownYamlFrontmatterItem>();
+        if (closingIdx == -1)
+        {
+            items.Add(new MarkdownYamlFrontmatterItem(
+                1,
+                "---",
+                "DelimiterError",
+                "Error",
+                lines[0],
+                "Unclosed YAML frontmatter block; missing closing '---' or '...' delimiter."));
+            string unclosedSummary = FormatYamlFrontmatterSummary(true, 0, 1, 0, 0, 50.0, "Unclosed Frontmatter Block");
+            return new MarkdownYamlFrontmatterAudit(
+                true, 0, 1, 0, 0, 50.0,
+                items, "Unclosed Frontmatter Block", unclosedSummary);
+        }
+
+        var seenKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        int syntaxErrors = 0;
+        int duplicateKeys = 0;
+        int totalKeys = 0;
+
+        for (int i = 1; i < closingIdx; i++)
+        {
+            var rawLine = lines[i];
+            var trimmed = rawLine.Trim();
+
+            if (string.IsNullOrWhiteSpace(trimmed) || trimmed.StartsWith('#'))
+                continue;
+
+            if (trimmed.StartsWith('-'))
+                continue;
+
+            int colonIdx = trimmed.IndexOf(':');
+            if (colonIdx > 0)
+            {
+                string keyPart = trimmed[..colonIdx].Trim();
+                string valPart = trimmed[(colonIdx + 1)..].Trim();
+
+                if (System.Text.RegularExpressions.Regex.IsMatch(keyPart, @"^[A-Za-z0-9_-]+$"))
+                {
+                    totalKeys++;
+                    if (!seenKeys.Add(keyPart))
+                    {
+                        duplicateKeys++;
+                        items.Add(new MarkdownYamlFrontmatterItem(
+                            i + 1,
+                            keyPart,
+                            "DuplicateKey",
+                            "Warning",
+                            rawLine,
+                            $"Duplicate YAML frontmatter key '{keyPart}'; duplicate keys can cause parser ambiguity or data overwrite."));
+                    }
+
+                    if (valPart.Contains(": ") && !valPart.StartsWith('"') && !valPart.StartsWith('\''))
+                    {
+                        items.Add(new MarkdownYamlFrontmatterItem(
+                            i + 1,
+                            keyPart,
+                            "FormattingWarning",
+                            "Warning",
+                            rawLine,
+                            $"Scalar value for key '{keyPart}' contains ': ' without enclosing quotes; enclose in quotes to avoid YAML parsing errors."));
+                    }
+
+                    if (keyPart.Equals("date", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(valPart))
+                    {
+                        var cleanDate = valPart.Trim('\'', '"');
+                        if (!DateTime.TryParse(cleanDate, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out _))
+                        {
+                            items.Add(new MarkdownYamlFrontmatterItem(
+                                i + 1,
+                                keyPart,
+                                "FormattingWarning",
+                                "Warning",
+                                rawLine,
+                                $"Date value '{valPart}' could not be parsed as standard ISO-8601 or culture-invariant date."));
+                        }
+                    }
+                }
+                else
+                {
+                    syntaxErrors++;
+                    items.Add(new MarkdownYamlFrontmatterItem(
+                        i + 1,
+                        keyPart,
+                        "SyntaxError",
+                        "Error",
+                        rawLine,
+                        $"Invalid key identifier '{keyPart}'; YAML keys should contain alphanumeric characters, hyphens, or underscores."));
+                }
+            }
+            else
+            {
+                syntaxErrors++;
+                items.Add(new MarkdownYamlFrontmatterItem(
+                    i + 1,
+                    trimmed,
+                    "SyntaxError",
+                    "Error",
+                    rawLine,
+                    $"Malformed YAML line; expected 'key: value' mapping, comment, or list entry."));
+            }
+        }
+
+        int missingRecommended = 0;
+        string[] recommended = new[] { "title" };
+        foreach (var req in recommended)
+        {
+            if (!seenKeys.Contains(req))
+            {
+                missingRecommended++;
+                items.Add(new MarkdownYamlFrontmatterItem(
+                    1,
+                    req,
+                    "MissingKey",
+                    "Info",
+                    lines[0],
+                    $"Frontmatter block is missing recommended metadata key '{req}'."));
+            }
+        }
+
+        double score = 100.0;
+        score -= syntaxErrors * 15.0;
+        score -= duplicateKeys * 10.0;
+        score -= missingRecommended * 5.0;
+        score = Math.Clamp(score, 0.0, 100.0);
+
+        string category = score switch
+        {
+            >= 95.0 => "Strictly Valid Schema",
+            >= 80.0 => "Valid with Minor Warnings",
+            >= 60.0 => "Schema Inconsistencies",
+            _ => "Malformed Frontmatter Schema"
+        };
+
+        string summary = FormatYamlFrontmatterSummary(true, totalKeys, syntaxErrors, duplicateKeys, missingRecommended, score, category);
+        return new MarkdownYamlFrontmatterAudit(
+            true, totalKeys, syntaxErrors, duplicateKeys, missingRecommended, score, items, category, summary);
+    }
+
+    public static string FormatYamlFrontmatterSummary(string? markdownText)
+        => AuditMarkdownYamlFrontmatterSchema(markdownText).Summary;
+
+    public static string FormatYamlFrontmatterSummary(
+        bool hasFrontmatter, int totalKeys, int syntaxErrors, int duplicateKeys, int missingRecommendedKeys, double score, string category)
+    {
+        if (!hasFrontmatter)
+            return "Markdown YAML frontmatter audit: Clean document · No YAML frontmatter block present";
+
+        var parts = new List<string>();
+        parts.Add($"{totalKeys} key{(totalKeys == 1 ? "" : "s")}");
+        if (syntaxErrors > 0) parts.Add($"🚨 {syntaxErrors} syntax error{(syntaxErrors == 1 ? "" : "s")}");
+        if (duplicateKeys > 0) parts.Add($"⚠ {duplicateKeys} duplicate key{(duplicateKeys == 1 ? "" : "s")}");
+        if (missingRecommendedKeys > 0) parts.Add($"ℹ {missingRecommendedKeys} missing recommended");
+
+        string details = string.Join(" · ", parts);
+        return $"Markdown YAML frontmatter audit ({details} · {category} · {score:0.#}% schema score)";
+    }
+
 }
 
 
@@ -16568,3 +16790,23 @@ public sealed record MarkdownHtmlSanitizationAudit(
     string Category,
     string Summary);
 
+
+
+public sealed record MarkdownYamlFrontmatterItem(
+    int LineNumber,
+    string KeyName,
+    string IssueType,
+    string Severity,
+    string Excerpt,
+    string Recommendation);
+
+public sealed record MarkdownYamlFrontmatterAudit(
+    bool HasFrontmatter,
+    int TotalKeys,
+    int SyntaxErrorCount,
+    int DuplicateKeyCount,
+    int MissingRecommendedKeyCount,
+    double FrontmatterScore,
+    IReadOnlyList<MarkdownYamlFrontmatterItem> Items,
+    string Category,
+    string Summary);

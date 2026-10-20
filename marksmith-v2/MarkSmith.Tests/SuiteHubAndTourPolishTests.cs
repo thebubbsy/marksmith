@@ -7407,4 +7407,111 @@ Some paragraph in between.
         Assert.Contains("OnAuditWorkspaceCodeBlockLanguageTagsClick", suiteCs);
         Assert.Contains("AuditWorkspaceCodeBlockLanguageTags", suiteCs);
     }
+
+    [Fact]
+    public void Run214_AuditWorkspaceHeadingSlugCollisions_DetectsDuplicateSlugsAndCrossDocCollisions()
+    {
+        var emptyAudit = RecentFilesService.AuditWorkspaceHeadingSlugCollisions(null);
+        Assert.Equal(0, emptyAudit.TotalFiles);
+        Assert.Equal(100.0, emptyAudit.HeadingUniquenessScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+
+        var doc1 = string.Join("\n",
+            "# Architecture Overview",
+            "Introductory section.",
+            "## Configuration Guide",
+            "Config details.",
+            "### Deployment Notes",
+            "Deployment details."
+        );
+        var doc2 = string.Join("\n",
+            "# User Manual",
+            "User guide content.",
+            "## Getting Started",
+            "Getting started instructions."
+        );
+
+        var mockFiles = new Dictionary<string, string>
+        {
+            [@"C:\docs\arch.md"] = doc1,
+            [@"C:\docs\user.md"] = doc2
+        };
+
+        var audit = RecentFilesService.AuditWorkspaceHeadingSlugCollisions(
+            mockFiles.Keys.ToList(),
+            fileExistsProvider: f => mockFiles.ContainsKey(f),
+            contentReader: f => mockFiles.TryGetValue(f, out var txt) ? txt : string.Empty);
+
+        Assert.Equal(2, audit.TotalFiles);
+        Assert.Equal(5, audit.TotalHeadings);
+        Assert.Equal(0, audit.InternalCollisionCount);
+        Assert.Equal(0, audit.CrossDocumentCollisionCount);
+        Assert.Equal(5, audit.UniqueSlugCount);
+        Assert.Equal(100.0, audit.HeadingUniquenessScore);
+        Assert.Equal("Clean Unique Heading Slugs", audit.Category);
+
+        string formatted = RecentFilesService.FormatHeadingSlugSummary(
+            audit.TotalFiles, audit.TotalHeadings, audit.InternalCollisionCount,
+            audit.CrossDocumentCollisionCount, audit.UniqueSlugCount,
+            audit.HeadingUniquenessScore, audit.Category);
+        Assert.Equal(audit.Summary, formatted);
+
+        // Test duplicate slug detection within same file and across files
+        var docCollision = string.Join("\n",
+            "# Architecture Overview",
+            "## Configuration Guide",
+            "## Configuration Guide", // Internal duplicate
+            "### Duplicate Heading"
+        );
+        mockFiles[@"C:\docs\arch.md"] = docCollision;
+        var collisionAudit = RecentFilesService.AuditWorkspaceHeadingSlugCollisions(
+            mockFiles.Keys.ToList(),
+            fileExistsProvider: f => mockFiles.ContainsKey(f),
+            contentReader: f => mockFiles.TryGetValue(f, out var txt) ? txt : string.Empty);
+
+        Assert.True(collisionAudit.InternalCollisionCount >= 1);
+        Assert.True(collisionAudit.HeadingUniquenessScore < 90.0);
+    }
+
+    [Fact]
+    public void Run214_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // Surface 1: MainWindow - Markdown YAML Frontmatter Schema & Delimiter Strictness Auditor
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("auditYamlFrontmatterSchemaItem", mainCs);
+        Assert.Contains("AuditMarkdownYamlFrontmatterSchema", mainCs);
+
+        // Surface 2: MindMapGalaxyWindow - Graph Longest Dependency Chain & Critical Path Length Auditor
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditGraphCriticalPathItem", galaxyXaml);
+        Assert.Contains("OnAuditGraphCriticalPathClick", galaxyCs);
+        Assert.Contains("AuditGraphCriticalPathAndDepth", galaxyCs);
+
+        // Surface 3: ShapeDesignStudioWindow - Diagram Coordinate Snap Grid & Cardinal Alignment Auditor
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditDiagramCoordinateSnapGridAlignmentItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditDiagramCoordinateSnapGridAlignmentClick", shapeCs);
+        Assert.Contains("AuditDiagramCoordinateSnapGridAlignment", shapeCs);
+
+        // Surface 4: SmartArtDesignStudioWindow - Matrix / Quad-Quadrant Layout Symmetry & Coordinate Parity Auditor
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineStatsAuditMatrixQuadrantCoordinateParityItem", smartArtXaml);
+        Assert.Contains("OnOutlineStatsAuditMatrixQuadrantCoordinateParityClick", smartArtCs);
+        Assert.Contains("AuditMatrixQuadrantCoordinateParity", smartArtCs);
+
+        // Surface 5: HistoryWindow - Semantic Diff Pattern Matching Guards & Expression-Bodied Member Auditor
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditPatternMatchingGuardsItem", historyCs);
+        Assert.Contains("AuditPatternMatchingGuardsAndExpressionBodies", historyCs);
+
+        // Surface 6: SuiteHubView - Workspace Cross-Document Heading Anchor & Slug Collision Auditor
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("AuditWorkspaceHeadingSlugCollisionsItem", suiteXaml);
+        Assert.Contains("OnAuditWorkspaceHeadingSlugCollisionsClick", suiteCs);
+        Assert.Contains("AuditWorkspaceHeadingSlugCollisions", suiteCs);
+    }
 }

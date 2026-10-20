@@ -12465,6 +12465,178 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         return $"SmartArt pyramid/funnel audit ({layout} · {details} · {category} · {score:0.#}% harmony score)";
     }
 
+    public SmartArtMatrixCoordinateParityAudit AuditMatrixQuadrantCoordinateParity(string? markdown = null, string? layoutName = null)
+    {
+        string md = markdown ?? MarkdownText;
+        string layout = layoutName ?? SelectedLayout?.DisplayName ?? "Matrix";
+        return AuditMatrixQuadrantCoordinateParity(md, layout, isStatic: false);
+    }
+
+    public static SmartArtMatrixCoordinateParityAudit AuditMatrixQuadrantCoordinateParity(
+        string? markdown,
+        string? layoutName = null,
+        bool isStatic = true)
+    {
+        string layout = layoutName ?? "Matrix";
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            string emptySummary = FormatMatrixCoordinateParitySummary(0, 0, 0, 0.0, 100.0, "Empty Outline", layout);
+            return new SmartArtMatrixCoordinateParityAudit(
+                0, 0, 0, 0.0, 100.0,
+                Array.Empty<SmartArtMatrixCoordinateParityItem>(), layout, "Empty Outline", emptySummary);
+        }
+
+        var lines = markdown.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        
+        var quadrants = new List<(string Name, List<string> Items, int LineNum)>();
+        (string Name, List<string> Items, int LineNum) currentQuad = (string.Empty, new List<string>(), 0);
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var raw = lines[i];
+            var trimmed = raw.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed)) continue;
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~")) continue;
+
+            int indent = raw.Length - raw.TrimStart().Length;
+            bool isTopBullet = (trimmed.StartsWith("- ") || trimmed.StartsWith("* ") || trimmed.StartsWith("+ ")) && indent < 4;
+            bool isSubBullet = (trimmed.StartsWith("- ") || trimmed.StartsWith("* ") || trimmed.StartsWith("+ ")) && indent >= 4;
+            bool isHeading = trimmed.StartsWith("#");
+
+            if (isHeading)
+            {
+                continue;
+            }
+
+            if (isTopBullet)
+            {
+                if (!string.IsNullOrEmpty(currentQuad.Name) || currentQuad.Items.Count > 0)
+                {
+                    quadrants.Add(currentQuad);
+                }
+                string qName = trimmed[2..].Trim();
+                currentQuad = (qName, new List<string>(), i + 1);
+            }
+            else if (isSubBullet)
+            {
+                string subText = trimmed[2..].Trim();
+                if (string.IsNullOrEmpty(currentQuad.Name))
+                {
+                    currentQuad = ($"Quadrant {quadrants.Count + 1}", new List<string>(), i + 1);
+                }
+                currentQuad.Items.Add(subText);
+            }
+            else
+            {
+                if (indent == 0)
+                {
+                    if (!string.IsNullOrEmpty(currentQuad.Name) || currentQuad.Items.Count > 0)
+                    {
+                        quadrants.Add(currentQuad);
+                    }
+                    currentQuad = (trimmed, new List<string>(), i + 1);
+                }
+                else
+                {
+                    currentQuad.Items.Add(trimmed);
+                }
+            }
+        }
+
+        if (!string.IsNullOrEmpty(currentQuad.Name) || currentQuad.Items.Count > 0)
+        {
+            quadrants.Add(currentQuad);
+        }
+
+        int totalQuadrants = quadrants.Count;
+        if (totalQuadrants == 0)
+        {
+            string emptySummary = FormatMatrixCoordinateParitySummary(0, 0, 0, 0.0, 100.0, "Empty Outline", layout);
+            return new SmartArtMatrixCoordinateParityAudit(
+                0, 0, 0, 0.0, 100.0,
+                Array.Empty<SmartArtMatrixCoordinateParityItem>(), layout, "Empty Outline", emptySummary);
+        }
+
+        var items = new List<SmartArtMatrixCoordinateParityItem>();
+        int emptyQuadrantCount = 0;
+        int imbalancedQuadrantCount = 0;
+        double avgItems = totalQuadrants > 0 ? (double)quadrants.Sum(q => q.Items.Count) / totalQuadrants : 0.0;
+
+        for (int i = 0; i < quadrants.Count; i++)
+        {
+            var q = quadrants[i];
+            int count = q.Items.Count;
+            int charCount = q.Items.Sum(it => it.Length);
+            bool isEmpty = count == 0;
+            bool isImbalanced = avgItems > 0 && (count > avgItems * 2.2 || count < avgItems * 0.4);
+
+            if (isEmpty) emptyQuadrantCount++;
+            if (isImbalanced) imbalancedQuadrantCount++;
+
+            string status = isEmpty
+                ? "EmptyQuadrant"
+                : (isImbalanced ? "ItemVolumeImbalance" : "Symmetric");
+
+            string rec = isEmpty
+                ? "Quadrant has no sub-items; add content to populate the 2x2 matrix cell."
+                : (isImbalanced
+                    ? $"Quadrant has {count} items vs average {avgItems:0.#}; redistribute items for visual balance."
+                    : "Balanced quadrant content and density.");
+
+            items.Add(new SmartArtMatrixCoordinateParityItem(
+                i + 1,
+                q.Name,
+                count,
+                charCount,
+                isEmpty,
+                isImbalanced,
+                status,
+                rec));
+        }
+
+        double score = 100.0;
+        if (totalQuadrants != 4)
+        {
+            score -= Math.Abs(totalQuadrants - 4) * 15.0;
+        }
+        score -= emptyQuadrantCount * 20.0;
+        score -= imbalancedQuadrantCount * 10.0;
+        score = Math.Clamp(score, 0.0, 100.0);
+
+        string category = score switch
+        {
+            >= 90.0 => "High Matrix Symmetry",
+            >= 75.0 => "Minor Quadrant Variance",
+            >= 50.0 => "Moderate Layout Imbalance",
+            _ => "Asymmetric / Non-Grid Matrix"
+        };
+
+        string summary = FormatMatrixCoordinateParitySummary(
+            totalQuadrants, emptyQuadrantCount, imbalancedQuadrantCount, Math.Round(avgItems, 1), score, category, layout);
+
+        return new SmartArtMatrixCoordinateParityAudit(
+            totalQuadrants, emptyQuadrantCount, imbalancedQuadrantCount, Math.Round(avgItems, 1),
+            score, items, layout, category, summary);
+    }
+
+    public static string FormatMatrixCoordinateParitySummary(
+        int totalQuadrants, int emptyCount, int imbalancedCount, double avgItems, double score, string category, string layout)
+    {
+        if (totalQuadrants == 0)
+            return $"SmartArt matrix symmetry audit: Clean outline · 0 quadrants defined in {layout}";
+
+        var parts = new List<string>();
+        parts.Add($"{totalQuadrants} quadrant{(totalQuadrants == 1 ? "" : "s")}");
+        if (totalQuadrants == 4) parts.Add("\u2713 2x2 quad parity");
+        else parts.Add($"\u26a0 {totalQuadrants}/4 quadrant count");
+        if (emptyCount > 0) parts.Add($"\ud83d\udea8 {emptyCount} empty cell{(emptyCount == 1 ? "" : "s")}");
+        if (imbalancedCount > 0) parts.Add($"\u26a0 {imbalancedCount} item imbalance");
+        parts.Add($"avg {avgItems:0.#} items/quad");
+
+        string details = string.Join(" · ", parts);
+        return $"SmartArt matrix audit ({layout} · {details} · {category} · {score:0.#}% harmony score)";
+    }
+
     }
 
 
@@ -14085,3 +14257,25 @@ public sealed record SmartArtPyramidFunnelHierarchyAudit(
     string Category,
     string Summary);
 
+
+
+public sealed record SmartArtMatrixCoordinateParityItem(
+    int QuadrantIndex,
+    string QuadrantTitle,
+    int ItemCount,
+    int TotalCharacters,
+    bool IsEmpty,
+    bool HasVolumeImbalance,
+    string Status,
+    string Recommendation);
+
+public sealed record SmartArtMatrixCoordinateParityAudit(
+    int TotalQuadrants,
+    int EmptyQuadrantCount,
+    int ImbalancedQuadrantCount,
+    double AverageItemsPerQuadrant,
+    double MatrixSymmetryScore,
+    IReadOnlyList<SmartArtMatrixCoordinateParityItem> Quadrants,
+    string LayoutName,
+    string Category,
+    string Summary);

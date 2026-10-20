@@ -3803,4 +3803,49 @@ public class HistoryPolishTests : IDisposable
         Assert.True(hazardAudit.AsyncOrBlockingInsideLockCount >= 1);
         Assert.True(hazardAudit.LockHierarchySafetyScore < 60.0);
     }
+
+    [Fact]
+    public void Run214_AuditPatternMatchingGuardsAndExpressionBodies_DetectsModernPatternsAndHazards()
+    {
+        var emptyAudit = LineDiff.AuditPatternMatchingGuardsAndExpressionBodies("", "");
+        Assert.Equal(0, emptyAudit.TotalPatternConstructs);
+        Assert.Equal(100.0, emptyAudit.SyntaxEleganceScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+
+        var cleanCode = string.Join("\n",
+            "public string Classify(object obj) => obj switch",
+            "{",
+            "    int i when i > 0 => \"Positive\",",
+            "    string s => s,",
+            "    _ => \"Unknown\"",
+            "};"
+        );
+        var audit = LineDiff.AuditPatternMatchingGuardsAndExpressionBodies("", cleanCode);
+        Assert.True(audit.TotalPatternConstructs >= 1);
+        Assert.Equal(0, audit.MissingDiscardArmCount);
+        Assert.Equal(0, audit.RedundantCastCount);
+        Assert.True(audit.SyntaxEleganceScore >= 90.0);
+        Assert.Equal("Modern Idiomatic C#", audit.Category);
+
+        string formatted = LineDiff.FormatPatternMatchingSummary(
+            audit.TotalPatternConstructs, audit.ModernPatternCount, audit.MissingDiscardArmCount,
+            audit.RedundantCastCount, audit.ComplexLambdaCount, audit.SyntaxEleganceScore, audit.Category);
+        Assert.Equal(audit.Summary, formatted);
+
+        var hazardCode = string.Join("\n",
+            "if (item is MyType)",
+            "{",
+            "    var casted = (MyType)item;",
+            "}",
+            "var badSwitch = val switch",
+            "{",
+            "    1 => \"One\",",
+            "    2 => \"Two\"",
+            "};"
+        );
+        var hazardAudit = LineDiff.AuditPatternMatchingGuardsAndExpressionBodies("", hazardCode);
+        Assert.True(hazardAudit.RedundantCastCount >= 1);
+        Assert.True(hazardAudit.MissingDiscardArmCount >= 1);
+        Assert.True(hazardAudit.SyntaxEleganceScore <= 80.0);
+    }
 }

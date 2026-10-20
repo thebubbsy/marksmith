@@ -3965,4 +3965,37 @@ public class ShapeStudioPolishTests
         Assert.True(occludedAudit.MaxOcclusionPercentage >= 90.0);
         Assert.True(occludedAudit.StackingHygieneScore <= 70.0);
     }
+
+    [Fact]
+    public void Run214_AuditDiagramCoordinateSnapGridAlignment_DetectsOffGridAndSubPixelJitter()
+    {
+        var emptyAudit = ShapeDesignStudioViewModel.AuditDiagramCoordinateSnapGridAlignment(null, 8.0);
+        Assert.Equal(0, emptyAudit.TotalShapes);
+        Assert.Equal(100.0, emptyAudit.LayoutPrecisionScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+
+        var s1 = new ShapeCanvasItemViewModel { Id = "s1", Name = "Snapped 1", X = 64, Y = 128, Width = 160, Height = 80 };
+        var s2 = new ShapeCanvasItemViewModel { Id = "s2", Name = "Snapped 2", X = 256, Y = 128, Width = 160, Height = 80 };
+        var cleanAudit = ShapeDesignStudioViewModel.AuditDiagramCoordinateSnapGridAlignment(new[] { s1, s2 }, 8.0);
+        Assert.Equal(2, cleanAudit.TotalShapes);
+        Assert.Equal(2, cleanAudit.AlignedCount);
+        Assert.Equal(0, cleanAudit.OffGridCount);
+        Assert.Equal(0, cleanAudit.SubPixelJitterCount);
+        Assert.Equal(0.0, cleanAudit.MaxCoordinateDrift);
+        Assert.Equal(100.0, cleanAudit.LayoutPrecisionScore);
+        Assert.Equal("High Cardinal Precision", cleanAudit.Category);
+
+        string formatted = ShapeDesignStudioViewModel.FormatSnapGridSummary(
+            cleanAudit.TotalShapes, cleanAudit.AlignedCount, cleanAudit.OffGridCount,
+            cleanAudit.SubPixelJitterCount, cleanAudit.MaxCoordinateDrift,
+            cleanAudit.LayoutPrecisionScore, cleanAudit.Category, 8.0, false);
+        Assert.Equal(cleanAudit.Summary, formatted);
+
+        var sJitter = new ShapeCanvasItemViewModel { Id = "s3", Name = "Jitter Shape", X = 64.333, Y = 129.75, Width = 100, Height = 100 };
+        var jitterAudit = ShapeDesignStudioViewModel.AuditDiagramCoordinateSnapGridAlignment(new[] { sJitter }, 8.0);
+        Assert.Equal(1, jitterAudit.SubPixelJitterCount);
+        Assert.Equal(1, jitterAudit.OffGridCount);
+        Assert.True(jitterAudit.MaxCoordinateDrift > 0.0);
+        Assert.True(jitterAudit.LayoutPrecisionScore < 90.0);
+    }
 }

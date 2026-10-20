@@ -4091,4 +4091,52 @@ public class TextSearchTests
         Assert.True(hazardousAudit.HtmlSanitizationScore < 60.0);
         Assert.Equal("Critical Security Hazards", hazardousAudit.Category);
     }
+
+    [Fact]
+    public void Run214_AuditMarkdownYamlFrontmatterSchema_ValidatesFrontmatterAndDelimiters()
+    {
+        var cleanMd = string.Join("\n",
+            "---",
+            "title: Architecture Blueprint",
+            "date: 2026-10-21",
+            "tags:",
+            "  - winui3",
+            "  - markdown",
+            "---",
+            "# Architecture Blueprint",
+            "Document content follows."
+        );
+        var cleanAudit = TextSearch.AuditMarkdownYamlFrontmatterSchema(cleanMd);
+        Assert.True(cleanAudit.HasFrontmatter);
+        Assert.Equal(0, cleanAudit.SyntaxErrorCount);
+        Assert.Equal(0, cleanAudit.DuplicateKeyCount);
+        Assert.Equal(0, cleanAudit.MissingRecommendedKeyCount);
+        Assert.True(cleanAudit.FrontmatterScore >= 95.0);
+        Assert.Equal("Strictly Valid Schema", cleanAudit.Category);
+
+        string formatted = TextSearch.FormatYamlFrontmatterSummary(
+            cleanAudit.HasFrontmatter, cleanAudit.TotalKeys, cleanAudit.SyntaxErrorCount,
+            cleanAudit.DuplicateKeyCount, cleanAudit.MissingRecommendedKeyCount,
+            cleanAudit.FrontmatterScore, cleanAudit.Category);
+        Assert.Equal(cleanAudit.Summary, formatted);
+
+        var noFrontmatterMd = "# Plain Document\nNo YAML block here.";
+        var noFmAudit = TextSearch.AuditMarkdownYamlFrontmatterSchema(noFrontmatterMd);
+        Assert.False(noFmAudit.HasFrontmatter);
+        Assert.Equal(100.0, noFmAudit.FrontmatterScore);
+
+        var invalidMd = string.Join("\n",
+            "---",
+            "title: Broken Metadata",
+            "title: Duplicate Title",
+            "invalid key identifier: bad",
+            "date: not-a-date",
+            "unquoted: value: with colon",
+            "---"
+        );
+        var invalidAudit = TextSearch.AuditMarkdownYamlFrontmatterSchema(invalidMd);
+        Assert.True(invalidAudit.DuplicateKeyCount >= 1);
+        Assert.True(invalidAudit.SyntaxErrorCount >= 1);
+        Assert.True(invalidAudit.FrontmatterScore < 85.0);
+    }
 }

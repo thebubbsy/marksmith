@@ -19730,6 +19730,176 @@ public static class LineDiff
         return $"Semantic diff lock hierarchy audit ({details} · {category} · {score:0.#}% safety score)";
     }
 
+    public static DiffPatternMatchingAudit AuditPatternMatchingGuardsAndExpressionBodies(string? beforeText, string? afterText)
+    {
+        var d = Diff(beforeText ?? string.Empty, afterText ?? string.Empty);
+        var unified = BuildUnified(d);
+        return AuditPatternMatchingGuardsAndExpressionBodies(unified);
+    }
+
+    public static DiffPatternMatchingAudit AuditPatternMatchingGuardsAndExpressionBodies(IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows == null)
+        {
+            string emptySummary = FormatPatternMatchingSummary(0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new DiffPatternMatchingAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<DiffPatternMatchingHazardItem>(), "Clean Baseline", emptySummary);
+        }
+
+        var modifiedRows = unifiedRows
+            .Where(r => !r.IsGap && r.Kind == Kind.Added && !string.IsNullOrWhiteSpace(r.Text))
+            .ToList();
+
+        int totalModified = modifiedRows.Count;
+        if (totalModified == 0)
+        {
+            string emptySummary = FormatPatternMatchingSummary(0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new DiffPatternMatchingAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<DiffPatternMatchingHazardItem>(), "Clean Baseline", emptySummary);
+        }
+
+        var hazards = new List<DiffPatternMatchingHazardItem>();
+        int totalPatternConstructs = 0;
+        int modernPatternCount = 0;
+        int missingDiscardArmCount = 0;
+        int redundantCastCount = 0;
+        int complexLambdaCount = 0;
+
+        bool inSwitchExpr = false;
+        int switchExprLine = 0;
+        bool switchHasDiscard = false;
+        int switchArmCount = 0;
+
+        for (int i = 0; i < modifiedRows.Count; i++)
+        {
+            var row = modifiedRows[i];
+            string line = row.Text.Trim();
+            int lineNum = row.NewNumber ?? row.OldNumber ?? (i + 1);
+
+            if (System.Text.RegularExpressions.Regex.IsMatch(line, @"\bis\s+[A-Za-z0-9_<>]+\s*\)") ||
+                System.Text.RegularExpressions.Regex.IsMatch(line, @"\(\s*[A-Za-z0-9_]+\s+as\s+[A-Za-z0-9_<>]+\s*\)"))
+            {
+                redundantCastCount++;
+                totalPatternConstructs++;
+                hazards.Add(new DiffPatternMatchingHazardItem(
+                    lineNum,
+                    "RedundantCastAfterTypeCheck",
+                    "Warning",
+                    line,
+                    "Replace legacy type check and cast with modern C# pattern declaration: 'if (x is Type y)'."));
+            }
+
+            if (line.Contains(" switch") || line.EndsWith(" switch") || line.EndsWith("switch"))
+            {
+                inSwitchExpr = true;
+                switchExprLine = lineNum;
+                switchHasDiscard = false;
+                switchArmCount = 0;
+                totalPatternConstructs++;
+            }
+            else if (inSwitchExpr)
+            {
+                if (line == "{")
+                {
+                    // opening bracket on separate line
+                }
+                else if (line.Contains("=>"))
+                {
+                    switchArmCount++;
+                    if (line.TrimStart().StartsWith("_ =>") || line.TrimStart().StartsWith("_ =") || line.Contains("_ =>"))
+                    {
+                        switchHasDiscard = true;
+                    }
+                }
+
+                if (line.StartsWith("};") || line.StartsWith("}") || line.EndsWith("};"))
+                {
+                    if (switchArmCount > 1 && !switchHasDiscard)
+                    {
+                        missingDiscardArmCount++;
+                        hazards.Add(new DiffPatternMatchingHazardItem(
+                            switchExprLine,
+                            "MissingDiscardArm",
+                            "Warning",
+                            $"switch expression with {switchArmCount} arms",
+                            "Switch expression lacks fallback discard arm '_ =>'; unhandled cases will throw SwitchExpressionException at runtime."));
+                    }
+                    inSwitchExpr = false;
+                }
+            }
+
+            if (line.Contains(" when ") && (line.Contains("case ") || line.Contains("=>")))
+            {
+                modernPatternCount++;
+                totalPatternConstructs++;
+            }
+
+            if (System.Text.RegularExpressions.Regex.IsMatch(line, @"\bis\s*\{") || line.Contains("is not null"))
+            {
+                modernPatternCount++;
+                totalPatternConstructs++;
+            }
+
+            if (line.Contains("=> {") && line.Count(c => c == ';') > 1)
+            {
+                complexLambdaCount++;
+                hazards.Add(new DiffPatternMatchingHazardItem(
+                    lineNum,
+                    "ComplexBlockLambda",
+                    "Info",
+                    line,
+                    "Multi-statement lambda block detected; consider refactoring into a private local function or concise expression body."));
+            }
+        }
+
+        if (totalPatternConstructs == 0)
+        {
+            string emptySummary = FormatPatternMatchingSummary(0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new DiffPatternMatchingAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<DiffPatternMatchingHazardItem>(), "Clean Baseline", emptySummary);
+        }
+
+        double penalty = (missingDiscardArmCount * 20.0) +
+                         (redundantCastCount * 10.0) +
+                         (complexLambdaCount * 5.0);
+
+        double score = Math.Clamp(100.0 - penalty, 0.0, 100.0);
+
+        string category = score switch
+        {
+            >= 90.0 => "Modern Idiomatic C#",
+            >= 70.0 => "Minor Syntax Modernization Opportunities",
+            >= 50.0 => "Legacy Casts & Incomplete Switches",
+            _ => "Pattern Matching Hazards"
+        };
+
+        string summary = FormatPatternMatchingSummary(
+            totalPatternConstructs, modernPatternCount, missingDiscardArmCount, redundantCastCount, complexLambdaCount, score, category);
+
+        return new DiffPatternMatchingAudit(
+            totalPatternConstructs, modernPatternCount, missingDiscardArmCount, redundantCastCount, complexLambdaCount, score, hazards, category, summary);
+    }
+
+    public static string FormatPatternMatchingSummary(
+        int totalPatterns, int modernCount, int missingDiscards, int redundantCasts, int complexLambdas, double score, string category)
+    {
+        if (totalPatterns == 0)
+            return "Semantic diff pattern matching audit: Clean diff · 0 pattern matching constructs evaluated";
+
+        var parts = new List<string>();
+        parts.Add($"{totalPatterns} construct{(totalPatterns == 1 ? "" : "s")}");
+        if (modernCount > 0) parts.Add($"\u2713 {modernCount} modern pattern{(modernCount == 1 ? "" : "s")}");
+        if (missingDiscards > 0) parts.Add($"\ud83d\udea8 {missingDiscards} missing discard arm{(missingDiscards == 1 ? "" : "s")}");
+        if (redundantCasts > 0) parts.Add($"\u26a0 {redundantCasts} legacy cast{(redundantCasts == 1 ? "" : "s")}");
+        if (complexLambdas > 0) parts.Add($"\u2139 {complexLambdas} complex lambda{(complexLambdas == 1 ? "" : "s")}");
+
+        string details = string.Join(" · ", parts);
+        return $"Semantic diff pattern matching audit ({details} · {category} · {score:0.#}% elegance score)";
+    }
+
 }
 
 
@@ -21966,3 +22136,22 @@ public sealed record DiffLockHierarchyAudit(
     string Category,
     string Summary);
 
+
+
+public sealed record DiffPatternMatchingHazardItem(
+    int LineNumber,
+    string HazardType,
+    string Severity,
+    string Excerpt,
+    string Recommendation);
+
+public sealed record DiffPatternMatchingAudit(
+    int TotalPatternConstructs,
+    int ModernPatternCount,
+    int MissingDiscardArmCount,
+    int RedundantCastCount,
+    int ComplexLambdaCount,
+    double SyntaxEleganceScore,
+    IReadOnlyList<DiffPatternMatchingHazardItem> Hazards,
+    string Category,
+    string Summary);

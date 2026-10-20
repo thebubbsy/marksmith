@@ -11758,6 +11758,178 @@ public sealed class RecentFilesService
         return $"Workspace code block language audit ({details} · {category} · {score:0.#}% quality score)";
     }
 
+    public static WorkspaceHeadingSlugCollisionAudit AuditWorkspaceHeadingSlugCollisions(
+        IReadOnlyList<string>? explicitFiles = null,
+        Func<string, bool>? fileExistsProvider = null,
+        Func<string, string>? contentReader = null)
+    {
+        var files = (explicitFiles ?? Array.Empty<string>())
+            .Where(f => !string.IsNullOrWhiteSpace(f) && !f.EndsWith(".bak.md", StringComparison.OrdinalIgnoreCase))
+            .Distinct()
+            .ToList();
+
+        if (files.Count == 0)
+        {
+            string emptySummary = FormatHeadingSlugSummary(0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new WorkspaceHeadingSlugCollisionAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<WorkspaceHeadingSlugCollisionItem>(), "Clean Baseline", emptySummary);
+        }
+
+        var reader = contentReader ?? (f => File.Exists(f) ? File.ReadAllText(f) : string.Empty);
+        var fileExists = fileExistsProvider ?? File.Exists;
+
+        var items = new List<WorkspaceHeadingSlugCollisionItem>();
+        int totalHeadings = 0;
+        int internalCollisions = 0;
+        int crossDocCollisions = 0;
+
+        var globalSlugMap = new Dictionary<string, List<(string File, int Line, string HeadingText)>>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var file in files)
+        {
+            if (!fileExists(file)) continue;
+
+            string content = reader(file);
+            if (string.IsNullOrWhiteSpace(content)) continue;
+
+            var lines = content.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+            var fileSlugCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+            for (int i = 0; i < lines.Length; i++)
+            {
+                var line = lines[i];
+                var trimmed = line.Trim();
+                if (!trimmed.StartsWith("#")) continue;
+
+                int hashCount = 0;
+                while (hashCount < trimmed.Length && trimmed[hashCount] == '#') hashCount++;
+                if (hashCount < 1 || hashCount > 6) continue;
+                if (hashCount >= trimmed.Length || (trimmed[hashCount] != ' ' && trimmed[hashCount] != '\t')) continue;
+
+                string headingText = trimmed[hashCount..].Trim();
+                if (string.IsNullOrWhiteSpace(headingText)) continue;
+
+                totalHeadings++;
+                string slug = GenerateGithubMarkdownSlug(headingText);
+                if (string.IsNullOrEmpty(slug)) continue;
+
+                if (!fileSlugCounts.TryGetValue(slug, out int count))
+                {
+                    fileSlugCounts[slug] = 1;
+                }
+                else
+                {
+                    fileSlugCounts[slug] = count + 1;
+                    internalCollisions++;
+                    items.Add(new WorkspaceHeadingSlugCollisionItem(
+                        file,
+                        i + 1,
+                        slug,
+                        headingText,
+                        "InternalFileCollision",
+                        $"Duplicate heading anchor slug '#{slug}' within '{Path.GetFileName(file)}'; internal fragment jumps will always navigate to the first occurrence.",
+                        $"Differentiate the heading text (e.g. '{headingText} (Part {count + 1})') or assign a custom explicit anchor tag."));
+                }
+
+                if (!globalSlugMap.TryGetValue(slug, out var occurrences))
+                {
+                    occurrences = new List<(string File, int Line, string HeadingText)>();
+                    globalSlugMap[slug] = occurrences;
+                }
+                occurrences.Add((file, i + 1, headingText));
+            }
+        }
+
+        foreach (var (slug, occList) in globalSlugMap)
+        {
+            var distinctFiles = occList.Select(o => o.File).Distinct().ToList();
+            if (distinctFiles.Count > 1)
+            {
+                crossDocCollisions++;
+                var first = occList[0];
+                items.Add(new WorkspaceHeadingSlugCollisionItem(
+                    first.File,
+                    first.Line,
+                    slug,
+                    first.HeadingText,
+                    "CrossDocumentCollision",
+                    $"Heading slug '#{slug}' is defined across {distinctFiles.Count} workspace documents ({string.Join(", ", distinctFiles.Take(3).Select(Path.GetFileName))}).",
+                    "Ensure inter-document links specify the relative file path before the fragment (e.g. '[link](doc.md#{slug})') to avoid target ambiguity."));
+            }
+        }
+
+        if (totalHeadings == 0)
+        {
+            string emptySummary = FormatHeadingSlugSummary(files.Count, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new WorkspaceHeadingSlugCollisionAudit(
+                files.Count, 0, 0, 0, 0, 100.0,
+                Array.Empty<WorkspaceHeadingSlugCollisionItem>(), "Clean Baseline", emptySummary);
+        }
+
+        int uniqueSlugs = globalSlugMap.Count;
+        double penalty = (internalCollisions * 20.0) + (crossDocCollisions * 5.0);
+        double score = Math.Clamp(100.0 - penalty, 0.0, 100.0);
+
+        string category = score switch
+        {
+            >= 90.0 => "Clean Unique Heading Slugs",
+            >= 70.0 => "Minor Heading Collision Drift",
+            >= 50.0 => "Ambiguous Internal Heading Navigation",
+            _ => "Severe Anchor Slug Collision Debt"
+        };
+
+        string summary = FormatHeadingSlugSummary(
+            files.Count, totalHeadings, internalCollisions, crossDocCollisions, uniqueSlugs, score, category);
+
+        return new WorkspaceHeadingSlugCollisionAudit(
+            files.Count, totalHeadings, internalCollisions, crossDocCollisions, uniqueSlugs, score, items, category, summary);
+    }
+
+    public static string GenerateGithubMarkdownSlug(string headingText)
+    {
+        if (string.IsNullOrWhiteSpace(headingText)) return string.Empty;
+
+        string clean = headingText;
+        clean = System.Text.RegularExpressions.Regex.Replace(clean, @"\*\*([^*]+)\*\*", "$1");
+        clean = System.Text.RegularExpressions.Regex.Replace(clean, @"\*([^*]+)\*", "$1");
+        clean = System.Text.RegularExpressions.Regex.Replace(clean, @"`([^`]+)`", "$1");
+
+        clean = clean.ToLowerInvariant();
+
+        var sb = new System.Text.StringBuilder();
+        foreach (char c in clean)
+        {
+            if (char.IsLetterOrDigit(c) || c == '_' || c == '-')
+            {
+                sb.Append(c);
+            }
+            else if (char.IsWhiteSpace(c))
+            {
+                if (sb.Length > 0 && sb[^1] != '-')
+                    sb.Append('-');
+            }
+        }
+
+        return sb.ToString().Trim('-');
+    }
+
+    public static string FormatHeadingSlugSummary(
+        int totalFiles, int totalHeadings, int internalCollisions, int crossDocCollisions, int uniqueSlugs, double score, string category)
+    {
+        if (totalHeadings == 0)
+            return $"Workspace heading slug audit: Clean workspace · 0 headings detected across {totalFiles} file{(totalFiles == 1 ? "" : "s")}";
+
+        var parts = new List<string>();
+        parts.Add($"{totalHeadings} heading{(totalHeadings == 1 ? "" : "s")}");
+        parts.Add($"{uniqueSlugs} unique slug{(uniqueSlugs == 1 ? "" : "s")}");
+        if (internalCollisions > 0) parts.Add($"\ud83d\udea8 {internalCollisions} internal duplicate{(internalCollisions == 1 ? "" : "s")}");
+        if (crossDocCollisions > 0) parts.Add($"\u26a0 {crossDocCollisions} cross-doc collision{(crossDocCollisions == 1 ? "" : "s")}");
+
+        string details = string.Join(" · ", parts);
+        return $"Workspace heading slug audit ({details} · {category} · {score:0.#}% uniqueness score)";
+    }
+
 }
 
 /// <summary>
@@ -13328,3 +13500,24 @@ public sealed record WorkspaceCodeBlockLanguageTagAudit(
     string Category,
     string Summary);
 
+
+
+public sealed record WorkspaceHeadingSlugCollisionItem(
+    string DocumentPath,
+    int LineNumber,
+    string Slug,
+    string HeadingText,
+    string CollisionType,
+    string Excerpt,
+    string Recommendation);
+
+public sealed record WorkspaceHeadingSlugCollisionAudit(
+    int TotalFiles,
+    int TotalHeadings,
+    int InternalCollisionCount,
+    int CrossDocumentCollisionCount,
+    int UniqueSlugCount,
+    double HeadingUniquenessScore,
+    IReadOnlyList<WorkspaceHeadingSlugCollisionItem> Items,
+    string Category,
+    string Summary);
