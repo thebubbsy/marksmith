@@ -11197,6 +11197,248 @@ public static class TextSearch
             completionRatio, score, items, category, summary);
     }
 
+    public static MarkdownLinkReferenceAudit AuditMarkdownLinkReferenceDefinitions(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            string emptySummary = FormatLinkReferenceSummary(0, 0, 0, 0, 0, 0, 100.0, "No Reference Links");
+            return new MarkdownLinkReferenceAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<MarkdownLinkReferenceItem>(),
+                "No Reference Links",
+                emptySummary);
+        }
+
+        var lines = markdownText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+        var maskedLines = new string[lines.Length];
+        bool inCodeFence = false;
+        bool inFrontmatter = false;
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string line = lines[i];
+            string trimmed = line.Trim();
+
+            if (i == 0 && (trimmed == "---" || trimmed == "+++"))
+            {
+                inFrontmatter = true;
+                maskedLines[i] = string.Empty;
+                continue;
+            }
+            if (inFrontmatter)
+            {
+                maskedLines[i] = string.Empty;
+                if (trimmed == "---" || trimmed == "+++")
+                {
+                    inFrontmatter = false;
+                }
+                continue;
+            }
+
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+            {
+                inCodeFence = !inCodeFence;
+                maskedLines[i] = string.Empty;
+                continue;
+            }
+
+            if (inCodeFence)
+            {
+                maskedLines[i] = string.Empty;
+                continue;
+            }
+
+            maskedLines[i] = line;
+        }
+
+        var defRegex = new System.Text.RegularExpressions.Regex(
+            @"^\s{0,3}\[(?<label>[^\]]+)\]:\s*(?:<(?<dest>[^>]+)>|(?<dest>\S+))(?:\s+(?:""(?<title>[^""]*)""|'(?<title>[^']*)'|\((?<title>[^)]*)\)))?\s*$",
+            System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        var definitions = new Dictionary<string, (int Line, int Col, string Label, string Dest, string Title)>(StringComparer.OrdinalIgnoreCase);
+        var duplicateDefs = new List<(int Line, int Col, string Label, string Dest, string Title)>();
+        var items = new List<MarkdownLinkReferenceItem>();
+
+        for (int l = 0; l < maskedLines.Length; l++)
+        {
+            string line = maskedLines[l];
+            if (string.IsNullOrWhiteSpace(line)) continue;
+
+            var match = defRegex.Match(line);
+            if (!match.Success) continue;
+
+            string label = match.Groups["label"].Value.Trim();
+            string dest = match.Groups["dest"].Value.Trim();
+            string title = match.Groups["title"].Value?.Trim() ?? string.Empty;
+            int col = match.Groups["label"].Index + 1;
+
+            if (definitions.ContainsKey(label))
+            {
+                duplicateDefs.Add((l + 1, col, label, dest, title));
+            }
+            else
+            {
+                definitions[label] = (l + 1, col, label, dest, title);
+            }
+        }
+
+        var fullOrCollapsedRegex = new System.Text.RegularExpressions.Regex(
+            @"(?<!\!)\[(?<text>(?:[^\[\]\\]|\\.)+)\]\[(?<ref>[^\]]*)\]",
+            System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        var shortcutRegex = new System.Text.RegularExpressions.Regex(
+            @"(?<![!\[\^])\[(?<label>[a-zA-Z0-9_\-\.]+)(?<!\^)\](?![\[\(:\^])",
+            System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        var referencedLabels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        int totalUsages = 0;
+        int resolvedCount = 0;
+        int unresolvedCount = 0;
+
+        for (int l = 0; l < maskedLines.Length; l++)
+        {
+            string line = maskedLines[l];
+            if (string.IsNullOrWhiteSpace(line)) continue;
+
+            if (defRegex.IsMatch(line)) continue;
+
+            var fullMatches = fullOrCollapsedRegex.Matches(line);
+            var matchedSpans = new List<(int Start, int End)>();
+
+            foreach (System.Text.RegularExpressions.Match m in fullMatches)
+            {
+                totalUsages++;
+                matchedSpans.Add((m.Index, m.Index + m.Length));
+                string text = m.Groups["text"].Value;
+                string refKey = m.Groups["ref"].Value.Trim();
+                bool isCollapsed = string.IsNullOrEmpty(refKey);
+                string targetLabel = isCollapsed ? text.Trim() : refKey;
+                string usageType = isCollapsed ? "Collapsed" : "Full";
+
+                bool isResolved = definitions.TryGetValue(targetLabel, out var def);
+                if (isResolved)
+                {
+                    resolvedCount++;
+                    referencedLabels.Add(targetLabel);
+                    items.Add(new MarkdownLinkReferenceItem(
+                        l + 1, m.Index + 1, targetLabel, def.Dest, def.Title,
+                        IsDefinition: false, IsUsage: true, usageType, IsResolved: true,
+                        IsUnreferenced: false, IsDuplicateDefinition: false,
+                        "Resolved", $"Resolves to destination '{def.Dest}'"));
+                }
+                else
+                {
+                    unresolvedCount++;
+                    items.Add(new MarkdownLinkReferenceItem(
+                        l + 1, m.Index + 1, targetLabel, string.Empty, string.Empty,
+                        IsDefinition: false, IsUsage: true, usageType, IsResolved: false,
+                        IsUnreferenced: false, IsDuplicateDefinition: false,
+                        "Unresolved", $"Missing link reference definition: add '[{targetLabel}]: url' to document"));
+                }
+            }
+
+            var shortcutMatches = shortcutRegex.Matches(line);
+            foreach (System.Text.RegularExpressions.Match m in shortcutMatches)
+            {
+                bool overlaps = matchedSpans.Any(s => m.Index >= s.Start && m.Index < s.End);
+                if (overlaps) continue;
+
+                string targetLabel = m.Groups["label"].Value.Trim();
+                if (definitions.TryGetValue(targetLabel, out var def))
+                {
+                    totalUsages++;
+                    resolvedCount++;
+                    referencedLabels.Add(targetLabel);
+                    items.Add(new MarkdownLinkReferenceItem(
+                        l + 1, m.Index + 1, targetLabel, def.Dest, def.Title,
+                        IsDefinition: false, IsUsage: true, "Shortcut", IsResolved: true,
+                        IsUnreferenced: false, IsDuplicateDefinition: false,
+                        "Resolved", $"Shortcut link resolves to destination '{def.Dest}'"));
+                }
+            }
+        }
+
+        int unreferencedDefs = 0;
+        foreach (var kvp in definitions)
+        {
+            var def = kvp.Value;
+            bool isReferenced = referencedLabels.Contains(kvp.Key);
+            if (!isReferenced) unreferencedDefs++;
+
+            string status = isReferenced ? "Active" : "Unreferenced";
+            string recommendation = isReferenced
+                ? "Definition actively referenced"
+                : $"Unreferenced definition: remove '[{def.Label}]' or reference it in text with '[text][{def.Label}]'";
+
+            items.Add(new MarkdownLinkReferenceItem(
+                def.Line, def.Col, def.Label, def.Dest, def.Title,
+                IsDefinition: true, IsUsage: false, "Definition", IsResolved: true,
+                IsUnreferenced: !isReferenced, IsDuplicateDefinition: false,
+                status, recommendation));
+        }
+
+        foreach (var dup in duplicateDefs)
+        {
+            items.Add(new MarkdownLinkReferenceItem(
+                dup.Line, dup.Col, dup.Label, dup.Dest, dup.Title,
+                IsDefinition: true, IsUsage: false, "Definition", IsResolved: false,
+                IsUnreferenced: false, IsDuplicateDefinition: true,
+                "Duplicate", $"Duplicate definition of '[{dup.Label}]': earlier definition takes precedence"));
+        }
+
+        int totalDefs = definitions.Count + duplicateDefs.Count;
+        if (totalDefs == 0 && totalUsages == 0)
+        {
+            string cleanSummary = FormatLinkReferenceSummary(0, 0, 0, 0, 0, 0, 100.0, "No Reference Links");
+            return new MarkdownLinkReferenceAudit(
+                0, 0, 0, 0, 0, 0, 100.0, items, "No Reference Links", cleanSummary);
+        }
+
+        double score = 100.0;
+        score -= unresolvedCount * 20.0;
+        score -= unreferencedDefs * 5.0;
+        score -= duplicateDefs.Count * 10.0;
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category;
+        if (score >= 95.0) category = "Flawless Link Reference Integrity (≥95%)";
+        else if (score >= 80.0) category = "High Reference Resolution (80-94%)";
+        else if (score >= 60.0) category = "Moderate Reference Linkage (60-79%)";
+        else if (score >= 40.0) category = "Suboptimal Reference Resolution (40-59%)";
+        else category = "Poor Reference Linkage (<40%)";
+
+        string summary = FormatLinkReferenceSummary(
+            totalDefs, totalUsages, resolvedCount, unresolvedCount, unreferencedDefs, duplicateDefs.Count, score, category);
+
+        return new MarkdownLinkReferenceAudit(
+            totalDefs, totalUsages, resolvedCount, unresolvedCount, unreferencedDefs, duplicateDefs.Count,
+            score, items, category, summary);
+    }
+
+    public static string FormatLinkReferenceSummary(string? markdownText)
+        => AuditMarkdownLinkReferenceDefinitions(markdownText).Summary;
+
+    public static string FormatLinkReferenceSummary(
+        int totalDefs, int totalUsages, int resolved, int unresolved,
+        int unreferenced, int duplicates, double score, string category)
+    {
+        if (totalDefs == 0 && totalUsages == 0)
+            return "Markdown link reference audit: Clean document · 0 reference links detected";
+
+        var parts = new List<string>
+        {
+            $"{totalDefs} defs",
+            $"{totalUsages} usages ({resolved} resolved)"
+        };
+        if (unresolved > 0) parts.Add($"⚠️ {unresolved} unresolved");
+        if (unreferenced > 0) parts.Add($"{unreferenced} unreferenced");
+        if (duplicates > 0) parts.Add($"{duplicates} duplicates");
+
+        string details = string.Join(" · ", parts);
+        return $"Markdown link reference audit ({details} · {category} · {score:0.#}% resolution score)";
+    }
+
+
     public static string FormatTaskListProgressionSummary(string? markdownText)
         => AuditMarkdownTaskListProgression(markdownText).Summary;
 
@@ -12489,3 +12731,38 @@ public sealed record MarkdownTaskListProgressionAudit(
     IReadOnlyList<MarkdownTaskProgressionItem> Items,
     string Category,
     string Summary);
+
+/// <summary>
+/// Represents evaluated metrics, definition vs reference usage type, target destination, and resolution status for a markdown link reference item.
+/// </summary>
+public sealed record MarkdownLinkReferenceItem(
+    int LineNumber,
+    int Column,
+    string Label,
+    string Destination,
+    string Title,
+    bool IsDefinition,
+    bool IsUsage,
+    string UsageType,
+    bool IsResolved,
+    bool IsUnreferenced,
+    bool IsDuplicateDefinition,
+    string Status,
+    string Recommendation);
+
+/// <summary>
+/// Represents the result of an audit of markdown link reference definitions ([ref]: url), reference usages ([text][ref], [ref][], [ref]),
+/// unreferenced definitions, broken unresolved reference links, duplicate labels, and reference resolution fidelity.
+/// </summary>
+public sealed record MarkdownLinkReferenceAudit(
+    int TotalDefinitions,
+    int TotalUsages,
+    int ResolvedCount,
+    int UnresolvedUsageCount,
+    int UnreferencedDefinitionCount,
+    int DuplicateDefinitionCount,
+    double ResolutionFidelityScore,
+    IReadOnlyList<MarkdownLinkReferenceItem> Items,
+    string Category,
+    string Summary);
+

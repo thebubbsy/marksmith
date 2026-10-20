@@ -12728,3 +12728,59 @@ Reviewed: the Run #195 Blueprint above — implemented all 6 planned features ac
 6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #195 Block 3 Idea 6]**:
    - **Refinement Target**: Workspace Markdown Image Asset Path Validation & Broken Media Link Auditor.
    - **Deliverable**: Add `RecentFilesService.AuditWorkspaceImageAssetPaths(...)` and `FormatWorkspaceImagePathsSummary(...)` to scan image references (`![alt](path)`) across workspace documents, validating relative vs absolute paths, checking for local image file existence on disk, flagging broken image anchors, and scoring workspace media asset integrity ($0-100\%$). Wire to `RecentDocsFlyout`.
+
+### 2026-10-20 (scheduled routine run #196)
+
+Reviewed: the Run #196 Blueprint above — implemented all 6 planned features across all WinUI 3 surfaces following the AI-Executable 3-Block Cycle + Execution Phase Protocol.
+
+**Shipped** (commit follows this entry):
+- **Block 1**:
+  - **Surface 1 (`MainWindow`)**: Implemented `TextSearch.AuditMarkdownLinkReferenceDefinitions(...)`, `FormatLinkReferenceSummary(...)`, `MarkdownLinkReferenceItem`, and `MarkdownLinkReferenceAudit` in `TextSearch.cs`. Audits document markdown for link reference definitions (`[ref_id]: http://...`), tracks referenced vs unreferenced definition labels, detects unresolved inline link references (`[label][missing_ref]`), and scores reference definition linkage fidelity (0-100%). Wired to `ShowLinksContextMenu` in `MainWindow.xaml.cs` with clipboard copy and notification announcement (``).
+  - **Surface 2 (`MindMapGalaxyWindow`)**: Implemented `MindMapStudioViewModel.AuditGraphCyclesAndFeedbackArcSet(...)`, `FormatCycleFeedbackSummary(...)`, `GraphCycleItem`, and `GraphCycleFeedbackAudit` in `MindMapStudioViewModel.cs`. Executes cycle detection via depth-first search (DFS) with 3-color node visitation, computes minimal feedback arc set edges whose removal/reversal eliminates all cyclic loops to yield a Directed Acyclic Graph (DAG), and scores hierarchy acyclic compliance (0-100%). Wired to `ArrangeDropDownButton.Flyout` in `MindMapGalaxyWindow.xaml` and `MindMapGalaxyWindow.xaml.cs` via `AuditGraphFeedbackArcSetItem` (``) and `OnAuditGraphFeedbackArcSetClick`.
+- **Block 2**:
+  - **Surface 3 (`ShapeDesignStudioWindow`)**: Implemented `ShapeDesignStudioViewModel.AuditShapeZOrderStackingAndOcclusion(...)`, `FormatStackingOcclusionSummary(...)`, `ShapeZOrderOcclusionItem`, and `DiagramShapeZOrderStackingAudit` in `ShapeDesignStudioViewModel.cs`. Evaluates 2D bounding boxes and Z-order stacking sequences across canvas shapes, identifies severe foreground-over-background visual occlusion (>60% area overlap), detects sandwich occlusions, and scores diagram Z-layering cleanliness (0-100%). Wired to `SelectionBoundsBorder.ContextFlyout` in `ShapeDesignStudioWindow.xaml` and `ShapeDesignStudioWindow.xaml.cs` via `SelectionAuditShapeZOrderStackingItem` (``) and `OnSelectionAuditShapeZOrderStackingClick`.
+  - **Surface 4 (`SmartArtDesignStudioWindow`)**: Implemented `SmartArtDesignStudioViewModel.AuditCycleRadialAngularEquidistance(...)`, `FormatRadialAngularSummary(...)`, `RadialAngularNodeItem`, and `SmartArtCycleRadialAngularAudit` in `SmartArtDesignStudioViewModel.cs`. Evaluates circular and radial cluster layouts, computes ideal polar angular increments ($\Delta \theta = 2\pi / N$), measures angular deviation and phase drift for each node stage, identifies angular crowding, and scores radial polar equidistance (0-100%). Wired to `OutlineStatsFlyout` in `SmartArtDesignStudioWindow.xaml` and `SmartArtDesignStudioWindow.xaml.cs` via `OutlineStatsAuditCycleRadialAngularItem` (``) and `OnOutlineStatsAuditCycleRadialAngularClick`.
+- **Block 3**:
+  - **Surface 5 (`HistoryWindow`)**: Implemented `LineDiff.AuditSynchronizationAndDeadlockHazards(...)`, `FormatSynchronizationHazardsSummary(...)`, `SynchronizationHazardItem`, and `DiffSynchronizationHazardsAudit` in `LineDiff.cs`. Analyzes diff hunks for thread synchronization hazards and deadlock anti-patterns in C#, including `lock(this)` and `lock(typeof(T))` exposure, awaiting inside lock blocks or monitor scopes, un-disposed `ReaderWriterLockSlim` or `SemaphoreSlim`, and nested lock hazards (potential ABBA deadlocks), scoring concurrency safety hygiene (0-100%). Wired to `TimelineHeaderBorder` context flyout in `HistoryWindow.xaml.cs` via `auditSynchronization` (``).
+  - **Surface 6 (`SuiteHubView`)**: Implemented `RecentFilesService.AuditWorkspaceImageAssetPaths(...)`, `FormatWorkspaceImagePathsSummary(...)`, `WorkspaceImageAssetItem`, and `WorkspaceImageAssetsAudit` in `RecentFilesService.cs`. Scans markdown image references (`![alt](path)`) across workspace documents, validates relative vs absolute and URI paths, verifies local image file existence on disk, detects missing/broken assets, and scores workspace image asset integrity (0-100%). Wired to `RecentDocsFlyout` in `SuiteHubView.xaml` and `SuiteHubView.xaml.cs` via `AuditWorkspaceImageAssetsItem` (``) and `OnAuditWorkspaceImageAssetsClick`.
+- **Execution Phase**:
+  - Implemented comprehensive unit tests across all 6 surfaces:
+    - `TextSearchTests.AuditMarkdownLinkReferenceDefinitions_DetectsUnreferencedAndMissing_ComputesScore`
+    - `MindMapGalaxyPolishTests.AuditGraphCyclesAndFeedbackArcSet_DetectsCycleAndFeedbackArcSet`
+    - `ShapeStudioPolishTests.AuditShapeZOrderStackingAndOcclusion_DetectsOcclusionAndComputesScore`
+    - `SmartArtStudioPolishTests.AuditCycleRadialAngularEquidistance_CalculatesAngularStepAndDeviation`
+    - `HistoryPolishTests.AuditSynchronizationAndDeadlockHazards_DetectsLockThisAndAwaitInLock`
+    - `SuiteHubAndTourPolishTests.Run196_AuditWorkspaceImageAssetPaths_DetectsBrokenImagesAndComputesScore`
+    - `SuiteHubAndTourPolishTests.Run196_AllSixSurfacesXamlAndCodeBehindWiring`
+  - Reconciled element name collisions (`AuditGraphFeedbackArcSetItem`) and indentation logic in outline parsing.
+
+**Verified:**
+- `dotnet build` (`marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj` - Debug/x64): 0 errors, 23 warnings (all existing).
+- `dotnet build` (`marksmith-v2/MarkSmith.Tests/MarkSmith.Tests.csproj` - Debug): 0 errors.
+- `dotnet test` (`PolishTests` filter): 885/885 tests passed (`100%` pass rate).
+- `dotnet test` (`TextSearchTests` filter): 112/112 tests passed (`100%` pass rate).
+- `dotnet test` (`SuiteHubAndTourPolishTests` filter): 167/167 tests passed (`100%` pass rate).
+- Smoke-launched `Marksmith.exe` (`PID=5484`, `Responding=True`, ran for 4 seconds and cleanly terminated with zero crashes).
+
+---
+
+### Run #197 Blueprint — Carried-Forward Refinements & Next Cycle Targets
+1. **`MainWindow` (`MainWindow.xaml.cs`, `TextSearch.cs`)**:
+   - **Feature**: Markdown Footnote Reference Definition, Anchor Pairing & Unreferenced Footnote Auditor.
+   - **Deliverable**: Add `TextSearch.AuditMarkdownFootnoteDefinitions(markdownText)` and `FormatFootnoteDefinitionSummary(...)`, scanning document markdown for footnote callouts (`[^1]`, `[^note]`) and footnote definitions (`[^1]: ...`), detecting orphan definitions without references, broken callouts missing definitions, out-of-order numbering, and scoring footnote structural integrity ($0-100\%$). Wire to `ShowLinksContextMenu`.
+2. **`MindMapGalaxyWindow` (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
+   - **Feature**: Graph Biconnected Components, Cut Vertices (Articulation Points) & Network Vulnerability Auditor.
+   - **Deliverable**: Add `MindMapStudioViewModel.AuditGraphArticulationPointsAndBiconnectedComponents()` and `FormatArticulationPointsSummary(...)`, executing Hopcroft-Tarjan DFS to detect critical bridge edges and articulation points whose removal partitions the mind map graph, identifying single points of failure, and scoring graph structural redundancy ($0-100\%$). Wire to `ArrangeDropDownButton.Flyout`.
+3. **`ShapeDesignStudioWindow` (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**:
+   - **Feature**: Diagram Shape Fill & Stroke Color Contrast Accessibility (WCAG 2.1 AA/AAA) Auditor.
+   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditShapeColorContrastAccessibility(shapes)` and `FormatColorContrastSummary(...)`, calculating relative luminance and contrast ratios ($L_1 / L_2$) between shape fill colors, text foreground labels, and canvas background, checking conformance against WCAG AA ($4.5:1$) and AAA ($7:1$) standards, detecting low-contrast illegible shapes, and scoring visual accessibility ($0-100\%$). Wire to `SelectionBoundsBorder.ContextFlyout`.
+4. **`SmartArtDesignStudioWindow` (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
+   - **Feature**: SmartArt Hierarchy Tree Depth Balance, Subtree Branching Factor & Leaf Node Uniformity Auditor.
+   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditHierarchyTreeDepthAndBranchingBalance(markdown, layoutName)` and `FormatHierarchyBranchingSummary(...)`, parsing hierarchical organizational/tree diagrams, measuring max depth, average branching factor per tier, detecting skewed or unbalanced subtrees, and scoring hierarchical tree balance ($0-100\%$). Wire to `OutlineStatsFlyout`.
+5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #196 Block 3 Idea 5]**:
+   - **Refinement Target**: Semantic Diff Memory Safety, Buffer Overruns, Unsafe Pointers & Span Memory Leak Hazards Analyzer.
+   - **Deliverable**: Add `LineDiff.AuditMemorySafetyAndUnsafePointerHazards(unifiedRows)` and `FormatMemorySafetySummary(...)` to analyze diff hunks for memory corruption risks in C# / unsafe code (e.g., `stackalloc` without size limits, pinned buffers via `fixed` without unpinning, unsafe pointer arithmetic bypassing bounds checks, returning `Span<T>` over stack-allocated memory), scoring memory safety hygiene ($0-100\%$). Wire to `TimelineHeaderBorder` context flyout.
+6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #196 Block 3 Idea 6]**:
+   - **Refinement Target**: Workspace Markdown Cross-Document Anchor Reference Resolution & Inter-Document Linking Auditor.
+   - **Deliverable**: Add `RecentFilesService.AuditWorkspaceInterDocumentLinks(...)` and `FormatWorkspaceInterDocumentLinksSummary(...)` to scan cross-document markdown links (`[text](other-doc.md#heading)`), resolving target files and anchor headings across workspace files, detecting missing anchor targets or orphan cross-links, and scoring workspace hypertext network integrity ($0-100\%$). Wire to `RecentDocsFlyout`.
+

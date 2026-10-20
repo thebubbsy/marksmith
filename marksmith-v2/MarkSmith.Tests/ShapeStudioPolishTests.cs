@@ -3206,4 +3206,41 @@ public class ShapeStudioPolishTests
         Assert.Equal(1, badAudit.ExtremeDistortionCount);
         Assert.True(badAudit.AestheticScore <= 85.0);
     }
+
+    [Fact]
+    public void Run196_AuditShapeZOrderStackingAndOcclusion_DetectsOcclusionAndStackingDepth()
+    {
+        // 1. Empty shapes
+        var emptyAudit = ShapeDesignStudioViewModel.AuditShapeZOrderStackingAndOcclusion(null);
+        Assert.Equal(0, emptyAudit.TotalShapes);
+        Assert.Equal(100.0, emptyAudit.LayeringCleanlinessScore);
+
+        // 2. Non-overlapping shapes
+        var s1 = new ShapeCanvasItemViewModel { Id = "s1", Name = "Card Left", X = 0, Y = 0, Width = 100, Height = 100 };
+        var s2 = new ShapeCanvasItemViewModel { Id = "s2", Name = "Card Right", X = 200, Y = 200, Width = 100, Height = 100 };
+
+        var cleanAudit = ShapeDesignStudioViewModel.AuditShapeZOrderStackingAndOcclusion(new[] { s1, s2 });
+        Assert.Equal(2, cleanAudit.TotalShapes);
+        Assert.Equal(0, cleanAudit.OccludedShapeCount);
+        Assert.Equal(0, cleanAudit.CompleteOcclusionCount);
+        Assert.Equal(0, cleanAudit.SevereOcclusionCount);
+        Assert.Equal(100.0, cleanAudit.LayeringCleanlinessScore);
+
+        string formatted = ShapeDesignStudioViewModel.FormatStackingOcclusionSummary(
+            cleanAudit.TotalShapes, cleanAudit.OccludedShapeCount, cleanAudit.CompleteOcclusionCount,
+            cleanAudit.SevereOcclusionCount, cleanAudit.MaxStackingDepth, cleanAudit.LayeringCleanlinessScore,
+            cleanAudit.Category, cleanAudit.IsSelectionScope);
+        Assert.Equal(cleanAudit.Summary, formatted);
+
+        // 3. Lower shape completely occluded by upper shape
+        var sLower = new ShapeCanvasItemViewModel { Id = "low", Name = "Hidden Background", X = 50, Y = 50, Width = 100, Height = 100 };
+        var sUpper = new ShapeCanvasItemViewModel { Id = "up", Name = "Foreground Panel", X = 40, Y = 40, Width = 120, Height = 120 };
+
+        var badAudit = ShapeDesignStudioViewModel.AuditShapeZOrderStackingAndOcclusion(new[] { sLower, sUpper });
+        Assert.Equal(2, badAudit.TotalShapes);
+        Assert.Equal(1, badAudit.OccludedShapeCount);
+        Assert.Equal(1, badAudit.CompleteOcclusionCount);
+        Assert.True(badAudit.LayeringCleanlinessScore < 80.0);
+    }
+
 }

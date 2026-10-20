@@ -2924,4 +2924,50 @@ public class SmartArtStudioPolishTests
         Assert.Equal(1, missingAudit.MissingIntersectionCount);
         Assert.True(missingAudit.ClarityScore < 90.0);
     }
+
+    [Fact]
+    public void Run196_AuditCycleRadialAngularEquidistance_CalculatesPolarSymmetryAndJitter()
+    {
+        // 1. Empty outline
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditCycleRadialAngularEquidistance("");
+        Assert.Equal(0, emptyAudit.TotalNodes);
+        Assert.Equal(100.0, emptyAudit.PolarSymmetryScore);
+
+        // 2. Harmonious 5-stage radial cycle
+        var md = string.Join("\n",
+            "* Ingestion Phase",
+            "  * Pull API telemetry",
+            "* Parsing Phase",
+            "  * Validate AST nodes",
+            "* Transformation Phase",
+            "  * Apply business rules",
+            "* Verification Phase",
+            "  * Execute unit tests",
+            "* Export Phase",
+            "  * Stream output artifacts"
+        );
+
+        var audit = SmartArtDesignStudioViewModel.AuditCycleRadialAngularEquidistance(md, "Radial Cycle");
+        Assert.Equal(5, audit.TotalNodes);
+        Assert.Equal(5, audit.TotalSubItems);
+        Assert.Equal(72.0, audit.IdealStepDegrees);
+        Assert.Equal(0, audit.CrowdedNodeCount);
+        Assert.Equal(0, audit.AngularVoidCount);
+        Assert.True(audit.PolarSymmetryScore >= 95.0);
+
+        string formatted = SmartArtDesignStudioViewModel.FormatRadialAngularSummary(
+            audit.TotalNodes, audit.TotalSubItems, audit.IdealStepDegrees, audit.MeanAngularJitter,
+            audit.CrowdedNodeCount, audit.AngularVoidCount, audit.PolarSymmetryScore, audit.Category);
+        Assert.Equal(audit.Summary, formatted);
+
+        // 3. Overcrowded 10-node cycle
+        var crowdMd = string.Join("\n",
+            "* N1", "* N2", "* N3", "* N4", "* N5", "* N6", "* N7", "* N8", "* N9", "* N10"
+        );
+        var crowdAudit = SmartArtDesignStudioViewModel.AuditCycleRadialAngularEquidistance(crowdMd, "Radial Cycle");
+        Assert.Equal(10, crowdAudit.TotalNodes);
+        Assert.True(crowdAudit.CrowdedNodeCount >= 8);
+        Assert.True(crowdAudit.PolarSymmetryScore < 80.0);
+    }
+
 }

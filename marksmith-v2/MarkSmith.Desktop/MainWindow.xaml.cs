@@ -12018,6 +12018,19 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             AnnounceStatus(summary);
         };
         menu.Items.Add(auditTaskListProgressionItem);
+        var auditLinkReferencesItem = new MenuFlyoutItem
+        {
+            Text = "Audit Markdown Link Reference Definitions & Unreferenced Anchors",
+            Icon = new FontIcon { Glyph = "\uE8B9" }
+        };
+        auditLinkReferencesItem.Click += (_, _) =>
+        {
+            var text = EditorDocument();
+            var summary = MarkSmith.Services.TextSearch.AuditMarkdownLinkReferenceDefinitions(text).Summary;
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditLinkReferencesItem);
 
         menu.ShowAt(anchor);
     }

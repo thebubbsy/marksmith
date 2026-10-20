@@ -12112,6 +12112,165 @@ namespace MarkSmith.ViewModels.MindMap
                 items, category, isSelection, summary);
         }
 
+        public GraphCycleFeedbackAudit AuditGraphCyclesAndFeedbackArcSet(bool selectionOnly = false)
+        {
+            var selected = Nodes.Where(n => n.IsSelected).ToList();
+            var targetNodes = (selectionOnly && selected.Count > 0)
+                ? selected
+                : Nodes.ToList();
+
+            bool isSelection = selectionOnly && selected.Count > 0;
+            var nodeIds = new HashSet<string>(targetNodes.Select(n => n.Id));
+            var relevantLinks = Links.Where(l => nodeIds.Contains(l.SourceNodeId) && nodeIds.Contains(l.TargetNodeId)).ToList();
+
+            var audit = AuditGraphCyclesAndFeedbackArcSet(targetNodes.Select(n => n.Model), relevantLinks.Select(l => l.Model), isSelection);
+            StatusMessage = audit.Summary;
+            return audit;
+        }
+
+        public static GraphCycleFeedbackAudit AuditGraphCyclesAndFeedbackArcSet(
+            IEnumerable<MindMapNode>? nodes,
+            IEnumerable<MindMapLink>? links,
+            bool isSelection = false)
+        {
+            var nodeList = nodes?.ToList() ?? new List<MindMapNode>();
+            var linkList = links?.ToList() ?? new List<MindMapLink>();
+            int totalNodes = nodeList.Count;
+            int totalEdges = linkList.Count;
+
+            if (totalNodes == 0)
+            {
+                string emptySummary = FormatCycleFeedbackSummary(0, 0, 0, 0, true, 100.0, "Empty Galaxy", isSelection);
+                return new GraphCycleFeedbackAudit(
+                    0, 0, 0, 0, true, 0, 100.0,
+                    Array.Empty<GraphCycleItem>(), Array.Empty<string>(), "Empty Galaxy", isSelection, emptySummary);
+            }
+
+            var nodeMap = nodeList.ToDictionary(n => n.Id, n => n.Title ?? n.Id);
+            var adj = new Dictionary<string, List<(string TargetId, string LinkId)>>();
+            foreach (var node in nodeList)
+            {
+                adj[node.Id] = new List<(string TargetId, string LinkId)>();
+            }
+            foreach (var link in linkList)
+            {
+                if (adj.ContainsKey(link.SourceNodeId) && adj.ContainsKey(link.TargetNodeId))
+                {
+                    adj[link.SourceNodeId].Add((link.TargetNodeId, link.Id));
+                }
+            }
+
+            var state = new Dictionary<string, int>();
+            foreach (var n in nodeList) state[n.Id] = 0;
+
+            var cycles = new List<GraphCycleItem>();
+            var fasSet = new HashSet<string>();
+            var path = new List<string>();
+            int maxCycleLength = 0;
+
+            void Dfs(string u)
+            {
+                state[u] = 1;
+                path.Add(u);
+
+                if (adj.TryGetValue(u, out var neighbors))
+                {
+                    foreach (var (v, linkId) in neighbors)
+                    {
+                        if (state.TryGetValue(v, out int vState))
+                        {
+                            if (vState == 1)
+                            {
+                                int idx = path.IndexOf(v);
+                                if (idx >= 0)
+                                {
+                                    var cycleNodes = path.Skip(idx).Concat(new[] { v }).ToList();
+                                    int cycleLen = cycleNodes.Count - 1;
+                                    if (cycleLen > maxCycleLength) maxCycleLength = cycleLen;
+
+                                    string uTitle = nodeMap.TryGetValue(u, out var ut) ? ut : u;
+                                    string vTitle = nodeMap.TryGetValue(v, out var vt) ? vt : v;
+                                    string fasEdge = $"{uTitle} -> {vTitle}";
+                                    fasSet.Add(fasEdge);
+
+                                    string seq = string.Join(" -> ", cycleNodes.Select(nid => nodeMap.TryGetValue(nid, out var t) ? t : nid));
+                                    cycles.Add(new GraphCycleItem(
+                                        cycles.Count + 1,
+                                        cycleLen,
+                                        seq,
+                                        fasEdge,
+                                        "Cyclic Loop",
+                                        $"Reverse or remove back-edge '{fasEdge}' to restore directed hierarchy"));
+                                }
+                            }
+                            else if (vState == 0)
+                            {
+                                Dfs(v);
+                            }
+                        }
+                    }
+                }
+
+                path.RemoveAt(path.Count - 1);
+                state[u] = 2;
+            }
+
+            foreach (var node in nodeList)
+            {
+                if (state[node.Id] == 0)
+                {
+                    Dfs(node.Id);
+                }
+            }
+
+            bool isDag = cycles.Count == 0;
+            double score = 100.0;
+            if (!isDag)
+            {
+                score -= cycles.Count * 20.0;
+                score -= fasSet.Count * 10.0;
+                score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+            }
+
+            string category;
+            if (isDag) category = "Acyclic Graph (100% DAG Compliant)";
+            else if (score >= 80.0) category = "High Acyclic Structure (80-94%)";
+            else if (score >= 60.0) category = "Moderate Cyclic Dependency (60-79%)";
+            else if (score >= 40.0) category = "High Cyclic Entanglement (40-59%)";
+            else category = "Severe Cyclic Recursion (<40%)";
+
+            string summary = FormatCycleFeedbackSummary(
+                totalNodes, totalEdges, cycles.Count, fasSet.Count, isDag, score, category, isSelection);
+
+            return new GraphCycleFeedbackAudit(
+                totalNodes, totalEdges, cycles.Count, fasSet.Count, isDag, maxCycleLength,
+                score, cycles, fasSet.ToList(), category, isSelection, summary);
+        }
+
+        public static string FormatCycleFeedbackSummary(
+            int totalNodes, int totalEdges, int cycleCount, int fasCount,
+            bool isDag, double score, string category, bool isSelection)
+        {
+            string scope = isSelection ? "Selection · " : "";
+            if (totalNodes == 0)
+                return $"Mind Map cycle audit: {scope}Empty galaxy · 0 nodes";
+
+            if (isDag)
+                return $"Mind Map cycle audit: {scope}✓ Acyclic DAG · {totalNodes} nodes · {totalEdges} edges · 0 cycles · 100% DAG compliant";
+
+            var parts = new List<string>
+            {
+                $"{totalNodes} nodes",
+                $"{totalEdges} edges",
+                $"⚠️ {cycleCount} cycles",
+                $"FAS {fasCount} edges"
+            };
+
+            string details = string.Join(" · ", parts);
+            return $"Mind Map cycle audit ({scope}{details} · {category} · {score:0.#}% DAG score)";
+        }
+
+
         public static string FormatMstBackboneSummary(
             int totalNodes, int totalEdges, int mstEdges, int cycleEdges,
             int components, int isolates, double totalLen, double mstLen,
@@ -13433,8 +13592,34 @@ namespace MarkSmith.ViewModels.MindMap
         bool IsSelectionScope,
         string Summary);
 
+
+    /// <summary>
+    /// Represents an identified cycle path, cycle length, and feedback arc candidate in a mind map graph.
+    /// </summary>
+    public sealed record GraphCycleItem(
+        int CycleIndex,
+        int CycleLength,
+        string NodeSequence,
+        string FeedbackArcEdge,
+        string Status,
+        string Remediation);
+
+    /// <summary>
+    /// Represents the result of an audit of mind map graph directed cycles, feedback arc set (FAS),
+    /// directed acyclic graph (DAG) compliance, and recursive loop mitigation.
+    /// </summary>
+    public sealed record GraphCycleFeedbackAudit(
+        int TotalNodes,
+        int TotalEdges,
+        int CycleCount,
+        int FeedbackArcSetCount,
+        bool IsAcyclicDag,
+        int MaxCycleLength,
+        double AcyclicComplianceScore,
+        IReadOnlyList<GraphCycleItem> Cycles,
+        IReadOnlyList<string> FeedbackArcSet,
+        string Category,
+        bool IsSelectionScope,
+        string Summary);
+
 }
-
-
-
-

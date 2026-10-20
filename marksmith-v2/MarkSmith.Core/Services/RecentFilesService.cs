@@ -9159,6 +9159,163 @@ public sealed class RecentFilesService
             pendingTasks, unlabeledTasks, workspaceCompletionPct, score, items, category, summary);
     }
 
+    public static WorkspaceImageAssetsAudit AuditWorkspaceImageAssetPaths(
+        IEnumerable<string>? files,
+        string? workspaceRoot = null,
+        Func<string, bool>? fileExists = null,
+        Func<string, string[]?>? readAllLines = null)
+    {
+        var fileList = (files ?? Enumerable.Empty<string>()).ToList();
+        fileExists ??= path => File.Exists(path);
+        readAllLines ??= path => File.Exists(path) ? File.ReadAllLines(path) : null;
+
+        var items = new List<WorkspaceImageAssetItem>();
+        int totalDocsAudited = fileList.Count;
+        int docsWithImages = 0;
+        int totalImages = 0;
+        int validLocal = 0;
+        int brokenLocal = 0;
+        int remoteUrls = 0;
+        int dataUris = 0;
+        int nonPortable = 0;
+        int missingAlt = 0;
+
+        var imgRegex = new System.Text.RegularExpressions.Regex(
+            @"!\[(?<alt>[^\]]*)\]\((?<path>[^)\s]+)(?:\s+[""'][^""']*[""'])?\)",
+            System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        foreach (var filePath in fileList)
+        {
+            var lines = readAllLines(filePath);
+            if (lines == null || lines.Length == 0) continue;
+
+            string docDir = Path.GetDirectoryName(filePath) ?? string.Empty;
+            string fileName = Path.GetFileName(filePath);
+            bool docHasImages = false;
+
+            for (int l = 0; l < lines.Length; l++)
+            {
+                string line = lines[l];
+                if (string.IsNullOrWhiteSpace(line)) continue;
+
+                var matches = imgRegex.Matches(line);
+                foreach (System.Text.RegularExpressions.Match m in matches)
+                {
+                    totalImages++;
+                    docHasImages = true;
+                    string altText = m.Groups["alt"].Value;
+                    string imgPath = m.Groups["path"].Value.Trim();
+                    bool hasMissingAlt = string.IsNullOrWhiteSpace(altText);
+                    if (hasMissingAlt) missingAlt++;
+
+                    bool isRemote = imgPath.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                                    imgPath.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
+                    bool isData = imgPath.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase);
+                    bool isLocal = !isRemote && !isData;
+                    bool isAbs = isLocal && (Path.IsPathRooted(imgPath) || imgPath.StartsWith("/"));
+                    if (isAbs) nonPortable++;
+
+                    bool existsOnDisk = false;
+                    if (isLocal)
+                    {
+                        string normPath = imgPath.Replace('/', Path.DirectorySeparatorChar);
+                        if (isAbs)
+                        {
+                            existsOnDisk = fileExists(imgPath) || fileExists(normPath);
+                        }
+                        else
+                        {
+                            string combinedDoc = Path.Combine(docDir, normPath);
+                            string rawCombined = Path.Combine(docDir, imgPath);
+                            if (fileExists(combinedDoc) || fileExists(rawCombined))
+                            {
+                                existsOnDisk = true;
+                            }
+                            else if (!string.IsNullOrEmpty(workspaceRoot))
+                            {
+                                string combinedWs = Path.Combine(workspaceRoot, normPath);
+                                string rawCombinedWs = Path.Combine(workspaceRoot, imgPath);
+                                existsOnDisk = fileExists(combinedWs) || fileExists(rawCombinedWs);
+                            }
+                        }
+
+                        if (existsOnDisk) validLocal++;
+                        else brokenLocal++;
+                    }
+                    else if (isRemote) remoteUrls++;
+                    else if (isData) dataUris++;
+
+                    string status = isLocal
+                        ? (existsOnDisk ? "Valid Local Asset" : "Broken Image Path")
+                        : (isRemote ? "Remote Web Image" : "Data URI Image");
+
+                    string rec = "Media asset verified";
+                    if (isLocal && !existsOnDisk) rec = $"Broken image path '{imgPath}': target file does not exist on disk";
+                    else if (isAbs) rec = $"Non-portable absolute path '{imgPath}': consider using relative path './...'";
+                    else if (hasMissingAlt) rec = "Missing image alt-text: add descriptive label for WCAG accessibility";
+
+                    items.Add(new WorkspaceImageAssetItem(
+                        filePath, fileName, l + 1, m.Value, altText, imgPath,
+                        isRemote, isData, isLocal, isAbs, existsOnDisk, hasMissingAlt,
+                        status, rec));
+                }
+            }
+
+            if (docHasImages) docsWithImages++;
+        }
+
+        if (totalImages == 0)
+        {
+            string emptySummary = FormatWorkspaceImagePathsSummary(totalDocsAudited, 0, 0, 0, 0, 0, 0, 0, 100.0, "No Images Found");
+            return new WorkspaceImageAssetsAudit(
+                totalDocsAudited, 0, 0, 0, 0, 0, 0, 0, 0, 100.0,
+                items, "No Images Found", emptySummary);
+        }
+
+        double score = 100.0;
+        score -= brokenLocal * 25.0;
+        score -= nonPortable * 10.0;
+        score -= missingAlt * 5.0;
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category;
+        if (score >= 95.0) category = "Flawless Media Asset Integrity (≥95%)";
+        else if (score >= 80.0) category = "High Media Path Hygiene (80-94%)";
+        else if (score >= 60.0) category = "Moderate Asset Consistency (60-79%)";
+        else if (score >= 40.0) category = "Broken Media Hazards (40-59%)";
+        else category = "Critical Media Resolution Failure (<40%)";
+
+        string summary = FormatWorkspaceImagePathsSummary(
+            totalDocsAudited, docsWithImages, totalImages, validLocal, brokenLocal, remoteUrls, nonPortable, missingAlt, score, category);
+
+        return new WorkspaceImageAssetsAudit(
+            totalDocsAudited, docsWithImages, totalImages, validLocal, brokenLocal, remoteUrls,
+            dataUris, nonPortable, missingAlt, score, items, category, summary);
+    }
+
+    public static string FormatWorkspaceImagePathsSummary(
+        int totalDocs, int docsWithImages, int totalImages, int validLocal,
+        int brokenLocal, int remoteUrls, int nonPortable, int missingAlt,
+        double score, string category)
+    {
+        if (totalImages == 0)
+            return $"Workspace media asset audit: Clean workspace · {totalDocs} documents · 0 image links detected";
+
+        var parts = new List<string>
+        {
+            $"{totalDocs} docs ({docsWithImages} with images)",
+            $"{totalImages} images ({validLocal} valid local)"
+        };
+        if (brokenLocal > 0) parts.Add($"⚠️ {brokenLocal} broken");
+        if (remoteUrls > 0) parts.Add($"{remoteUrls} remote");
+        if (nonPortable > 0) parts.Add($"{nonPortable} absolute");
+        if (missingAlt > 0) parts.Add($"{missingAlt} missing alt");
+
+        string details = string.Join(" · ", parts);
+        return $"Workspace media asset audit ({details} · {category} · {score:0.#}% integrity score)";
+    }
+
+
     public static string FormatWorkspaceTaskListSummary(
         int totalDocs, int docsWithTasks, int totalTasks, int completedTasks,
         int pendingTasks, int unlabeledTasks, double completionPct, double score, string category)
@@ -10386,3 +10543,42 @@ public sealed record WorkspaceTaskListAudit(
     IReadOnlyList<WorkspaceDocumentTaskItem> Items,
     string Category,
     string Summary);
+
+/// <summary>
+/// Represents an image asset reference, target path, protocol, local file existence, and accessibility status in a workspace document.
+/// </summary>
+public sealed record WorkspaceImageAssetItem(
+    string FilePath,
+    string FileName,
+    int LineNumber,
+    string RawMatch,
+    string AltText,
+    string ImagePath,
+    bool IsRemoteUrl,
+    bool IsDataUri,
+    bool IsLocalFile,
+    bool IsAbsolutePath,
+    bool FileExistsOnDisk,
+    bool HasMissingAltText,
+    string Status,
+    string Recommendation);
+
+/// <summary>
+/// Represents the result of an audit of workspace markdown image asset paths, local file existence on disk,
+/// broken media anchors, remote URL dependencies, data URIs, and alt-text accessibility.
+/// </summary>
+public sealed record WorkspaceImageAssetsAudit(
+    int TotalDocumentsAudited,
+    int DocumentsWithImagesCount,
+    int TotalImagesFound,
+    int ValidLocalImagesCount,
+    int BrokenLocalImagesCount,
+    int RemoteUrlsCount,
+    int DataUrisCount,
+    int NonPortableAbsolutePathsCount,
+    int MissingAltTextCount,
+    double MediaAssetIntegrityScore,
+    IReadOnlyList<WorkspaceImageAssetItem> Items,
+    string Category,
+    string Summary);
+

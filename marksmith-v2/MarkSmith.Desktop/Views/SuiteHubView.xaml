@@ -393,6 +393,9 @@
                                     <MenuFlyoutItem x:Name="AuditWorkspaceTaskListsItem" Text="Audit workspace markdown task list progress, completion velocity &amp; action items" Click="OnAuditWorkspaceTaskListsClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditWorkspaceImageAssetsItem" Text="Audit workspace markdown image asset paths, local file existence &amp; broken media anchors" Click="OnAuditWorkspaceImageAssetsClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem Text="Clear recent filter" Click="OnClearRecentFilterClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

@@ -402,6 +402,9 @@
                                     <MenuFlyoutItem x:Name="AuditGraphMinimumSpanningTreeItem" Text="Audit graph minimum spanning tree (MST) &amp; backbone highway efficiency" Click="OnAuditGraphMinimumSpanningTreeClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditGraphFeedbackArcSetItem" Text="Audit graph cycles, feedback arc set &amp; DAG hierarchy compliance" Click="OnAuditGraphFeedbackArcSetClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
 
                             </DropDownButton.Flyout>

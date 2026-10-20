@@ -5965,4 +5965,97 @@ Some paragraph in between.
         Assert.Contains("OnAuditWorkspaceTaskListsClick", suiteCs);
         Assert.Contains("AuditWorkspaceTaskListProgression", suiteCs);
     }
+
+    [Fact]
+    public void Run196_AuditWorkspaceImageAssetPaths_ValidatesLocalImagesAndMissingAlt()
+    {
+        var doc1 = string.Join("\n",
+            "# Architecture Manual",
+            "![System Overview](images/arch.png)",
+            "![Cloud Architecture](https://example.com/cloud.png)"
+        );
+
+        var doc2 = string.Join("\n",
+            "# User Guide",
+            "![](images/missing.png)",
+            "![Local Absolute](C:/temp/diagram.png)"
+        );
+
+        var fileSystem = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+        {
+            [@"C:\workspace\manual.md"] = doc1.Split('\n'),
+            [@"C:\workspace\guide.md"] = doc2.Split('\n')
+        };
+
+        var existingFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            @"C:\workspace\images\arch.png"
+        };
+
+        var audit = RecentFilesService.AuditWorkspaceImageAssetPaths(
+            fileSystem.Keys,
+            workspaceRoot: @"C:\workspace",
+            fileExists: p => existingFiles.Contains(p),
+            readAllLines: p => fileSystem.TryGetValue(p, out var lines) ? lines : null);
+
+        Assert.Equal(2, audit.TotalDocumentsAudited);
+        Assert.Equal(2, audit.DocumentsWithImagesCount);
+        Assert.Equal(4, audit.TotalImagesFound);
+        Assert.Equal(1, audit.ValidLocalImagesCount);
+        Assert.Equal(2, audit.BrokenLocalImagesCount);
+        Assert.Equal(1, audit.RemoteUrlsCount);
+        Assert.Equal(1, audit.NonPortableAbsolutePathsCount);
+        Assert.Equal(1, audit.MissingAltTextCount);
+        Assert.True(audit.MediaAssetIntegrityScore < 70.0);
+
+        string formatted = RecentFilesService.FormatWorkspaceImagePathsSummary(
+            audit.TotalDocumentsAudited, audit.DocumentsWithImagesCount, audit.TotalImagesFound,
+            audit.ValidLocalImagesCount, audit.BrokenLocalImagesCount, audit.RemoteUrlsCount,
+            audit.NonPortableAbsolutePathsCount, audit.MissingAltTextCount,
+            audit.MediaAssetIntegrityScore, audit.Category);
+        Assert.Equal(audit.Summary, formatted);
+    }
+
+    [Fact]
+    public void Run196_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // Surface 1: MainWindow - Markdown Link Reference Definitions & Unreferenced Anchors Auditor
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("auditLinkReferencesItem", mainCs);
+        Assert.Contains("AuditMarkdownLinkReferenceDefinitions", mainCs);
+
+        // Surface 2: MindMapGalaxyWindow - Graph Cycles, Feedback Arc Set & DAG Hierarchy Compliance Auditor
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditGraphFeedbackArcSetItem", galaxyXaml);
+        Assert.Contains("OnAuditGraphFeedbackArcSetClick", galaxyCs);
+        Assert.Contains("AuditGraphCyclesAndFeedbackArcSet", galaxyCs);
+
+        // Surface 3: ShapeDesignStudioWindow - Diagram Shape Z-Order Layering, Stacking Depth & Overlap Occlusion
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditShapeZOrderStackingItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditShapeZOrderStackingClick", shapeCs);
+        Assert.Contains("AuditShapeZOrderStackingAndOcclusion", shapeCs);
+
+        // Surface 4: SmartArtDesignStudioWindow - SmartArt Cycle & Radial Node Angular Distribution & Polar Spacing
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineStatsAuditCycleRadialAngularItem", smartArtXaml);
+        Assert.Contains("OnOutlineStatsAuditCycleRadialAngularClick", smartArtCs);
+        Assert.Contains("AuditCycleRadialAngularEquidistance", smartArtCs);
+
+        // Surface 5: HistoryWindow - Semantic Diff Synchronization Primitives, Lock Contention & Deadlock Hazards
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditSynchronization", historyCs);
+        Assert.Contains("AuditSynchronizationAndDeadlockHazards", historyCs);
+
+        // Surface 6: SuiteHubView - Workspace Markdown Image Asset Paths, Local File Existence & Broken Media Anchors
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("AuditWorkspaceImageAssetsItem", suiteXaml);
+        Assert.Contains("OnAuditWorkspaceImageAssetsClick", suiteCs);
+        Assert.Contains("AuditWorkspaceImageAssetPaths", suiteCs);
+    }
+
 }

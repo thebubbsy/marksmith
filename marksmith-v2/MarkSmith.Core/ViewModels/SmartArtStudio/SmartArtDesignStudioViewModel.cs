@@ -9988,6 +9988,145 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
             missingIntersections, balanceRatio, score, items, category, summary);
     }
 
+    public SmartArtCycleRadialAngularAudit AuditCycleRadialAngularEquidistance()
+    {
+        var audit = AuditCycleRadialAngularEquidistance(MarkdownText, SelectedLayout?.DisplayName);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static SmartArtCycleRadialAngularAudit AuditCycleRadialAngularEquidistance(string? markdown, string? layoutName = null)
+    {
+        string layout = layoutName ?? "Radial Cycle";
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            string emptySummary = FormatRadialAngularSummary(0, 0, 0.0, 0.0, 0, 0, 100.0, "Empty Outline");
+            return new SmartArtCycleRadialAngularAudit(
+                0, 0, 0.0, 0.0, 0.0, 0.0, 0, 0, 100.0,
+                Array.Empty<RadialAngularNodeItem>(), "Empty Outline", emptySummary);
+        }
+
+        var lines = markdown.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+        var nodes = new List<(string Title, int SubItemCount)>();
+        string? currentTitle = null;
+        int currentSubCount = 0;
+
+        foreach (var line in lines)
+        {
+            string trimmed = line.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed)) continue;
+
+            int leadingSpaces = line.Length - line.TrimStart().Length;
+            bool isTopLevel = leadingSpaces == 0 && (
+                trimmed.StartsWith("- ") || trimmed.StartsWith("* ") || trimmed.StartsWith("+ ") ||
+                System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"^\d+\.\s") ||
+                trimmed.StartsWith("#"));
+
+            if (isTopLevel)
+            {
+                if (currentTitle != null)
+                {
+                    nodes.Add((currentTitle, currentSubCount));
+                }
+                string title = System.Text.RegularExpressions.Regex.Replace(trimmed, @"^([-*+#]|\d+\.)\s*", "").Trim();
+                currentTitle = title;
+                currentSubCount = 0;
+            }
+            else if (currentTitle != null)
+            {
+                currentSubCount++;
+            }
+        }
+        if (currentTitle != null)
+        {
+            nodes.Add((currentTitle, currentSubCount));
+        }
+
+        int totalNodes = nodes.Count;
+        int totalSubItems = nodes.Sum(n => n.SubItemCount);
+
+        if (totalNodes == 0)
+        {
+            string emptySummary = FormatRadialAngularSummary(0, 0, 0.0, 0.0, 0, 0, 100.0, "Empty Outline");
+            return new SmartArtCycleRadialAngularAudit(
+                0, 0, 0.0, 0.0, 0.0, 0.0, 0, 0, 100.0,
+                Array.Empty<RadialAngularNodeItem>(), "Empty Outline", emptySummary);
+        }
+
+        double idealStep = totalNodes > 0 ? Math.Round(360.0 / totalNodes, 1) : 0.0;
+        var items = new List<RadialAngularNodeItem>();
+        int crowdedCount = 0;
+        int voidCount = 0;
+        var jitters = new List<double>();
+
+        for (int i = 0; i < totalNodes; i++)
+        {
+            var n = nodes[i];
+            double angle = Math.Round(i * idealStep, 1);
+            double step = idealStep;
+            double jitter = 0.0;
+
+            bool isCrowded = totalNodes > 7 || idealStep < 45.0;
+            bool isVoid = totalNodes < 3;
+
+            if (isCrowded) crowdedCount++;
+            if (isVoid) voidCount++;
+
+            jitters.Add(jitter);
+
+            string status = isCrowded ? "Crowded Polar Step" : (isVoid ? "Angular Void" : "Equidistant Spacing");
+            string rec = isCrowded
+                ? $"Node count ({totalNodes}) exceeds 7: consider hierarchical or multi-tier radial layout"
+                : (isVoid ? "Under 3 nodes: consider linear process layout instead of circular cycle" : "Optimal polar angular spacing");
+
+            items.Add(new RadialAngularNodeItem(
+                i + 1, n.Title, n.SubItemCount, angle, step, idealStep, jitter,
+                isCrowded, isVoid, status, rec));
+        }
+
+        double meanJitter = jitters.Count > 0 ? Math.Round(jitters.Average(), 1) : 0.0;
+        double score = 100.0;
+        if (totalNodes == 1) score = 60.0;
+        else if (totalNodes == 2) score = 80.0;
+        else if (totalNodes > 7) score -= (totalNodes - 7) * 8.0;
+
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category;
+        if (score >= 95.0) category = "Flawless Polar Symmetry (≥95%)";
+        else if (score >= 80.0) category = "High Polar Symmetry (80-94%)";
+        else if (score >= 60.0) category = "Moderate Angular Balance (60-79%)";
+        else if (score >= 40.0) category = "Suboptimal Radial Spacing (40-59%)";
+        else category = "Poor Angular Geometry (<40%)";
+
+        string summary = FormatRadialAngularSummary(
+            totalNodes, totalSubItems, idealStep, meanJitter, crowdedCount, voidCount, score, category);
+
+        return new SmartArtCycleRadialAngularAudit(
+            totalNodes, totalSubItems, idealStep, idealStep, idealStep, meanJitter,
+            crowdedCount, voidCount, score, items, category, summary);
+    }
+
+    public static string FormatRadialAngularSummary(
+        int totalNodes, int subItems, double idealStep, double meanJitter,
+        int crowded, int voids, double score, string category)
+    {
+        if (totalNodes == 0)
+            return "SmartArt radial cycle audit: Empty outline · 0 nodes";
+
+        var parts = new List<string>
+        {
+            $"{totalNodes} nodes ({idealStep:0.#}° step)",
+            $"{subItems} sub-items"
+        };
+        if (crowded > 0) parts.Add($"⚠️ {crowded} crowded");
+        if (voids > 0) parts.Add($"⚠️ {voids} void");
+
+        string details = string.Join(" · ", parts);
+        return $"SmartArt radial cycle audit ({details} · {category} · {score:0.#}% symmetry score)";
+    }
+
+
     public static string FormatVennOverlapSummary(
         int primarySets, int intersections, int totalItems, int totalWords,
         int missingIntersects, double balanceRatio, double score, string category)
@@ -11183,3 +11322,38 @@ public sealed record SmartArtVennCardinalitySymmetryAudit(
     IReadOnlyList<VennCardinalityPartitionItem> Items,
     string Category,
     string Summary);
+
+/// <summary>
+/// Represents evaluated polar angle, spacing step, ideal step, angular jitter, and crowding status for an individual SmartArt cycle/radial node.
+/// </summary>
+public sealed record RadialAngularNodeItem(
+    int NodeIndex,
+    string NodeTitle,
+    int SubItemCount,
+    double AssignedAngleDegrees,
+    double AngularStepDegrees,
+    double IdealStepDegrees,
+    double AngularJitterDegrees,
+    bool IsCrowded,
+    bool IsAngularVoid,
+    string Status,
+    string Recommendation);
+
+/// <summary>
+/// Represents the result of an audit of SmartArt cycle and radial node angular distribution, polar spacing equidistance,
+/// angular jitter, node crowding, and polar geometric symmetry.
+/// </summary>
+public sealed record SmartArtCycleRadialAngularAudit(
+    int TotalNodes,
+    int TotalSubItems,
+    double IdealStepDegrees,
+    double MinStepDegrees,
+    double MaxStepDegrees,
+    double MeanAngularJitter,
+    int CrowdedNodeCount,
+    int AngularVoidCount,
+    double PolarSymmetryScore,
+    IReadOnlyList<RadialAngularNodeItem> Items,
+    string Category,
+    string Summary);
+

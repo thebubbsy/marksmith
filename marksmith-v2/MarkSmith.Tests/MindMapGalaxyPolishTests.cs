@@ -3963,5 +3963,57 @@ namespace MarkSmith.Tests
                 audit.Category, audit.IsSelectionScope);
             Assert.Equal(audit.Summary, formatted);
         }
+    
+        [Fact]
+        public void Run196_AuditGraphCyclesAndFeedbackArcSet_DetectsCyclesAndFasBackbones()
+        {
+            // 1. Empty galaxy
+            var emptyAudit = MindMapStudioViewModel.AuditGraphCyclesAndFeedbackArcSet(null, null);
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.True(emptyAudit.IsAcyclicDag);
+            Assert.Equal(100.0, emptyAudit.AcyclicComplianceScore);
+
+            // 2. Tree hierarchy (DAG)
+            var n1 = new MindMapNode { Id = "r", Title = "Root System" };
+            var n2 = new MindMapNode { Id = "a", Title = "Component A" };
+            var n3 = new MindMapNode { Id = "b", Title = "Component B" };
+
+            var treeLinks = new List<MindMapLink>
+            {
+                new MindMapLink { Id = "l1", SourceNodeId = "r", TargetNodeId = "a" },
+                new MindMapLink { Id = "l2", SourceNodeId = "r", TargetNodeId = "b" }
+            };
+
+            var treeAudit = MindMapStudioViewModel.AuditGraphCyclesAndFeedbackArcSet(new[] { n1, n2, n3 }, treeLinks);
+            Assert.Equal(3, treeAudit.TotalNodes);
+            Assert.Equal(2, treeAudit.TotalEdges);
+            Assert.True(treeAudit.IsAcyclicDag);
+            Assert.Equal(0, treeAudit.CycleCount);
+            Assert.Equal(0, treeAudit.FeedbackArcSetCount);
+            Assert.Equal(100.0, treeAudit.AcyclicComplianceScore);
+
+            string formatted = MindMapStudioViewModel.FormatCycleFeedbackSummary(
+                treeAudit.TotalNodes, treeAudit.TotalEdges, treeAudit.CycleCount, treeAudit.FeedbackArcSetCount,
+                treeAudit.IsAcyclicDag, treeAudit.AcyclicComplianceScore, treeAudit.Category, treeAudit.IsSelectionScope);
+            Assert.Equal(treeAudit.Summary, formatted);
+
+            // 3. Directed cycle: A -> B -> C -> A
+            var nC = new MindMapNode { Id = "c", Title = "Component C" };
+            var cycleLinks = new List<MindMapLink>
+            {
+                new MindMapLink { Id = "l1", SourceNodeId = "a", TargetNodeId = "b" },
+                new MindMapLink { Id = "l2", SourceNodeId = "b", TargetNodeId = "c" },
+                new MindMapLink { Id = "l3", SourceNodeId = "c", TargetNodeId = "a" }
+            };
+
+            var cycleAudit = MindMapStudioViewModel.AuditGraphCyclesAndFeedbackArcSet(new[] { n2, n3, nC }, cycleLinks);
+            Assert.Equal(3, cycleAudit.TotalNodes);
+            Assert.Equal(3, cycleAudit.TotalEdges);
+            Assert.False(cycleAudit.IsAcyclicDag);
+            Assert.Equal(1, cycleAudit.CycleCount);
+            Assert.Equal(1, cycleAudit.FeedbackArcSetCount);
+            Assert.True(cycleAudit.AcyclicComplianceScore < 80.0);
+        }
+
     }
 }

@@ -796,6 +796,9 @@
                                         <MenuFlyoutItem x:Name="SelectionAuditShapeAspectRatioItem" Text="Audit diagram shape aspect ratio uniformity, golden ratio &amp; geometry aesthetics" Click="OnSelectionAuditShapeAspectRatioClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionAuditShapeZOrderStackingItem" Text="Audit diagram shape Z-order layering, stacking depth &amp; overlap occlusion" Click="OnSelectionAuditShapeZOrderStackingClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

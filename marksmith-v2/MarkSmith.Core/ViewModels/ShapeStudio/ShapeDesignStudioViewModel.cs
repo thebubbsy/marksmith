@@ -6709,6 +6709,145 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
             Summary: summary);
     }
 
+    public DiagramShapeZOrderStackingAudit AuditShapeZOrderStackingAndOcclusion(bool selectionOnly = false)
+    {
+        var selected = Shapes.Where(s => s.IsSelected).ToList();
+        var targetShapes = (selectionOnly && selected.Count > 0)
+            ? selected
+            : Shapes.ToList();
+
+        bool isSelection = selectionOnly && selected.Count > 0;
+        var audit = AuditShapeZOrderStackingAndOcclusion(targetShapes, isSelection);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static DiagramShapeZOrderStackingAudit AuditShapeZOrderStackingAndOcclusion(
+        IEnumerable<ShapeCanvasItemViewModel>? targetShapes,
+        bool isSelection = false)
+    {
+        var list = (targetShapes ?? Enumerable.Empty<ShapeCanvasItemViewModel>()).ToList();
+        var validShapes = list.Where(s => s.Width >= 2.0 && s.Height >= 2.0).ToList();
+        int totalShapes = validShapes.Count;
+
+        if (totalShapes == 0)
+        {
+            string emptySummary = FormatStackingOcclusionSummary(0, 0, 0, 0, 0, 100.0, "Empty Canvas", isSelection);
+            return new DiagramShapeZOrderStackingAudit(
+                0, 0, 0, 0, 0, 0.0, 100.0,
+                Array.Empty<ShapeZOrderOcclusionItem>(), "Empty Canvas", isSelection, emptySummary);
+        }
+
+        var items = new List<ShapeZOrderOcclusionItem>();
+        var occludedShapeIds = new HashSet<string>();
+        int completeOcclusionCount = 0;
+        int severeOcclusionCount = 0;
+        var stackingDepths = new int[totalShapes];
+
+        for (int i = 0; i < totalShapes; i++)
+        {
+            var lower = validShapes[i];
+            double x1 = lower.X;
+            double y1 = lower.Y;
+            double w1 = lower.Width;
+            double h1 = lower.Height;
+            double area1 = w1 * h1;
+
+            for (int j = i + 1; j < totalShapes; j++)
+            {
+                var upper = validShapes[j];
+                double x2 = upper.X;
+                double y2 = upper.Y;
+                double w2 = upper.Width;
+                double h2 = upper.Height;
+
+                double interLeft = Math.Max(x1, x2);
+                double interTop = Math.Max(y1, y2);
+                double interRight = Math.Min(x1 + w1, x2 + w2);
+                double interBottom = Math.Min(y1 + h1, y2 + h2);
+
+                if (interRight > interLeft && interBottom > interTop)
+                {
+                    double interArea = (interRight - interLeft) * (interBottom - interTop);
+                    double pct = Math.Min(100.0, Math.Round((interArea / area1) * 100.0, 1));
+
+                    stackingDepths[i]++;
+                    stackingDepths[j]++;
+
+                    if (pct >= 15.0)
+                    {
+                        occludedShapeIds.Add(lower.Id);
+                        bool isComplete = pct >= 85.0;
+                        bool isSevere = pct >= 40.0 && !isComplete;
+
+                        if (isComplete) completeOcclusionCount++;
+                        else if (isSevere) severeOcclusionCount++;
+
+                        string severity = isComplete ? "Complete" : (isSevere ? "Severe" : "Moderate");
+                        string status = isComplete ? "Completely Hidden" : $"{pct:0.#}% Occluded";
+                        string rec = isComplete
+                            ? $"Shape '{lower.Name}' is almost completely hidden by '{upper.Name}': re-layer or offset positions"
+                            : $"Partial overlap with '{upper.Name}': adjust spacing or bring forward";
+
+                        items.Add(new ShapeZOrderOcclusionItem(
+                            lower.Id, lower.Name, i,
+                            upper.Id, upper.Name, j,
+                            pct, isComplete, severity, status, rec));
+                    }
+                }
+            }
+        }
+
+        int maxDepth = stackingDepths.Length > 0 ? stackingDepths.Max() : 0;
+        double avgDepth = stackingDepths.Length > 0 ? Math.Round(stackingDepths.Average(), 1) : 0.0;
+
+        double score = 100.0;
+        score -= completeOcclusionCount * 25.0;
+        score -= severeOcclusionCount * 10.0;
+        if (occludedShapeIds.Count > 0 && completeOcclusionCount == 0 && severeOcclusionCount == 0)
+            score -= occludedShapeIds.Count * 3.0;
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category;
+        if (score >= 95.0) category = "Clean Layering (≥95%)";
+        else if (score >= 80.0) category = "High Layering Quality (80-94%)";
+        else if (score >= 60.0) category = "Moderate Overlap Occlusion (60-79%)";
+        else if (score >= 40.0) category = "Suboptimal Stacking Depth (40-59%)";
+        else category = "Severe Shape Occlusion (<40%)";
+
+        string summary = FormatStackingOcclusionSummary(
+            totalShapes, occludedShapeIds.Count, completeOcclusionCount, severeOcclusionCount, maxDepth, score, category, isSelection);
+
+        return new DiagramShapeZOrderStackingAudit(
+            totalShapes, occludedShapeIds.Count, completeOcclusionCount, severeOcclusionCount,
+            maxDepth, avgDepth, score, items, category, isSelection, summary);
+    }
+
+    public static string FormatStackingOcclusionSummary(
+        int totalShapes, int occludedCount, int completeOccluded, int severeOccluded,
+        int maxDepth, double score, string category, bool isSelection)
+    {
+        string scope = isSelection ? "Selection · " : "";
+        if (totalShapes == 0)
+            return $"Diagram Z-order audit: {scope}Empty canvas · 0 shapes";
+
+        if (occludedCount == 0)
+            return $"Diagram Z-order audit: {scope}✓ Clean layering · {totalShapes} shapes · 0 occlusions · max depth {maxDepth}";
+
+        var parts = new List<string>
+        {
+            $"{totalShapes} shapes",
+            $"{occludedCount} occluded"
+        };
+        if (completeOccluded > 0) parts.Add($"⚠️ {completeOccluded} completely hidden");
+        if (severeOccluded > 0) parts.Add($"{severeOccluded} severe");
+        parts.Add($"max depth {maxDepth}");
+
+        string details = string.Join(" · ", parts);
+        return $"Diagram Z-order audit ({scope}{details} · {category} · {score:0.#}% layering score)";
+    }
+
+
     public static string FormatAspectRatioSummary(
         int totalShapes, int conformingCount, int driftCount, int freeformCount,
         double score, string category, bool isSelection = false)
@@ -12785,3 +12924,37 @@ public sealed record DiagramShapeAspectRatioUniformityAudit(
     string Category,
     bool IsSelectionScope,
     string Summary);
+
+/// <summary>
+/// Represents evaluated Z-order stacking depth, occlusion percentage, and obscuring shapes for an individual diagram shape.
+/// </summary>
+public sealed record ShapeZOrderOcclusionItem(
+    string ShapeId,
+    string ShapeName,
+    int ZIndex,
+    string OccludingShapeId,
+    string OccludingShapeName,
+    int OccludingZIndex,
+    double OcclusionPercentage,
+    bool IsCompleteOcclusion,
+    string Severity,
+    string Status,
+    string Recommendation);
+
+/// <summary>
+/// Represents the result of an audit of diagram shape Z-order layering, stacking depth,
+/// overlap occlusion, completely obscured shapes, and visual layering cleanliness.
+/// </summary>
+public sealed record DiagramShapeZOrderStackingAudit(
+    int TotalShapes,
+    int OccludedShapeCount,
+    int CompleteOcclusionCount,
+    int SevereOcclusionCount,
+    int MaxStackingDepth,
+    double AverageStackingDepth,
+    double LayeringCleanlinessScore,
+    IReadOnlyList<ShapeZOrderOcclusionItem> Items,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);
+

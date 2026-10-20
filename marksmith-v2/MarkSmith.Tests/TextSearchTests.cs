@@ -3291,4 +3291,56 @@ public class TextSearchTests
         Assert.Equal(1, badAudit.EmptyTaskCount);
         Assert.True(badAudit.HygieneScore < 80.0);
     }
+
+    [Fact]
+    public void Run196_AuditMarkdownLinkReferenceDefinitions_ResolvesFullCollapsedShortcutAndFlagsOrphans()
+    {
+        // 1. Empty markdown
+        var emptyAudit = TextSearch.AuditMarkdownLinkReferenceDefinitions("");
+        Assert.Equal(0, emptyAudit.TotalDefinitions);
+        Assert.Equal(0, emptyAudit.TotalUsages);
+        Assert.Equal(100.0, emptyAudit.ResolutionFidelityScore);
+        Assert.Equal("No Reference Links", emptyAudit.Category);
+
+        // 2. Clean doc with full, collapsed, and shortcut reference links
+        var doc = string.Join("\n",
+            "# Reference Links Overview",
+            "See the [documentation manual][docs] and [API Reference][] for details.",
+            "For guidelines, inspect [rules].",
+            "",
+            "[docs]: https://example.com/docs \"Documentation Manual\"",
+            "[api reference]: https://example.com/api",
+            "[rules]: https://example.com/rules 'Engineering Rules'"
+        );
+
+        var audit = TextSearch.AuditMarkdownLinkReferenceDefinitions(doc);
+        Assert.Equal(3, audit.TotalDefinitions);
+        Assert.Equal(3, audit.TotalUsages);
+        Assert.Equal(3, audit.ResolvedCount);
+        Assert.Equal(0, audit.UnresolvedUsageCount);
+        Assert.Equal(0, audit.UnreferencedDefinitionCount);
+        Assert.Equal(0, audit.DuplicateDefinitionCount);
+        Assert.Equal(100.0, audit.ResolutionFidelityScore);
+
+        string formatted = TextSearch.FormatLinkReferenceSummary(
+            audit.TotalDefinitions, audit.TotalUsages, audit.ResolvedCount,
+            audit.UnresolvedUsageCount, audit.UnreferencedDefinitionCount,
+            audit.DuplicateDefinitionCount, audit.ResolutionFidelityScore, audit.Category);
+        Assert.Equal(audit.Summary, formatted);
+
+        // 3. Broken reference and unused definition
+        var brokenDoc = string.Join("\n",
+            "[broken link][missing_target]",
+            "[unused_ref]: https://unused.org"
+        );
+
+        var brokenAudit = TextSearch.AuditMarkdownLinkReferenceDefinitions(brokenDoc);
+        Assert.Equal(1, brokenAudit.TotalDefinitions);
+        Assert.Equal(1, brokenAudit.TotalUsages);
+        Assert.Equal(0, brokenAudit.ResolvedCount);
+        Assert.Equal(1, brokenAudit.UnresolvedUsageCount);
+        Assert.Equal(1, brokenAudit.UnreferencedDefinitionCount);
+        Assert.True(brokenAudit.ResolutionFidelityScore < 80.0);
+    }
+
 }

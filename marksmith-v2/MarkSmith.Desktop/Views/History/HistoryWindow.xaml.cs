@@ -3757,6 +3757,18 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"✓ {audit.Summary}");
                 };
                 menu.Items.Add(auditCacheLocality);
+                var auditSynchronization = new MenuFlyoutItem
+                {
+                    Text = "Audit semantic diff synchronization primitives, lock contention & deadlock hazards",
+                    Icon = new FontIcon { Glyph = "\uE8B9" }
+                };
+                auditSynchronization.Click += (_, _) =>
+                {
+                    var audit = MarkSmith.Services.LineDiff.AuditSynchronizationAndDeadlockHazards(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+                    _vm.ShowNotice($"✓ {audit.Summary}");
+                };
+                menu.Items.Add(auditSynchronization);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

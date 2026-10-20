@@ -17529,6 +17529,162 @@ public static class LineDiff
             pointerChasingCount, unpaddedStructCount, score, hazards, category, summary);
     }
 
+    public static DiffSynchronizationHazardsAudit AuditSynchronizationAndDeadlockHazards(string? beforeText, string? afterText)
+    {
+        var diff = Diff(beforeText ?? string.Empty, afterText ?? string.Empty);
+        var unified = BuildUnified(diff);
+        return AuditSynchronizationAndDeadlockHazards(unified);
+    }
+
+    public static DiffSynchronizationHazardsAudit AuditSynchronizationAndDeadlockHazards(IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows == null || unifiedRows.Count == 0)
+        {
+            string emptySummary = FormatSynchronizationHazardsSummary(0, 0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new DiffSynchronizationHazardsAudit(
+                0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<SynchronizationHazardItem>(), "Clean Baseline", emptySummary);
+        }
+
+        var modifiedRows = unifiedRows
+            .Where(r => !r.IsGap && !r.IsRemoved && !string.IsNullOrWhiteSpace(r.Text))
+            .ToList();
+
+        int totalModified = modifiedRows.Count;
+        if (totalModified == 0)
+        {
+            string emptySummary = FormatSynchronizationHazardsSummary(0, 0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new DiffSynchronizationHazardsAudit(
+                0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<SynchronizationHazardItem>(), "Clean Baseline", emptySummary);
+        }
+
+        var hazards = new List<SynchronizationHazardItem>();
+        int lockThisCount = 0;
+        int lockTypeOrStringCount = 0;
+        int awaitInLockCount = 0;
+        int nestedLockCount = 0;
+        int highContentionCount = 0;
+
+        int activeLockDepth = 0;
+
+        for (int i = 0; i < modifiedRows.Count; i++)
+        {
+            var row = modifiedRows[i];
+            string text = row.Text ?? string.Empty;
+            string trimmed = text.Trim();
+            int lineNum = row.NewNumber ?? row.OldNumber ?? (i + 1);
+
+            if (trimmed.StartsWith("//") || trimmed.StartsWith("/*") || trimmed.StartsWith("*"))
+                continue;
+
+            if (System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"\block\s*\("))
+            {
+                if (activeLockDepth > 0)
+                {
+                    nestedLockCount++;
+                    hazards.Add(new SynchronizationHazardItem(
+                        lineNum, "Insert", "NestedLockDeadlock", trimmed, 4,
+                        "Nested lock acquisition inside existing lock block risks ABBA deadlock order inversion",
+                        "Consolidate into a single synchronized critical section or use hierarchical locking order",
+                        "High Deadlock Inversion Risk"));
+                }
+                activeLockDepth++;
+            }
+
+            if (System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"\block\s*\(\s*this\s*\)"))
+            {
+                lockThisCount++;
+                hazards.Add(new SynchronizationHazardItem(
+                    lineNum, "Insert", "LockThis", trimmed, 4,
+                    "Locking on 'this' exposes synchronization object to external callers and risks deadlocks",
+                    "Replace with private readonly object _lock = new();",
+                    "Critical Lock(this) Anti-Pattern"));
+            }
+
+            if (System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"\block\s*\(\s*typeof\s*\(") ||
+                System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"\block\s*\(\s*""[^""]*""\s*\)"))
+            {
+                lockTypeOrStringCount++;
+                hazards.Add(new SynchronizationHazardItem(
+                    lineNum, "Insert", "LockTypeOrString", trimmed, 5,
+                    "Locking on Type object or interned string acquires a process-wide lock across AppDomains",
+                    "Use a dedicated private static readonly object _syncRoot = new();",
+                    "Severe Process-Wide Lock Risk"));
+            }
+
+            if (activeLockDepth > 0 && System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"\bawait\s+"))
+            {
+                awaitInLockCount++;
+                hazards.Add(new SynchronizationHazardItem(
+                    lineNum, "Insert", "AwaitInsideLock", trimmed, 5,
+                    "Awaiting inside a synchronization lock causes thread starvation and resumption deadlock",
+                    "Replace lock with SemaphoreSlim.WaitAsync() for asynchronous critical sections",
+                    "Critical Await Inside Lock Hazard"));
+            }
+
+            if (activeLockDepth > 0 && System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"\bThread\.Sleep\s*\("))
+            {
+                highContentionCount++;
+                hazards.Add(new SynchronizationHazardItem(
+                    lineNum, "Insert", "SleepInsideLock", trimmed, 3,
+                    "Calling Thread.Sleep while holding lock blocks other threads and causes severe contention",
+                    "Release lock before sleeping or refactor to non-blocking timeout polling",
+                    "High Lock Contention"));
+            }
+
+            if (trimmed.Contains("}") && activeLockDepth > 0)
+            {
+                activeLockDepth--;
+            }
+        }
+
+        int totalHazards = hazards.Count;
+        double score = 100.0;
+        score -= lockThisCount * 15.0;
+        score -= lockTypeOrStringCount * 25.0;
+        score -= awaitInLockCount * 25.0;
+        score -= nestedLockCount * 15.0;
+        score -= highContentionCount * 10.0;
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category;
+        if (score >= 95.0) category = "Flawless Concurrency Hygiene (≥95%)";
+        else if (score >= 80.0) category = "High Concurrency Safety (80-94%)";
+        else if (score >= 60.0) category = "Moderate Synchronization Risk (60-79%)";
+        else if (score >= 40.0) category = "High Deadlock Hazard (40-59%)";
+        else category = "Critical Concurrency Anti-Pattern (<40%)";
+
+        string summary = FormatSynchronizationHazardsSummary(
+            totalModified, totalHazards, lockThisCount, lockTypeOrStringCount, awaitInLockCount, nestedLockCount, score, category);
+
+        return new DiffSynchronizationHazardsAudit(
+            totalModified, totalHazards, lockThisCount, lockTypeOrStringCount, awaitInLockCount,
+            nestedLockCount, highContentionCount, score, hazards, category, summary);
+    }
+
+    public static string FormatSynchronizationHazardsSummary(
+        int modifiedLines, int totalHazards, int lockThis, int lockType,
+        int awaitInLock, int nestedLocks, double score, string category)
+    {
+        if (totalHazards == 0)
+            return $"Semantic diff concurrency audit: Clean baseline · {modifiedLines} modified lines · 0 synchronization hazards";
+
+        var parts = new List<string>
+        {
+            $"{modifiedLines} lines",
+            $"⚠️ {totalHazards} concurrency hazards"
+        };
+        if (lockThis > 0) parts.Add($"{lockThis} lock(this)");
+        if (lockType > 0) parts.Add($"{lockType} lock(typeof)");
+        if (awaitInLock > 0) parts.Add($"{awaitInLock} await-in-lock");
+        if (nestedLocks > 0) parts.Add($"{nestedLocks} nested locks");
+
+        string details = string.Join(" · ", parts);
+        return $"Semantic diff concurrency audit ({details} · {category} · {score:0.#}% hygiene score)";
+    }
+
+
     public static string FormatCacheLocalitySummary(
         int totalLines, int totalHazards, int falseSharing, int multiDimArrays,
         int pointerChasing, int unpaddedStructs, double score, string category)
@@ -19463,3 +19619,34 @@ public sealed record DiffCacheLocalityAudit(
     IReadOnlyList<CacheLocalityHazardItem> Items,
     string Category,
     string Summary);
+
+/// <summary>
+/// Represents an identified thread synchronization, lock contention, nested lock, or deadlock hazard on a diff line.
+/// </summary>
+public sealed record SynchronizationHazardItem(
+    int LineNumber,
+    string DiffOperation,
+    string HazardKind,
+    string CodeSnippet,
+    int Severity,
+    string ImpactDescription,
+    string RemediationHint,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of semantic diff hunks for thread synchronization primitives,
+/// lock (this) / lock (typeof) anti-patterns, await inside locks, nested locks, and deadlock inversion hazards.
+/// </summary>
+public sealed record DiffSynchronizationHazardsAudit(
+    int TotalModifiedLines,
+    int TotalHazards,
+    int LockThisCount,
+    int LockTypeOrStringCount,
+    int AwaitInLockCount,
+    int NestedLockCount,
+    int HighContentionCount,
+    double ConcurrencyHygieneScore,
+    IReadOnlyList<SynchronizationHazardItem> Items,
+    string Category,
+    string Summary);
+

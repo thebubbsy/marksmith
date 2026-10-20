@@ -3093,4 +3093,59 @@ public class HistoryPolishTests : IDisposable
         Assert.True(probAudit.MultiDimArrayCount >= 1);
         Assert.True(probAudit.CacheLocalityScore < 70.0);
     }
+
+    [Fact]
+    public void Run196_AuditSynchronizationAndDeadlockHazards_DetectsLockThisAndDeadlocks()
+    {
+        // 1. Clean code
+        var cleanCode = string.Join("\n",
+            "public class Worker",
+            "{",
+            "    private readonly object _syncRoot = new();",
+            "    private int _count;",
+            "    public void Increment()",
+            "    {",
+            "        lock (_syncRoot)",
+            "        {",
+            "            _count++;",
+            "        }",
+            "    }",
+            "}"
+        );
+
+        var cleanAudit = LineDiff.AuditSynchronizationAndDeadlockHazards("", cleanCode);
+        Assert.Equal(0, cleanAudit.TotalHazards);
+        Assert.Equal(100.0, cleanAudit.ConcurrencyHygieneScore);
+
+        string formatted = LineDiff.FormatSynchronizationHazardsSummary(
+            cleanAudit.TotalModifiedLines, cleanAudit.TotalHazards, cleanAudit.LockThisCount,
+            cleanAudit.LockTypeOrStringCount, cleanAudit.AwaitInLockCount, cleanAudit.NestedLockCount,
+            cleanAudit.ConcurrencyHygieneScore, cleanAudit.Category);
+        Assert.Equal(cleanAudit.Summary, formatted);
+
+        // 2. Dangerous synchronization code: lock(this), lock(typeof), await in lock
+        var badCode = string.Join("\n",
+            "public class DangerousService",
+            "{",
+            "    public async Task ProcessAsync()",
+            "    {",
+            "        lock (this)",
+            "        {",
+            "            lock (typeof(DangerousService))",
+            "            {",
+            "                await Task.Yield();",
+            "            }",
+            "        }",
+            "    }",
+            "}"
+        );
+
+        var badAudit = LineDiff.AuditSynchronizationAndDeadlockHazards("", badCode);
+        Assert.True(badAudit.LockThisCount >= 1);
+        Assert.True(badAudit.LockTypeOrStringCount >= 1);
+        Assert.True(badAudit.AwaitInLockCount >= 1);
+        Assert.True(badAudit.NestedLockCount >= 1);
+        Assert.True(badAudit.ConcurrencyHygieneScore < 40.0);
+    }
+
 }
