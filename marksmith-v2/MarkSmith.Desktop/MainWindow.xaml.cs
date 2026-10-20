@@ -13078,6 +13078,183 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         menu.ShowAt(anchor);
     }
 
+    private List<(string SyntaxType, string AltText, string SourceUrl, int LineNumber, string RawTag)> ExtractMarkdownImages()
+    {
+        var results = new List<(string SyntaxType, string AltText, string SourceUrl, int LineNumber, string RawTag)>();
+        var md = EditorDocument();
+        if (string.IsNullOrWhiteSpace(md)) return results;
+
+        var lines = md.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        bool inCodeFence = false;
+        var mdImgRegex = new System.Text.RegularExpressions.Regex(@"!\[(?<alt>[^\]]*)\]\(\s*(?<src><[^>]+>|[^)\s]+)(?:\s+[""'][^""']*[""'])?\s*\)");
+        var htmlImgRegex = new System.Text.RegularExpressions.Regex(@"<img\b[^>]*>", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        var srcAttrRegex = new System.Text.RegularExpressions.Regex(@"\bsrc\s*=\s*(?:""(?<src>[^""]*)""|'(?<src>[^']*)'|(?<src>[^\s>]+))", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        var altAttrRegex = new System.Text.RegularExpressions.Regex(@"\balt\s*=\s*(?:""(?<alt>[^""]*)""|'(?<alt>[^']*)'|(?<alt>[^\s>]+))", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var trimmed = lines[i].TrimStart();
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+            {
+                inCodeFence = !inCodeFence;
+                continue;
+            }
+            if (inCodeFence) continue;
+
+            foreach (System.Text.RegularExpressions.Match m in mdImgRegex.Matches(lines[i]))
+            {
+                var alt = m.Groups["alt"].Value.Trim();
+                var src = m.Groups["src"].Value.Trim().Trim('<', '>');
+                results.Add(("Markdown", alt, src, i + 1, m.Value));
+            }
+
+            foreach (System.Text.RegularExpressions.Match hm in htmlImgRegex.Matches(lines[i]))
+            {
+                var raw = hm.Value;
+                var srcMatch = srcAttrRegex.Match(raw);
+                var altMatch = altAttrRegex.Match(raw);
+                var src = srcMatch.Success ? srcMatch.Groups["src"].Value.Trim() : "";
+                var alt = altMatch.Success ? altMatch.Groups["alt"].Value.Trim() : "";
+                results.Add(("HTML <img>", alt, src, i + 1, raw));
+            }
+        }
+
+        return results;
+    }
+
+    private void OnStatusCopyImagesButtonClick(object sender, RoutedEventArgs e)
+    {
+        var images = ExtractMarkdownImages();
+        if (images.Count == 0)
+        {
+            AnnounceStatus("No Markdown (![alt](src)) or HTML (<img>) images found in document");
+            return;
+        }
+
+        int mdCount = images.Count(img => img.SyntaxType == "Markdown");
+        int htmlCount = images.Count - mdCount;
+        var output = string.Join(Environment.NewLine, images.Select(img => img.RawTag));
+        _ = Services.ClipboardWriter.TrySetTextAsync(output);
+        AnnounceStatus($"Copied {images.Count:N0} image reference(s) ({mdCount:N0} Markdown, {htmlCount:N0} HTML) to clipboard");
+    }
+
+    private void OnStatusCopyImagesButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (sender is not FrameworkElement anchor) return;
+
+        var menu = new MenuFlyout();
+
+        var copyAllItem = new MenuFlyoutItem
+        {
+            Text = "Copy all Markdown & HTML image tags",
+            Icon = new FontIcon { Glyph = "\uEB9F" }
+        };
+        copyAllItem.Click += (_, _) => OnStatusCopyImagesButtonClick(sender, new RoutedEventArgs());
+        menu.Items.Add(copyAllItem);
+
+        var copyUrlsItem = new MenuFlyoutItem
+        {
+            Text = "Copy image URLs / file paths only (one per line)",
+            Icon = new FontIcon { Glyph = "\uE71B" }
+        };
+        copyUrlsItem.Click += (_, _) =>
+        {
+            var images = ExtractMarkdownImages().Where(img => !string.IsNullOrWhiteSpace(img.SourceUrl)).ToList();
+            if (images.Count == 0)
+            {
+                AnnounceStatus("No image URLs or file paths found in document");
+                return;
+            }
+            _ = Services.ClipboardWriter.TrySetTextAsync(string.Join(Environment.NewLine, images.Select(img => img.SourceUrl)));
+            AnnounceStatus($"Copied {images.Count:N0} image URL(s)/path(s) to clipboard");
+        };
+        menu.Items.Add(copyUrlsItem);
+
+        var copyMissingAltItem = new MenuFlyoutItem
+        {
+            Text = "Copy images missing alt text only (accessibility audit)",
+            Icon = new FontIcon { Glyph = "\uE7BA" }
+        };
+        copyMissingAltItem.Click += (_, _) =>
+        {
+            var missingAlt = ExtractMarkdownImages().Where(img => string.IsNullOrWhiteSpace(img.AltText)).ToList();
+            if (missingAlt.Count == 0)
+            {
+                AnnounceStatus("All images in document have non-empty alt text!");
+                return;
+            }
+            var lines = missingAlt.Select(img => $"Ln {img.LineNumber}: {img.RawTag}");
+            _ = Services.ClipboardWriter.TrySetTextAsync(string.Join(Environment.NewLine, lines));
+            AnnounceStatus($"Copied {missingAlt.Count:N0} image(s) missing alt text to clipboard");
+        };
+        menu.Items.Add(copyMissingAltItem);
+
+        var copyTableItem = new MenuFlyoutItem
+        {
+            Text = "Copy Image Asset Inventory Table (Markdown)",
+            Icon = new FontIcon { Glyph = "\uE80A" }
+        };
+        copyTableItem.Click += (_, _) =>
+        {
+            var images = ExtractMarkdownImages();
+            if (images.Count == 0)
+            {
+                AnnounceStatus("No images found in document");
+                return;
+            }
+            int missingAltCount = images.Count(img => string.IsNullOrWhiteSpace(img.AltText));
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine($"**Image Asset Inventory**: {images.Count:N0} image(s) ({missingAltCount:N0} missing alt text)");
+            sb.AppendLine();
+            sb.AppendLine("| # | Syntax | Line | Alt Text | Source URL / Path |");
+            sb.AppendLine("| ---: | :---: | ---: | :--- | :--- |");
+            for (int idx = 0; idx < images.Count; idx++)
+            {
+                var img = images[idx];
+                var cleanAlt = string.IsNullOrWhiteSpace(img.AltText) ? "_(missing)_" : img.AltText.Replace("|", "\\|");
+                var cleanSrc = img.SourceUrl.Replace("|", "\\|");
+                sb.AppendLine($"| {idx + 1} | `{img.SyntaxType}` | Ln {img.LineNumber} | {cleanAlt} | `{cleanSrc}` |");
+            }
+            _ = Services.ClipboardWriter.TrySetTextAsync(sb.ToString().TrimEnd());
+            AnnounceStatus($"Copied Image Asset Inventory Table ({images.Count:N0} images) to clipboard");
+        };
+        menu.Items.Add(copyTableItem);
+
+        var insertTableItem = new MenuFlyoutItem
+        {
+            Text = "Insert Image Asset Inventory Table at cursor",
+            Icon = new FontIcon { Glyph = "\uE70F" }
+        };
+        insertTableItem.Click += (_, _) =>
+        {
+            var images = ExtractMarkdownImages();
+            if (images.Count == 0)
+            {
+                AnnounceStatus("No images found in document");
+                return;
+            }
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine($"## Image Asset Inventory ({images.Count:N0} Images)");
+            sb.AppendLine();
+            sb.AppendLine("| # | Syntax | Line | Alt Text | Source URL / Path |");
+            sb.AppendLine("| ---: | :---: | ---: | :--- | :--- |");
+            for (int idx = 0; idx < images.Count; idx++)
+            {
+                var img = images[idx];
+                var cleanAlt = string.IsNullOrWhiteSpace(img.AltText) ? "_(missing)_" : img.AltText.Replace("|", "\\|");
+                var cleanSrc = img.SourceUrl.Replace("|", "\\|");
+                sb.AppendLine($"| {idx + 1} | `{img.SyntaxType}` | Ln {img.LineNumber} | {cleanAlt} | `{cleanSrc}` |");
+            }
+            sb.AppendLine();
+            InsertMarkdown(sb.ToString());
+            AnnounceStatus($"Inserted Image Asset Inventory Table ({images.Count:N0} images) at cursor");
+        };
+        menu.Items.Add(insertTableItem);
+
+        menu.ShowAt(anchor);
+    }
+
     private void OnStatusCopyMarkdownButtonClick(object sender, RoutedEventArgs e)
     {
         var selected = PasteTextBox?.SelectedText;
