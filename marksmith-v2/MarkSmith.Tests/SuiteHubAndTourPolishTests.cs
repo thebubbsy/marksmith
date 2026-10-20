@@ -5875,4 +5875,94 @@ Some paragraph in between.
         Assert.Contains("OnAuditWorkspaceFrontmatterClick", suiteCs);
         Assert.Contains("AuditWorkspaceFrontmatterSchemaValidation", suiteCs);
     }
+    [Fact]
+    public void Run195_AuditWorkspaceTaskListProgression_AggregatesProjectTasksAndVelocity()
+    {
+        var doc1 = string.Join("\n",
+            "# Feature Roadmap",
+            "- [x] Design schema",
+            "- [ ] Write unit tests",
+            "- [x] Review PR"
+        );
+
+        var doc2 = string.Join("\n",
+            "# Backlog",
+            "- [ ] Fix bug 123",
+            "- [ ] Deploy to production"
+        );
+
+        var doc3 = string.Join("\n",
+            "# Architecture Notes",
+            "No task lists here, just technical documentation."
+        );
+
+        var fileSystem = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+        {
+            [@"C:\workspace\roadmap.md"] = doc1.Split('\n'),
+            [@"C:\workspace\backlog.md"] = doc2.Split('\n'),
+            [@"C:\workspace\notes.md"] = doc3.Split('\n')
+        };
+
+        var audit = RecentFilesService.AuditWorkspaceTaskListProgression(
+            fileSystem.Keys,
+            workspaceRoot: @"C:\workspace",
+            fileExists: p => fileSystem.ContainsKey(p),
+            readAllLines: p => fileSystem.TryGetValue(p, out var lines) ? lines : null);
+
+        Assert.Equal(3, audit.TotalDocumentsAudited);
+        Assert.Equal(2, audit.DocumentsWithTasksCount);
+        Assert.Equal(5, audit.TotalTasksFound);
+        Assert.Equal(2, audit.CompletedTasksCount);
+        Assert.Equal(3, audit.PendingTasksCount);
+        Assert.Equal(40.0, audit.WorkspaceCompletionPercentage);
+        Assert.True(audit.TaskTrackingHygieneScore > 0.0);
+
+        string formatted = RecentFilesService.FormatWorkspaceTaskListSummary(
+            audit.TotalDocumentsAudited, audit.DocumentsWithTasksCount, audit.TotalTasksFound,
+            audit.CompletedTasksCount, audit.PendingTasksCount, audit.UnlabeledTasksCount,
+            audit.WorkspaceCompletionPercentage, audit.TaskTrackingHygieneScore, audit.Category);
+        Assert.Equal(audit.Summary, formatted);
+    }
+
+    [Fact]
+    public void Run195_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // Surface 1: MainWindow - Markdown Task List Checkbox Progression & Hygiene Auditor
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("auditTaskListProgressionItem", mainCs);
+        Assert.Contains("AuditMarkdownTaskListProgression", mainCs);
+
+        // Surface 2: MindMapGalaxyWindow - Graph Minimum Spanning Tree (MST) & Backbone Highway Auditor
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditGraphMinimumSpanningTreeItem", galaxyXaml);
+        Assert.Contains("OnAuditGraphMinimumSpanningTreeClick", galaxyCs);
+        Assert.Contains("AuditGraphMinimumSpanningTreeAndBackbone", galaxyCs);
+
+        // Surface 3: ShapeDesignStudioWindow - Diagram Shape Aspect Ratio Uniformity, Golden Ratio & Geometry Aesthetics
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditShapeAspectRatioItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditShapeAspectRatioClick", shapeCs);
+        Assert.Contains("AuditShapeAspectRatioUniformityAndProportions", shapeCs);
+
+        // Surface 4: SmartArtDesignStudioWindow - SmartArt Venn Diagram Set Overlap, Intersect Symmetry & Boolean Cardinality Auditor
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineStatsAuditVennOverlapSymmetryItem", smartArtXaml);
+        Assert.Contains("OnOutlineStatsAuditVennOverlapSymmetryClick", smartArtCs);
+        Assert.Contains("AuditVennDiagramOverlapSymmetry", smartArtCs);
+
+        // Surface 5: HistoryWindow - Semantic Diff CPU Cache Locality, False Sharing & Pointer Chasing Hazards Analyzer
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditCacheLocality", historyCs);
+        Assert.Contains("AuditCacheLocalityAndFalseSharingHazards", historyCs);
+
+        // Surface 6: SuiteHubView - Workspace Markdown Task List Progress, Completion Velocity & Action Items Auditor
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("AuditWorkspaceTaskListsItem", suiteXaml);
+        Assert.Contains("OnAuditWorkspaceTaskListsClick", suiteCs);
+        Assert.Contains("AuditWorkspaceTaskListProgression", suiteCs);
+    }
 }

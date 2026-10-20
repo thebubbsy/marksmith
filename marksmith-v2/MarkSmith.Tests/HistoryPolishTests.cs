@@ -3054,4 +3054,43 @@ public class HistoryPolishTests : IDisposable
         Assert.True(probAudit.StructBoxingCount >= 1);
         Assert.True(probAudit.ZeroAllocationScore < 70.0);
     }
+    [Fact]
+    public void AuditCacheLocalityAndFalseSharingHazards_DetectsFalseSharingAndMultiDimArrays()
+    {
+        // 1. Clean code
+        var cleanCode = string.Join("\n",
+            "public void Process(Span<byte> buffer)",
+            "{",
+            "    for (int i = 0; i < buffer.Length; i++)",
+            "    {",
+            "        buffer[i] = (byte)(i * 2);",
+            "    }",
+            "}"
+        );
+
+        var cleanAudit = LineDiff.AuditCacheLocalityAndFalseSharingHazards("", cleanCode);
+        Assert.Equal(0, cleanAudit.TotalHazards);
+        Assert.Equal(100.0, cleanAudit.CacheLocalityScore);
+
+        string formatted = LineDiff.FormatCacheLocalitySummary(
+            cleanAudit.TotalModifiedLines, cleanAudit.TotalHazards, cleanAudit.FalseSharingCount,
+            cleanAudit.MultiDimArrayCount, cleanAudit.PointerChasingCount, cleanAudit.UnpaddedStructCount,
+            cleanAudit.CacheLocalityScore, cleanAudit.Category);
+        Assert.Equal(cleanAudit.Summary, formatted);
+
+        // 2. Problematic code: volatile concurrent fields and multi-dim rectangular array
+        var probCode = string.Join("\n",
+            "public class WorkerState",
+            "{",
+            "    private volatile int _head;",
+            "    private volatile int _tail;",
+            "    private int[,] _grid = new int[100, 100];",
+            "}"
+        );
+
+        var probAudit = LineDiff.AuditCacheLocalityAndFalseSharingHazards("", probCode);
+        Assert.True(probAudit.FalseSharingCount >= 2);
+        Assert.True(probAudit.MultiDimArrayCount >= 1);
+        Assert.True(probAudit.CacheLocalityScore < 70.0);
+    }
 }

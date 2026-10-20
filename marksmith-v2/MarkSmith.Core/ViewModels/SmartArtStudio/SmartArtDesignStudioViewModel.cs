@@ -9864,6 +9864,151 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         return $"SmartArt matrix quadrant symmetry audit ({details} · {category} · {score:0.#}% balance score)";
     }
 
+    public SmartArtVennCardinalitySymmetryAudit AuditVennDiagramOverlapSymmetry()
+    {
+        var audit = AuditVennDiagramOverlapSymmetry(MarkdownText, SelectedLayout?.DisplayName);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static SmartArtVennCardinalitySymmetryAudit AuditVennDiagramOverlapSymmetry(string? markdown, string? layoutName = null)
+    {
+        string layout = layoutName ?? "Venn Diagram";
+        bool isVennContext = layout.Contains("venn", StringComparison.OrdinalIgnoreCase) ||
+                             layout.Contains("overlap", StringComparison.OrdinalIgnoreCase) ||
+                             layout.Contains("circle", StringComparison.OrdinalIgnoreCase);
+
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            string emptySummary = FormatVennOverlapSummary(0, 0, 0, 0, 0, 1.0, 100.0, "Empty Outline");
+            return new SmartArtVennCardinalitySymmetryAudit(
+                0, 0, 0, 0, 0, 0, 1.0, 100.0, Array.Empty<VennCardinalityPartitionItem>(), "Empty Outline", emptySummary);
+        }
+
+        var lines = markdown.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+        var partitions = new List<(string Title, List<string> Items, bool IsIntersection)>();
+        (string Title, List<string> Items, bool IsIntersection)? current = null;
+
+        var intersectKeywords = new[] { "&", "+", "intersection", "both", "all", "shared", "overlap", "common" };
+
+        foreach (var raw in lines)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) continue;
+            string trimmed = raw.Trim();
+
+            // Level 0 bullet or heading starts a partition
+            bool isRootBullet = (raw.StartsWith("- ") || raw.StartsWith("* ") || raw.StartsWith("+ ") || raw.StartsWith("#")) &&
+                                (raw.Length == trimmed.Length || (!raw.StartsWith("  ") && !raw.StartsWith("	")));
+
+            if (isRootBullet)
+            {
+                if (current != null)
+                {
+                    partitions.Add(current.Value);
+                }
+
+                string title = trimmed.TrimStart('-', '*', '+', '#', ' ');
+                bool isIntersect = intersectKeywords.Any(k => title.Contains(k, StringComparison.OrdinalIgnoreCase));
+                current = (title, new List<string>(), isIntersect);
+            }
+            else if (current != null)
+            {
+                string item = trimmed.TrimStart('-', '*', '+', ' ');
+                if (!string.IsNullOrWhiteSpace(item))
+                {
+                    current.Value.Items.Add(item);
+                }
+            }
+        }
+
+        if (current != null)
+        {
+            partitions.Add(current.Value);
+        }
+
+        int totalPartitions = partitions.Count;
+        int primarySets = partitions.Count(p => !p.IsIntersection);
+        int intersections = partitions.Count(p => p.IsIntersection);
+
+        var items = new List<VennCardinalityPartitionItem>();
+        int totalItems = 0;
+        int totalWords = 0;
+        int emptyVoids = 0;
+        var primaryCounts = new List<int>();
+
+        for (int i = 0; i < partitions.Count; i++)
+        {
+            var p = partitions[i];
+            int count = p.Items.Count;
+            int words = p.Items.Sum(s => s.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length);
+            totalItems += count;
+            totalWords += words;
+
+            if (count == 0) emptyVoids++;
+            if (!p.IsIntersection) primaryCounts.Add(count);
+
+            string classification = p.IsIntersection ? "Intersection Region" : "Primary Set Region";
+            string status = count == 0
+                ? "Disjoint Empty Void (0 items)"
+                : $"{count} items, {words} words";
+            string recommendation = count == 0
+                ? "Add descriptive items to clarify this set partition"
+                : "Partition cardinality populated";
+
+            items.Add(new VennCardinalityPartitionItem(
+                i + 1, p.Title, p.IsIntersection, count, words, classification, status, recommendation));
+        }
+
+        int expectedIntersections = primarySets == 2 ? 1 : primarySets == 3 ? 4 : (primarySets > 3 ? primarySets : 0);
+        int missingIntersections = Math.Max(0, expectedIntersections - intersections);
+
+        int maxPrimary = primaryCounts.Count > 0 ? primaryCounts.Max() : 0;
+        int minPrimary = primaryCounts.Count > 0 ? primaryCounts.Min() : 0;
+        double balanceRatio = maxPrimary > 0 ? Math.Round((double)minPrimary / maxPrimary, 2) : 1.0;
+
+        double score = 100.0;
+        if (isVennContext && missingIntersections > 0) score -= missingIntersections * 15.0;
+        score -= emptyVoids * 10.0;
+        if (balanceRatio < 0.3) score -= 15.0;
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category;
+        if (totalPartitions == 0) category = "Empty Outline";
+        else if (score >= 90.0) category = "Harmonious Boolean Set Overlap (≥90%)";
+        else if (score >= 75.0) category = "Balanced Venn with Minor Cardinality Skew (75-89%)";
+        else if (score >= 50.0) category = "Moderate Set Disparity or Missing Intersect (50-74%)";
+        else category = "Severe Set Imbalance or Disjoint Void (<50%)";
+
+        string summary = FormatVennOverlapSummary(
+            primarySets, intersections, totalItems, totalWords, missingIntersections,
+            balanceRatio, score, category);
+
+        return new SmartArtVennCardinalitySymmetryAudit(
+            primarySets, intersections, totalPartitions, totalItems, totalWords,
+            missingIntersections, balanceRatio, score, items, category, summary);
+    }
+
+    public static string FormatVennOverlapSummary(
+        int primarySets, int intersections, int totalItems, int totalWords,
+        int missingIntersects, double balanceRatio, double score, string category)
+    {
+        if (primarySets == 0 && intersections == 0)
+            return "SmartArt Venn overlap audit: Empty outline · 0 set partitions detected";
+
+        var parts = new List<string>
+        {
+            $"{primarySets} primary set{(primarySets == 1 ? "" : "s")}",
+            $"{intersections} intersection partition{(intersections == 1 ? "" : "s")}",
+            $"{totalItems} items ({totalWords} words)",
+            $"bal ratio {balanceRatio:0.00}"
+        };
+
+        if (missingIntersects > 0) parts.Add($"⚠️ {missingIntersects} missing intersect void{(missingIntersects == 1 ? "" : "s")}");
+
+        string details = string.Join(" · ", parts);
+        return $"SmartArt Venn diagram overlap & cardinality audit ({details} · {category} · {score:0.#}% clarity score)";
+    }
+
 }
 
 /// <summary>
@@ -11005,5 +11150,36 @@ public sealed record SmartArtMultiLevelMatrixQuadrantAudit(
     double SymmetryRatio,
     double QuadrantBalanceScore,
     IReadOnlyList<MultiLevelMatrixQuadrantItem> Quadrants,
+    string Category,
+    string Summary);
+
+
+/// <summary>
+/// Represents evaluated partition cardinality, intersection classification, word density, and void status for an individual Venn diagram set.
+/// </summary>
+public sealed record VennCardinalityPartitionItem(
+    int PartitionIndex,
+    string SetTitle,
+    bool IsIntersection,
+    int ItemCount,
+    int WordCount,
+    string Classification,
+    string Status,
+    string Recommendation);
+
+/// <summary>
+/// Represents the result of an audit of SmartArt Venn diagram set overlap symmetry, boolean intersection partitions,
+/// cardinality balance, disjoint void detection, and set relationship clarity.
+/// </summary>
+public sealed record SmartArtVennCardinalitySymmetryAudit(
+    int PrimarySetCount,
+    int IntersectionCount,
+    int TotalPartitions,
+    int TotalItems,
+    int TotalWords,
+    int MissingIntersectionCount,
+    double CardinalityBalanceRatio,
+    double ClarityScore,
+    IReadOnlyList<VennCardinalityPartitionItem> Items,
     string Category,
     string Summary);

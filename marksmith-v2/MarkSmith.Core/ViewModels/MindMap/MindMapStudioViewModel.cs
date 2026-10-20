@@ -11955,6 +11955,187 @@ namespace MarkSmith.ViewModels.MindMap
             return $"Graph degree distribution & hub centrality audit ({scope}{nodeStr} · {details} · {category} · {score:0.#}% balance score)";
         }
 
+        public GraphMinimumSpanningTreeAndBackboneAudit AuditGraphMinimumSpanningTreeAndBackbone(bool selectionOnly = false)
+        {
+            var selected = Nodes.Where(n => n.IsSelected).ToList();
+            var targetNodes = (selectionOnly && selected.Count > 0)
+                ? selected
+                : Nodes.ToList();
+
+            bool isSelection = selectionOnly && selected.Count > 0;
+            var nodeIds = targetNodes.Select(n => n.Id).ToHashSet();
+            var relevantLinks = Links.Where(l => nodeIds.Contains(l.SourceNodeId) && nodeIds.Contains(l.TargetNodeId)).ToList();
+
+            var audit = AuditGraphMinimumSpanningTreeAndBackbone(targetNodes.Select(n => n.Model), relevantLinks.Select(l => l.Model), isSelection);
+            StatusMessage = audit.Summary;
+            return audit;
+        }
+
+        public static GraphMinimumSpanningTreeAndBackboneAudit AuditGraphMinimumSpanningTreeAndBackbone(
+            IEnumerable<MindMapNode>? nodes,
+            IEnumerable<MindMapLink>? links,
+            bool isSelection = false)
+        {
+            var nodeList = nodes?.ToList() ?? new List<MindMapNode>();
+            var linkList = links?.ToList() ?? new List<MindMapLink>();
+
+            int totalNodes = nodeList.Count;
+            int totalLinks = linkList.Count;
+
+            if (totalNodes == 0)
+            {
+                string emptySummary = FormatMstBackboneSummary(0, 0, 0, 0, 0, 0, 0.0, 0.0, 1.0, 100.0, "Empty Galaxy", isSelection);
+                return new GraphMinimumSpanningTreeAndBackboneAudit(
+                    0, 0, 0, 0, 0, 0, 0.0, 0.0, 1.0, 100.0,
+                    Array.Empty<MstBackboneEdgeItem>(), "Empty Galaxy", isSelection, emptySummary);
+            }
+
+            var nodeMap = nodeList.ToDictionary(n => n.Id);
+            var validNodeIds = nodeMap.Keys.ToHashSet();
+
+            // Calculate Euclidean distance for each valid link
+            var edgeCandidates = new List<(MindMapLink Link, MindMapNode Src, MindMapNode Tgt, double Dist)>();
+            double totalWeight = 0.0;
+            var degreeMap = validNodeIds.ToDictionary(id => id, _ => 0);
+
+            foreach (var link in linkList)
+            {
+                if (validNodeIds.Contains(link.SourceNodeId) && validNodeIds.Contains(link.TargetNodeId))
+                {
+                    var src = nodeMap[link.SourceNodeId];
+                    var tgt = nodeMap[link.TargetNodeId];
+
+                    double srcX = src.X + (src.Width / 2.0);
+                    double srcY = src.Y + (src.Height / 2.0);
+                    double tgtX = tgt.X + (tgt.Width / 2.0);
+                    double tgtY = tgt.Y + (tgt.Height / 2.0);
+
+                    double dx = tgtX - srcX;
+                    double dy = tgtY - srcY;
+                    double dist = Math.Round(Math.Sqrt((dx * dx) + (dy * dy)), 1);
+
+                    edgeCandidates.Add((link, src, tgt, dist));
+                    totalWeight += dist;
+                    degreeMap[link.SourceNodeId]++;
+                    degreeMap[link.TargetNodeId]++;
+                }
+            }
+
+            int isolateCount = degreeMap.Values.Count(d => d == 0);
+
+            // Kruskal's Disjoint Set Union
+            var parent = validNodeIds.ToDictionary(id => id, id => id);
+            string Find(string i)
+            {
+                if (parent[i] == i) return i;
+                return parent[i] = Find(parent[i]);
+            }
+            bool Union(string i, string j)
+            {
+                string rootI = Find(i);
+                string rootJ = Find(j);
+                if (rootI == rootJ) return false;
+                parent[rootI] = rootJ;
+                return true;
+            }
+
+            // Sort edges ascending by Euclidean distance
+            edgeCandidates.Sort((a, b) => a.Dist.CompareTo(b.Dist));
+
+            var mstEdges = new List<(MindMapLink Link, MindMapNode Src, MindMapNode Tgt, double Dist)>();
+            var redundantCycleEdges = new List<(MindMapLink Link, MindMapNode Src, MindMapNode Tgt, double Dist)>();
+            double mstWeight = 0.0;
+
+            foreach (var cand in edgeCandidates)
+            {
+                if (Union(cand.Src.Id, cand.Tgt.Id))
+                {
+                    mstEdges.Add(cand);
+                    mstWeight += cand.Dist;
+                }
+                else
+                {
+                    redundantCycleEdges.Add(cand);
+                }
+            }
+
+            // Count connected components
+            int componentCount = validNodeIds.Select(Find).Distinct().Count();
+
+            // Degree in MST to classify backbone vs foliage
+            var mstDegree = validNodeIds.ToDictionary(id => id, _ => 0);
+            foreach (var m in mstEdges)
+            {
+                mstDegree[m.Src.Id]++;
+                mstDegree[m.Tgt.Id]++;
+            }
+
+            var items = new List<MstBackboneEdgeItem>();
+            foreach (var m in mstEdges)
+            {
+                bool isTrunk = mstDegree[m.Src.Id] > 1 && mstDegree[m.Tgt.Id] > 1;
+                string status = isTrunk ? "Backbone Trunk Corridor" : "Peripheral Foliage Branch";
+                items.Add(new MstBackboneEdgeItem(
+                    m.Src.Id, m.Src.Title, m.Tgt.Id, m.Tgt.Title, m.Dist,
+                    IsMstEdge: true, IsBackboneTrunk: isTrunk, IsRedundantCycle: false, status));
+            }
+
+            foreach (var c in redundantCycleEdges)
+            {
+                items.Add(new MstBackboneEdgeItem(
+                    c.Src.Id, c.Src.Title, c.Tgt.Id, c.Tgt.Title, c.Dist,
+                    IsMstEdge: false, IsBackboneTrunk: false, IsRedundantCycle: true, "Redundant Cycle Bridge"));
+            }
+
+            double backboneRatio = totalWeight > 0.0 ? Math.Round(mstWeight / totalWeight, 3) : 1.0;
+
+            double score = 100.0;
+            score -= redundantCycleEdges.Count * 5.0;
+            score -= (componentCount - 1) * 8.0;
+            score -= isolateCount * 10.0;
+            score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+            string category;
+            if (score >= 95.0) category = "Pristine Spanning Backbone (≥95%)";
+            else if (score >= 80.0) category = "Efficient Spanning Tree (80-94%)";
+            else if (score >= 60.0) category = "Moderate Cycle Redundancy (60-79%)";
+            else if (score >= 40.0) category = "High Cross-Link Clutter (40-59%)";
+            else category = "Disconnected / Redundant Spaghetti (<40%)";
+
+            string summary = FormatMstBackboneSummary(
+                totalNodes, totalLinks, mstEdges.Count, redundantCycleEdges.Count,
+                componentCount, isolateCount, totalWeight, mstWeight, backboneRatio, score, category, isSelection);
+
+            return new GraphMinimumSpanningTreeAndBackboneAudit(
+                totalNodes, totalLinks, mstEdges.Count, redundantCycleEdges.Count,
+                componentCount, isolateCount, totalWeight, mstWeight, backboneRatio, score,
+                items, category, isSelection, summary);
+        }
+
+        public static string FormatMstBackboneSummary(
+            int totalNodes, int totalEdges, int mstEdges, int cycleEdges,
+            int components, int isolates, double totalLen, double mstLen,
+            double ratio, double score, string category, bool isSelection = false)
+        {
+            if (totalNodes == 0) return "Graph minimum spanning tree audit: Empty galaxy · 0 nodes detected";
+
+            string scope = isSelection ? "Selection · " : "";
+            string nodeStr = totalNodes == 1 ? "1 node" : $"{totalNodes} nodes";
+            var parts = new List<string>
+            {
+                $"{totalEdges} link{(totalEdges == 1 ? "" : "s")}",
+                $"{mstEdges} MST backbone edge{(mstEdges == 1 ? "" : "s")}"
+            };
+
+            if (cycleEdges > 0) parts.Add($"⚠️ {cycleEdges} cycle bridge{(cycleEdges == 1 ? "" : "s")}");
+            if (components > 1) parts.Add($"{components} components");
+            if (isolates > 0) parts.Add($"⚠️ {isolates} isolate{(isolates == 1 ? "" : "s")}");
+            parts.Add($"MST len {mstLen:F0}px / Tot {totalLen:F0}px (ratio {ratio:P0})");
+
+            string details = string.Join(" · ", parts);
+            return $"Graph minimum spanning tree & backbone audit ({scope}{nodeStr} · {details} · {category} · {score:0.#}% efficiency score)";
+        }
+
     }
 
 
@@ -13213,6 +13394,41 @@ namespace MarkSmith.ViewModels.MindMap
         double ScaleFreePowerLawExponent,
         double HierarchyBalanceScore,
         IReadOnlyList<GraphDegreeCentralityItem> Items,
+        string Category,
+        bool IsSelectionScope,
+        string Summary);
+
+
+    /// <summary>
+    /// Represents evaluated metrics, distance, backbone classification, and cycle status for an individual graph edge in an MST audit.
+    /// </summary>
+    public sealed record MstBackboneEdgeItem(
+        string SourceId,
+        string SourceTitle,
+        string TargetId,
+        string TargetTitle,
+        double Distance,
+        bool IsMstEdge,
+        bool IsBackboneTrunk,
+        bool IsRedundantCycle,
+        string Status);
+
+    /// <summary>
+    /// Represents the result of an audit of mind map graph minimum spanning tree (MST / Kruskal),
+    /// backbone highway corridors, redundant cycle edges, connected components, and tree efficiency.
+    /// </summary>
+    public sealed record GraphMinimumSpanningTreeAndBackboneAudit(
+        int TotalNodes,
+        int TotalEdges,
+        int MstEdgeCount,
+        int RedundantCycleCount,
+        int ConnectedComponentsCount,
+        int IsolateCount,
+        double TotalWireLength,
+        double MstWireLength,
+        double BackboneHighwayRatio,
+        double TreeEfficiencyScore,
+        IReadOnlyList<MstBackboneEdgeItem> Items,
         string Category,
         bool IsSelectionScope,
         string Summary);

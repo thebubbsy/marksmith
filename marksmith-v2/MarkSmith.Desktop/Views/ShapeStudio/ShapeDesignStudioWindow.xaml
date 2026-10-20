@@ -793,6 +793,9 @@
                                         <MenuFlyoutItem x:Name="SelectionAuditConnectorAnchorSnappingItem" Text="Audit diagram connector anchor snapping margin &amp; alignment orthogonality" Click="OnSelectionAuditConnectorAnchorSnappingClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionAuditShapeAspectRatioItem" Text="Audit diagram shape aspect ratio uniformity, golden ratio &amp; geometry aesthetics" Click="OnSelectionAuditShapeAspectRatioClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

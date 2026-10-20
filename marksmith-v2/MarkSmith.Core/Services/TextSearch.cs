@@ -11051,6 +11051,177 @@ public static class TextSearch
         return $"Markdown inline HTML security audit ({details} · {category} · {score:0.#}% security score)";
     }
 
+    public static MarkdownTaskListProgressionAudit AuditMarkdownTaskListProgression(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            string emptySummary = FormatTaskListProgressionSummary(0, 0, 0, 0, 0, 100.0, "No Task Lists");
+            return new MarkdownTaskListProgressionAudit(
+                0, 0, 0, 0, 0, 0.0, 100.0,
+                Array.Empty<MarkdownTaskProgressionItem>(),
+                "No Task Lists",
+                emptySummary);
+        }
+
+        var lines = markdownText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+        var maskedLines = new string[lines.Length];
+        bool inCodeFence = false;
+        bool inFrontmatter = false;
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string line = lines[i];
+            string trimmed = line.Trim();
+
+            if (i == 0 && (trimmed == "---" || trimmed == "+++"))
+            {
+                inFrontmatter = true;
+                maskedLines[i] = string.Empty;
+                continue;
+            }
+            if (inFrontmatter)
+            {
+                maskedLines[i] = string.Empty;
+                if (trimmed == "---" || trimmed == "+++")
+                {
+                    inFrontmatter = false;
+                }
+                continue;
+            }
+
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+            {
+                inCodeFence = !inCodeFence;
+                maskedLines[i] = string.Empty;
+                continue;
+            }
+
+            if (inCodeFence)
+            {
+                maskedLines[i] = string.Empty;
+                continue;
+            }
+
+            maskedLines[i] = line;
+        }
+
+        var items = new List<MarkdownTaskProgressionItem>();
+        int totalTasks = 0;
+        int completedTasks = 0;
+        int pendingTasks = 0;
+        int emptyTaskCount = 0;
+        int maxNestingDepth = 0;
+        int previousIndent = 0;
+        int indentationJumpCount = 0;
+
+        var taskRegex = new System.Text.RegularExpressions.Regex(
+            @"^(?<indent>\s*)(?<marker>[-*+]|\d+\.)\s+\[(?<state>[ xX])\](?:\s+(?<desc>.*))?$",
+            System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        for (int l = 0; l < maskedLines.Length; l++)
+        {
+            string line = maskedLines[l];
+            if (string.IsNullOrWhiteSpace(line)) continue;
+
+            var match = taskRegex.Match(line);
+            if (!match.Success) continue;
+
+            totalTasks++;
+            string indentStr = match.Groups["indent"].Value;
+            int indentSpaces = 0;
+            foreach (char c in indentStr)
+            {
+                indentSpaces += (c == '\t') ? 4 : 1;
+            }
+
+            int nestingLevel = indentSpaces / 2;
+            if (nestingLevel > maxNestingDepth) maxNestingDepth = nestingLevel;
+
+            bool isCompleted = match.Groups["state"].Value.Equals("x", StringComparison.OrdinalIgnoreCase);
+            if (isCompleted) completedTasks++; else pendingTasks++;
+
+            string marker = match.Groups["marker"].Value;
+            string description = match.Groups["desc"].Value?.Trim() ?? string.Empty;
+            bool isEmpty = string.IsNullOrWhiteSpace(description);
+            if (isEmpty) emptyTaskCount++;
+
+            bool hasIndentationJump = false;
+            if (items.Count > 0 && indentSpaces > previousIndent + 4)
+            {
+                hasIndentationJump = true;
+                indentationJumpCount++;
+            }
+            previousIndent = indentSpaces;
+
+            string status = isCompleted ? "Completed" : "Pending";
+            string recommendation = "Task item properly formatted";
+            if (isEmpty)
+            {
+                recommendation = "Add a task title or description to give context to this checkbox";
+            }
+            else if (hasIndentationJump)
+            {
+                recommendation = "Adjust indentation: nesting jump exceeds 4 spaces relative to predecessor";
+            }
+
+            items.Add(new MarkdownTaskProgressionItem(
+                l + 1, indentSpaces, nestingLevel, isCompleted, marker, description,
+                isEmpty, hasIndentationJump, status, recommendation));
+        }
+
+        if (totalTasks == 0)
+        {
+            string emptySummary = FormatTaskListProgressionSummary(0, 0, 0, 0, 0, 100.0, "No Task Lists");
+            return new MarkdownTaskListProgressionAudit(
+                0, 0, 0, 0, 0, 0.0, 100.0, items, "No Task Lists", emptySummary);
+        }
+
+        double completionRatio = (double)completedTasks / totalTasks;
+        double score = 100.0;
+        score -= emptyTaskCount * 15.0;
+        score -= indentationJumpCount * 10.0;
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category;
+        if (score >= 95.0) category = "Flawless Task Hygiene (≥95%)";
+        else if (score >= 80.0) category = "High Task Hygiene (80-94%)";
+        else if (score >= 60.0) category = "Moderate Task Hygiene (60-79%)";
+        else if (score >= 40.0) category = "Suboptimal Task Tracking (40-59%)";
+        else category = "Poor Task Structure (<40%)";
+
+        string summary = FormatTaskListProgressionSummary(
+            totalTasks, completedTasks, pendingTasks, emptyTaskCount, maxNestingDepth, score, category);
+
+        return new MarkdownTaskListProgressionAudit(
+            totalTasks, completedTasks, pendingTasks, emptyTaskCount, maxNestingDepth,
+            completionRatio, score, items, category, summary);
+    }
+
+    public static string FormatTaskListProgressionSummary(string? markdownText)
+        => AuditMarkdownTaskListProgression(markdownText).Summary;
+
+    public static string FormatTaskListProgressionSummary(
+        int totalTasks, int completedTasks, int pendingTasks, int emptyTasks,
+        int maxNesting, double score, string category)
+    {
+        if (totalTasks == 0)
+            return "Markdown task list audit: Clean document · 0 task checkboxes detected";
+
+        double pct = (double)completedTasks / totalTasks * 100.0;
+        string taskStr = totalTasks == 1 ? "1 task" : $"{totalTasks} tasks";
+        var parts = new List<string>
+        {
+            taskStr,
+            $"{completedTasks} completed ({pct:0.#}%)",
+            $"{pendingTasks} pending"
+        };
+        if (emptyTasks > 0) parts.Add($"⚠️ {emptyTasks} unlabeled");
+        if (maxNesting > 0) parts.Add($"depth {maxNesting}");
+
+        string details = string.Join(" · ", parts);
+        return $"Markdown task list audit ({details} · {category} · {score:0.#}% hygiene score)";
+    }
+
 
 }
 
@@ -12284,5 +12455,37 @@ public sealed record MarkdownInlineHtmlSecurityAudit(
     int UnclosedTagCount,
     double SecurityScore,
     IReadOnlyList<MarkdownInlineHtmlSecurityItem> Items,
+    string Category,
+    string Summary);
+
+
+/// <summary>
+/// Represents evaluated metrics, nesting level, completion state, and hygiene for an individual markdown task list item.
+/// </summary>
+public sealed record MarkdownTaskProgressionItem(
+    int LineNumber,
+    int IndentSpaces,
+    int NestingLevel,
+    bool IsCompleted,
+    string Marker,
+    string Description,
+    bool IsEmpty,
+    bool HasIndentationJump,
+    string Status,
+    string Recommendation);
+
+/// <summary>
+/// Represents the result of an audit of markdown task list checkbox progression, completion velocity, nesting hierarchy,
+/// unlabeled tasks, and checklist tracking hygiene.
+/// </summary>
+public sealed record MarkdownTaskListProgressionAudit(
+    int TotalTasks,
+    int CompletedTasks,
+    int PendingTasks,
+    int EmptyTaskCount,
+    int MaxNestingDepth,
+    double CompletionRatio,
+    double HygieneScore,
+    IReadOnlyList<MarkdownTaskProgressionItem> Items,
     string Category,
     string Summary);

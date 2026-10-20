@@ -11339,6 +11339,131 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         return $"Diagram connector snapping & orthogonality audit ({scope}{connStr} · {details} · {category} · {score:0.#}% precision score)";
     }
 
+    public DiagramShapeAspectRatioUniformityAudit AuditShapeAspectRatioUniformityAndProportions(bool selectionOnly = false)
+    {
+        var selected = Shapes.Where(s => s.IsSelected).ToList();
+        var targetShapes = (selectionOnly && selected.Count > 0)
+            ? selected
+            : Shapes.ToList();
+
+        bool isSelection = selectionOnly && selected.Count > 0;
+        var audit = AuditShapeAspectRatioUniformityAndProportions(targetShapes, isSelection);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static DiagramShapeAspectRatioUniformityAudit AuditShapeAspectRatioUniformityAndProportions(
+        IEnumerable<ShapeCanvasItemViewModel>? targetShapes,
+        bool isSelection = false)
+    {
+        var list = (targetShapes ?? Enumerable.Empty<ShapeCanvasItemViewModel>()).ToList();
+        string scopeStr = isSelection ? "Selection · " : "";
+
+        // Filter out zero-area lines or connectors
+        var validShapes = list.Where(s => s.Width >= 2.0 && s.Height >= 2.0).ToList();
+        int totalShapes = validShapes.Count;
+
+        if (totalShapes == 0)
+        {
+            string emptySummary = FormatAspectRatioSummary(0, 0, 0, 0, 0, 0.0, 100.0, "Empty Canvas", isSelection);
+            return new DiagramShapeAspectRatioUniformityAudit(
+                0, 0, 0, 0, 0, 0.0, 100.0, Array.Empty<ShapeAspectRatioUniformityItem>(), "Empty Canvas", isSelection, emptySummary);
+        }
+
+        const double Phi = 1.6180339887;
+        var items = new List<ShapeAspectRatioUniformityItem>();
+        int squareCount = 0;
+        int goldenRatioCount = 0;
+        int canonicalCount = 0;
+        int extremeCount = 0;
+        double sumRatio = 0.0;
+
+        foreach (var shape in validShapes)
+        {
+            double w = shape.Width;
+            double h = shape.Height;
+            double ratio = Math.Round(w / h, 3);
+            sumRatio += ratio;
+
+            bool isSquare = Math.Abs(ratio - 1.0) <= 0.06;
+            bool isGolden = Math.Abs(ratio - Phi) <= 0.08 || Math.Abs(ratio - (1.0 / Phi)) <= 0.05;
+            bool isWidescreen = Math.Abs(ratio - (16.0 / 9.0)) <= 0.08 || Math.Abs(ratio - (9.0 / 16.0)) <= 0.05;
+            bool isStandard43 = Math.Abs(ratio - (4.0 / 3.0)) <= 0.06 || Math.Abs(ratio - (3.0 / 4.0)) <= 0.05;
+            bool isPhoto32 = Math.Abs(ratio - 1.5) <= 0.06 || Math.Abs(ratio - (2.0 / 3.0)) <= 0.05;
+            bool isHeader21 = Math.Abs(ratio - 2.0) <= 0.08 || Math.Abs(ratio - 0.5) <= 0.05;
+
+            bool isCanonical = isSquare || isGolden || isWidescreen || isStandard43 || isPhoto32 || isHeader21;
+            bool isExtreme = ratio > 8.0 || ratio < 0.125;
+
+            if (isSquare) squareCount++;
+            if (isGolden) goldenRatioCount++;
+            if (isCanonical) canonicalCount++;
+            if (isExtreme) extremeCount++;
+
+            string classification;
+            if (isSquare) classification = "Square (1:1)";
+            else if (isGolden) classification = "Golden Ratio (φ ~ 1.618)";
+            else if (isWidescreen) classification = "Widescreen (16:9)";
+            else if (isStandard43) classification = "Standard (4:3)";
+            else if (isPhoto32) classification = "Photo (3:2)";
+            else if (isHeader21) classification = "Header / Banner (2:1)";
+            else if (isExtreme) classification = "Extreme Aspect Distortion";
+            else classification = $"Arbitrary Ratio ({ratio:F2})";
+
+            string status = isCanonical ? $"Harmonious {classification}" : isExtreme ? $"Distorted Aspect ({ratio:F2})" : $"Custom Aspect ({ratio:F2})";
+            string recommendation = isExtreme ? "Normalize shape dimensions: aspect ratio deviates beyond 8:1" : isCanonical ? "Aspect ratio follows canonical aesthetic proportion" : "Consider snapping width/height to canonical ratio (1:1, 4:3, 16:9, or φ)";
+
+            items.Add(new ShapeAspectRatioUniformityItem(
+                shape.Id ?? "", shape.Name ?? shape.Id ?? "Shape",
+                w, h, ratio, isSquare, isGolden, isCanonical, isExtreme,
+                classification, status, recommendation));
+        }
+
+        double avgRatio = Math.Round(sumRatio / totalShapes, 2);
+        int nonCanonicalCount = totalShapes - canonicalCount;
+
+        double score = 100.0;
+        score -= extremeCount * 15.0;
+        score -= nonCanonicalCount * 4.0;
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category;
+        if (score >= 90.0) category = "Aesthetic Geometric Harmony (≥90%)";
+        else if (score >= 75.0) category = "Balanced Proportions with Minor Drift (75-89%)";
+        else if (score >= 50.0) category = "Moderate Aspect Ratio Irregularities (50-74%)";
+        else category = "Severely Distorted Geometry (<50%)";
+
+        string summary = FormatAspectRatioSummary(
+            totalShapes, canonicalCount, goldenRatioCount, squareCount,
+            extremeCount, avgRatio, score, category, isSelection);
+
+        return new DiagramShapeAspectRatioUniformityAudit(
+            totalShapes, canonicalCount, goldenRatioCount, squareCount,
+            extremeCount, avgRatio, score, items, category, isSelection, summary);
+    }
+
+    public static string FormatAspectRatioSummary(
+        int totalShapes, int canonicalCount, int goldenCount, int squareCount,
+        int extremeCount, double avgRatio, double score, string category, bool isSelection = false)
+    {
+        if (totalShapes == 0) return "Diagram shape aspect ratio audit: Empty canvas · 0 shapes evaluated";
+
+        string scope = isSelection ? "Selection · " : "";
+        string shapeStr = totalShapes == 1 ? "1 shape" : $"{totalShapes} shapes";
+        var parts = new List<string>
+        {
+            $"{canonicalCount}/{totalShapes} canonical",
+            $"avg ratio {avgRatio:F2}"
+        };
+
+        if (goldenCount > 0) parts.Add($"{goldenCount} golden ratio (φ)");
+        if (squareCount > 0) parts.Add($"{squareCount} square (1:1)");
+        if (extremeCount > 0) parts.Add($"⚠️ {extremeCount} extreme aspect");
+
+        string details = string.Join(" · ", parts);
+        return $"Diagram shape aspect ratio & golden ratio audit ({scope}{shapeStr} · {details} · {category} · {score:0.#}% aesthetic score)";
+    }
+
 }
 
 /// <summary>
@@ -12622,6 +12747,41 @@ public sealed record DiagramConnectorSnappingAudit(
     double AverageAngleDeviationDegrees,
     double RoutingPrecisionScore,
     IReadOnlyList<ConnectorAnchorSnappingItem> Items,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);
+
+
+/// <summary>
+/// Represents evaluated aspect ratio, canonical matching, golden ratio alignment, and distortion metrics for an individual diagram shape.
+/// </summary>
+public sealed record ShapeAspectRatioUniformityItem(
+    string ShapeId,
+    string ShapeName,
+    double Width,
+    double Height,
+    double AspectRatio,
+    bool IsSquare,
+    bool IsGoldenRatio,
+    bool IsCanonicalRatio,
+    bool IsExtremeDistortion,
+    string RatioClassification,
+    string Status,
+    string Recommendation);
+
+/// <summary>
+/// Represents the result of an audit of diagram shape aspect ratio uniformity, golden ratio alignment,
+/// canonical bounding proportions, extreme distortion detection, and visual geometry aesthetics.
+/// </summary>
+public sealed record DiagramShapeAspectRatioUniformityAudit(
+    int TotalShapes,
+    int CanonicalRatioCount,
+    int GoldenRatioCount,
+    int SquareCount,
+    int ExtremeDistortionCount,
+    double AverageAspectRatio,
+    double AestheticScore,
+    IReadOnlyList<ShapeAspectRatioUniformityItem> Items,
     string Category,
     bool IsSelectionScope,
     string Summary);

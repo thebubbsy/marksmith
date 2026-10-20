@@ -3927,5 +3927,41 @@ namespace MarkSmith.Tests
             Assert.True(isoAudit.HierarchyBalanceScore < 90.0);
             Assert.Contains(isoAudit.Items, i => i.NodeId == "iso" && i.IsIsolate);
         }
+        [Fact]
+        public void AuditGraphMinimumSpanningTreeAndBackbone_CalculatesKruskalMstAndBackboneEfficiency()
+        {
+            // 1. Empty galaxy
+            var emptyAudit = MindMapStudioViewModel.AuditGraphMinimumSpanningTreeAndBackbone(null, null);
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.Equal(100.0, emptyAudit.TreeEfficiencyScore);
+
+            // 2. Triangle graph with 1 redundant cycle edge
+            var n1 = new MindMapNode { Id = "n1", Title = "Root Hub", X = 0, Y = 0, Width = 100, Height = 50 };
+            var n2 = new MindMapNode { Id = "n2", Title = "Branch A", X = 100, Y = 0, Width = 100, Height = 50 };
+            var n3 = new MindMapNode { Id = "n3", Title = "Branch B", X = 50, Y = 100, Width = 100, Height = 50 };
+
+            var links = new List<MindMapLink>
+            {
+                new MindMapLink { Id = "l1", SourceNodeId = "n1", TargetNodeId = "n2" },
+                new MindMapLink { Id = "l2", SourceNodeId = "n2", TargetNodeId = "n3" },
+                new MindMapLink { Id = "l3", SourceNodeId = "n1", TargetNodeId = "n3" } // Cycle shortcut
+            };
+
+            var audit = MindMapStudioViewModel.AuditGraphMinimumSpanningTreeAndBackbone(new[] { n1, n2, n3 }, links);
+            Assert.Equal(3, audit.TotalNodes);
+            Assert.Equal(3, audit.TotalEdges);
+            Assert.Equal(2, audit.MstEdgeCount);
+            Assert.Equal(1, audit.RedundantCycleCount);
+            Assert.Equal(1, audit.ConnectedComponentsCount);
+            Assert.True(audit.BackboneHighwayRatio < 1.0);
+            Assert.True(audit.TreeEfficiencyScore >= 90.0);
+
+            string formatted = MindMapStudioViewModel.FormatMstBackboneSummary(
+                audit.TotalNodes, audit.TotalEdges, audit.MstEdgeCount, audit.RedundantCycleCount,
+                audit.ConnectedComponentsCount, audit.IsolateCount, audit.TotalWireLength,
+                audit.MstWireLength, audit.BackboneHighwayRatio, audit.TreeEfficiencyScore,
+                audit.Category, audit.IsSelectionScope);
+            Assert.Equal(audit.Summary, formatted);
+        }
     }
 }

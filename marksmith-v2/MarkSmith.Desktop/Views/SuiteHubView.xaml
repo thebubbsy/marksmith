@@ -390,6 +390,9 @@
                                     <MenuFlyoutItem x:Name="AuditWorkspaceFrontmatterItem" Text="Audit workspace markdown frontmatter YAML / TOML schema validation &amp; metadata consistency" Click="OnAuditWorkspaceFrontmatterClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditWorkspaceTaskListsItem" Text="Audit workspace markdown task list progress, completion velocity &amp; action items" Click="OnAuditWorkspaceTaskListsClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem Text="Clear recent filter" Click="OnClearRecentFilterClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

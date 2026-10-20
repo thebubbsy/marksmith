@@ -9024,6 +9024,161 @@ public sealed class RecentFilesService
         return $"Workspace frontmatter metadata audit ({fileStr} · {details} · {category} · {score:0.#}% compliance score)";
     }
 
+    public static WorkspaceTaskListAudit AuditWorkspaceTaskListProgression(
+        IEnumerable<string>? filePaths,
+        string? workspaceRoot = null,
+        Func<string, bool>? fileExists = null,
+        Func<string, string[]?>? readAllLines = null)
+    {
+        var exists = fileExists ?? (p => File.Exists(p));
+        var readLines = readAllLines ?? (p => {
+            try { return File.ReadAllLines(p); }
+            catch { return null; }
+        });
+
+        var items = new List<WorkspaceDocumentTaskItem>();
+        int scannedFiles = 0;
+        int docsWithTasks = 0;
+        int totalTasks = 0;
+        int completedTasks = 0;
+        int pendingTasks = 0;
+        int unlabeledTasks = 0;
+
+        var taskRegex = new System.Text.RegularExpressions.Regex(
+            @"^(?<indent>\s*)(?<marker>[-*+]|\d+\.)\s+\[(?<state>[ xX])\](?:\s+(?<desc>.*))?$",
+            System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        if (filePaths != null)
+        {
+            foreach (var file in filePaths)
+            {
+                if (string.IsNullOrWhiteSpace(file)) continue;
+                string ext = Path.GetExtension(file);
+                if (!ext.Equals(".md", StringComparison.OrdinalIgnoreCase) &&
+                    !ext.Equals(".markdown", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (!exists(file)) continue;
+
+                scannedFiles++;
+                string fileName = Path.GetFileName(file);
+                var lines = readLines(file);
+                if (lines == null || lines.Length == 0)
+                {
+                    continue;
+                }
+
+                bool inCodeFence = false;
+                bool inFrontmatter = false;
+                int docTotal = 0;
+                int docCompleted = 0;
+                int docPending = 0;
+                int docUnlabeled = 0;
+
+                for (int i = 0; i < lines.Length; i++)
+                {
+                    string line = lines[i];
+                    string trimmed = line.Trim();
+
+                    if (i == 0 && (trimmed == "---" || trimmed == "+++"))
+                    {
+                        inFrontmatter = true;
+                        continue;
+                    }
+                    if (inFrontmatter)
+                    {
+                        if (trimmed == "---" || trimmed == "+++") inFrontmatter = false;
+                        continue;
+                    }
+
+                    if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+                    {
+                        inCodeFence = !inCodeFence;
+                        continue;
+                    }
+                    if (inCodeFence) continue;
+
+                    var match = taskRegex.Match(line);
+                    if (match.Success)
+                    {
+                        docTotal++;
+                        bool isDone = match.Groups["state"].Value.Equals("x", StringComparison.OrdinalIgnoreCase);
+                        if (isDone) docCompleted++; else docPending++;
+
+                        string desc = match.Groups["desc"].Value?.Trim() ?? string.Empty;
+                        if (string.IsNullOrWhiteSpace(desc)) docUnlabeled++;
+                    }
+                }
+
+                if (docTotal > 0)
+                {
+                    docsWithTasks++;
+                    totalTasks += docTotal;
+                    completedTasks += docCompleted;
+                    pendingTasks += docPending;
+                    unlabeledTasks += docUnlabeled;
+
+                    double docPct = Math.Round((double)docCompleted / docTotal * 100.0, 1);
+                    string status = docPending == 0
+                        ? $"All {docTotal} tasks completed (100%)"
+                        : $"{docCompleted}/{docTotal} completed ({docPending} pending)";
+
+                    items.Add(new WorkspaceDocumentTaskItem(
+                        file, fileName, docTotal, docCompleted, docPending, docUnlabeled, docPct, status));
+                }
+            }
+        }
+
+        double workspaceCompletionPct = totalTasks > 0
+            ? Math.Round((double)completedTasks / totalTasks * 100.0, 1)
+            : 100.0;
+
+        double score = 100.0;
+        if (totalTasks > 0)
+        {
+            score -= (100.0 - workspaceCompletionPct) * 0.4;
+            score -= unlabeledTasks * 5.0;
+        }
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category;
+        if (totalTasks == 0) category = "Clean Baseline · No Tasks";
+        else if (score >= 90.0) category = "Optimal Task Velocity (≥90%)";
+        else if (score >= 75.0) category = "Healthy Task Progression (75-89%)";
+        else if (score >= 50.0) category = "Moderate Pending Backlog (50-74%)";
+        else category = "Severe Incomplete Backlog (<50%)";
+
+        string summary = FormatWorkspaceTaskListSummary(
+            scannedFiles, docsWithTasks, totalTasks, completedTasks,
+            pendingTasks, unlabeledTasks, workspaceCompletionPct, score, category);
+
+        return new WorkspaceTaskListAudit(
+            scannedFiles, docsWithTasks, totalTasks, completedTasks,
+            pendingTasks, unlabeledTasks, workspaceCompletionPct, score, items, category, summary);
+    }
+
+    public static string FormatWorkspaceTaskListSummary(
+        int totalDocs, int docsWithTasks, int totalTasks, int completedTasks,
+        int pendingTasks, int unlabeledTasks, double completionPct, double score, string category)
+    {
+        if (totalTasks == 0) return "Workspace task list audit: Clean baseline · 0 task checkboxes detected";
+
+        string docStr = docsWithTasks == 1 ? "1 document" : $"{docsWithTasks} documents";
+        var parts = new List<string>
+        {
+            $"{completedTasks}/{totalTasks} tasks completed ({completionPct:0.#}%)",
+            $"across {docStr}",
+            $"{pendingTasks} pending"
+        };
+
+        if (unlabeledTasks > 0) parts.Add($"⚠️ {unlabeledTasks} unlabeled");
+
+        string details = string.Join(" · ", parts);
+        return $"Workspace task list & action item audit ({details} · {category} · {score:0.#}% hygiene score)";
+    }
+
 }
 
 /// <summary>
@@ -10198,5 +10353,36 @@ public sealed record WorkspaceFrontmatterAudit(
     int MissingRequiredKeysCount,
     double SchemaComplianceScore,
     IReadOnlyList<WorkspaceFrontmatterMetadataItem> Items,
+    string Category,
+    string Summary);
+
+
+/// <summary>
+/// Represents task list progress, completion count, and pending action items for an individual workspace markdown document.
+/// </summary>
+public sealed record WorkspaceDocumentTaskItem(
+    string FilePath,
+    string FileName,
+    int TotalTasks,
+    int CompletedTasks,
+    int PendingTasks,
+    int UnlabeledTasks,
+    double CompletionPercentage,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of markdown task list checkboxes, project action item completion velocity,
+/// pending checklist items, and task tracking hygiene across all workspace documents.
+/// </summary>
+public sealed record WorkspaceTaskListAudit(
+    int TotalDocumentsAudited,
+    int DocumentsWithTasksCount,
+    int TotalTasksFound,
+    int CompletedTasksCount,
+    int PendingTasksCount,
+    int UnlabeledTasksCount,
+    double WorkspaceCompletionPercentage,
+    double TaskTrackingHygieneScore,
+    IReadOnlyList<WorkspaceDocumentTaskItem> Items,
     string Category,
     string Summary);

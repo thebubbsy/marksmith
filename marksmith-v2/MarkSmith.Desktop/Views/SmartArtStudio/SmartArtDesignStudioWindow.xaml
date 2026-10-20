@@ -422,6 +422,9 @@
                                         <MenuFlyoutItem x:Name="OutlineStatsAuditMatrixQuadrantBalanceItem" Text="Audit SmartArt multi-level matrix quadrant symmetry &amp; balance" Click="OnOutlineStatsAuditMatrixQuadrantBalanceClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="OutlineStatsAuditVennOverlapSymmetryItem" Text="Audit SmartArt Venn diagram set overlap, intersect symmetry &amp; boolean cardinality" Click="OnOutlineStatsAuditVennOverlapSymmetryClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

@@ -3173,4 +3173,37 @@ public class ShapeStudioPolishTests
         Assert.True(poorAudit.SkewedSegmentCount >= 1);
         Assert.True(poorAudit.RoutingPrecisionScore < 80.0);
     }
+    [Fact]
+    public void AuditShapeAspectRatioUniformityAndProportions_ClassifiesCanonicalAndDistortedAspectRatios()
+    {
+        // 1. Empty shapes
+        var emptyAudit = ShapeDesignStudioViewModel.AuditShapeAspectRatioUniformityAndProportions(null);
+        Assert.Equal(0, emptyAudit.TotalShapes);
+        Assert.Equal(100.0, emptyAudit.AestheticScore);
+
+        // 2. Canonical shapes (Square 1:1, Golden Ratio 1.618, Widescreen 16:9)
+        var s1 = new ShapeCanvasItemViewModel { Id = "s1", Name = "Square Box", Width = 100, Height = 100 };
+        var s2 = new ShapeCanvasItemViewModel { Id = "s2", Name = "Golden Card", Width = 162, Height = 100 };
+        var s3 = new ShapeCanvasItemViewModel { Id = "s3", Name = "Widescreen Panel", Width = 160, Height = 90 };
+
+        var audit = ShapeDesignStudioViewModel.AuditShapeAspectRatioUniformityAndProportions(new[] { s1, s2, s3 });
+        Assert.Equal(3, audit.TotalShapes);
+        Assert.Equal(3, audit.CanonicalRatioCount);
+        Assert.Equal(1, audit.SquareCount);
+        Assert.Equal(1, audit.GoldenRatioCount);
+        Assert.Equal(0, audit.ExtremeDistortionCount);
+        Assert.True(audit.AestheticScore >= 95.0);
+
+        string formatted = ShapeDesignStudioViewModel.FormatAspectRatioSummary(
+            audit.TotalShapes, audit.CanonicalRatioCount, audit.GoldenRatioCount,
+            audit.SquareCount, audit.ExtremeDistortionCount, audit.AverageAspectRatio,
+            audit.AestheticScore, audit.Category, audit.IsSelectionScope);
+        Assert.Equal(audit.Summary, formatted);
+
+        // 3. Distorted needle shape
+        var sDistorted = new ShapeCanvasItemViewModel { Id = "s4", Name = "Needle", Width = 1000, Height = 10 };
+        var badAudit = ShapeDesignStudioViewModel.AuditShapeAspectRatioUniformityAndProportions(new[] { sDistorted });
+        Assert.Equal(1, badAudit.ExtremeDistortionCount);
+        Assert.True(badAudit.AestheticScore <= 85.0);
+    }
 }

@@ -17412,6 +17412,146 @@ public static class LineDiff
         return $"Semantic diff memory allocation audit ({lineStr} \u00B7 {details} \u00B7 {category} \u00B7 {score:0.#}% score)";
     }
 
+    public static DiffCacheLocalityAudit AuditCacheLocalityAndFalseSharingHazards(string? beforeText, string? afterText)
+    {
+        var diff = Diff(beforeText ?? string.Empty, afterText ?? string.Empty);
+        var unified = BuildUnified(diff);
+        return AuditCacheLocalityAndFalseSharingHazards(unified);
+    }
+
+    public static DiffCacheLocalityAudit AuditCacheLocalityAndFalseSharingHazards(IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows == null || unifiedRows.Count == 0)
+        {
+            string emptySummary = FormatCacheLocalitySummary(0, 0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new DiffCacheLocalityAudit(
+                0, 0, 0, 0, 0, 0, 100.0, Array.Empty<CacheLocalityHazardItem>(), "Clean Baseline", emptySummary);
+        }
+
+        var modifiedRows = unifiedRows
+            .Where(r => !r.IsGap && !r.IsRemoved && !string.IsNullOrWhiteSpace(r.Text))
+            .ToList();
+
+        int totalModified = modifiedRows.Count;
+        if (totalModified == 0)
+        {
+            string emptySummary = FormatCacheLocalitySummary(0, 0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new DiffCacheLocalityAudit(
+                0, 0, 0, 0, 0, 0, 100.0, Array.Empty<CacheLocalityHazardItem>(), "Clean Baseline", emptySummary);
+        }
+
+        var hazards = new List<CacheLocalityHazardItem>();
+        int falseSharingCount = 0;
+        int multiDimArrayCount = 0;
+        int pointerChasingCount = 0;
+        int unpaddedStructCount = 0;
+        bool inLoop = false;
+
+        for (int i = 0; i < modifiedRows.Count; i++)
+        {
+            var row = modifiedRows[i];
+            string text = row.Text ?? string.Empty;
+            string trimmed = text.Trim();
+            int lineNum = row.NewNumber ?? row.OldNumber ?? (i + 1);
+
+            // Ignore comments
+            if (trimmed.StartsWith("//") || trimmed.StartsWith("/*") || trimmed.StartsWith("*"))
+                continue;
+
+            // Track loop scope
+            if (trimmed.Contains("for (") || trimmed.Contains("foreach (") || trimmed.Contains("while ("))
+            {
+                inLoop = true;
+            }
+
+            // 1. False sharing hazard: volatile variables or atomic ops without cache-line padding
+            if (System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"\bvolatile\s+[a-zA-Z0-9_<>]+") ||
+                System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"\bInterlocked\.(Increment|Decrement|Exchange|CompareExchange|Add)\b"))
+            {
+                falseSharingCount++;
+                hazards.Add(new CacheLocalityHazardItem(
+                    lineNum, "Insert", "FalseSharing", trimmed, 3,
+                    "Concurrent atomic/volatile state on adjacent memory words risks CPU L1/L2 cache line bounce (false sharing)",
+                    "Pad concurrent variables with [StructLayout(LayoutKind.Explicit, Size = 64)] or [FieldOffset(64)]",
+                    "Critical False Sharing Risk"));
+            }
+
+            // 2. Multi-dimensional array hazard (non-contiguous row stride)
+            if (System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"\bnew\s+[a-zA-Z0-9_<>]+\[\s*,\s*\]") ||
+                System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"\b[a-zA-Z0-9_<>]+\[\s*,\s*\]\s+[a-zA-Z0-9_]+\s*="))
+            {
+                multiDimArrayCount++;
+                hazards.Add(new CacheLocalityHazardItem(
+                    lineNum, "Insert", "NonContiguousArray", trimmed, 2,
+                    "Multi-dimensional rectangular array T[,] lacks contiguous stride and prevents SIMD vectorization",
+                    "Replace T[,] with flat Span<T> / Memory<T> buffer or jagged T[][] for cache-line prefetching",
+                    "High Multi-Dim Array Hazard"));
+            }
+
+            // 3. Deep pointer chasing in loops (3+ dereferences: a.b.c.d)
+            if (inLoop && System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"\b[a-zA-Z0-9_]+\.[a-zA-Z0-9_]+\.[a-zA-Z0-9_]+\.[a-zA-Z0-9_]+"))
+            {
+                pointerChasingCount++;
+                hazards.Add(new CacheLocalityHazardItem(
+                    lineNum, "Insert", "PointerChasing", trimmed, 2,
+                    "Deep reference dereferencing chain inside loop induces multiple sequential CPU cache misses",
+                    "Hoist intermediate object reference to local variable outside the loop",
+                    "Pointer Chasing in Loop"));
+            }
+
+            if (inLoop && trimmed.Contains("}"))
+            {
+                inLoop = false;
+            }
+        }
+
+        int totalHazards = falseSharingCount + multiDimArrayCount + pointerChasingCount + unpaddedStructCount;
+        double score = 100.0;
+        score -= falseSharingCount * 15.0;
+        score -= multiDimArrayCount * 12.0;
+        score -= pointerChasingCount * 8.0;
+        score -= unpaddedStructCount * 10.0;
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category;
+        if (totalHazards == 0) category = "Optimal CPU Cache Alignment (≥90%)";
+        else if (score >= 90.0) category = "Optimal CPU Cache Line Alignment (≥90%)";
+        else if (score >= 75.0) category = "Good Cache Locality with Minor Striding (75-89%)";
+        else if (score >= 50.0) category = "Moderate Pointer Indirection or False Sharing (50-74%)";
+        else category = "Severe CPU Cache Line Thrashing (<50%)";
+
+        string summary = FormatCacheLocalitySummary(
+            totalModified, totalHazards, falseSharingCount, multiDimArrayCount,
+            pointerChasingCount, unpaddedStructCount, score, category);
+
+        return new DiffCacheLocalityAudit(
+            totalModified, totalHazards, falseSharingCount, multiDimArrayCount,
+            pointerChasingCount, unpaddedStructCount, score, hazards, category, summary);
+    }
+
+    public static string FormatCacheLocalitySummary(
+        int totalLines, int totalHazards, int falseSharing, int multiDimArrays,
+        int pointerChasing, int unpaddedStructs, double score, string category)
+    {
+        if (totalLines == 0) return "Semantic diff CPU cache locality audit: Clean baseline \u00B7 0 modified lines";
+
+        string lineStr = totalLines == 1 ? "1 modified line" : $"{totalLines} modified lines";
+        var parts = new List<string>();
+
+        if (totalHazards == 0)
+            parts.Add("0 cache locality hazards (Optimal CPU Cache Alignment)");
+        else
+            parts.Add($"\u26A0\uFE0F {totalHazards} cache hazard{(totalHazards == 1 ? "" : "s")}");
+
+        if (falseSharing > 0) parts.Add($"\u26A0\uFE0F {falseSharing} false sharing");
+        if (multiDimArrays > 0) parts.Add($"\u26A0\uFE0F {multiDimArrays} multi-dim array");
+        if (pointerChasing > 0) parts.Add($"\u26A0\uFE0F {pointerChasing} pointer chasing");
+        if (unpaddedStructs > 0) parts.Add($"\u26A0\uFE0F {unpaddedStructs} unpadded struct");
+
+        string details = string.Join(" \u00B7 ", parts);
+        return $"Semantic diff CPU cache locality audit ({lineStr} \u00B7 {details} \u00B7 {category} \u00B7 {score:0.#}% score)";
+    }
+
 }
 
 
@@ -19291,5 +19431,35 @@ public sealed record DiffAllocationClosureAudit(
     int ParamsArrayCount,
     double ZeroAllocationScore,
     IReadOnlyList<AllocationClosureHazardItem> Items,
+    string Category,
+    string Summary);
+
+
+/// <summary>
+/// Represents an identified CPU cache-line thrashing, false sharing, non-contiguous stride, or pointer chasing hazard on a diff line.
+/// </summary>
+public sealed record CacheLocalityHazardItem(
+    int LineNumber,
+    string DiffOperation,
+    string HazardKind,
+    string CodeSnippet,
+    int Severity,
+    string ImpactDescription,
+    string RemediationHint,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of semantic diff hunks for CPU cache locality,
+/// false sharing in concurrent fields, non-contiguous multi-dimensional arrays, and pointer chasing in loops.
+/// </summary>
+public sealed record DiffCacheLocalityAudit(
+    int TotalModifiedLines,
+    int TotalHazards,
+    int FalseSharingCount,
+    int MultiDimArrayCount,
+    int PointerChasingCount,
+    int UnpaddedStructCount,
+    double CacheLocalityScore,
+    IReadOnlyList<CacheLocalityHazardItem> Items,
     string Category,
     string Summary);

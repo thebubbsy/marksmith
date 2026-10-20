@@ -12005,6 +12005,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(auditInlineHtmlSecurityItem);
 
+        var auditTaskListProgressionItem = new MenuFlyoutItem
+        {
+            Text = "Audit Markdown Task List Progression, Velocity & Hygiene",
+            Icon = new FontIcon { Glyph = "\uE8B9" }
+        };
+        auditTaskListProgressionItem.Click += (_, _) =>
+        {
+            var text = EditorDocument();
+            var summary = MarkSmith.Services.TextSearch.AuditMarkdownTaskListProgression(text).Summary;
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditTaskListProgressionItem);
+
         menu.ShowAt(anchor);
     }
 

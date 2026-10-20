@@ -3744,6 +3744,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"✓ {audit.Summary}");
                 };
                 menu.Items.Add(auditAllocationClosure);
+
+                var auditCacheLocality = new MenuFlyoutItem
+                {
+                    Text = "Audit semantic diff CPU cache locality, false sharing & pointer chasing hazards",
+                    Icon = new FontIcon { Glyph = "\uE8B9" }
+                };
+                auditCacheLocality.Click += (_, _) =>
+                {
+                    var audit = MarkSmith.Services.LineDiff.AuditCacheLocalityAndFalseSharingHazards(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+                    _vm.ShowNotice($"✓ {audit.Summary}");
+                };
+                menu.Items.Add(auditCacheLocality);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

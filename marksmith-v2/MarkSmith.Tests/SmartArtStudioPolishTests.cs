@@ -2876,4 +2876,52 @@ public class SmartArtStudioPolishTests
         Assert.True(poorAudit.ItemCountVariance > 5.0);
         Assert.True(poorAudit.QuadrantBalanceScore < 70.0);
     }
+    [Fact]
+    public void AuditVennDiagramOverlapSymmetry_CalculatesPartitionsAndCardinalityBalance()
+    {
+        // 1. Empty outline
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditVennDiagramOverlapSymmetry("");
+        Assert.Equal(0, emptyAudit.TotalPartitions);
+        Assert.Equal(100.0, emptyAudit.ClarityScore);
+
+        // 2. Harmonious 2-set Venn diagram with intersection
+        var md = string.Join("\n",
+            "* Engineering Skills",
+            "  * C# and .NET",
+            "  * WinUI 3 XAML",
+            "* Design Principles",
+            "  * Typography rhythm",
+            "  * Golden ratio proportion",
+            "* Shared & Overlap",
+            "  * Polished user experience",
+            "  * Interactive feedback"
+        );
+
+        var audit = SmartArtDesignStudioViewModel.AuditVennDiagramOverlapSymmetry(md, "Basic Venn");
+        Assert.Equal(2, audit.PrimarySetCount);
+        Assert.Equal(1, audit.IntersectionCount);
+        Assert.Equal(3, audit.TotalPartitions);
+        Assert.Equal(6, audit.TotalItems);
+        Assert.Equal(0, audit.MissingIntersectionCount);
+        Assert.Equal(1.0, audit.CardinalityBalanceRatio);
+        Assert.True(audit.ClarityScore >= 90.0);
+
+        string formatted = SmartArtDesignStudioViewModel.FormatVennOverlapSummary(
+            audit.PrimarySetCount, audit.IntersectionCount, audit.TotalItems, audit.TotalWords,
+            audit.MissingIntersectionCount, audit.CardinalityBalanceRatio, audit.ClarityScore, audit.Category);
+        Assert.Equal(audit.Summary, formatted);
+
+        // 3. 2-Set Venn missing intersection
+        var missingMd = string.Join("\n",
+            "* Set Alpha",
+            "  * Item 1",
+            "* Set Beta",
+            "  * Item 2"
+        );
+        var missingAudit = SmartArtDesignStudioViewModel.AuditVennDiagramOverlapSymmetry(missingMd, "Basic Venn");
+        Assert.Equal(2, missingAudit.PrimarySetCount);
+        Assert.Equal(0, missingAudit.IntersectionCount);
+        Assert.Equal(1, missingAudit.MissingIntersectionCount);
+        Assert.True(missingAudit.ClarityScore < 90.0);
+    }
 }

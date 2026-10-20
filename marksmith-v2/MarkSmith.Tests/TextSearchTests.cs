@@ -3246,4 +3246,49 @@ public class TextSearchTests
         Assert.Contains(dangerAudit.Items, i => i.TagName == "script" && i.IsDangerousTag);
         Assert.Contains(dangerAudit.Items, i => i.TagName == "iframe" && i.IsDangerousTag);
     }
+    [Fact]
+    public void AuditMarkdownTaskListProgression_CalculatesMetricsAndNesting_ComputesHygieneScore()
+    {
+        // 1. Empty text
+        var emptyAudit = TextSearch.AuditMarkdownTaskListProgression("");
+        Assert.Equal(0, emptyAudit.TotalTasks);
+        Assert.Equal(100.0, emptyAudit.HygieneScore);
+        Assert.Equal("No Task Lists", emptyAudit.Category);
+
+        // 2. Clean task list with parent and sub-tasks
+        var doc = string.Join("\n",
+            "# Project Tasks",
+            "- [x] Design WinUI 3 desktop architecture",
+            "  - [x] Wire MenuFlyoutItem",
+            "  - [ ] Implement ViewModel audit logic",
+            "- [ ] Run empirical test suite verification",
+            "```markdown",
+            "- [ ] Code block checkbox should be ignored",
+            "```"
+        );
+
+        var audit = TextSearch.AuditMarkdownTaskListProgression(doc);
+        Assert.Equal(4, audit.TotalTasks);
+        Assert.Equal(2, audit.CompletedTasks);
+        Assert.Equal(2, audit.PendingTasks);
+        Assert.Equal(0, audit.EmptyTaskCount);
+        Assert.Equal(1, audit.MaxNestingDepth);
+        Assert.Equal(0.5, audit.CompletionRatio);
+        Assert.Equal(100.0, audit.HygieneScore);
+
+        string formatted = TextSearch.FormatTaskListProgressionSummary(
+            audit.TotalTasks, audit.CompletedTasks, audit.PendingTasks,
+            audit.EmptyTaskCount, audit.MaxNestingDepth, audit.HygieneScore, audit.Category);
+        Assert.Equal(audit.Summary, formatted);
+
+        // 3. Unlabeled task and indentation jump
+        var badDoc = string.Join("\n",
+            "- [ ]",
+            "        - [x] Indented too far"
+        );
+        var badAudit = TextSearch.AuditMarkdownTaskListProgression(badDoc);
+        Assert.Equal(2, badAudit.TotalTasks);
+        Assert.Equal(1, badAudit.EmptyTaskCount);
+        Assert.True(badAudit.HygieneScore < 80.0);
+    }
 }

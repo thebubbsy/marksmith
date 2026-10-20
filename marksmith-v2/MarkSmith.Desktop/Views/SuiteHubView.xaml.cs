@@ -2406,6 +2406,25 @@ public sealed partial class SuiteHubView : UserControl
         }
     }
 
+    private async void OnAuditWorkspaceTaskListsClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var files = App.RecentFiles?.Load() ?? new List<string>();
+            var result = RecentFilesService.AuditWorkspaceTaskListProgression(files);
+            await Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            SetNotification($"Workspace Tasks: {result.CompletedTasksCount}/{result.TotalTasksFound} completed ({result.WorkspaceCompletionPercentage:0.#}%) across {result.DocumentsWithTasksCount} docs", success: true);
+            if (RecentDocsActionBtn != null)
+            {
+                Services.CopyFeedback.ApplyButtonTick(RecentDocsActionBtn, null, "\u2713 Tasks");
+            }
+        }
+        catch (Exception ex)
+        {
+            SetNotification($"Audit failed: {ex.Message}", success: false);
+        }
+    }
+
 private void OnClearRecentFilterClick(object sender, RoutedEventArgs e)
     {
         RecentSearchBox.Text = "";

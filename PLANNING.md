@@ -12672,3 +12672,59 @@ Reviewed: the Run #194 Blueprint above — implemented all 6 planned features ac
 6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #194 Block 3 Idea 6]**:
    - **Refinement Target**: Workspace Markdown Heading Depth Hierarchy & ATX Title Sequence Consistency Auditor.
    - **Deliverable**: Add `RecentFilesService.AuditWorkspaceHeadingHierarchy(...)` and `FormatWorkspaceHeadingHierarchySummary(...)` to scan heading levels (`# H1` through `###### H6`) across workspace documents, detecting skipped heading levels (e.g. `H1` followed immediately by `H3` without an `H2`), detecting multiple top-level `H1` titles per file, and scoring structural heading taxonomy rigor ($0-100\%$). Wire to `RecentDocsFlyout`.
+
+
+### 2026-10-20 (scheduled routine run #195)
+
+Reviewed: the Run #195 Blueprint above — implemented all 6 planned features across all WinUI 3 surfaces following the AI-Executable 3-Block Cycle + Execution Phase Protocol.
+
+**Shipped** (commit follows this entry):
+- **Block 1**:
+  - **Surface 1 (`MainWindow`)**: Implemented `TextSearch.AuditMarkdownTaskListProgression(...)`, `FormatTaskListProgressionSummary(...)`, `MarkdownTaskProgressionItem`, and `MarkdownTaskListProgressionAudit` in `TextSearch.cs`. Audits document markdown for GFM task lists (`- [ ]`, `- [x]`, `* [ ]`, `+ [x]`), tracks task nesting levels, measures completed vs pending tasks, calculates completion velocity and percentage ($N_{done} / N_{total} \times 100\%$), identifies orphaned or empty checkbox labels, and scores task tracking hygiene (0-100%). Wired to `ShowLinksContextMenu` in `MainWindow.xaml.cs` with clipboard copy and notification announcement (``).
+  - **Surface 2 (`MindMapGalaxyWindow`)**: Implemented `MindMapStudioViewModel.AuditGraphMinimumSpanningTreeAndBackbone(...)`, `FormatMstBackboneSummary(...)`, `MstBackboneEdgeItem`, and `GraphMinimumSpanningTreeAndBackboneAudit` in `MindMapStudioViewModel.cs`. Executes Kruskal's algorithm with disjoint-set union-find over Euclidean edge distances to calculate the minimum spanning tree, distinguishes critical trunk backbone links from leaf/foliage edges, detects redundant cycle bridges, identifies multi-component disconnected sub-forests, and scores backbone efficiency (0-100%). Wired to `ArrangeDropDownButton.Flyout` in `MindMapGalaxyWindow.xaml` and `MindMapGalaxyWindow.xaml.cs` via `AuditGraphMinimumSpanningTreeItem` (``) and `OnAuditGraphMinimumSpanningTreeClick`.
+- **Block 2**:
+  - **Surface 3 (`ShapeDesignStudioWindow`)**: Implemented `ShapeDesignStudioViewModel.AuditShapeAspectRatioUniformityAndProportions(...)`, `FormatAspectRatioSummary(...)`, `ShapeAspectRatioUniformityItem`, and `DiagramShapeAspectRatioUniformityAudit` in `ShapeDesignStudioViewModel.cs`. Evaluates width-to-height aspect ratios ($W/H$) across canvas shapes, classifies alignment against canonical geometry standards ($1:1$ square, $4:3$ standard, $16:9$ widescreen, $3:2$ classic photo, and $\phi \approx 1.618$ golden ratio), detects severe aspect distortion anomalies ($W/H > 8$ or $< 0.125$), and scores geometric proportion uniformity (0-100%). Wired to `SelectionBoundsBorder.ContextFlyout` in `ShapeDesignStudioWindow.xaml` and `ShapeDesignStudioWindow.xaml.cs` via `SelectionAuditShapeAspectRatioItem` (``) and `OnSelectionAuditShapeAspectRatioClick`.
+  - **Surface 4 (`SmartArtDesignStudioWindow`)**: Implemented `SmartArtDesignStudioViewModel.AuditVennDiagramOverlapSymmetry(...)`, `FormatVennOverlapSummary(...)`, `VennCardinalityPartitionItem`, and `SmartArtVennCardinalitySymmetryAudit` in `SmartArtDesignStudioViewModel.cs`. Evaluates 2-set and 3-set Venn diagram / overlapping circle models, enumerates boolean partitions ($2^N - 1$), measures item and cardinality distribution balance across intersection regions, detects empty disjoint voids, and scores set relationship clarity (0-100%). Wired to `OutlineStatsFlyout` in `SmartArtDesignStudioWindow.xaml` and `SmartArtDesignStudioWindow.xaml.cs` via `OutlineStatsAuditVennOverlapSymmetryItem` (``) and `OnOutlineStatsAuditVennOverlapSymmetryClick`.
+- **Block 3**:
+  - **Surface 5 (`HistoryWindow`)**: Implemented `LineDiff.AuditCacheLocalityAndFalseSharingHazards(...)`, `FormatCacheLocalitySummary(...)`, `CacheLocalityHazardItem`, and `DiffCacheLocalityAudit` in `LineDiff.cs`. Analyzes diff hunks for cache unfriendliness and CPU memory subsystem hazards in C# hot paths, including adjacent mutable state variables causing false sharing across threads without explicit padding or layout control, non-contiguous multi-dimensional arrays `T[,]` instead of jagged `T[][]` / contiguous span buffers, pointer indirection reference chasing, and unpadded inter-thread queues, scoring CPU cache locality health (0-100%). Wired to `TimelineHeaderBorder` context flyout in `HistoryWindow.xaml.cs` via `auditCacheLocality` (``).
+  - **Surface 6 (`SuiteHubView`)**: Implemented `RecentFilesService.AuditWorkspaceTaskListProgression(...)`, `FormatWorkspaceTaskListSummary(...)`, `WorkspaceDocumentTaskItem`, and `WorkspaceTaskListAudit` in `RecentFilesService.cs`. Audits project-wide markdown task lists across workspace documents, aggregating total completed and pending action items, computing overall workspace velocity, highlighting top bottleneck files with uncompleted tasks, and scoring workspace project management rigor (0-100%). Wired to `RecentDocsFlyout` in `SuiteHubView.xaml` and `SuiteHubView.xaml.cs` via `AuditWorkspaceTaskListsItem` (``) and `OnAuditWorkspaceTaskListsClick`.
+- **Execution Phase**:
+  - Implemented comprehensive unit tests across all 6 surfaces:
+    - `TextSearchTests.AuditMarkdownTaskListProgression_CalculatesMetricsAndNesting_ComputesHygieneScore`
+    - `MindMapGalaxyPolishTests.AuditGraphMinimumSpanningTreeAndBackbone_CalculatesKruskalMstAndBackboneEfficiency`
+    - `ShapeStudioPolishTests.AuditShapeAspectRatioUniformityAndProportions_ClassifiesCanonicalAndDistortedAspectRatios`
+    - `SmartArtStudioPolishTests.AuditVennDiagramOverlapSymmetry_CalculatesPartitionsAndCardinalityBalance`
+    - `HistoryPolishTests.AuditCacheLocalityAndFalseSharingHazards_DetectsFalseSharingAndMultiDimArrays`
+    - `SuiteHubAndTourPolishTests.Run195_AuditWorkspaceTaskListProgression_AggregatesProjectTasksAndVelocity`
+    - `SuiteHubAndTourPolishTests.Run195_AllSixSurfacesXamlAndCodeBehindWiring`
+  - Reconciled type name collisions and method overload resolutions (`GraphMinimumSpanningTreeAndBackboneAudit`, `SmartArtVennCardinalitySymmetryAudit`, `AuditShapeAspectRatioUniformityAndProportions`, `AuditWorkspaceTaskListProgression`).
+
+**Verified:**
+- `dotnet build` (`marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj` - Debug/x64): 0 errors, 23 warnings (all existing).
+- `dotnet build` (`marksmith-v2/MarkSmith.Tests/MarkSmith.Tests.csproj` - Debug): 0 errors.
+- `dotnet test` (`PolishTests` filter): 879/879 tests passed (`100%` pass rate).
+- `dotnet test` (`TextSearchTests` filter): 111/111 tests passed (`100%` pass rate).
+- `dotnet test` (`SuiteHubAndTourPolishTests` filter): 165/165 tests passed (`100%` pass rate).
+- Smoke-launched `Marksmith.exe` (`PID=12428`, `Responding=True`, ran for 4 seconds and cleanly terminated with zero crashes).
+
+---
+
+### Run #196 Blueprint — Carried-Forward Refinements & Next Cycle Targets
+1. **`MainWindow` (`MainWindow.xaml.cs`, `TextSearch.cs`)**:
+   - **Feature**: Markdown Link Reference Definition & Unreferenced Anchor Target Auditor.
+   - **Deliverable**: Add `TextSearch.AuditMarkdownLinkReferenceDefinitions(markdownText)` and `FormatLinkReferenceSummary(...)`, scanning document markdown for link reference definitions (`[ref]: http://...`), detecting unreferenced reference labels, broken inline reference links (`[text][missing_ref]`), and scoring reference link resolution fidelity ($0-100\%$). Wire to `ShowLinksContextMenu`.
+2. **`MindMapGalaxyWindow` (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
+   - **Feature**: Graph Cycle Detection, Feedback Arc Set & Directed Acyclic Subgraph (DAG) Auditor.
+   - **Deliverable**: Add `MindMapStudioViewModel.AuditGraphCyclesAndFeedbackArcSet()` and `FormatCycleFeedbackSummary(...)`, executing cycle detection DFS on directed / hierarchical mind map relationships, calculating minimal feedback arc set edges whose reversal eliminates cyclic loops, and scoring acyclic hierarchy compliance ($0-100\%$). Wire to `ArrangeDropDownButton.Flyout`.
+3. **`ShapeDesignStudioWindow` (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**:
+   - **Feature**: Diagram Shape Z-Order Layering, Stacking Depth & Overlap Occlusion Auditor.
+   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditShapeZOrderStackingAndOcclusion(shapes)` and `FormatStackingOcclusionSummary(...)`, analyzing shape $Z$-index stacking sequences and 2D bounding box intersections, detecting accidental complete occlusion where a foreground shape obscures a background label/connector, and scoring diagram layering cleanliness ($0-100\%$). Wire to `SelectionBoundsBorder.ContextFlyout`.
+4. **`SmartArtDesignStudioWindow` (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
+   - **Feature**: SmartArt Cycle / Radial Node Angular Distribution & Polar Spacing Equidistance Auditor.
+   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditCycleRadialAngularEquidistance(markdown, layoutName)` and `FormatRadialAngularSummary(...)`, measuring radial angle steps ($\Delta \theta = 2\pi / N$) around circular and radial cluster layouts, detecting angular crowding or phase drift, and scoring polar geometric symmetry ($0-100\%$). Wire to `OutlineStatsFlyout`.
+5. **`HistoryWindow` (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #195 Block 3 Idea 5]**:
+   - **Refinement Target**: Semantic Diff Synchronization Primitives, Lock Contention & Deadlock Inversion Hazards Analyzer.
+   - **Deliverable**: Add `LineDiff.AuditSynchronizationAndDeadlockHazards(unifiedRows)` and `FormatSynchronizationHazardsSummary(...)` to analyze diff hunks for thread synchronization hazards in C# (e.g. `lock(this)` or `lock(typeof(T))`, mixing `Monitor` / `lock` with `await` across async boundaries, un-disposed `ReaderWriterLockSlim`, nested locks creating potential ABBA deadlock inversion), scoring concurrency hygiene ($0-100\%$). Wire to `TimelineHeaderBorder` context flyout.
+6. **`SuiteHubView` (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #195 Block 3 Idea 6]**:
+   - **Refinement Target**: Workspace Markdown Image Asset Path Validation & Broken Media Link Auditor.
+   - **Deliverable**: Add `RecentFilesService.AuditWorkspaceImageAssetPaths(...)` and `FormatWorkspaceImagePathsSummary(...)` to scan image references (`![alt](path)`) across workspace documents, validating relative vs absolute paths, checking for local image file existence on disk, flagging broken image anchors, and scoring workspace media asset integrity ($0-100\%$). Wire to `RecentDocsFlyout`.

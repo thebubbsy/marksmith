@@ -399,6 +399,9 @@
                                     <MenuFlyoutItem x:Name="AuditGraphDegreeDistributionTopologyItem" Text="Audit graph degree distribution, scale-free power law &amp; hub centrality" Click="OnAuditGraphDegreeDistributionTopologyClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditGraphMinimumSpanningTreeItem" Text="Audit graph minimum spanning tree (MST) &amp; backbone highway efficiency" Click="OnAuditGraphMinimumSpanningTreeClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
 
                             </DropDownButton.Flyout>
