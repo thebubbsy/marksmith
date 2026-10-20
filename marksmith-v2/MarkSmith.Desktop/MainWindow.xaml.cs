@@ -12806,6 +12806,224 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         menu.ShowAt(anchor);
     }
 
+    private List<(string CalloutType, bool IsAdmonition, int StartLine, int LineCount, string RawBlock, string SummaryText)> ExtractMarkdownCalloutBlocks()
+    {
+        var results = new List<(string CalloutType, bool IsAdmonition, int StartLine, int LineCount, string RawBlock, string SummaryText)>();
+        var md = EditorDocument();
+        if (string.IsNullOrWhiteSpace(md)) return results;
+
+        var lines = md.Split('\n');
+        bool inFence = false;
+        int i = 0;
+
+        while (i < lines.Length)
+        {
+            var rawLine = lines[i].TrimEnd('\r');
+            var trimmed = rawLine.TrimStart();
+
+            if (trimmed.StartsWith("```", StringComparison.Ordinal) || trimmed.StartsWith("~~~", StringComparison.Ordinal))
+            {
+                inFence = !inFence;
+                i++;
+                continue;
+            }
+
+            if (!inFence && trimmed.StartsWith('>'))
+            {
+                int startLine = i + 1;
+                var blockLines = new List<string>();
+                while (i < lines.Length)
+                {
+                    var curRaw = lines[i].TrimEnd('\r');
+                    var curTrimmed = curRaw.TrimStart();
+                    if (curTrimmed.StartsWith('>'))
+                    {
+                        blockLines.Add(curRaw);
+                        i++;
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+
+                var firstContent = blockLines[0].TrimStart().TrimStart('>').Trim();
+                bool isAdmonition = false;
+                string calloutType = "Quote";
+
+                if (firstContent.StartsWith("[!", StringComparison.Ordinal))
+                {
+                    int closeBracket = firstContent.IndexOf(']');
+                    if (closeBracket > 2)
+                    {
+                        var typeToken = firstContent[2..closeBracket].Trim().ToUpperInvariant();
+                        if (!string.IsNullOrEmpty(typeToken) && typeToken.All(char.IsLetterOrDigit))
+                        {
+                            isAdmonition = true;
+                            calloutType = typeToken;
+                        }
+                    }
+                }
+
+                var strippedLines = blockLines
+                    .Select((l, idx) =>
+                    {
+                        var s = l.TrimStart();
+                        while (s.StartsWith('>')) s = s[1..].TrimStart();
+                        if (idx == 0 && isAdmonition)
+                        {
+                            int cb = s.IndexOf(']');
+                            if (cb >= 0) s = s[(cb + 1)..].Trim();
+                        }
+                        return s;
+                    })
+                    .Where(s => !string.IsNullOrWhiteSpace(s))
+                    .ToList();
+
+                var summary = strippedLines.Count > 0 ? string.Join(" ", strippedLines) : $"[Empty {calloutType}]";
+                if (summary.Length > 90) summary = summary[..87] + "...";
+
+                results.Add((calloutType, isAdmonition, startLine, blockLines.Count, string.Join(Environment.NewLine, blockLines), summary));
+                continue;
+            }
+
+            i++;
+        }
+
+        return results;
+    }
+
+    private void OnStatusCopyCalloutsButtonClick(object sender, RoutedEventArgs e)
+    {
+        var blocks = ExtractMarkdownCalloutBlocks();
+        if (blocks.Count == 0)
+        {
+            AnnounceStatus("No admonition callouts (> [!NOTE]) or blockquotes (>) found in document");
+            return;
+        }
+
+        int admonitionCount = blocks.Count(b => b.IsAdmonition);
+        int quoteCount = blocks.Count - admonitionCount;
+        var output = string.Join(Environment.NewLine + Environment.NewLine, blocks.Select(b => b.RawBlock));
+        _ = Services.ClipboardWriter.TrySetTextAsync(output);
+        AnnounceStatus($"Copied {blocks.Count:N0} callout/quote block(s) ({admonitionCount:N0} admonition, {quoteCount:N0} quote) to clipboard");
+    }
+
+    private void OnStatusCopyCalloutsButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (sender is not FrameworkElement anchor) return;
+
+        var menu = new MenuFlyout();
+
+        var copyAllItem = new MenuFlyoutItem
+        {
+            Text = "Copy all callouts & blockquotes",
+            Icon = new FontIcon { Glyph = "\uE783" }
+        };
+        copyAllItem.Click += (_, _) => OnStatusCopyCalloutsButtonClick(sender, new RoutedEventArgs());
+        menu.Items.Add(copyAllItem);
+
+        var copyAdmonitionsItem = new MenuFlyoutItem
+        {
+            Text = "Copy admonition callouts only (> [!NOTE], [!TIP], [!WARNING]...)",
+            Icon = new FontIcon { Glyph = "\uE946" }
+        };
+        copyAdmonitionsItem.Click += (_, _) =>
+        {
+            var admonitions = ExtractMarkdownCalloutBlocks().Where(b => b.IsAdmonition).ToList();
+            if (admonitions.Count == 0)
+            {
+                AnnounceStatus("No admonition callouts (> [!TYPE]) found in document");
+                return;
+            }
+            _ = Services.ClipboardWriter.TrySetTextAsync(string.Join(Environment.NewLine + Environment.NewLine, admonitions.Select(b => b.RawBlock)));
+            AnnounceStatus($"Copied {admonitions.Count:N0} admonition callout block(s) to clipboard");
+        };
+        menu.Items.Add(copyAdmonitionsItem);
+
+        var copyAlertsItem = new MenuFlyoutItem
+        {
+            Text = "Copy high-priority alerts only ([!IMPORTANT], [!WARNING], [!CAUTION])",
+            Icon = new FontIcon { Glyph = "\uE7BA" }
+        };
+        copyAlertsItem.Click += (_, _) =>
+        {
+            var alerts = ExtractMarkdownCalloutBlocks()
+                .Where(b => b.IsAdmonition && (b.CalloutType is "IMPORTANT" or "WARNING" or "CAUTION"))
+                .ToList();
+            if (alerts.Count == 0)
+            {
+                AnnounceStatus("No high-priority alerts ([!IMPORTANT], [!WARNING], [!CAUTION]) found in document");
+                return;
+            }
+            _ = Services.ClipboardWriter.TrySetTextAsync(string.Join(Environment.NewLine + Environment.NewLine, alerts.Select(b => b.RawBlock)));
+            AnnounceStatus($"Copied {alerts.Count:N0} high-priority alert callout(s) to clipboard");
+        };
+        menu.Items.Add(copyAlertsItem);
+
+        var copyTableItem = new MenuFlyoutItem
+        {
+            Text = "Copy Callout & Blockquote Inventory Table (Markdown)",
+            Icon = new FontIcon { Glyph = "\uE80A" }
+        };
+        copyTableItem.Click += (_, _) =>
+        {
+            var blocks = ExtractMarkdownCalloutBlocks();
+            if (blocks.Count == 0)
+            {
+                AnnounceStatus("No callouts or blockquotes found in document");
+                return;
+            }
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine($"**Callout & Blockquote Inventory**: {blocks.Count:N0} block(s) ({blocks.Count(b => b.IsAdmonition):N0} admonition, {blocks.Count(b => !b.IsAdmonition):N0} quote)");
+            sb.AppendLine();
+            sb.AppendLine("| # | Type | Start Line | Lines | Summary Preview |");
+            sb.AppendLine("| ---: | :---: | ---: | ---: | :--- |");
+            for (int idx = 0; idx < blocks.Count; idx++)
+            {
+                var b = blocks[idx];
+                var cleanSummary = b.SummaryText.Replace("\r", " ").Replace("\n", " ").Replace("|", "\\|");
+                sb.AppendLine($"| {idx + 1} | `{b.CalloutType}` | Ln {b.StartLine} | {b.LineCount} | {cleanSummary} |");
+            }
+            _ = Services.ClipboardWriter.TrySetTextAsync(sb.ToString().TrimEnd());
+            AnnounceStatus($"Copied Callout Inventory Table ({blocks.Count:N0} blocks) to clipboard");
+        };
+        menu.Items.Add(copyTableItem);
+
+        var insertTableItem = new MenuFlyoutItem
+        {
+            Text = "Insert Callout & Blockquote Inventory Table at cursor",
+            Icon = new FontIcon { Glyph = "\uE70F" }
+        };
+        insertTableItem.Click += (_, _) =>
+        {
+            var blocks = ExtractMarkdownCalloutBlocks();
+            if (blocks.Count == 0)
+            {
+                AnnounceStatus("No callouts or blockquotes found in document");
+                return;
+            }
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine($"## Callout & Blockquote Inventory ({blocks.Count:N0} Blocks)");
+            sb.AppendLine();
+            sb.AppendLine("| # | Type | Start Line | Lines | Summary Preview |");
+            sb.AppendLine("| ---: | :---: | ---: | ---: | :--- |");
+            for (int idx = 0; idx < blocks.Count; idx++)
+            {
+                var b = blocks[idx];
+                var cleanSummary = b.SummaryText.Replace("\r", " ").Replace("\n", " ").Replace("|", "\\|");
+                sb.AppendLine($"| {idx + 1} | `{b.CalloutType}` | Ln {b.StartLine} | {b.LineCount} | {cleanSummary} |");
+            }
+            sb.AppendLine();
+            InsertMarkdown(sb.ToString());
+            AnnounceStatus($"Inserted Callout Inventory Table ({blocks.Count:N0} blocks) at cursor");
+        };
+        menu.Items.Add(insertTableItem);
+
+        menu.ShowAt(anchor);
+    }
+
     private void OnStatusCopyMarkdownButtonClick(object sender, RoutedEventArgs e)
     {
         var selected = PasteTextBox?.SelectedText;
