@@ -3199,4 +3199,51 @@ public class TextSearchTests
         Assert.True(probAudit.SequenceMismatchCount >= 1);
         Assert.True(probAudit.ConsistencyScore < 80.0);
     }
+
+    [Fact]
+    public void AuditMarkdownInlineHtmlSecurity_DetectsDangerousTagsAndAttributes_ComputesHygieneScore()
+    {
+        // 1. Empty/null document
+        var emptyAudit = TextSearch.AuditMarkdownInlineHtmlSecurity(null);
+        Assert.Equal(0, emptyAudit.TotalHtmlTags);
+        Assert.Equal(100.0, emptyAudit.SecurityScore);
+        Assert.Equal("Clean Document", emptyAudit.Category);
+
+        // 2. Safe document with code blocks and safe tags
+        var safeDoc = string.Join("\n",
+            "# Safe Document",
+            "",
+            "Here is a paragraph with <span class=\"highlight\">safe HTML</span> and a break <br/>.",
+            "",
+            "```html",
+            "<script>alert('xss in code block');</script>",
+            "```"
+        );
+
+        var safeAudit = TextSearch.AuditMarkdownInlineHtmlSecurity(safeDoc);
+        Assert.True(safeAudit.TotalHtmlTags >= 2);
+        Assert.Equal(0, safeAudit.DangerousTagCount);
+        Assert.Equal(0, safeAudit.DangerousAttributeCount);
+        Assert.True(safeAudit.SecurityScore >= 90.0);
+
+        string formatted = TextSearch.FormatInlineHtmlSecuritySummary(
+            safeAudit.TotalHtmlTags, safeAudit.DangerousTagCount, safeAudit.DangerousAttributeCount,
+            safeAudit.SafeTagCount, safeAudit.UnclosedTagCount, safeAudit.SecurityScore, safeAudit.Category);
+        Assert.Equal(safeAudit.Summary, formatted);
+
+        // 3. Dangerous document with <script>, <iframe>, and onload=
+        var dangerousDoc = string.Join("\n",
+            "# Dangerous Document",
+            "<script>evil();</script>",
+            "<iframe src=\"javascript:alert(1)\"></iframe>",
+            "<img src=\"x.png\" onload=\"steal()\" />"
+        );
+
+        var dangerAudit = TextSearch.AuditMarkdownInlineHtmlSecurity(dangerousDoc);
+        Assert.True(dangerAudit.DangerousTagCount >= 2);
+        Assert.True(dangerAudit.DangerousAttributeCount >= 2);
+        Assert.True(dangerAudit.SecurityScore < 40.0);
+        Assert.Contains(dangerAudit.Items, i => i.TagName == "script" && i.IsDangerousTag);
+        Assert.Contains(dangerAudit.Items, i => i.TagName == "iframe" && i.IsDangerousTag);
+    }
 }

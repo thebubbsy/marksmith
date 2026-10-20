@@ -419,6 +419,9 @@
                                         <MenuFlyoutItem x:Name="OutlineStatsAuditFunnelPyramidTaperItem" Text="Audit SmartArt funnel / pyramid stage ingestion flow &amp; volume tapering" Click="OnOutlineStatsAuditFunnelPyramidTaperClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="OutlineStatsAuditMatrixQuadrantBalanceItem" Text="Audit SmartArt multi-level matrix quadrant symmetry &amp; balance" Click="OnOutlineStatsAuditMatrixQuadrantBalanceClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

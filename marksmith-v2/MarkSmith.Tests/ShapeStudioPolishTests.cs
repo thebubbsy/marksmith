@@ -3115,4 +3115,62 @@ public class ShapeStudioPolishTests
         Assert.True(poorAudit.AverageContrastRatio < 3.0);
         Assert.True(poorAudit.AccessibilityScore < 90.0);
     }
+
+    [Fact]
+    public void AuditConnectorAnchorSnappingAndOrthogonality_DetectsSnappingAndSkew()
+    {
+        // 1. Empty canvas
+        var emptyAudit = ShapeDesignStudioViewModel.AuditConnectorAnchorSnappingAndOrthogonality(null, null);
+        Assert.Equal(0, emptyAudit.TotalConnectors);
+        Assert.Equal(100.0, emptyAudit.RoutingPrecisionScore);
+        Assert.Equal("Empty Canvas", emptyAudit.Category);
+
+        // 2. Fully snapped, orthogonal connector
+        var s1 = new ShapeCanvasItemViewModel { Id = "s1", X = 100, Y = 100, Width = 100, Height = 60 };
+        var s2 = new ShapeCanvasItemViewModel { Id = "s2", X = 300, Y = 100, Width = 100, Height = 60 };
+
+        var conn1 = new ShapeCanvasItemViewModel
+        {
+            Id = "c1",
+            ShapeType = "line",
+            PathPoints = new List<(double X, double Y)>
+            {
+                (200, 130),
+                (300, 130)
+            }
+        };
+
+        var allShapes = new[] { s1, s2, conn1 };
+        var goodAudit = ShapeDesignStudioViewModel.AuditConnectorAnchorSnappingAndOrthogonality(new[] { conn1 }, allShapes);
+        Assert.Equal(1, goodAudit.TotalConnectors);
+        Assert.Equal(1, goodAudit.FullySnappedCount);
+        Assert.Equal(0, goodAudit.UnsnappedEndpointCount);
+        Assert.Equal(1, goodAudit.OrthogonalCount);
+        Assert.Equal(0, goodAudit.SkewedSegmentCount);
+        Assert.Equal(100.0, goodAudit.RoutingPrecisionScore);
+
+        string formatted = ShapeDesignStudioViewModel.FormatConnectorSnappingSummary(
+            goodAudit.TotalConnectors, goodAudit.FullySnappedCount, goodAudit.UnsnappedEndpointCount,
+            goodAudit.OrthogonalCount, goodAudit.SkewedSegmentCount, goodAudit.AverageAngleDeviationDegrees,
+            goodAudit.RoutingPrecisionScore, goodAudit.Category, goodAudit.IsSelectionScope);
+        Assert.Equal(goodAudit.Summary, formatted);
+
+        // 3. Unsnapped, skewed connector
+        var skewedConn = new ShapeCanvasItemViewModel
+        {
+            Id = "c2",
+            ShapeType = "line",
+            PathPoints = new List<(double X, double Y)>
+            {
+                (50, 50),
+                (150, 65)
+            }
+        };
+
+        var poorAudit = ShapeDesignStudioViewModel.AuditConnectorAnchorSnappingAndOrthogonality(new[] { skewedConn }, allShapes);
+        Assert.Equal(1, poorAudit.TotalConnectors);
+        Assert.True(poorAudit.UnsnappedEndpointCount >= 1);
+        Assert.True(poorAudit.SkewedSegmentCount >= 1);
+        Assert.True(poorAudit.RoutingPrecisionScore < 80.0);
+    }
 }

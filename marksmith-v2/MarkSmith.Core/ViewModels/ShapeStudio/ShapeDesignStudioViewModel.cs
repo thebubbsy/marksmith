@@ -11150,6 +11150,195 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         return $"Diagram shape visual weight & contrast audit ({scope}{shapeStr} · {category} · {score:0.#}% accessibility score): {details}";
     }
 
+    public DiagramConnectorSnappingAudit AuditConnectorAnchorSnappingAndOrthogonality(bool selectionOnly = false)
+    {
+        var selected = Shapes.Where(s => s.IsSelected).ToList();
+        var targetShapes = (selectionOnly && selected.Count > 0)
+            ? selected
+            : Shapes.ToList();
+
+        bool isSelection = selectionOnly && selected.Count > 0;
+        var audit = AuditConnectorAnchorSnappingAndOrthogonality(targetShapes, Shapes.ToList(), isSelection);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static DiagramConnectorSnappingAudit AuditConnectorAnchorSnappingAndOrthogonality(
+        IEnumerable<ShapeCanvasItemViewModel>? targetShapes,
+        IEnumerable<ShapeCanvasItemViewModel>? allShapes = null,
+        bool isSelection = false)
+    {
+        var list = (targetShapes ?? Enumerable.Empty<ShapeCanvasItemViewModel>()).ToList();
+        var allList = (allShapes != null ? allShapes.ToList() : list);
+        string scopeStr = isSelection ? "Selection · " : "";
+
+        var connectors = list.Where(s =>
+            (s.PathPoints != null && s.PathPoints.Count >= 2) ||
+            string.Equals(s.ShapeType, "line", StringComparison.OrdinalIgnoreCase) ||
+            (s.Name != null && s.Name.Contains("Connector", StringComparison.OrdinalIgnoreCase))
+        ).ToList();
+
+        var nonConnectorShapes = allList.Where(s => !connectors.Contains(s)).ToList();
+        int totalConnectors = connectors.Count;
+
+        if (totalConnectors == 0)
+        {
+            string emptySummary = FormatConnectorSnappingSummary(0, 0, 0, 0, 0, 0.0, 100.0, "Empty Canvas", isSelection);
+            return new DiagramConnectorSnappingAudit(
+                0, 0, 0, 0, 0, 0.0, 100.0,
+                Array.Empty<ConnectorAnchorSnappingItem>(), "Empty Canvas", isSelection, emptySummary);
+        }
+
+        var items = new List<ConnectorAnchorSnappingItem>();
+        int fullySnappedCount = 0;
+        int unsnappedEndpointCount = 0;
+        int orthogonalCount = 0;
+        int skewedCount = 0;
+        double sumMaxDeviation = 0;
+
+        const double SnapTolerance = 14.0;
+        const double OrthogonalTolerance = 1.5;
+
+        foreach (var conn in connectors)
+        {
+            var pts = conn.PathPoints ?? new List<(double X, double Y)>
+            {
+                (conn.X, conn.Y),
+                (conn.X + conn.Width, conn.Y + conn.Height)
+            };
+
+            var startPt = pts.First();
+            var endPt = pts.Last();
+
+            double startMinDist = double.MaxValue;
+            string startShapeId = "";
+            double endMinDist = double.MaxValue;
+            string endShapeId = "";
+
+            foreach (var shape in nonConnectorShapes)
+            {
+                var anchors = new (double X, double Y)[]
+                {
+                    (shape.X, shape.Y + shape.Height / 2.0),
+                    (shape.X + shape.Width, shape.Y + shape.Height / 2.0),
+                    (shape.X + shape.Width / 2.0, shape.Y),
+                    (shape.X + shape.Width / 2.0, shape.Y + shape.Height),
+                    (shape.X + shape.Width / 2.0, shape.Y + shape.Height / 2.0)
+                };
+
+                foreach (var a in anchors)
+                {
+                    double dStart = Math.Sqrt(Math.Pow(startPt.X - a.X, 2) + Math.Pow(startPt.Y - a.Y, 2));
+                    if (dStart < startMinDist)
+                    {
+                        startMinDist = dStart;
+                        startShapeId = shape.Id ?? "";
+                    }
+
+                    double dEnd = Math.Sqrt(Math.Pow(endPt.X - a.X, 2) + Math.Pow(endPt.Y - a.Y, 2));
+                    if (dEnd < endMinDist)
+                    {
+                        endMinDist = dEnd;
+                        endShapeId = shape.Id ?? "";
+                    }
+                }
+            }
+
+            bool sourceSnapped = startMinDist <= SnapTolerance;
+            bool targetSnapped = endMinDist <= SnapTolerance;
+            if (sourceSnapped && targetSnapped) fullySnappedCount++;
+            else
+            {
+                if (!sourceSnapped) unsnappedEndpointCount++;
+                if (!targetSnapped) unsnappedEndpointCount++;
+            }
+
+            int segmentCount = pts.Count - 1;
+            double maxDev = 0;
+            bool isConnOrthogonal = true;
+            bool hasSkew = false;
+
+            for (int i = 0; i < segmentCount; i++)
+            {
+                double dx = pts[i + 1].X - pts[i].X;
+                double dy = pts[i + 1].Y - pts[i].Y;
+                if (Math.Abs(dx) < 0.001 && Math.Abs(dy) < 0.001) continue;
+
+                double angle = Math.Atan2(dy, dx) * 180.0 / Math.PI;
+                if (angle < 0) angle += 360.0;
+
+                double rem = angle % 90.0;
+                double dev = Math.Min(rem, 90.0 - rem);
+                if (dev > maxDev) maxDev = dev;
+
+                if (dev > OrthogonalTolerance)
+                {
+                    isConnOrthogonal = false;
+                    if (dev <= 15.0) hasSkew = true;
+                }
+            }
+
+            maxDev = Math.Round(maxDev, 1);
+            sumMaxDeviation += maxDev;
+
+            if (isConnOrthogonal) orthogonalCount++;
+            if (hasSkew) skewedCount++;
+
+            string status = (sourceSnapped && targetSnapped && isConnOrthogonal)
+                ? "Fully snapped & orthogonal connector"
+                : (!sourceSnapped || !targetSnapped)
+                    ? $"Unsnapped endpoint(s) (Start: {startMinDist:F1}px, End: {endMinDist:F1}px to anchor)"
+                    : $"Angular skew deviation ({maxDev:F1}° off 90° grid)";
+
+            items.Add(new ConnectorAnchorSnappingItem(
+                conn.Id ?? "", conn.Name ?? conn.Id ?? "Connector",
+                startShapeId, endShapeId, Math.Round(startMinDist, 1), Math.Round(endMinDist, 1),
+                sourceSnapped, targetSnapped, segmentCount, maxDev, isConnOrthogonal, hasSkew, status));
+        }
+
+        double avgDeviation = Math.Round(sumMaxDeviation / totalConnectors, 1);
+        double score = 100.0;
+        score -= unsnappedEndpointCount * 12.0;
+        score -= skewedCount * 15.0;
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category;
+        if (totalConnectors == 0) category = "Empty Canvas";
+        else if (score >= 90.0) category = "Optimal Snap Precision & Orthogonality (≥90%)";
+        else if (score >= 75.0) category = "Good Routing with Minor Anchor Gaps (75-89%)";
+        else if (score >= 50.0) category = "Moderate Connector Jitter or Floating Anchors (50-74%)";
+        else category = "Severe Misalignment or Floating Wire Spaghetti (<50%)";
+
+        string summary = FormatConnectorSnappingSummary(
+            totalConnectors, fullySnappedCount, unsnappedEndpointCount,
+            orthogonalCount, skewedCount, avgDeviation, score, category, isSelection);
+
+        return new DiagramConnectorSnappingAudit(
+            totalConnectors, fullySnappedCount, unsnappedEndpointCount,
+            orthogonalCount, skewedCount, avgDeviation, score, items, category, isSelection, summary);
+    }
+
+    public static string FormatConnectorSnappingSummary(
+        int totalConnectors, int fullySnapped, int unsnappedEndpoints,
+        int orthogonalCount, int skewedCount, double avgDeviation,
+        double score, string category, bool isSelection = false)
+    {
+        if (totalConnectors == 0) return "Diagram connector snapping audit: Empty canvas · 0 connectors detected";
+
+        string scope = isSelection ? "Selection · " : "";
+        string connStr = totalConnectors == 1 ? "1 connector" : $"{totalConnectors} connectors";
+        var parts = new List<string>();
+
+        if (fullySnapped > 0) parts.Add($"{fullySnapped} fully snapped");
+        if (orthogonalCount > 0) parts.Add($"{orthogonalCount} orthogonal");
+        if (unsnappedEndpoints > 0) parts.Add($"⚠️ {unsnappedEndpoints} unsnapped endpoint{(unsnappedEndpoints == 1 ? "" : "s")}");
+        if (skewedCount > 0) parts.Add($"⚠️ {skewedCount} skewed bend{(skewedCount == 1 ? "" : "s")}");
+        parts.Add($"avg dev {avgDeviation:F1}°");
+
+        string details = string.Join(" · ", parts);
+        return $"Diagram connector snapping & orthogonality audit ({scope}{connStr} · {details} · {category} · {score:0.#}% precision score)";
+    }
+
 }
 
 /// <summary>
@@ -12396,6 +12585,43 @@ public sealed record DiagramShapeContrastAudit(
     double AverageContrastRatio,
     double AccessibilityScore,
     IReadOnlyList<ShapeContrastItem> Items,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);
+
+
+
+/// <summary>
+/// Represents evaluated metrics, snap distances, anchor shapes, and orthogonality for an individual diagram connector.
+/// </summary>
+public sealed record ConnectorAnchorSnappingItem(
+    string ConnectorId,
+    string ConnectorName,
+    string SourceShapeId,
+    string TargetShapeId,
+    double SourceDistanceToAnchor,
+    double TargetDistanceToAnchor,
+    bool SourceSnapped,
+    bool TargetSnapped,
+    int ElbowSegmentCount,
+    double MaxAngleDeviationDegrees,
+    bool IsOrthogonal,
+    bool HasSkewJitter,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of diagram shape connector endpoint anchor snapping margin,
+/// alignment orthogonality, elbow angles, and routing precision.
+/// </summary>
+public sealed record DiagramConnectorSnappingAudit(
+    int TotalConnectors,
+    int FullySnappedCount,
+    int UnsnappedEndpointCount,
+    int OrthogonalCount,
+    int SkewedSegmentCount,
+    double AverageAngleDeviationDegrees,
+    double RoutingPrecisionScore,
+    IReadOnlyList<ConnectorAnchorSnappingItem> Items,
     string Category,
     bool IsSelectionScope,
     string Summary);

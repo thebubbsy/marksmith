@@ -3731,6 +3731,19 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"✓ {audit.Summary}");
                 };
                 menu.Items.Add(auditExceptionFilterHazards);
+
+                var auditAllocationClosure = new MenuFlyoutItem
+                {
+                    Text = "Audit semantic diff memory allocation, boxing & closure capture hazards",
+                    Icon = new FontIcon { Glyph = "\uE8B9" }
+                };
+                auditAllocationClosure.Click += (_, _) =>
+                {
+                    var audit = MarkSmith.Services.LineDiff.AuditAllocationAndClosureCaptureHazards(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+                    _vm.ShowNotice($"✓ {audit.Summary}");
+                };
+                menu.Items.Add(auditAllocationClosure);
             }
 
             menu.Items.Add(new MenuFlyoutSeparator());

@@ -396,6 +396,9 @@
                                     <MenuFlyoutItem x:Name="AuditGraphArticulationItem" Text="Audit graph articulation cut vertices, bridge bottlenecks &amp; network resilience" Click="OnAuditGraphArticulationClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditGraphDegreeDistributionTopologyItem" Text="Audit graph degree distribution, scale-free power law &amp; hub centrality" Click="OnAuditGraphDegreeDistributionTopologyClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
 
                             </DropDownButton.Flyout>

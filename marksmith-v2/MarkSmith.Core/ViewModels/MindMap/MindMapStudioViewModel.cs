@@ -11792,6 +11792,169 @@ namespace MarkSmith.ViewModels.MindMap
             return $"Graph articulation & resilience audit ({scope}{nodeStr} · {category} · {score:0.#}% resilience score): {details}";
         }
 
+        public GraphDegreeDistributionCentralityAudit AuditGraphDegreeDistributionAndHubCentrality(bool selectionOnly = false)
+        {
+            var selected = Nodes.Where(n => n.IsSelected).ToList();
+            var targetNodes = (selectionOnly && selected.Count > 0)
+                ? selected
+                : Nodes.ToList();
+
+            bool isSelection = selectionOnly && selected.Count > 0;
+            var nodeIds = targetNodes.Select(n => n.Id).ToHashSet();
+            var relevantLinks = Links.Where(l => nodeIds.Contains(l.SourceNodeId) && nodeIds.Contains(l.TargetNodeId)).ToList();
+
+            var audit = AuditGraphDegreeDistributionAndHubCentrality(targetNodes.Select(n => n.Model), relevantLinks.Select(l => l.Model), isSelection);
+            StatusMessage = audit.Summary;
+            return audit;
+        }
+
+        public static GraphDegreeDistributionCentralityAudit AuditGraphDegreeDistributionAndHubCentrality(
+            IEnumerable<MindMapNode>? nodes,
+            IEnumerable<MindMapLink>? links,
+            bool isSelection = false)
+        {
+            var nodeList = nodes?.ToList() ?? new List<MindMapNode>();
+            var linkList = links?.ToList() ?? new List<MindMapLink>();
+
+            int totalNodes = nodeList.Count;
+            int totalLinks = linkList.Count;
+
+            if (totalNodes == 0)
+            {
+                string emptySummary = FormatHubCentralitySummary(0, 0, 0, 0, 0, 0.0, 0.0, 0.0, 0.0, 100.0, "Empty Galaxy", isSelection);
+                return new GraphDegreeDistributionCentralityAudit(
+                    0, 0, 0, 0, 0, 0.0, 0.0, 0.0, 0.0, 100.0,
+                    Array.Empty<GraphDegreeCentralityItem>(), "Empty Galaxy", isSelection, emptySummary);
+            }
+
+            var inDegrees = new Dictionary<string, int>();
+            var outDegrees = new Dictionary<string, int>();
+            foreach (var node in nodeList)
+            {
+                inDegrees[node.Id] = 0;
+                outDegrees[node.Id] = 0;
+            }
+
+            var validNodeIds = nodeList.Select(n => n.Id).ToHashSet();
+            foreach (var link in linkList)
+            {
+                if (validNodeIds.Contains(link.SourceNodeId) && validNodeIds.Contains(link.TargetNodeId))
+                {
+                    outDegrees[link.SourceNodeId]++;
+                    inDegrees[link.TargetNodeId]++;
+                }
+            }
+
+            var totalDegrees = new Dictionary<string, int>();
+            double sumDegree = 0;
+            int maxDegree = 0;
+            foreach (var node in nodeList)
+            {
+                int deg = inDegrees[node.Id] + outDegrees[node.Id];
+                totalDegrees[node.Id] = deg;
+                sumDegree += deg;
+                if (deg > maxDegree) maxDegree = deg;
+            }
+
+            double avgDegree = Math.Round(sumDegree / totalNodes, 2);
+
+            // Compute standard deviation
+            double varianceSum = 0;
+            foreach (var node in nodeList)
+            {
+                double diff = totalDegrees[node.Id] - avgDegree;
+                varianceSum += diff * diff;
+            }
+            double stdDev = Math.Round(Math.Sqrt(varianceSum / totalNodes), 2);
+
+            // Hub threshold: > avg + 2*stdDev (or >= 4 if stdDev is small)
+            double hubThreshold = Math.Max(4.0, avgDegree + (2.0 * stdDev));
+
+            int hubCount = 0;
+            int isolateCount = 0;
+            int leafCount = 0;
+
+            var items = new List<GraphDegreeCentralityItem>();
+            foreach (var node in nodeList)
+            {
+                int inD = inDegrees[node.Id];
+                int outD = outDegrees[node.Id];
+                int totalD = totalDegrees[node.Id];
+
+                bool isHub = totalD >= hubThreshold;
+                bool isIsolate = totalD == 0;
+                bool isLeaf = totalD == 1;
+
+                if (isHub) hubCount++;
+                if (isIsolate) isolateCount++;
+                if (isLeaf) leafCount++;
+
+                double centrality = totalNodes > 1 ? Math.Round((double)totalD / (totalNodes - 1), 3) : 1.0;
+                string status = isHub ? "Super-Hub node" : isIsolate ? "Isolated concept" : isLeaf ? "Terminal leaf node" : "Standard branching node";
+
+                items.Add(new GraphDegreeCentralityItem(
+                    node.Id, node.Title ?? node.Id, inD, outD, totalD,
+                    isHub, isIsolate, isLeaf, centrality, status));
+            }
+
+            // Power-law exponent gamma approximation
+            double gamma = 2.5;
+            var nonZeroDegrees = totalDegrees.Values.Where(d => d > 0).ToList();
+            if (nonZeroDegrees.Count > 1)
+            {
+                int kMin = nonZeroDegrees.Min();
+                double lnSum = nonZeroDegrees.Sum(d => Math.Log((double)d / Math.Max(0.5, kMin - 0.5)));
+                if (lnSum > 0.001)
+                {
+                    gamma = Math.Round(1.0 + (nonZeroDegrees.Count / lnSum), 2);
+                }
+            }
+
+            double score = 100.0;
+            score -= isolateCount * 15.0;
+            if (hubCount == 0 && totalNodes > 5) score -= 10.0;
+            if (maxDegree > totalNodes * 0.8 && totalNodes > 4) score -= 15.0;
+            score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+            string category;
+            if (totalNodes == 0) category = "Empty Galaxy";
+            else if (score >= 90.0) category = "Optimal Scale-Free Hierarchy (≥90%)";
+            else if (score >= 75.0) category = "Balanced Hierarchical Galaxy (75-89%)";
+            else if (score >= 50.0) category = "Clustered Multi-Hub Network (50-74%)";
+            else category = "Fragmented Graph with Isolates (<50%)";
+
+            string summary = FormatHubCentralitySummary(
+                totalNodes, totalLinks, hubCount, isolateCount, leafCount,
+                avgDegree, maxDegree, stdDev, gamma, score, category, isSelection);
+
+            return new GraphDegreeDistributionCentralityAudit(
+                totalNodes, totalLinks, hubCount, isolateCount, leafCount,
+                avgDegree, maxDegree, stdDev, gamma, score, items, category, isSelection, summary);
+        }
+
+        public static string FormatHubCentralitySummary(
+            int totalNodes, int totalEdges, int hubCount, int isolateCount, int leafCount,
+            double avgDegree, double maxDegree, double stdDev, double gamma,
+            double score, string category, bool isSelection = false)
+        {
+            if (totalNodes == 0) return "Graph degree distribution audit: Empty galaxy · 0 nodes detected";
+
+            string scope = isSelection ? "Selection · " : "";
+            string nodeStr = totalNodes == 1 ? "1 node" : $"{totalNodes} nodes";
+            var parts = new List<string>();
+
+            parts.Add($"{totalEdges} link{(totalEdges == 1 ? "" : "s")}");
+            parts.Add($"avg degree {avgDegree:F1} (σ={stdDev:F1})");
+            parts.Add($"max degree {maxDegree}");
+            if (hubCount > 0) parts.Add($"{hubCount} hub{(hubCount == 1 ? "" : "s")}");
+            if (leafCount > 0) parts.Add($"{leafCount} leaf node{(leafCount == 1 ? "" : "s")}");
+            if (isolateCount > 0) parts.Add($"⚠️ {isolateCount} isolate{(isolateCount == 1 ? "" : "s")}");
+            parts.Add($"γ={gamma:F1}");
+
+            string details = string.Join(" · ", parts);
+            return $"Graph degree distribution & hub centrality audit ({scope}{nodeStr} · {details} · {category} · {score:0.#}% balance score)";
+        }
+
     }
 
 
@@ -13014,6 +13177,42 @@ namespace MarkSmith.ViewModels.MindMap
         int ConnectedComponentsCount,
         double ResilienceScore,
         IReadOnlyList<GraphArticulationItem> Items,
+        string Category,
+        bool IsSelectionScope,
+        string Summary);
+
+
+    /// <summary>
+    /// Represents evaluated metrics, in-degree, out-degree, total degree, and hub classification for an individual mind map node.
+    /// </summary>
+    public sealed record GraphDegreeCentralityItem(
+        string NodeId,
+        string Label,
+        int InDegree,
+        int OutDegree,
+        int TotalDegree,
+        bool IsHub,
+        bool IsIsolate,
+        bool IsLeaf,
+        double DegreeCentralityScore,
+        string Status);
+
+    /// <summary>
+    /// Represents the result of an audit of mind map graph node degree distribution, scale-free power law,
+    /// super-hub centrality, isolate detection, and hierarchical balance.
+    /// </summary>
+    public sealed record GraphDegreeDistributionCentralityAudit(
+        int TotalNodes,
+        int TotalEdges,
+        int HubCount,
+        int IsolateCount,
+        int LeafCount,
+        double AverageDegree,
+        double MaxDegree,
+        double DegreeStandardDeviation,
+        double ScaleFreePowerLawExponent,
+        double HierarchyBalanceScore,
+        IReadOnlyList<GraphDegreeCentralityItem> Items,
         string Category,
         bool IsSelectionScope,
         string Summary);

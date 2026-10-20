@@ -790,6 +790,9 @@
                                         <MenuFlyoutItem x:Name="SelectionAuditVisualWeightContrastItem" Text="Audit diagram shape visual weight, WCAG contrast ratio &amp; readability" Click="OnSelectionAuditVisualWeightContrastClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionAuditConnectorAnchorSnappingItem" Text="Audit diagram connector anchor snapping margin &amp; alignment orthogonality" Click="OnSelectionAuditConnectorAnchorSnappingClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

@@ -3879,5 +3879,53 @@ namespace MarkSmith.Tests
             Assert.True(bridgeAudit.ResilienceScore < 80.0);
             Assert.Contains(bridgeAudit.Items, i => i.NodeId == "b" && i.IsArticulationPoint);
         }
+
+        [Fact]
+        public void AuditGraphDegreeDistributionAndHubCentrality_EvaluatesDegreeMetricsAndPowerLaw()
+        {
+            // 1. Empty graph
+            var emptyAudit = MindMapStudioViewModel.AuditGraphDegreeDistributionAndHubCentrality(null, null);
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.Equal(100.0, emptyAudit.HierarchyBalanceScore);
+            Assert.Equal("Empty Galaxy", emptyAudit.Category);
+
+            // 2. Hierarchical star/tree graph with central hub
+            var hub = new MindMapNode { Id = "hub", Title = "Central Concept" };
+            var n1 = new MindMapNode { Id = "n1", Title = "Child 1" };
+            var n2 = new MindMapNode { Id = "n2", Title = "Child 2" };
+            var n3 = new MindMapNode { Id = "n3", Title = "Child 3" };
+            var n4 = new MindMapNode { Id = "n4", Title = "Child 4" };
+
+            var links = new[]
+            {
+                new MindMapLink { Id = "l1", SourceNodeId = "hub", TargetNodeId = "n1" },
+                new MindMapLink { Id = "l2", SourceNodeId = "hub", TargetNodeId = "n2" },
+                new MindMapLink { Id = "l3", SourceNodeId = "hub", TargetNodeId = "n3" },
+                new MindMapLink { Id = "l4", SourceNodeId = "hub", TargetNodeId = "n4" }
+            };
+
+            var hubAudit = MindMapStudioViewModel.AuditGraphDegreeDistributionAndHubCentrality(new[] { hub, n1, n2, n3, n4 }, links);
+            Assert.Equal(5, hubAudit.TotalNodes);
+            Assert.Equal(4, hubAudit.TotalEdges);
+            Assert.Equal(1, hubAudit.HubCount);
+            Assert.Equal(4, hubAudit.LeafCount);
+            Assert.Equal(0, hubAudit.IsolateCount);
+            Assert.Equal(4.0, hubAudit.MaxDegree);
+            Assert.True(hubAudit.HierarchyBalanceScore >= 75.0);
+
+            string formatted = MindMapStudioViewModel.FormatHubCentralitySummary(
+                hubAudit.TotalNodes, hubAudit.TotalEdges, hubAudit.HubCount, hubAudit.IsolateCount, hubAudit.LeafCount,
+                hubAudit.AverageDegree, hubAudit.MaxDegree, hubAudit.DegreeStandardDeviation,
+                hubAudit.ScaleFreePowerLawExponent, hubAudit.HierarchyBalanceScore, hubAudit.Category, hubAudit.IsSelectionScope);
+            Assert.Equal(hubAudit.Summary, formatted);
+
+            // 3. Graph with isolated node
+            var isolate = new MindMapNode { Id = "iso", Title = "Orphan Thought" };
+            var isoAudit = MindMapStudioViewModel.AuditGraphDegreeDistributionAndHubCentrality(new[] { hub, n1, isolate }, new[] { links[0] });
+            Assert.Equal(3, isoAudit.TotalNodes);
+            Assert.Equal(1, isoAudit.IsolateCount);
+            Assert.True(isoAudit.HierarchyBalanceScore < 90.0);
+            Assert.Contains(isoAudit.Items, i => i.NodeId == "iso" && i.IsIsolate);
+        }
     }
 }

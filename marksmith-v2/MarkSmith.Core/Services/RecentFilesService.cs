@@ -8807,6 +8807,223 @@ public sealed class RecentFilesService
         return $"Workspace markdown table audit ({fileStr} · {details} · {category} · {score:0.#}% formatting score)";
     }
 
+    public static WorkspaceFrontmatterAudit AuditWorkspaceFrontmatterSchemaValidation(
+        IEnumerable<string>? filePaths,
+        string? workspaceRoot = null,
+        Func<string, bool>? fileExists = null,
+        Func<string, string[]?>? readAllLines = null,
+        IReadOnlyList<string>? requiredKeys = null)
+    {
+        var exists = fileExists ?? (p => File.Exists(p));
+        var readLines = readAllLines ?? (p => {
+            try { return File.ReadAllLines(p); }
+            catch { return null; }
+        });
+
+        var reqKeys = (requiredKeys != null && requiredKeys.Count > 0)
+            ? requiredKeys
+            : new[] { "title", "date", "author", "tags" };
+
+        var items = new List<WorkspaceFrontmatterMetadataItem>();
+        int scannedFiles = 0;
+        int withFrontmatter = 0;
+        int missingFrontmatter = 0;
+        int validYaml = 0;
+        int validToml = 0;
+        int malformed = 0;
+        int missingKeysTotal = 0;
+
+        if (filePaths != null)
+        {
+            foreach (var file in filePaths)
+            {
+                if (string.IsNullOrWhiteSpace(file)) continue;
+                string ext = Path.GetExtension(file);
+                if (!ext.Equals(".md", StringComparison.OrdinalIgnoreCase) &&
+                    !ext.Equals(".markdown", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (!exists(file)) continue;
+
+                scannedFiles++;
+                string fileName = Path.GetFileName(file);
+                var lines = readLines(file);
+
+                if (lines == null || lines.Length == 0)
+                {
+                    missingFrontmatter++;
+                    items.Add(new WorkspaceFrontmatterMetadataItem(
+                        file, fileName, false, "None", false, null, false, null, false, false, false, 0, 0,
+                        reqKeys, 0.0, "Empty document missing frontmatter header"));
+                    continue;
+                }
+
+                string firstLine = lines[0].Trim();
+                bool isYaml = firstLine == "---";
+                bool isToml = firstLine == "+++";
+
+                if (!isYaml && !isToml)
+                {
+                    missingFrontmatter++;
+                    items.Add(new WorkspaceFrontmatterMetadataItem(
+                        file, fileName, false, "None", false, null, false, null, false, false, false, 0, 0,
+                        reqKeys, 0.0, "Document missing frontmatter block"));
+                    continue;
+                }
+
+                withFrontmatter++;
+                string format = isYaml ? "YAML" : "TOML";
+                string delimiter = isYaml ? "---" : "+++";
+
+                int endLine = -1;
+                for (int i = 1; i < lines.Length; i++)
+                {
+                    if (lines[i].Trim() == delimiter)
+                    {
+                        endLine = i;
+                        break;
+                    }
+                }
+
+                if (endLine == -1)
+                {
+                    malformed++;
+                    items.Add(new WorkspaceFrontmatterMetadataItem(
+                        file, fileName, true, format, false, null, false, null, false, false, false, 0, 1,
+                        reqKeys, 10.0, $"Unclosed {format} frontmatter delimiter"));
+                    continue;
+                }
+
+                var parsedKeys = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                int syntaxErrors = 0;
+                int tagCount = 0;
+
+                for (int i = 1; i < endLine; i++)
+                {
+                    string fLine = lines[i];
+                    string fTrimmed = fLine.Trim();
+                    if (string.IsNullOrWhiteSpace(fTrimmed) || fTrimmed.StartsWith("#")) continue;
+
+                    int colonIdx = fTrimmed.IndexOf(':');
+                    int eqIdx = fTrimmed.IndexOf('=');
+                    int sepIdx = isYaml ? colonIdx : (eqIdx != -1 ? eqIdx : colonIdx);
+
+                    if (sepIdx == -1)
+                    {
+                        if (!fTrimmed.StartsWith("-")) syntaxErrors++;
+                        continue;
+                    }
+
+                    string key = fTrimmed.Substring(0, sepIdx).Trim();
+                    string val = fTrimmed.Substring(sepIdx + 1).Trim().Trim('"', '\'');
+                    parsedKeys[key] = val;
+
+                    if (key.Equals("tags", StringComparison.OrdinalIgnoreCase) || key.Equals("tag", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (val.StartsWith("[") && val.EndsWith("]"))
+                        {
+                            var tParts = val.Trim('[', ']').Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+                            tagCount += tParts.Length;
+                        }
+                        else
+                        {
+                            tagCount += 1;
+                        }
+                    }
+                }
+
+                bool hasTitle = parsedKeys.TryGetValue("title", out var titleVal) && !string.IsNullOrWhiteSpace(titleVal);
+                bool hasDate = parsedKeys.TryGetValue("date", out var dateVal) && !string.IsNullOrWhiteSpace(dateVal);
+                bool isIsoDate = false;
+                if (hasDate)
+                {
+                    isIsoDate = System.Text.RegularExpressions.Regex.IsMatch(dateVal!, @"^\d{4}-\d{2}-\d{2}");
+                }
+
+                bool hasAuthor = parsedKeys.TryGetValue("author", out var authorVal) && !string.IsNullOrWhiteSpace(authorVal);
+                bool hasTags = tagCount > 0 || (parsedKeys.ContainsKey("tags") && !string.IsNullOrWhiteSpace(parsedKeys["tags"]));
+
+                var missingKeys = new List<string>();
+                foreach (var rk in reqKeys)
+                {
+                    if (!parsedKeys.ContainsKey(rk) || string.IsNullOrWhiteSpace(parsedKeys[rk]))
+                    {
+                        missingKeys.Add(rk);
+                    }
+                }
+
+                if (missingKeys.Count > 0) missingKeysTotal += missingKeys.Count;
+                if (syntaxErrors > 0) malformed++;
+                else if (isYaml) validYaml++;
+                else if (isToml) validToml++;
+
+                double completeness = 100.0;
+                completeness -= missingKeys.Count * 20.0;
+                completeness -= syntaxErrors * 15.0;
+                if (hasDate && !isIsoDate) completeness -= 10.0;
+                completeness = Math.Max(0.0, Math.Min(100.0, Math.Round(completeness, 1)));
+
+                string status = missingKeys.Count == 0 && syntaxErrors == 0
+                    ? $"Complete {format} frontmatter (Title: \"{titleVal ?? "Untitled"}\")"
+                    : missingKeys.Count > 0
+                        ? $"Incomplete metadata: missing {string.Join(", ", missingKeys)}"
+                        : $"Malformed frontmatter syntax ({syntaxErrors} error(s))";
+
+                items.Add(new WorkspaceFrontmatterMetadataItem(
+                    file, fileName, true, format, hasTitle, titleVal, hasDate, dateVal, isIsoDate,
+                    hasAuthor, hasTags, tagCount, syntaxErrors, missingKeys, completeness, status));
+            }
+        }
+
+        double score = 100.0;
+        if (scannedFiles > 0)
+        {
+            double missingFmRatio = (double)missingFrontmatter / scannedFiles;
+            score -= missingFmRatio * 30.0;
+            score -= malformed * 15.0;
+            score -= missingKeysTotal * 5.0;
+        }
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category;
+        if (scannedFiles == 0) category = "Clean Baseline";
+        else if (score >= 90.0) category = "Optimal Frontmatter Schema Compliance (≥90%)";
+        else if (score >= 75.0) category = "Good Metadata Coverage with Minor Key Gaps (75-89%)";
+        else if (score >= 50.0) category = "Moderate Frontmatter Deficiencies (50-74%)";
+        else category = "Severe Missing Frontmatter & Schema Corruption (<50%)";
+
+        string summary = FormatWorkspaceFrontmatterSchemaValidationSummary(
+            scannedFiles, withFrontmatter, missingFrontmatter, validYaml, validToml,
+            malformed, missingKeysTotal, score, category);
+
+        return new WorkspaceFrontmatterAudit(
+            scannedFiles, withFrontmatter, missingFrontmatter, validYaml, validToml,
+            malformed, missingKeysTotal, score, items, category, summary);
+    }
+
+    public static string FormatWorkspaceFrontmatterSchemaValidationSummary(
+        int filesScanned, int withFrontmatter, int missingFrontmatter,
+        int validYaml, int validToml, int malformed, int missingKeys,
+        double score, string category)
+    {
+        if (filesScanned == 0) return "Workspace frontmatter metadata audit: Clean baseline · 0 documents scanned";
+
+        string fileStr = filesScanned == 1 ? "1 doc" : $"{filesScanned} docs";
+        var parts = new List<string>();
+
+        parts.Add($"{withFrontmatter}/{filesScanned} with frontmatter");
+        if (validYaml > 0) parts.Add($"{validYaml} YAML");
+        if (validToml > 0) parts.Add($"{validToml} TOML");
+        if (missingFrontmatter > 0) parts.Add($"⚠️ {missingFrontmatter} missing frontmatter");
+        if (malformed > 0) parts.Add($"⚠️ {malformed} malformed");
+        if (missingKeys > 0) parts.Add($"⚠️ {missingKeys} missing key{(missingKeys == 1 ? "" : "s")}");
+
+        string details = string.Join(" · ", parts);
+        return $"Workspace frontmatter metadata audit ({fileStr} · {details} · {category} · {score:0.#}% compliance score)";
+    }
+
 }
 
 /// <summary>
@@ -9941,5 +10158,45 @@ public sealed record WorkspaceTableAlignmentAudit(
     int UnescapedPipeCount,
     double FormattingRigorScore,
     IReadOnlyList<WorkspaceTableAlignmentItem> Tables,
+    string Category,
+    string Summary);
+
+
+
+/// <summary>
+/// Represents evaluated frontmatter presence, format, keys, syntax errors, and completeness for an individual workspace document.
+/// </summary>
+public sealed record WorkspaceFrontmatterMetadataItem(
+    string FilePath,
+    string FileName,
+    bool HasFrontmatter,
+    string Format,
+    bool HasTitle,
+    string? Title,
+    bool HasDate,
+    string? DateString,
+    bool IsDateIso8601,
+    bool HasAuthor,
+    bool HasTags,
+    int TagCount,
+    int SyntaxErrorCount,
+    IReadOnlyList<string> MissingRequiredKeys,
+    double CompletenessScore,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of workspace markdown document frontmatter blocks (YAML/TOML),
+/// required schema metadata keys, ISO 8601 date validation, and metadata completeness.
+/// </summary>
+public sealed record WorkspaceFrontmatterAudit(
+    int TotalDocumentsAudited,
+    int FrontmatterDocumentCount,
+    int MissingFrontmatterCount,
+    int ValidYamlCount,
+    int ValidTomlCount,
+    int MalformedSyntaxCount,
+    int MissingRequiredKeysCount,
+    double SchemaComplianceScore,
+    IReadOnlyList<WorkspaceFrontmatterMetadataItem> Items,
     string Category,
     string Summary);

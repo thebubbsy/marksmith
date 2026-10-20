@@ -10830,6 +10830,228 @@ public static class TextSearch
         return $"Markdown list audit ({details} · {category} · {score:0.#}% consistency score)";
     }
 
+    public static MarkdownInlineHtmlSecurityAudit AuditMarkdownInlineHtmlSecurity(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            string emptySummary = FormatInlineHtmlSecuritySummary(0, 0, 0, 0, 0, 100.0, "Clean Document");
+            return new MarkdownInlineHtmlSecurityAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<MarkdownInlineHtmlSecurityItem>(),
+                "Clean Document",
+                emptySummary);
+        }
+
+        var lines = markdownText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+        var maskedLines = new string[lines.Length];
+        bool inCodeFence = false;
+        bool inFrontmatter = false;
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string line = lines[i];
+            string trimmed = line.Trim();
+
+            if (i == 0 && (trimmed == "---" || trimmed == "+++"))
+            {
+                inFrontmatter = true;
+                maskedLines[i] = new string(' ', line.Length);
+                continue;
+            }
+            if (inFrontmatter)
+            {
+                maskedLines[i] = new string(' ', line.Length);
+                if (trimmed == "---" || trimmed == "+++")
+                {
+                    inFrontmatter = false;
+                }
+                continue;
+            }
+
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+            {
+                inCodeFence = !inCodeFence;
+                maskedLines[i] = new string(' ', line.Length);
+                continue;
+            }
+
+            if (inCodeFence)
+            {
+                maskedLines[i] = new string(' ', line.Length);
+                continue;
+            }
+
+            // Mask inline code spans `...`
+            var chars = line.ToCharArray();
+            bool inBacktick = false;
+            for (int c = 0; c < chars.Length; c++)
+            {
+                if (chars[c] == '`')
+                {
+                    inBacktick = !inBacktick;
+                    chars[c] = ' ';
+                }
+                else if (inBacktick)
+                {
+                    chars[c] = ' ';
+                }
+            }
+
+            maskedLines[i] = new string(chars);
+        }
+
+        var items = new List<MarkdownInlineHtmlSecurityItem>();
+        int totalTags = 0;
+        int dangerousTagCount = 0;
+        int dangerousAttrCount = 0;
+        int safeTagCount = 0;
+        int unclosedTagCount = 0;
+
+        var dangerousTagNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "script", "iframe", "object", "embed", "style", "form", "input",
+            "button", "meta", "link", "base", "applet"
+        };
+
+        var dangerousAttrPatterns = new[]
+        {
+            @"on[a-zA-Z]+\s*=",
+            @"href\s*=\s*['""]?\s*(javascript|data|vbscript):",
+            @"src\s*=\s*['""]?\s*(javascript|data|vbscript):"
+        };
+
+        var voidTags = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "br", "hr", "img", "input", "link", "meta", "area", "base", "col", "embed", "param", "source", "track", "wbr"
+        };
+
+        var openTagStack = new Stack<(string Tag, int Line)>();
+
+        var tagRegex = new System.Text.RegularExpressions.Regex(
+            @"<(/)?([a-zA-Z0-9_\-]+)([^>]*)>",
+            System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        for (int l = 0; l < maskedLines.Length; l++)
+        {
+            string line = maskedLines[l];
+            var matches = tagRegex.Matches(line);
+
+            foreach (System.Text.RegularExpressions.Match match in matches)
+            {
+                totalTags++;
+                bool isClosing = match.Groups[1].Value == "/";
+                string tagName = match.Groups[2].Value.ToLowerInvariant();
+                string rawTag = match.Value;
+                string attributesStr = match.Groups[3].Value;
+                int column = match.Index + 1;
+
+                bool isDangerousTag = dangerousTagNames.Contains(tagName);
+                var dangerousAttrs = new List<string>();
+
+                if (!isClosing && !string.IsNullOrWhiteSpace(attributesStr))
+                {
+                    foreach (var pattern in dangerousAttrPatterns)
+                    {
+                        var attrMatches = System.Text.RegularExpressions.Regex.Matches(
+                            attributesStr, pattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                        foreach (System.Text.RegularExpressions.Match am in attrMatches)
+                        {
+                            dangerousAttrs.Add(am.Value.Trim());
+                        }
+                    }
+                }
+
+                bool hasDangerousAttrs = dangerousAttrs.Count > 0;
+                if (isDangerousTag) dangerousTagCount++;
+                if (hasDangerousAttrs) dangerousAttrCount += dangerousAttrs.Count;
+                if (!isDangerousTag && !hasDangerousAttrs) safeTagCount++;
+
+                string riskLevel = "Safe";
+                string recommendation = "Tag conforms to safe inline Markdown HTML usage";
+                string status = $"<{tagName}> tag";
+
+                if (isDangerousTag)
+                {
+                    riskLevel = "Critical";
+                    recommendation = $"Remove or escape <{tagName}> tag to eliminate script injection and DOM corruption hazards";
+                    status = $"Critical hazard: dangerous <{tagName}> tag detected";
+                }
+                else if (hasDangerousAttrs)
+                {
+                    riskLevel = "High";
+                    recommendation = $"Remove dangerous event handler or protocol attributes ({string.Join(", ", dangerousAttrs)})";
+                    status = $"High risk: dangerous attribute in <{tagName}> tag";
+                }
+
+                if (!voidTags.Contains(tagName))
+                {
+                    if (isClosing)
+                    {
+                        if (openTagStack.Count > 0 && string.Equals(openTagStack.Peek().Tag, tagName, StringComparison.OrdinalIgnoreCase))
+                        {
+                            openTagStack.Pop();
+                        }
+                    }
+                    else if (!rawTag.TrimEnd().EndsWith("/>"))
+                    {
+                        openTagStack.Push((tagName, l + 1));
+                    }
+                }
+
+                items.Add(new MarkdownInlineHtmlSecurityItem(
+                    l + 1, column, tagName, rawTag, isClosing, isDangerousTag,
+                    hasDangerousAttrs, dangerousAttrs, riskLevel, recommendation, status));
+            }
+        }
+
+        unclosedTagCount = openTagStack.Count;
+
+        double score = 100.0;
+        score -= dangerousTagCount * 30.0;
+        score -= dangerousAttrCount * 20.0;
+        score -= unclosedTagCount * 5.0;
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category;
+        if (totalTags == 0) category = "Clean Document";
+        else if (score >= 95.0) category = "Pristine Sanitization (≥95%)";
+        else if (score >= 80.0) category = "Low Injection Risk (80-94%)";
+        else if (score >= 60.0) category = "Moderate Injection Risk (60-79%)";
+        else if (score >= 40.0) category = "High Injection Risk (40-59%)";
+        else category = "Critical Security Hazard (<40%)";
+
+        string summary = FormatInlineHtmlSecuritySummary(
+            totalTags, dangerousTagCount, dangerousAttrCount, safeTagCount, unclosedTagCount, score, category);
+
+        return new MarkdownInlineHtmlSecurityAudit(
+            totalTags, dangerousTagCount, dangerousAttrCount, safeTagCount, unclosedTagCount,
+            score, items, category, summary);
+    }
+
+    public static string FormatInlineHtmlSecuritySummary(string? markdownText)
+        => AuditMarkdownInlineHtmlSecurity(markdownText).Summary;
+
+    public static string FormatInlineHtmlSecuritySummary(
+        int totalTags, int dangerousTags, int dangerousAttrs, int safeTags,
+        int unclosedTags, double score, string category)
+    {
+        if (totalTags == 0)
+            return "Markdown inline HTML security audit: Clean document · 0 HTML tags detected";
+
+        string tagStr = totalTags == 1 ? "1 HTML tag" : $"{totalTags} HTML tags";
+        var parts = new List<string>();
+
+        parts.Add(tagStr);
+        if (safeTags > 0) parts.Add($"{safeTags} safe");
+        if (dangerousTags > 0) parts.Add($"⚠️ {dangerousTags} dangerous tag{(dangerousTags == 1 ? "" : "s")}");
+        if (dangerousAttrs > 0) parts.Add($"⚠️ {dangerousAttrs} dangerous attr{(dangerousAttrs == 1 ? "" : "s")}");
+        if (unclosedTags > 0) parts.Add($"⚠️ {unclosedTags} unclosed tag{(unclosedTags == 1 ? "" : "s")}");
+
+        string details = string.Join(" · ", parts);
+        return $"Markdown inline HTML security audit ({details} · {category} · {score:0.#}% security score)";
+    }
+
+
 }
 
 /// <summary>
@@ -12031,3 +12253,36 @@ public sealed record MarkdownListNestingAudit(
     string Category,
     string Summary);
 
+
+
+
+/// <summary>
+/// Represents evaluated metrics, tag name, risk level, and dangerous attributes for an individual inline HTML tag.
+/// </summary>
+public sealed record MarkdownInlineHtmlSecurityItem(
+    int LineNumber,
+    int Column,
+    string TagName,
+    string RawTag,
+    bool IsClosing,
+    bool IsDangerousTag,
+    bool HasDangerousAttributes,
+    IReadOnlyList<string> DangerousAttributes,
+    string RiskLevel,
+    string Recommendation,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of markdown inline HTML tags, dangerous elements (<script>, <iframe>, <style>),
+/// injection event handlers (onload, onclick), unclosed tags, and DOM security hygiene.
+/// </summary>
+public sealed record MarkdownInlineHtmlSecurityAudit(
+    int TotalHtmlTags,
+    int DangerousTagCount,
+    int DangerousAttributeCount,
+    int SafeTagCount,
+    int UnclosedTagCount,
+    double SecurityScore,
+    IReadOnlyList<MarkdownInlineHtmlSecurityItem> Items,
+    string Category,
+    string Summary);

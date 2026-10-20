@@ -3001,4 +3001,57 @@ public class HistoryPolishTests : IDisposable
         Assert.True(probAudit.AsyncVoidCount >= 1);
         Assert.True(probAudit.ExceptionHygieneScore < 60.0);
     }
+
+    [Fact]
+    public void AuditAllocationAndClosureCaptureHazards_DetectsLoopAllocationAndClosure()
+    {
+        // 1. Empty/null diff
+        var emptyAudit = LineDiff.AuditAllocationAndClosureCaptureHazards(null);
+        Assert.Equal(0, emptyAudit.TotalModifiedLines);
+        Assert.Equal(100.0, emptyAudit.ZeroAllocationScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+
+        // 2. Clean diff
+        var cleanCode = string.Join("\n",
+            "public void ProcessSpan(ReadOnlySpan<byte> buffer)",
+            "{",
+            "    int sum = 0;",
+            "    for (int i = 0; i < buffer.Length; i++)",
+            "    {",
+            "        sum += buffer[i];",
+            "    }",
+            "}"
+        );
+
+        var cleanAudit = LineDiff.AuditAllocationAndClosureCaptureHazards("", cleanCode);
+        Assert.Equal(0, cleanAudit.TotalHazards);
+        Assert.Equal(100.0, cleanAudit.ZeroAllocationScore);
+        Assert.Equal("Optimal Zero-Allocation & Closure Hygiene (≥90%)", cleanAudit.Category);
+
+        string formatted = LineDiff.FormatClosureCaptureSummary(
+            cleanAudit.TotalModifiedLines, cleanAudit.TotalHazards, cleanAudit.ClosureCaptureCount,
+            cleanAudit.StructBoxingCount, cleanAudit.LoopAllocationCount, cleanAudit.LinqHotPathCount,
+            cleanAudit.ParamsArrayCount, cleanAudit.ZeroAllocationScore, cleanAudit.Category);
+        Assert.Equal(cleanAudit.Summary, formatted);
+
+        // 3. Problematic code: new inside loop, lambda closure capture, struct boxing
+        var probCode = string.Join("\n",
+            "public void ProcessList(List<int> items)",
+            "{",
+            "    int captured = 42;",
+            "    Func<int, int> func = (x) => x + captured;",
+            "    for (int i = 0; i < items.Count; i++)",
+            "    {",
+            "        var list = new List<string>();",
+            "        object boxed = 123;",
+            "    }",
+            "}"
+        );
+
+        var probAudit = LineDiff.AuditAllocationAndClosureCaptureHazards("", probCode);
+        Assert.True(probAudit.LoopAllocationCount >= 1);
+        Assert.True(probAudit.ClosureCaptureCount >= 1);
+        Assert.True(probAudit.StructBoxingCount >= 1);
+        Assert.True(probAudit.ZeroAllocationScore < 70.0);
+    }
 }

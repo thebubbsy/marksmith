@@ -11991,6 +11991,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(auditListNestingItem);
 
+        var auditInlineHtmlSecurityItem = new MenuFlyoutItem
+        {
+            Text = "Audit Markdown Inline HTML Security & Sanitization",
+            Icon = new FontIcon { Glyph = "\uE8B9" }
+        };
+        auditInlineHtmlSecurityItem.Click += (_, _) =>
+        {
+            var text = EditorDocument();
+            var summary = MarkSmith.Services.TextSearch.AuditMarkdownInlineHtmlSecurity(text).Summary;
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditInlineHtmlSecurityItem);
+
         menu.ShowAt(anchor);
     }
 

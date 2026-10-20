@@ -9713,6 +9713,157 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         return $"SmartArt funnel / pyramid audit ({stageStr} · {details} · {category} · {score:0.#}% flow harmony score)";
     }
 
+    public SmartArtMultiLevelMatrixQuadrantAudit AuditMatrixQuadrantSymmetryAndBalance()
+    {
+        var audit = AuditMatrixQuadrantSymmetryAndBalance(MarkdownText, SelectedLayout?.DisplayName);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static SmartArtMultiLevelMatrixQuadrantAudit AuditMatrixQuadrantSymmetryAndBalance(string? markdown, string? layoutName = null)
+    {
+        string layout = layoutName ?? "Matrix Layout";
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            string emptySummary = FormatMatrixQuadrantSummary(4, 0, 0, 0.0, 0.0, 1.0, 100.0, "Empty Outline");
+            return new SmartArtMultiLevelMatrixQuadrantAudit(
+                4, 0, 0, 0.0, 0.0, 1.0, 100.0, Array.Empty<MultiLevelMatrixQuadrantItem>(), "Empty Outline", emptySummary);
+        }
+
+        var lines = markdown.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None)
+            .Select(l => l.Trim())
+            .Where(l => l.StartsWith("- ") || l.StartsWith("* ") || l.StartsWith("+ ") || System.Text.RegularExpressions.Regex.IsMatch(l, @"^\d+[.)]\s+") || l.StartsWith("#"))
+            .ToList();
+
+        var quadrantNames = new[] { "Q1: Top-Left (Strengths)", "Q2: Top-Right (Weaknesses)", "Q3: Bottom-Left (Opportunities)", "Q4: Bottom-Right (Threats)" };
+        var quadrantItems = new List<string>[4];
+        for (int q = 0; q < 4; q++) quadrantItems[q] = new List<string>();
+
+        int currentQ = 0;
+        int parsedCount = 0;
+        bool hasHeadings = false;
+
+        foreach (var raw in lines)
+        {
+            if (raw.StartsWith("#"))
+            {
+                hasHeadings = true;
+                if (parsedCount > 0 && currentQ < 3)
+                {
+                    currentQ++;
+                    parsedCount = 0;
+                }
+                continue;
+            }
+
+            string itemText = System.Text.RegularExpressions.Regex.Replace(raw, @"^([-*+]|\d+[.)])\s+", "").Trim();
+            if (string.IsNullOrEmpty(itemText)) continue;
+
+            quadrantItems[currentQ].Add(itemText);
+            parsedCount++;
+        }
+
+        if (!hasHeadings && quadrantItems[1].Count == 0 && quadrantItems[2].Count == 0 && quadrantItems[3].Count == 0 && quadrantItems[0].Count >= 4)
+        {
+            var all = quadrantItems[0].ToList();
+            for (int q = 0; q < 4; q++) quadrantItems[q].Clear();
+            int chunkSize = (int)Math.Ceiling(all.Count / 4.0);
+            for (int i = 0; i < all.Count; i++)
+            {
+                int q = Math.Min(3, i / chunkSize);
+                quadrantItems[q].Add(all[i]);
+            }
+        }
+
+        var items = new List<MultiLevelMatrixQuadrantItem>();
+        int totalItems = 0;
+        int totalWords = 0;
+        var wordsPerQ = new int[4];
+        var countPerQ = new int[4];
+
+        for (int q = 0; q < 4; q++)
+        {
+            var qList = quadrantItems[q];
+            int count = qList.Count;
+            int words = qList.Sum(s => s.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries).Length);
+            int chars = qList.Sum(s => s.Length);
+
+            totalItems += count;
+            totalWords += words;
+            wordsPerQ[q] = words;
+            countPerQ[q] = count;
+        }
+
+        for (int q = 0; q < 4; q++)
+        {
+            int count = countPerQ[q];
+            int words = wordsPerQ[q];
+            int chars = quadrantItems[q].Sum(s => s.Length);
+            double relRatio = totalWords > 0 ? Math.Round((double)words / totalWords, 3) : 0.25;
+
+            bool isOvercrowded = count > 5 || (totalItems >= 4 && count > totalItems * 0.5);
+            bool isSparse = count == 0 && totalItems >= 4;
+
+            string status = (count >= 1 && count <= 5 && !isOvercrowded && !isSparse)
+                ? $"Balanced Quadrant ({count} items, {words} words)"
+                : isOvercrowded
+                    ? $"Overcrowded Quadrant ({count} items exceed quadrant focus)"
+                    : isSparse
+                        ? "Sparse Quadrant (0 items, asymmetric void)"
+                        : $"{count} items, {words} words";
+
+            items.Add(new MultiLevelMatrixQuadrantItem(q + 1, quadrantNames[q], count, words, chars, relRatio, isOvercrowded, isSparse, status));
+        }
+
+        double meanCount = totalItems / 4.0;
+        double meanWords = totalWords / 4.0;
+        double countVar = Math.Round(countPerQ.Sum(c => Math.Pow(c - meanCount, 2)) / 4.0, 2);
+        double wordVar = Math.Round(wordsPerQ.Sum(w => Math.Pow(w - meanWords, 2)) / 4.0, 2);
+
+        int maxWords = wordsPerQ.Max();
+        int minWords = wordsPerQ.Min();
+        double symmetryRatio = maxWords > 0 ? Math.Round((double)minWords / maxWords, 2) : 1.0;
+
+        double score = 100.0;
+        int emptyQuadrants = countPerQ.Count(c => c == 0);
+        if (totalItems >= 4 && emptyQuadrants > 0) score -= emptyQuadrants * 20.0;
+        score -= countVar * 4.0;
+        if (symmetryRatio < 0.3) score -= 15.0;
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category;
+        if (totalItems == 0) category = "Empty Outline";
+        else if (score >= 90.0) category = "Optimal Quadrant Symmetry & Balance (≥90%)";
+        else if (score >= 75.0) category = "Balanced Matrix with Minor Axis Disparities (75-89%)";
+        else if (score >= 50.0) category = "Moderate Quadrant Weight Skew (50-74%)";
+        else category = "Severe Quadrant Void & Axis Asymmetry (<50%)";
+
+        string summary = FormatMatrixQuadrantSummary(
+            4, totalItems, totalWords, countVar, wordVar, symmetryRatio, score, category);
+
+        return new SmartArtMultiLevelMatrixQuadrantAudit(
+            4, totalItems, totalWords, countVar, wordVar, symmetryRatio, score, items, category, summary);
+    }
+
+    public static string FormatMatrixQuadrantSummary(
+        int totalQuadrants, int totalItems, int totalWords,
+        double itemVariance, double wordVariance, double symmetryRatio,
+        double score, string category)
+    {
+        if (totalItems == 0) return "SmartArt matrix quadrant audit: Empty outline · 0 items detected";
+
+        string itemStr = totalItems == 1 ? "1 item" : $"{totalItems} items";
+        var parts = new List<string>();
+
+        parts.Add(itemStr);
+        parts.Add($"{totalWords} words across 4 quadrants");
+        parts.Add($"sym ratio {symmetryRatio:0.00}");
+        parts.Add($"item var {itemVariance:F1}");
+
+        string details = string.Join(" · ", parts);
+        return $"SmartArt matrix quadrant symmetry audit ({details} · {category} · {score:0.#}% balance score)";
+    }
+
 }
 
 /// <summary>
@@ -10822,5 +10973,37 @@ public sealed record SmartArtFunnelTaperAudit(
     int MonotonicTaperViolations,
     double FlowHarmonyScore,
     IReadOnlyList<FunnelStageItem> Stages,
+    string Category,
+    string Summary);
+
+
+
+/// <summary>
+/// Represents evaluated quadrant index, label, item/word volume, and balance state for an individual matrix quadrant.
+/// </summary>
+public sealed record MultiLevelMatrixQuadrantItem(
+    int QuadrantIndex,
+    string QuadrantName,
+    int ItemCount,
+    int WordCount,
+    int CharacterCount,
+    double RelativeVolumeRatio,
+    bool IsOvercrowded,
+    bool IsSparse,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of SmartArt multi-level matrix quadrant symmetry, four-quadrant distribution,
+/// equal stage parity, and cross-axis balance.
+/// </summary>
+public sealed record SmartArtMultiLevelMatrixQuadrantAudit(
+    int TotalQuadrants,
+    int TotalItems,
+    int TotalWords,
+    double ItemCountVariance,
+    double WordCountVariance,
+    double SymmetryRatio,
+    double QuadrantBalanceScore,
+    IReadOnlyList<MultiLevelMatrixQuadrantItem> Quadrants,
     string Category,
     string Summary);

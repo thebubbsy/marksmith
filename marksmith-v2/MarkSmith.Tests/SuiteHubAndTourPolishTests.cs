@@ -5779,4 +5779,100 @@ Some paragraph in between.
         Assert.Contains("OnAuditWorkspaceTableAlignmentClick", suiteCs);
         Assert.Contains("AuditWorkspaceTableAlignment", suiteCs);
     }
+
+    [Fact]
+    public void Run194_AuditWorkspaceFrontmatter_ValidatesSchemaAndCompleteness()
+    {
+        // 1. Empty workspace
+        var emptyAudit = RecentFilesService.AuditWorkspaceFrontmatterSchemaValidation(Array.Empty<string>());
+        Assert.Equal(0, emptyAudit.TotalDocumentsAudited);
+        Assert.Equal(0, emptyAudit.FrontmatterDocumentCount);
+        Assert.Equal(100.0, emptyAudit.SchemaComplianceScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+        Assert.Contains("0 documents scanned", emptyAudit.Summary);
+
+        // 2. Structured documents
+        var yamlDoc = string.Join("\n",
+            "---",
+            "title: Run 194 Guide",
+            "date: 2026-10-20",
+            "author: MarkSmith Agent",
+            "tags: [guide, automation]",
+            "---",
+            "# Heading 1",
+            "Content body"
+        );
+
+        var missingDoc = string.Join("\n",
+            "# Raw Document",
+            "No frontmatter at all."
+        );
+
+        var fileSystem = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+        {
+            [@"C:\workspace\doc1.md"] = yamlDoc.Split('\n'),
+            [@"C:\workspace\doc2.md"] = missingDoc.Split('\n')
+        };
+
+        var audit = RecentFilesService.AuditWorkspaceFrontmatterSchemaValidation(
+            fileSystem.Keys,
+            workspaceRoot: @"C:\workspace",
+            fileExists: p => fileSystem.ContainsKey(p),
+            readAllLines: p => fileSystem.TryGetValue(p, out var lines) ? lines : null);
+
+        Assert.Equal(2, audit.TotalDocumentsAudited);
+        Assert.Equal(1, audit.FrontmatterDocumentCount);
+        Assert.Equal(1, audit.MissingFrontmatterCount);
+        Assert.Equal(1, audit.ValidYamlCount);
+        Assert.Equal(0, audit.MalformedSyntaxCount);
+        Assert.True(audit.SchemaComplianceScore > 0.0);
+
+        string formatted = RecentFilesService.FormatWorkspaceFrontmatterSchemaValidationSummary(
+            audit.TotalDocumentsAudited, audit.FrontmatterDocumentCount, audit.MissingFrontmatterCount,
+            audit.ValidYamlCount, audit.ValidTomlCount, audit.MalformedSyntaxCount,
+            audit.MissingRequiredKeysCount, audit.SchemaComplianceScore, audit.Category);
+        Assert.Equal(audit.Summary, formatted);
+    }
+
+    [Fact]
+    public void Run194_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // Surface 1: MainWindow - Markdown Inline HTML Tag Sanitization & Dangerous Tag Security Auditor
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("auditInlineHtmlSecurityItem", mainCs);
+        Assert.Contains("AuditMarkdownInlineHtmlSecurity", mainCs);
+
+        // Surface 2: MindMapGalaxyWindow - Graph Node Degree Distribution, Power-Law Scale-Free Topology & Hub Centrality Auditor
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditGraphDegreeDistributionTopologyItem", galaxyXaml);
+        Assert.Contains("OnAuditGraphDegreeDistributionTopologyClick", galaxyCs);
+        Assert.Contains("AuditGraphDegreeDistributionAndHubCentrality", galaxyCs);
+
+        // Surface 3: ShapeDesignStudioWindow - Diagram Shape Connector Anchor Snapping Margin & Alignment Orthogonality Auditor
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditConnectorAnchorSnappingItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditConnectorAnchorSnappingClick", shapeCs);
+        Assert.Contains("AuditConnectorAnchorSnappingAndOrthogonality", shapeCs);
+
+        // Surface 4: SmartArtDesignStudioWindow - SmartArt Multi-Level Matrix Quadrant Symmetry & Balance Auditor
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineStatsAuditMatrixQuadrantBalanceItem", smartArtXaml);
+        Assert.Contains("OnOutlineStatsAuditMatrixQuadrantBalanceClick", smartArtCs);
+        Assert.Contains("AuditMatrixQuadrantSymmetryAndBalance", smartArtCs);
+
+        // Surface 5: HistoryWindow - Semantic Diff Memory Allocation, Boxing & Closure Capture Hazard Analyzer
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditAllocationClosure", historyCs);
+        Assert.Contains("AuditAllocationAndClosureCaptureHazards", historyCs);
+
+        // Surface 6: SuiteHubView - Workspace Markdown Frontmatter YAML / TOML Schema Validation & Metadata Consistency Auditor
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("AuditWorkspaceFrontmatterItem", suiteXaml);
+        Assert.Contains("OnAuditWorkspaceFrontmatterClick", suiteCs);
+        Assert.Contains("AuditWorkspaceFrontmatterSchemaValidation", suiteCs);
+    }
 }

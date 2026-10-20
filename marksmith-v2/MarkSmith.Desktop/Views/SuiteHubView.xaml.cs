@@ -2368,7 +2368,7 @@ public sealed partial class SuiteHubView : UserControl
         }
     }
 
-    private async void OnAuditWorkspaceTableAlignmentClick(object sender, RoutedEventArgs e)
+        private async void OnAuditWorkspaceTableAlignmentClick(object sender, RoutedEventArgs e)
     {
         try
         {
@@ -2387,7 +2387,26 @@ public sealed partial class SuiteHubView : UserControl
         }
     }
 
-    private void OnClearRecentFilterClick(object sender, RoutedEventArgs e)
+    private async void OnAuditWorkspaceFrontmatterClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var files = App.RecentFiles?.Load() ?? new List<string>();
+            var result = RecentFilesService.AuditWorkspaceFrontmatterSchemaValidation(files);
+            await Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            SetNotification($"Frontmatter: {result.FrontmatterDocumentCount} docs with frontmatter ({result.MissingRequiredKeysCount} missing keys across {result.TotalDocumentsAudited} docs)", success: true);
+            if (RecentDocsActionBtn != null)
+            {
+                Services.CopyFeedback.ApplyButtonTick(RecentDocsActionBtn, null, "\u2713 Frontmatter");
+            }
+        }
+        catch (Exception ex)
+        {
+            SetNotification($"Audit failed: {ex.Message}", success: false);
+        }
+    }
+
+private void OnClearRecentFilterClick(object sender, RoutedEventArgs e)
     {
         RecentSearchBox.Text = "";
         LoadRecentFiles("");

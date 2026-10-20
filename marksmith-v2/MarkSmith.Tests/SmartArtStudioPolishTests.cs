@@ -2819,4 +2819,61 @@ public class SmartArtStudioPolishTests
         Assert.Equal(1, singleAudit.TotalStages);
         Assert.True(singleAudit.FlowHarmonyScore < 75.0);
     }
+
+    [Fact]
+    public void AuditMatrixQuadrantSymmetryAndBalance_EvaluatesFourQuadrantsAndParity()
+    {
+        // 1. Empty outline
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditMatrixQuadrantSymmetryAndBalance(null);
+        Assert.Equal(4, emptyAudit.TotalQuadrants);
+        Assert.Equal(0, emptyAudit.TotalItems);
+        Assert.Equal(100.0, emptyAudit.QuadrantBalanceScore);
+        Assert.Equal("Empty Outline", emptyAudit.Category);
+
+        // 2. Balanced 4-quadrant SWOT markdown
+        var swotMd = string.Join("\n",
+            "### Strengths",
+            "- Core Product Reliability",
+            "- High Performance Engine",
+            "### Weaknesses",
+            "- Complex Setup Flow",
+            "- Limited Mobile Support",
+            "### Opportunities",
+            "- Cloud Integration Sync",
+            "- Enterprise Workspace Suite",
+            "### Threats",
+            "- Rapid Feature Competitors",
+            "- Platform Security Shifts"
+        );
+
+        var swotAudit = SmartArtDesignStudioViewModel.AuditMatrixQuadrantSymmetryAndBalance(swotMd, "SWOT Matrix");
+        Assert.Equal(4, swotAudit.TotalQuadrants);
+        Assert.Equal(8, swotAudit.TotalItems);
+        Assert.Equal(0.0, swotAudit.ItemCountVariance);
+        Assert.True(swotAudit.QuadrantBalanceScore >= 90.0);
+        Assert.Equal("Optimal Quadrant Symmetry & Balance (≥90%)", swotAudit.Category);
+
+        string formatted = SmartArtDesignStudioViewModel.FormatMatrixQuadrantSummary(
+            swotAudit.TotalQuadrants, swotAudit.TotalItems, swotAudit.TotalWords,
+            swotAudit.ItemCountVariance, swotAudit.WordCountVariance, swotAudit.SymmetryRatio,
+            swotAudit.QuadrantBalanceScore, swotAudit.Category);
+        Assert.Equal(swotAudit.Summary, formatted);
+
+        // 3. Imbalanced matrix (single quadrant dominated)
+        var skewedMd = string.Join("\n",
+            "### Quadrant 1",
+            "- Item A",
+            "- Item B",
+            "- Item C",
+            "- Item D",
+            "- Item E",
+            "- Item F",
+            "- Item G"
+        );
+
+        var poorAudit = SmartArtDesignStudioViewModel.AuditMatrixQuadrantSymmetryAndBalance(skewedMd, "Matrix");
+        Assert.Equal(7, poorAudit.TotalItems);
+        Assert.True(poorAudit.ItemCountVariance > 5.0);
+        Assert.True(poorAudit.QuadrantBalanceScore < 70.0);
+    }
 }

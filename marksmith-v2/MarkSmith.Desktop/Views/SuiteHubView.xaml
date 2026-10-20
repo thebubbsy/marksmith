@@ -387,6 +387,9 @@
                                     <MenuFlyoutItem x:Name="AuditWorkspaceTableAlignmentItem" Text="Audit workspace markdown table column alignment, delimiter bars &amp; pipe grid integrity" Click="OnAuditWorkspaceTableAlignmentClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditWorkspaceFrontmatterItem" Text="Audit workspace markdown frontmatter YAML / TOML schema validation &amp; metadata consistency" Click="OnAuditWorkspaceFrontmatterClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem Text="Clear recent filter" Click="OnClearRecentFilterClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
