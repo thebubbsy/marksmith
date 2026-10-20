@@ -7306,4 +7306,105 @@ Some paragraph in between.
         Assert.Contains("AuditWorkspaceMediaAssetOptimization", suiteCs);
     }
 
+
+    [Fact]
+    public void Run213_AuditWorkspaceCodeBlockLanguageTags_ValidatesFencesAndLanguages()
+    {
+        var emptyAudit = RecentFilesService.AuditWorkspaceCodeBlockLanguageTags(Array.Empty<string>());
+        Assert.Equal(0, emptyAudit.TotalCodeBlocks);
+        Assert.Equal(100.0, emptyAudit.DocumentationQualityScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+
+        string docClean = "C:/docs/clean.md";
+        string docCleanContent = string.Join("\n",
+            "# Clean Code Blocks",
+            "```csharp",
+            "Console.WriteLine(\"Hello\");",
+            "```",
+            "```json",
+            "{\"status\": \"ok\"}",
+            "```"
+        );
+
+        var cleanAudit = RecentFilesService.AuditWorkspaceCodeBlockLanguageTags(
+            explicitFiles: new[] { docClean },
+            fileExistsProvider: _ => true,
+            contentReader: _ => docCleanContent
+        );
+
+        Assert.Equal(2, cleanAudit.TotalCodeBlocks);
+        Assert.Equal(2, cleanAudit.TaggedBlocksCount);
+        Assert.Equal(0, cleanAudit.MissingTagBlocksCount);
+        Assert.Equal(0, cleanAudit.UnknownTagBlocksCount);
+        Assert.Equal(100.0, cleanAudit.DocumentationQualityScore);
+        Assert.Equal("High Language Tagging Discipline", cleanAudit.Category);
+
+        string formatted = RecentFilesService.FormatWorkspaceCodeBlockSummary(
+            cleanAudit.TotalCodeBlocks, cleanAudit.TaggedBlocksCount, cleanAudit.MissingTagBlocksCount,
+            cleanAudit.UnknownTagBlocksCount, cleanAudit.DocumentationQualityScore, cleanAudit.Category);
+        Assert.Equal(cleanAudit.Summary, formatted);
+
+        string docBad = "C:/docs/bad.md";
+        string docBadContent = string.Join("\n",
+            "# Untagged and Obscure Blocks",
+            "```",
+            "plain unadorned fence",
+            "```",
+            "```unusual_obscure_format_tag_xyz",
+            "custom data",
+            "```"
+        );
+
+        var badAudit = RecentFilesService.AuditWorkspaceCodeBlockLanguageTags(
+            explicitFiles: new[] { docBad },
+            fileExistsProvider: _ => true,
+            contentReader: _ => docBadContent
+        );
+
+        Assert.True(badAudit.MissingTagBlocksCount >= 1);
+        Assert.True(badAudit.UnknownTagBlocksCount >= 1);
+        Assert.True(badAudit.DocumentationQualityScore < 80.0);
+    }
+
+    [Fact]
+    public void Run213_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // Surface 1: MainWindow - Markdown HTML Tag Sanitization & Dangerous Raw Element Security Auditor
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("auditHtmlSanitizationItem", mainCs);
+        Assert.Contains("AuditMarkdownHtmlSanitization", mainCs);
+
+        // Surface 2: MindMapGalaxyWindow - Graph Node Color Contrast & Cognitive Accessibility Auditor
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditGraphColorContrastAccessibilityItem", galaxyXaml);
+        Assert.Contains("OnAuditGraphColorContrastAccessibilityClick", galaxyCs);
+        Assert.Contains("AuditGraphColorContrastAccessibility", galaxyCs);
+
+        // Surface 3: ShapeDesignStudioWindow - Shape Z-Index Stacking Order & Visual Occlusion Detection Auditor
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditShapeOcclusionAndStackingOrderItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditShapeOcclusionAndStackingOrderClick", shapeCs);
+        Assert.Contains("AuditShapeOcclusionAndStackingOrder", shapeCs);
+
+        // Surface 4: SmartArtDesignStudioWindow - Pyramid / Funnel Inverted Geometry & Hierarchy Inversion Auditor
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineStatsAuditPyramidFunnelHierarchyInversionItem", smartArtXaml);
+        Assert.Contains("OnOutlineStatsAuditPyramidFunnelHierarchyInversionClick", smartArtCs);
+        Assert.Contains("AuditPyramidFunnelHierarchyInversion", smartArtCs);
+
+        // Surface 5: HistoryWindow - Semantic Diff Lock Hierarchy & Deadlock Hazard Auditor
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditLockHierarchyItem", historyCs);
+        Assert.Contains("AuditLockHierarchyDeadlocks", historyCs);
+
+        // Surface 6: SuiteHubView - Workspace Code Block Syntax Highlighting & Language Tagging Auditor
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("AuditWorkspaceCodeBlockLanguageTagsItem", suiteXaml);
+        Assert.Contains("OnAuditWorkspaceCodeBlockLanguageTagsClick", suiteCs);
+        Assert.Contains("AuditWorkspaceCodeBlockLanguageTags", suiteCs);
+    }
 }

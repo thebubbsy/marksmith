@@ -4053,4 +4053,42 @@ public class TextSearchTests
         Assert.True(brokenAudit.FootnoteParityScore < 70.0);
     }
 
+
+    [Fact]
+    public void Run213_AuditMarkdownHtmlSanitization_DetectsDangerousTagsAndEventHandlers()
+    {
+        var cleanMd = string.Join("\n",
+            "# Safe Document",
+            "This document contains clean text with safe inline formatting like <b>bold</b> and <i>italic</i>.",
+            "```html",
+            "<script>Safe because it is in a code block</script>",
+            "```"
+        );
+        var cleanAudit = TextSearch.AuditMarkdownHtmlSanitization(cleanMd);
+        Assert.Equal(0, cleanAudit.DangerousTagCount);
+        Assert.Equal(0, cleanAudit.InlineEventHandlerCount);
+        Assert.Equal(100.0, cleanAudit.HtmlSanitizationScore);
+        Assert.Equal("High Security Hygiene", cleanAudit.Category);
+
+        string formatted = TextSearch.FormatHtmlSanitizationSummary(
+            cleanAudit.TotalTags, cleanAudit.DangerousTagCount, cleanAudit.InlineEventHandlerCount,
+            cleanAudit.DeprecatedTagCount, cleanAudit.UnclosedTagCount, cleanAudit.HtmlSanitizationScore,
+            cleanAudit.Category);
+        Assert.Equal(cleanAudit.Summary, formatted);
+
+        var hazardousMd = string.Join("\n",
+            "# Hazardous Document",
+            "<script>alert('xss')</script>",
+            "<iframe src=\"https://evil.example.com\"></iframe>",
+            "<img src=\"x\" onerror=\"stealTokens()\" />",
+            "<div onclick=\"exploit()\">Click me</div>",
+            "<marquee>Deprecated</marquee>"
+        );
+        var hazardousAudit = TextSearch.AuditMarkdownHtmlSanitization(hazardousMd);
+        Assert.True(hazardousAudit.DangerousTagCount >= 2);
+        Assert.True(hazardousAudit.InlineEventHandlerCount >= 2);
+        Assert.True(hazardousAudit.DeprecatedTagCount >= 1);
+        Assert.True(hazardousAudit.HtmlSanitizationScore < 60.0);
+        Assert.Equal("Critical Security Hazards", hazardousAudit.Category);
+    }
 }

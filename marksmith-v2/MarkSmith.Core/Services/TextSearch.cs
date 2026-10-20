@@ -14655,6 +14655,181 @@ public static class TextSearch
         return $"Markdown footnote definition parity audit ({details} · {category} · {score:0.#}% parity score)";
     }
 
+
+    public static MarkdownHtmlSanitizationAudit AuditMarkdownHtmlSanitization(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            string emptySummary = FormatHtmlSanitizationSummary(0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new MarkdownHtmlSanitizationAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<MarkdownHtmlSanitizationItem>(),
+                "Clean Baseline", emptySummary);
+        }
+
+        var lines = markdownText.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        var items = new List<MarkdownHtmlSanitizationItem>();
+
+        var dangerousTags = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "script", "iframe", "object", "embed", "applet", "meta", "link", "form", "style", "base"
+        };
+
+        var deprecatedTags = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "font", "center", "marquee", "blink", "strike", "tt", "big"
+        };
+
+        var pairedTags = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "b", "i", "u", "s", "span", "div", "p", "table", "thead", "tbody", "tr", "th", "td",
+            "ul", "ol", "li", "details", "summary", "blockquote", "code", "pre", "h1", "h2", "h3", "h4", "h5", "h6",
+            "strong", "em", "del", "ins", "sub", "sup"
+        };
+
+        int totalTags = 0;
+        int dangerousTagCount = 0;
+        int inlineEventHandlerCount = 0;
+        int deprecatedTagCount = 0;
+        int unclosedTagCount = 0;
+
+        var openTagStack = new Stack<(string TagName, int LineNumber)>();
+        bool inCodeFence = false;
+
+        var tagRegex = new Regex(@"<(/?)([a-zA-Z0-9\-]+)([^>]*)>", RegexOptions.Compiled);
+        var inlineCodeRegex = new Regex(@"`[^`]+`", RegexOptions.Compiled);
+        var autolinkRegex = new Regex(@"<(?:https?://[^\s>]+|mailto:[^\s>]+|[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string line = lines[i];
+            string trimmed = line.TrimStart();
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+            {
+                inCodeFence = !inCodeFence;
+                continue;
+            }
+            if (inCodeFence) continue;
+
+            string scrubbed = inlineCodeRegex.Replace(line, m => new string(' ', m.Length));
+            scrubbed = autolinkRegex.Replace(scrubbed, m => new string(' ', m.Length));
+
+            var matches = tagRegex.Matches(scrubbed);
+            foreach (Match m in matches)
+            {
+                totalTags++;
+                bool isClosing = m.Groups[1].Length > 0;
+                string tagName = m.Groups[2].Value.ToLowerInvariant();
+                string attributes = m.Groups[3].Value;
+                int col = m.Index + 1;
+
+                bool hasOnHandler = Regex.IsMatch(attributes, @"\bon[a-zA-Z]+\s*=", RegexOptions.IgnoreCase);
+                bool hasJsUri = Regex.IsMatch(attributes, @"(?:href|src)\s*=\s*['""]?\s*javascript:", RegexOptions.IgnoreCase);
+
+                if (dangerousTags.Contains(tagName))
+                {
+                    dangerousTagCount++;
+                    items.Add(new MarkdownHtmlSanitizationItem(
+                        i + 1, col, m.Value, "CriticalSecurity", tagName, line.Trim(),
+                        $"Dangerous raw HTML <{tagName}> tag detected; replace with safe Markdown or sanitize for security."));
+                }
+                else if (hasOnHandler || hasJsUri)
+                {
+                    inlineEventHandlerCount++;
+                    items.Add(new MarkdownHtmlSanitizationItem(
+                        i + 1, col, m.Value, "CriticalSecurity", tagName, line.Trim(),
+                        $"Inline event handler or javascript: URI in <{tagName}> tag detected; remove handler to prevent XSS."));
+                }
+                else if (deprecatedTags.Contains(tagName))
+                {
+                    deprecatedTagCount++;
+                    items.Add(new MarkdownHtmlSanitizationItem(
+                        i + 1, col, m.Value, "DeprecatedTag", tagName, line.Trim(),
+                        $"Deprecated HTML tag <{tagName}> detected; replace with modern CSS or Markdown equivalent."));
+                }
+                else if (pairedTags.Contains(tagName))
+                {
+                    if (!isClosing && !attributes.EndsWith("/"))
+                    {
+                        openTagStack.Push((tagName, i + 1));
+                    }
+                    else if (isClosing)
+                    {
+                        if (openTagStack.Count > 0 && string.Equals(openTagStack.Peek().TagName, tagName, StringComparison.OrdinalIgnoreCase))
+                        {
+                            openTagStack.Pop();
+                        }
+                        else
+                        {
+                            unclosedTagCount++;
+                            items.Add(new MarkdownHtmlSanitizationItem(
+                                i + 1, col, m.Value, "UnclosedTag", tagName, line.Trim(),
+                                $"Closing tag </{tagName}> does not match open tag stack; check document nesting."));
+                        }
+                    }
+                }
+            }
+        }
+
+        while (openTagStack.Count > 0)
+        {
+            var open = openTagStack.Pop();
+            unclosedTagCount++;
+            items.Add(new MarkdownHtmlSanitizationItem(
+                open.LineNumber, 1, $"<{open.TagName}>", "UnclosedTag", open.TagName, $"<{open.TagName}>",
+                $"Unclosed HTML tag <{open.TagName}> reaching end of document."));
+        }
+
+        if (totalTags == 0)
+        {
+            string emptySummary = FormatHtmlSanitizationSummary(0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new MarkdownHtmlSanitizationAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<MarkdownHtmlSanitizationItem>(),
+                "Clean Baseline", emptySummary);
+        }
+
+        double penalty = (dangerousTagCount * 30.0) +
+                         (inlineEventHandlerCount * 25.0) +
+                         (unclosedTagCount * 10.0) +
+                         (deprecatedTagCount * 5.0);
+
+        double score = Math.Clamp(100.0 - penalty, 0.0, 100.0);
+
+        string category = score switch
+        {
+            >= 90.0 => "High Security Hygiene",
+            >= 70.0 => "Moderate HTML Warnings",
+            _ => "Critical Security Hazards"
+        };
+
+        string summary = FormatHtmlSanitizationSummary(
+            totalTags, dangerousTagCount, inlineEventHandlerCount, deprecatedTagCount, unclosedTagCount, score, category);
+
+        return new MarkdownHtmlSanitizationAudit(
+            totalTags, dangerousTagCount, inlineEventHandlerCount, deprecatedTagCount, unclosedTagCount, score, items, category, summary);
+    }
+
+    public static string FormatHtmlSanitizationSummary(string? markdownText)
+        => AuditMarkdownHtmlSanitization(markdownText).Summary;
+
+    public static string FormatHtmlSanitizationSummary(
+        int totalTags, int dangerousTags, int eventHandlers, int deprecatedTags, int unclosedTags, double score, string category)
+    {
+        if (totalTags == 0)
+            return "Markdown HTML sanitization audit: Clean document · 0 raw HTML tags detected";
+
+        var parts = new List<string>();
+        parts.Add($"{totalTags} tag{(totalTags == 1 ? "" : "s")}");
+        if (dangerousTags > 0) parts.Add($"\ud83d\udea8 {dangerousTags} dangerous tag{(dangerousTags == 1 ? "" : "s")}");
+        if (eventHandlers > 0) parts.Add($"\ud83d\udea8 {eventHandlers} event handler{(eventHandlers == 1 ? "" : "s")}");
+        if (unclosedTags > 0) parts.Add($"\u26a0 {unclosedTags} unclosed tag{(unclosedTags == 1 ? "" : "s")}");
+        if (deprecatedTags > 0) parts.Add($"\u2139 {deprecatedTags} deprecated tag{(deprecatedTags == 1 ? "" : "s")}");
+
+        string details = string.Join(" · ", parts);
+        return $"Markdown HTML sanitization audit ({details} · {category} · {score:0.#}% safety score)";
+    }
+
 }
 
 
@@ -16368,6 +16543,28 @@ public sealed record MarkdownFootnoteParityAudit(
     int NonSequentialNumericCount,
     double FootnoteParityScore,
     IReadOnlyList<MarkdownFootnoteParityItem> Items,
+    string Category,
+    string Summary);
+
+
+
+public sealed record MarkdownHtmlSanitizationItem(
+    int LineNumber,
+    int Column,
+    string MatchedText,
+    string HazardType,
+    string TagName,
+    string Excerpt,
+    string Recommendation);
+
+public sealed record MarkdownHtmlSanitizationAudit(
+    int TotalTags,
+    int DangerousTagCount,
+    int InlineEventHandlerCount,
+    int DeprecatedTagCount,
+    int UnclosedTagCount,
+    double HtmlSanitizationScore,
+    IReadOnlyList<MarkdownHtmlSanitizationItem> Items,
     string Category,
     string Summary);
 

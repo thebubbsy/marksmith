@@ -4674,5 +4674,33 @@ namespace MarkSmith.Tests
             audit.NetworkResilienceScore, audit.Category, false);
         Assert.Equal(audit.Summary, formatted);
     }
+    
+    [Fact]
+    public void Run213_AuditGraphColorContrastAccessibility_CalculatesLuminanceAndContrast()
+    {
+        var emptyAudit = MindMapStudioViewModel.AuditGraphColorContrastAccessibility(null);
+        Assert.Equal(0, emptyAudit.TotalNodes);
+        Assert.Equal(100.0, emptyAudit.ContrastAccessibilityScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+
+        var nSafe1 = new MindMapNode { Id = "N1", Title = "Dark Card", ColorHex = "#1E1E1E" };
+        var nSafe2 = new MindMapNode { Id = "N2", Title = "Deep Blue", ColorHex = "#0A2540" };
+        var safeAudit = MindMapStudioViewModel.AuditGraphColorContrastAccessibility(new[] { nSafe1, nSafe2 }, canvasBackgroundHex: "#FFFFFF");
+        Assert.Equal(2, safeAudit.TotalNodes);
+        Assert.Equal(2, safeAudit.WcagCompliantCount);
+        Assert.Equal(0, safeAudit.TextContrastFailureCount);
+        Assert.True(safeAudit.ContrastAccessibilityScore >= 90.0);
+        Assert.Equal("High Cognitive Accessibility", safeAudit.Category);
+
+        string formatted = MindMapStudioViewModel.FormatColorContrastSummary(
+            safeAudit.TotalNodes, safeAudit.WcagCompliantCount, safeAudit.TextContrastFailureCount,
+            safeAudit.CardBoundaryWarningCount, safeAudit.AverageTextContrast,
+            safeAudit.ContrastAccessibilityScore, safeAudit.Category, false);
+        Assert.Equal(safeAudit.Summary, formatted);
+
+        var nBad = new MindMapNode { Id = "N3", Title = "Low Contrast", ColorHex = "#E0E0E0" };
+        var badAudit = MindMapStudioViewModel.AuditGraphColorContrastAccessibility(new[] { nBad }, canvasBackgroundHex: "#FFFFFF");
+        Assert.True(badAudit.TextContrastFailureCount >= 1 || badAudit.CardBoundaryWarningCount >= 1);
     }
+}
 }

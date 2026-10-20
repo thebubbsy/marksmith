@@ -12237,6 +12237,20 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         };
         menu.Items.Add(auditFootnoteDefinitionParityItem);
 
+        var auditHtmlSanitizationItem = new MenuFlyoutItem
+        {
+            Text = "Audit Markdown HTML Sanitization & Dangerous Raw Elements",
+            Icon = new FontIcon { Glyph = "\uE8B9" }
+        };
+        auditHtmlSanitizationItem.Click += (_, _) =>
+        {
+            var docText = EditorDocument();
+            var summary = MarkSmith.Services.TextSearch.AuditMarkdownHtmlSanitization(docText).Summary;
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditHtmlSanitizationItem);
+
 
 
         menu.ShowAt(anchor);

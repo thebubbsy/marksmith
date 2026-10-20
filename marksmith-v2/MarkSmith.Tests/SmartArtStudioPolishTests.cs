@@ -3614,4 +3614,36 @@ public class SmartArtStudioPolishTests
         Assert.True(brokenAudit.CycleFlowScore < 70.0);
     }
 
+
+    [Fact]
+    public void Run213_AuditPyramidFunnelHierarchyInversion_ValidatesTierProgression()
+    {
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditPyramidFunnelHierarchyInversion(null, "Pyramid");
+        Assert.Equal(0, emptyAudit.TotalTiers);
+        Assert.Equal(100.0, emptyAudit.HierarchyHarmonyScore);
+        Assert.Equal("Empty Outline", emptyAudit.Category);
+
+        var uprightMd = string.Join("\n",
+            "1. Top Leadership Strategy",
+            "2. Department Planning",
+            "3. Operational Execution",
+            "4. Base Foundation Systems"
+        );
+        var audit = SmartArtDesignStudioViewModel.AuditPyramidFunnelHierarchyInversion(uprightMd, "Pyramid");
+        Assert.Equal(4, audit.TotalTiers);
+        Assert.False(audit.IsInvertedLayout);
+        Assert.Equal(4, audit.MonotonicTiersCount);
+        Assert.Equal(0, audit.InversionHazardCount);
+        Assert.Equal(100.0, audit.HierarchyHarmonyScore);
+        Assert.Equal("High Hierarchical Harmony", audit.Category);
+
+        string formatted = SmartArtDesignStudioViewModel.FormatPyramidFunnelSummary(
+            audit.TotalTiers, audit.IsInvertedLayout, audit.InversionHazardCount,
+            audit.ImbalanceHazardCount, audit.MonotonicTiersCount, audit.HierarchyHarmonyScore,
+            audit.Category, "Pyramid");
+        Assert.Equal(audit.Summary, formatted);
+
+        var funnelAudit = SmartArtDesignStudioViewModel.AuditPyramidFunnelHierarchyInversion(uprightMd, "Inverted Funnel");
+        Assert.True(funnelAudit.IsInvertedLayout);
+    }
 }

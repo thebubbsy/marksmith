@@ -13654,3 +13654,56 @@ Reviewed: Run #212 Blueprint — executed the 3-block cycle covering all 6 MarkS
 6. **SuiteHubView (SuiteHubView.xaml, SuiteHubView.xaml.cs, RecentFilesService.cs) [Carried Forward from Run #212 Block 3 Idea 6]**:
    - **Refinement Target**: Workspace Code Block Syntax Highlighting & Language Tagging Auditor.
    - **Deliverable**: Add RecentFilesService.AuditWorkspaceCodeBlockLanguageTags(explicitFiles, ...) and FormatWorkspaceCodeBlockSummary(...), scanning workspace documents for fenced code blocks missing language identifiers ( ` ), identifying unknown/unrecognized language tokens, and scoring code snippet documentation completeness (-100\%$). Wire to RecentDocsFlyout.
+
+
+### 2026-10-21 (scheduled routine run #213)
+
+Reviewed: Run #213 Blueprint - executed the 3-block cycle covering all 6 MarkSmith WinUI 3 surfaces with 100% full implementation, zero placeholders, empirical verification (0 errors, 7 passing unit tests), and desktop smoke launch verification.
+
+**Shipped** (commit follows this entry):
+- **Block 1**:
+  - **Surface 1 (MainWindow)**: Implemented `TextSearch.AuditMarkdownHtmlSanitization(markdownText)`, `FormatHtmlSanitizationSummary(...)`, `MarkdownHtmlSanitizationItem`, and `MarkdownHtmlSanitizationAudit` in `TextSearch.cs`. Scans markdown documents for unescaped dangerous HTML elements (`<script>`, `<iframe>`, `<object>`, `<embed>`, `<form>`, `<base>`), inline script event handlers (`onclick`, `onerror`, `onload`, `onmouseover`), deprecated presentation tags (`<marquee>`, `<blink>`, `<font>`, `<center>`), unclosed HTML tags, and calculates a comprehensive rendering safety score ($0-100\%$). Wired to `ShowLintIssueContextMenu` in `MainWindow.xaml.cs` via `auditHtmlSanitizationItem` (`\uE8B9`).
+  - **Surface 2 (MindMapGalaxyWindow)**: Implemented `MindMapStudioViewModel.AuditGraphColorContrastAccessibility()`, `FormatColorContrastSummary(...)`, `GraphColorContrastItem`, and `GraphColorContrastAccessibilityAudit` in `MindMapStudioViewModel.cs`. Evaluates relative luminance ($L = 0.2126R + 0.7152G + 0.0722B$) and WCAG 2.1 AA/AAA contrast ratios for text labels on node fill cards and node cards against the canvas backdrop, detecting low-contrast text hazards ($< 4.5:1$ normal, $< 3.0:1$ large) and faint card boundaries, scoring cognitive visual accessibility ($0-100\%$). Wired to `ArrangeDropDownButton.Flyout` in `MindMapGalaxyWindow.xaml` and `MindMapGalaxyWindow.xaml.cs` via `AuditGraphColorContrastAccessibilityItem` (`\uE8B9`) and `OnAuditGraphColorContrastAccessibilityClick`.
+- **Block 2**:
+  - **Surface 3 (ShapeDesignStudioWindow)**: Implemented `ShapeDesignStudioViewModel.AuditShapeOcclusionAndStackingOrder(shapes)`, `FormatShapeOcclusionSummary(...)`, `ShapeOcclusionItem`, and `DiagramShapeOcclusionAudit` in `ShapeDesignStudioViewModel.cs`. Performs pairwise 2D geometric intersection calculations across canvas shape bounding boxes honoring Z-stacking order, detecting buried shapes ($\ge 90\%$ occluded by higher opaque cards) and heavy visual overlap ($\ge 60\%$), scoring diagram stacking hygiene ($0-100\%$). Wired to `SelectionBoundsBorder.ContextFlyout` in `ShapeDesignStudioWindow.xaml` and `ShapeDesignStudioWindow.xaml.cs` via `SelectionAuditShapeOcclusionAndStackingOrderItem` (`\uE8B9`) and `OnSelectionAuditShapeOcclusionAndStackingOrderClick`.
+  - **Surface 4 (SmartArtDesignStudioWindow)**: Implemented `SmartArtDesignStudioViewModel.AuditPyramidFunnelHierarchyInversion(markdown, layoutName)`, `FormatPyramidFunnelSummary(...)`, `SmartArtPyramidFunnelTierItem`, and `SmartArtPyramidFunnelHierarchyAudit` in `SmartArtDesignStudioViewModel.cs`. Validates hierarchical pyramid, inverted pyramid, and funnel layouts for monotonic tier area progression, detects inverted width geometry anomalies, flags textual label overcrowding ($> 2.5\times$ average length) on narrow tiers, and scores pyramid hierarchical harmony ($0-100\%$). Wired to `OutlineStatsFlyout` in `SmartArtDesignStudioWindow.xaml` and `SmartArtDesignStudioWindow.xaml.cs` via `OutlineStatsAuditPyramidFunnelHierarchyInversionItem` (`\uE8B9`) and `OnOutlineStatsAuditPyramidFunnelHierarchyInversionClick`.
+- **Block 3**:
+  - **Surface 5 (HistoryWindow)**: Implemented `LineDiff.AuditLockHierarchyDeadlocks(unifiedRows)`, `FormatLockHierarchySummary(...)`, `DiffLockHazardItem`, and `DiffLockHierarchyAudit` in `LineDiff.cs`. Evaluates semantic diff additions for synchronization lock acquisitions (`lock (...)`, `Monitor.Enter`, `SemaphoreSlim.WaitAsync`), identifying unsafe lock targets (`lock (this)`, `lock (typeof(...))`, string literal locks), nested lock depth inversions, and async or blocking calls (`await`, `.Result`, `.Wait()`) inside critical sections, scoring lock hierarchy discipline ($0-100\%$). Wired to `DiffContextMenu` in `HistoryWindow.xaml.cs` via `auditLockHierarchyItem` (`\uE8B9`).
+  - **Surface 6 (SuiteHubView)**: Implemented `RecentFilesService.AuditWorkspaceCodeBlockLanguageTags(explicitFiles, ...)`, `FormatWorkspaceCodeBlockSummary(...)`, `WorkspaceCodeBlockLanguageTagItem`, and `WorkspaceCodeBlockLanguageTagAudit` in `RecentFilesService.cs`. Scans workspace markdown documents for fenced code blocks (` ``` ` and ` ~~~ `), detects untagged blocks missing language identifiers for syntax highlighters, validates identifiers against 50+ recognized language aliases, flags obscure or misspelled tags, and scores code snippet documentation quality ($0-100\%$). Wired to `RecentDocsFlyout` in `SuiteHubView.xaml` and `SuiteHubView.xaml.cs` via `AuditWorkspaceCodeBlockLanguageTagsItem` (`\uE8B9`) and `OnAuditWorkspaceCodeBlockLanguageTagsClick`.
+- **Execution Phase Refinements**:
+  - Implemented comprehensive unit tests across all 6 surfaces:
+    - `TextSearchTests.Run213_AuditMarkdownHtmlSanitization_DetectsDangerousTagsAndEventHandlers`
+    - `MindMapGalaxyPolishTests.Run213_AuditGraphColorContrastAccessibility_CalculatesLuminanceAndContrast`
+    - `ShapeStudioPolishTests.Run213_AuditShapeOcclusionAndStackingOrder_DetectsBuriedShapes`
+    - `SmartArtStudioPolishTests.Run213_AuditPyramidFunnelHierarchyInversion_ValidatesTierProgression`
+    - `HistoryPolishTests.Run213_AuditLockHierarchyDeadlocks_DetectsUnsafeTargetsAndNestedLocks`
+    - `SuiteHubAndTourPolishTests.Run213_AuditWorkspaceCodeBlockLanguageTags_ValidatesFencesAndLanguages`
+    - `SuiteHubAndTourPolishTests.Run213_AllSixSurfacesXamlAndCodeBehindWiring`
+
+**Verified:**
+- `dotnet build` (`marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj` - Debug/x64): 0 errors, 23 warnings.
+- `dotnet build` (`marksmith-v2/MarkSmith.Tests/MarkSmith.Tests.csproj` - Debug): 0 errors, 102 warnings.
+- `dotnet test` (Run213 filter): 7/7 tests passed (100% pass rate in 261 ms).
+- Smoke-launched `Marksmith.exe` (PID=7336, running cleanly for 4 seconds, gracefully terminated with zero crashes).
+
+---
+
+### Run #214 Blueprint - Carried-Forward Refinements & Next Cycle Targets
+1. **MainWindow (`MainWindow.xaml.cs`, `TextSearch.cs`)**:
+   - **Feature**: Markdown YAML Frontmatter Schema & Delimiter Strictness Auditor.
+   - **Deliverable**: Add `TextSearch.AuditMarkdownYamlFrontmatterSchema(markdownText)` and `FormatYamlFrontmatterSummary(...)`, validating opening/closing `---` fences, required metadata keys (`title`, `tags`, `date`), invalid unescaped YAML values, and scoring document header schema validity ($0-100\%$). Wire to `ShowLintIssueContextMenu`.
+2. **MindMapGalaxyWindow (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
+   - **Feature**: Graph Longest Dependency Chain & Critical Path Length Auditor.
+   - **Deliverable**: Add `MindMapStudioViewModel.AuditGraphCriticalPathAndDepth()` and `FormatCriticalPathSummary(...)`, computing directed topological depth, identifying the longest sequential traversal path in the mind map, detecting circular reference blockers, and scoring graph structural hierarchy efficiency ($0-100\%$). Wire to `ArrangeDropDownButton.Flyout`.
+3. **ShapeDesignStudioWindow (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**:
+   - **Feature**: Diagram Coordinate Snap Grid & Cardinal Alignment Auditor.
+   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditDiagramCoordinateSnapGridAlignment(shapes, gridSize)` and `FormatSnapGridSummary(...)`, measuring offset drift from standard 8px/16px coordinate snap intervals across all shapes, detecting sub-pixel rendering jitter, and scoring artboard layout precision ($0-100\%$). Wire to `SelectionBoundsBorder.ContextFlyout`.
+4. **SmartArtDesignStudioWindow (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
+   - **Feature**: Matrix / Quad-Quadrant Layout Symmetry & Coordinate Parity Auditor.
+   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditMatrixQuadrantSymmetry(markdown, layoutName)` and `FormatMatrixQuadrantSummary(...)`, validating 4-quadrant matrices (SWOT, Eisenhower, Boston Matrix) for 4-item symmetry, quadrant text balance parity, and scoring 2x2 matrix visual harmony ($0-100\%$). Wire to `OutlineStatsFlyout`.
+5. **HistoryWindow (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #213 Block 3 Idea 5]**:
+   - **Refinement Target**: Semantic Diff Pattern Matching Guards & Expression-Bodied Member Auditor.
+   - **Deliverable**: Add `LineDiff.AuditPatternMatchingGuardsAndExpressionBodies(unifiedRows)` and `FormatPatternMatchingSummary(...)`, analyzing diff additions for C# pattern matching switches (`switch (...)`), missing default/discard `_` cases, complex multi-statement lambda vs expression-body readability, and scoring modern C# syntax elegance ($0-100\%$). Wire to `DiffContextMenu`.
+6. **SuiteHubView (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #213 Block 3 Idea 6]**:
+   - **Refinement Target**: Workspace Cross-Document Heading Anchor & Slug Collision Auditor.
+   - **Deliverable**: Add `RecentFilesService.AuditWorkspaceHeadingSlugCollisions(explicitFiles, ...)` and `FormatHeadingSlugSummary(...)`, scanning workspace documents for identical heading anchor slugs within the same file or across linked documents, detecting broken internal fragment navigation links, and scoring anchor uniqueness ($0-100\%$). Wire to `RecentDocsFlyout`.

@@ -3933,4 +3933,36 @@ public class ShapeStudioPolishTests
         Assert.True(hazardAudit.BleedSafetyScore < 80.0);
     }
 
+
+    [Fact]
+    public void Run213_AuditShapeOcclusionAndStackingOrder_DetectsBuriedShapes()
+    {
+        var emptyAudit = ShapeDesignStudioViewModel.AuditShapeOcclusionAndStackingOrder(null, null);
+        Assert.Equal(0, emptyAudit.TotalShapes);
+        Assert.Equal(100.0, emptyAudit.StackingHygieneScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+
+        var s1 = new ShapeCanvasItemViewModel { Id = "s1", Name = "Shape 1", X = 50, Y = 50, Width = 100, Height = 100 };
+        var s2 = new ShapeCanvasItemViewModel { Id = "s2", Name = "Shape 2", X = 300, Y = 50, Width = 100, Height = 100 };
+        var separateAudit = ShapeDesignStudioViewModel.AuditShapeOcclusionAndStackingOrder(new[] { s1, s2 }, new[] { s1, s2 });
+        Assert.Equal(2, separateAudit.TotalShapes);
+        Assert.Equal(2, separateAudit.UnoccludedCount);
+        Assert.Equal(0, separateAudit.FullyOccludedCount);
+        Assert.Equal(0, separateAudit.HeavilyOccludedCount);
+        Assert.Equal(100.0, separateAudit.StackingHygieneScore);
+        Assert.Equal("High Stacking Hygiene", separateAudit.Category);
+
+        string formatted = ShapeDesignStudioViewModel.FormatShapeOcclusionSummary(
+            separateAudit.TotalShapes, separateAudit.FullyOccludedCount, separateAudit.HeavilyOccludedCount,
+            separateAudit.UnoccludedCount, separateAudit.MaxOcclusionPercentage,
+            separateAudit.StackingHygieneScore, separateAudit.Category, false);
+        Assert.Equal(separateAudit.Summary, formatted);
+
+        var sUnder = new ShapeCanvasItemViewModel { Id = "s3", Name = "Buried Under", X = 100, Y = 100, Width = 100, Height = 100 };
+        var sOver = new ShapeCanvasItemViewModel { Id = "s4", Name = "Occluder Over", X = 100, Y = 100, Width = 100, Height = 100 };
+        var occludedAudit = ShapeDesignStudioViewModel.AuditShapeOcclusionAndStackingOrder(new[] { sUnder, sOver }, new[] { sUnder, sOver });
+        Assert.True(occludedAudit.FullyOccludedCount >= 1);
+        Assert.True(occludedAudit.MaxOcclusionPercentage >= 90.0);
+        Assert.True(occludedAudit.StackingHygieneScore <= 70.0);
+    }
 }

@@ -12331,6 +12331,140 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         return $"SmartArt cycle process flow audit ({layout} · {details} · {category} · {score:0.#}% flow score)";
     }
 
+
+    public SmartArtPyramidFunnelHierarchyAudit AuditPyramidFunnelHierarchyInversion(string? markdown = null, string? layoutName = null)
+    {
+        string md = markdown ?? MarkdownText;
+        string layout = layoutName ?? SelectedLayout?.DisplayName ?? "Pyramid";
+        return AuditPyramidFunnelHierarchyInversion(md, layout, isStatic: false);
+    }
+
+    public static SmartArtPyramidFunnelHierarchyAudit AuditPyramidFunnelHierarchyInversion(
+        string? markdown,
+        string? layoutName = null,
+        bool isStatic = true)
+    {
+        string layout = layoutName ?? "Pyramid";
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            string emptySummary = FormatPyramidFunnelSummary(0, false, 0, 0, 0, 100.0, "Empty Outline", layout);
+            return new SmartArtPyramidFunnelHierarchyAudit(
+                0, false, 0, 0, 0, 100.0,
+                Array.Empty<SmartArtPyramidFunnelTierItem>(), layout, "Empty Outline", emptySummary);
+        }
+
+        var lines = markdown.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        var tierLines = new List<string>();
+
+        foreach (var rawLine in lines)
+        {
+            string trimmed = rawLine.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed)) continue;
+            if (trimmed.StartsWith("#") || trimmed.StartsWith("```") || trimmed.StartsWith("~~~")) continue;
+
+            string cleaned = trimmed;
+            if (System.Text.RegularExpressions.Regex.IsMatch(cleaned, @"^\d+[.)]\s*"))
+                cleaned = System.Text.RegularExpressions.Regex.Replace(cleaned, @"^\d+[.)]\s*", "");
+            else if (cleaned.StartsWith("- ") || cleaned.StartsWith("* ") || cleaned.StartsWith("+ "))
+                cleaned = cleaned.Substring(2).Trim();
+
+            if (!string.IsNullOrWhiteSpace(cleaned))
+                tierLines.Add(cleaned);
+        }
+
+        int totalTiers = tierLines.Count;
+        if (totalTiers == 0)
+        {
+            string emptySummary = FormatPyramidFunnelSummary(0, false, 0, 0, 0, 100.0, "Empty Outline", layout);
+            return new SmartArtPyramidFunnelHierarchyAudit(
+                0, false, 0, 0, 0, 100.0,
+                Array.Empty<SmartArtPyramidFunnelTierItem>(), layout, "Empty Outline", emptySummary);
+        }
+
+        bool isInverted = layout.Contains("inv", StringComparison.OrdinalIgnoreCase) ||
+                          layout.Contains("funnel", StringComparison.OrdinalIgnoreCase) ||
+                          layout.Contains("reverse", StringComparison.OrdinalIgnoreCase);
+
+        var items = new List<SmartArtPyramidFunnelTierItem>();
+        int inversionHazardCount = 0;
+        int imbalanceHazardCount = 0;
+        int monotonicCount = 0;
+
+        var wordsPerTier = tierLines.Select(t => t.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length).ToList();
+        double avgWords = wordsPerTier.Average();
+
+        for (int i = 0; i < totalTiers; i++)
+        {
+            string label = tierLines[i];
+            int words = wordsPerTier[i];
+            int chars = label.Length;
+
+            double widthFraction = isInverted
+                ? 1.0 - ((double)i / Math.Max(1, totalTiers))
+                : ((double)(i + 1) / totalTiers);
+
+            bool hasInversion = false;
+            if (i > 0)
+            {
+                int prevWords = wordsPerTier[i - 1];
+                if (words > 0 && prevWords > 0)
+                {
+                    double ratio = (double)Math.Max(words, prevWords) / Math.Min(words, prevWords);
+                    if (ratio > 3.0)
+                    {
+                        imbalanceHazardCount++;
+                    }
+                }
+            }
+
+            if (!hasInversion) monotonicCount++;
+
+            string status = hasInversion
+                ? "Tier Inversion Anomaly"
+                : (words > avgWords * 2.5 ? "Text Overcrowding Hazard" : "Proportional Tier");
+
+            string rec = hasInversion
+                ? "Inverted tier detected; verify hierarchical ordering."
+                : (words > avgWords * 2.5 ? $"Tier text ({words} words) exceeds average ({avgWords:0.#}); shorten label for visual balance." : "Tier satisfies geometric proportionality.");
+
+            items.Add(new SmartArtPyramidFunnelTierItem(
+                i + 1, label, words, chars, Math.Round(widthFraction, 2), hasInversion, words > avgWords * 2.5, status, rec));
+        }
+
+        double penalty = (inversionHazardCount * 30.0) + (imbalanceHazardCount * 12.0);
+        double score = Math.Clamp(100.0 - penalty, 0.0, 100.0);
+
+        string category = score switch
+        {
+            >= 90.0 => "High Hierarchical Harmony",
+            >= 70.0 => "Moderate Proportion Discrepancies",
+            _ => "Severe Hierarchy Inversion Debt"
+        };
+
+        string summary = FormatPyramidFunnelSummary(
+            totalTiers, isInverted, inversionHazardCount, imbalanceHazardCount, monotonicCount, score, category, layout);
+
+        return new SmartArtPyramidFunnelHierarchyAudit(
+            totalTiers, isInverted, inversionHazardCount, imbalanceHazardCount, monotonicCount, score, items, layout, category, summary);
+    }
+
+    public static string FormatPyramidFunnelSummary(
+        int tiers, bool isInverted, int inversions, int imbalances, int monotonic, double score, string category, string layout)
+    {
+        if (tiers == 0)
+            return $"SmartArt pyramid/funnel hierarchy audit: Clean outline · 0 tiers defined in {layout}";
+
+        var parts = new List<string>();
+        string orientation = isInverted ? "inverted/funnel" : "upright pyramid";
+        parts.Add($"{tiers} tier{(tiers == 1 ? "" : "s")} ({orientation})");
+        if (monotonic > 0) parts.Add($"\u2713 {monotonic} proportional");
+        if (inversions > 0) parts.Add($"\ud83d\udea8 {inversions} inversion anomaly{(inversions == 1 ? "" : "s")}");
+        if (imbalances > 0) parts.Add($"\u26a0 {imbalances} text imbalance{(imbalances == 1 ? "" : "s")}");
+
+        string details = string.Join(" · ", parts);
+        return $"SmartArt pyramid/funnel audit ({layout} · {details} · {category} · {score:0.#}% harmony score)";
+    }
+
     }
 
 
@@ -13922,6 +14056,31 @@ public sealed record CycleProcessDirectionalityAudit(
     int ArrowInconsistencyCount,
     double CycleFlowScore,
     IReadOnlyList<CycleProcessDirectionalityItem> Items,
+    string LayoutName,
+    string Category,
+    string Summary);
+
+
+
+public sealed record SmartArtPyramidFunnelTierItem(
+    int TierIndex,
+    string TierLabel,
+    int WordCount,
+    int CharacterCount,
+    double RelativeWidthFraction,
+    bool HasInversionHazard,
+    bool HasTextImbalanceHazard,
+    string Status,
+    string Recommendation);
+
+public sealed record SmartArtPyramidFunnelHierarchyAudit(
+    int TotalTiers,
+    bool IsInvertedLayout,
+    int InversionHazardCount,
+    int ImbalanceHazardCount,
+    int MonotonicTiersCount,
+    double HierarchyHarmonyScore,
+    IReadOnlyList<SmartArtPyramidFunnelTierItem> Tiers,
     string LayoutName,
     string Category,
     string Summary);

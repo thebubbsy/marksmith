@@ -13859,6 +13859,142 @@ public static string FormatGroupNestingSummary(
         return $"Diagram viewport bleed safety audit ({scope}{details} · {category} · {score:0.#}% safety score)";
     }
 
+
+    public DiagramShapeOcclusionAudit AuditShapeOcclusionAndStackingOrder(bool selectionOnly = false)
+    {
+        var selected = SelectedItems.ToList();
+        var targetShapes = (selectionOnly && selected.Count > 0) ? selected : Shapes.ToList();
+        bool isSelection = selectionOnly && selected.Count > 0;
+        var audit = AuditShapeOcclusionAndStackingOrder(targetShapes, Shapes.ToList(), isSelection);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static DiagramShapeOcclusionAudit AuditShapeOcclusionAndStackingOrder(
+        IEnumerable<ShapeCanvasItemViewModel>? targetShapes,
+        IEnumerable<ShapeCanvasItemViewModel>? allShapes = null,
+        bool isSelection = false)
+    {
+        var allList = (allShapes ?? Enumerable.Empty<ShapeCanvasItemViewModel>()).Where(s => s != null).ToList();
+        var targetList = (targetShapes ?? allList).Where(s => s != null).ToList();
+
+        int totalShapes = targetList.Count;
+        if (totalShapes <= 1)
+        {
+            string emptySummary = FormatShapeOcclusionSummary(totalShapes, 0, 0, totalShapes, 0.0, 100.0, "Clean Baseline", isSelection);
+            return new DiagramShapeOcclusionAudit(
+                totalShapes, 0, 0, totalShapes, 0.0, 100.0,
+                Array.Empty<ShapeOcclusionItem>(), "Clean Baseline", isSelection, emptySummary);
+        }
+
+        var items = new List<ShapeOcclusionItem>();
+        int fullyOccludedCount = 0;
+        int heavilyOccludedCount = 0;
+        int unoccludedCount = 0;
+        double maxObservedOverlap = 0.0;
+
+        for (int i = 0; i < targetList.Count; i++)
+        {
+            var shapeA = targetList[i];
+            int zA = allList.IndexOf(shapeA);
+            if (zA < 0) zA = i;
+
+            double areaA = shapeA.Width * shapeA.Height;
+            if (areaA <= 1.0 || shapeA.Prst == "line" || shapeA.Prst == "bentConnector")
+            {
+                unoccludedCount++;
+                continue;
+            }
+
+            double highestOverlapPct = 0.0;
+            ShapeCanvasItemViewModel? primaryOccluder = null;
+
+            for (int j = zA + 1; j < allList.Count; j++)
+            {
+                var shapeB = allList[j];
+                if (shapeB.Prst == "line" || shapeB.Prst == "bentConnector") continue;
+
+                double xOverlap = Math.Max(0, Math.Min(shapeA.X + shapeA.Width, shapeB.X + shapeB.Width) - Math.Max(shapeA.X, shapeB.X));
+                double yOverlap = Math.Max(0, Math.Min(shapeA.Y + shapeA.Height, shapeB.Y + shapeB.Height) - Math.Max(shapeA.Y, shapeB.Y));
+                double overlapArea = xOverlap * yOverlap;
+
+                if (overlapArea > 0)
+                {
+                    double pct = (overlapArea / areaA) * 100.0;
+                    if (pct > highestOverlapPct)
+                    {
+                        highestOverlapPct = pct;
+                        primaryOccluder = shapeB;
+                    }
+                }
+            }
+
+            if (highestOverlapPct > maxObservedOverlap)
+                maxObservedOverlap = highestOverlapPct;
+
+            bool isFull = highestOverlapPct >= 90.0;
+            bool isHeavy = highestOverlapPct >= 60.0 && !isFull;
+
+            if (isFull)
+            {
+                fullyOccludedCount++;
+                items.Add(new ShapeOcclusionItem(
+                    shapeA.Id, shapeA.Name, primaryOccluder?.Id ?? "unknown", primaryOccluder?.Name ?? "higher shape",
+                    Math.Round(highestOverlapPct, 1), true, false, "Fully Buried",
+                    $"Shape '{shapeA.Name}' is {highestOverlapPct:0.#}% obscured by '{primaryOccluder?.Name}'; bring to front or delete redundant primitive."));
+            }
+            else if (isHeavy)
+            {
+                heavilyOccludedCount++;
+                items.Add(new ShapeOcclusionItem(
+                    shapeA.Id, shapeA.Name, primaryOccluder?.Id ?? "unknown", primaryOccluder?.Name ?? "higher shape",
+                    Math.Round(highestOverlapPct, 1), false, true, "Heavy Occlusion",
+                    $"Shape '{shapeA.Name}' is {highestOverlapPct:0.#}% obscured by '{primaryOccluder?.Name}'; adjust coordinates or spacing."));
+            }
+            else
+            {
+                unoccludedCount++;
+            }
+        }
+
+        double penalty = (fullyOccludedCount * 30.0) + (heavilyOccludedCount * 15.0);
+        double score = Math.Clamp(100.0 - penalty, 0.0, 100.0);
+
+        string category = score switch
+        {
+            >= 90.0 => "High Stacking Hygiene",
+            >= 70.0 => "Moderate Layer Occlusion",
+            _ => "Severe Visual Occlusion Debt"
+        };
+
+        string summary = FormatShapeOcclusionSummary(
+            totalShapes, fullyOccludedCount, heavilyOccludedCount, unoccludedCount,
+            Math.Round(maxObservedOverlap, 1), score, category, isSelection);
+
+        return new DiagramShapeOcclusionAudit(
+            totalShapes, fullyOccludedCount, heavilyOccludedCount, unoccludedCount,
+            Math.Round(maxObservedOverlap, 1), score, items, category, isSelection, summary);
+    }
+
+    public static string FormatShapeOcclusionSummary(
+        int total, int fullyOccluded, int heavilyOccluded, int unoccluded,
+        double maxOverlap, double score, string category, bool isSelection)
+    {
+        string scope = isSelection ? "Selection · " : "";
+        if (total <= 1)
+            return $"Diagram shape visual occlusion audit ({scope}Clean artboard · {total} shape evaluated)";
+
+        var parts = new List<string>();
+        parts.Add($"{total} shape{(total == 1 ? "" : "s")}");
+        if (unoccluded > 0) parts.Add($"\u2713 {unoccluded} visible");
+        if (fullyOccluded > 0) parts.Add($"\ud83d\udea8 {fullyOccluded} buried shape{(fullyOccluded == 1 ? "" : "s")}");
+        if (heavilyOccluded > 0) parts.Add($"\u26a0 {heavilyOccluded} heavy occlusion{(heavilyOccluded == 1 ? "" : "s")}");
+        if (maxOverlap > 0) parts.Add($"max overlap {maxOverlap:0.#}%");
+
+        string details = string.Join(" · ", parts);
+        return $"Diagram shape visual occlusion audit ({scope}{details} · {category} · {score:0.#}% hygiene score)";
+    }
+
 }
 
 /// <summary>
@@ -15622,6 +15758,31 @@ public sealed record DiagramViewportBleedAudit(
     double MinObservedMargin,
     double BleedSafetyScore,
     IReadOnlyList<DiagramViewportBleedItem> Items,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);
+
+
+
+public sealed record ShapeOcclusionItem(
+    string ShapeId,
+    string ShapeName,
+    string OccludedByShapeId,
+    string OccludedByShapeName,
+    double OverlapPercentage,
+    bool IsFullyOccluded,
+    bool IsHeavilyOccluded,
+    string Status,
+    string Recommendation);
+
+public sealed record DiagramShapeOcclusionAudit(
+    int TotalShapes,
+    int FullyOccludedCount,
+    int HeavilyOccludedCount,
+    int UnoccludedCount,
+    double MaxOcclusionPercentage,
+    double StackingHygieneScore,
+    IReadOnlyList<ShapeOcclusionItem> Items,
     string Category,
     bool IsSelectionScope,
     string Summary);

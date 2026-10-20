@@ -19553,6 +19553,183 @@ public static class LineDiff
         return $"Semantic diff task parallelism & concurrent collection audit ({details} · {category} · {score:0.#}% safety score)";
     }
 
+
+    public static DiffLockHierarchyAudit AuditLockHierarchyDeadlocks(string? beforeText, string? afterText)
+    {
+        var d = Diff(beforeText ?? string.Empty, afterText ?? string.Empty);
+        var unified = BuildUnified(d);
+        return AuditLockHierarchyDeadlocks(unified);
+    }
+
+    public static DiffLockHierarchyAudit AuditLockHierarchyDeadlocks(IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows == null)
+        {
+            string emptySummary = FormatLockHierarchySummary(0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new DiffLockHierarchyAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<DiffLockHazardItem>(), "Clean Baseline", emptySummary);
+        }
+
+        var modifiedRows = unifiedRows
+            .Where(r => !r.IsGap && r.Kind == Kind.Added && !string.IsNullOrWhiteSpace(r.Text))
+            .ToList();
+
+        int totalModified = modifiedRows.Count;
+        if (totalModified == 0)
+        {
+            string emptySummary = FormatLockHierarchySummary(0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new DiffLockHierarchyAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<DiffLockHazardItem>(), "Clean Baseline", emptySummary);
+        }
+
+        var hazards = new List<DiffLockHazardItem>();
+        int totalLockAcquisitions = 0;
+        int safeLocks = 0;
+        int unsafeTargetCount = 0;
+        int nestedLockCount = 0;
+        int syncOverAsyncLockCount = 0;
+
+        int activeLockDepth = 0;
+        var lockStack = new List<string>();
+
+        var lockRegex = new Regex(@"\block\s*\(\s*(?<target>[^)]+)\)", RegexOptions.Compiled);
+        var monitorRegex = new Regex(@"Monitor\.Enter\s*\(\s*(?<target>[^)]+)\)", RegexOptions.Compiled);
+        var semWaitRegex = new Regex(@"(?<target>\w+)\.WaitAsync\s*\(", RegexOptions.Compiled);
+
+        foreach (var row in modifiedRows)
+        {
+            string line = row.Text.Trim();
+            if (line.StartsWith("//") || line.StartsWith("/*") || line.StartsWith("*")) continue;
+
+            Match mLock = lockRegex.Match(line);
+            Match mMon = monitorRegex.Match(line);
+            Match mSem = semWaitRegex.Match(line);
+
+            string? target = null;
+            string lockType = "lock";
+
+            if (mLock.Success)
+            {
+                target = mLock.Groups["target"].Value.Trim();
+                lockType = "lock";
+            }
+            else if (mMon.Success)
+            {
+                target = mMon.Groups["target"].Value.Trim();
+                lockType = "Monitor.Enter";
+            }
+            else if (mSem.Success)
+            {
+                target = mSem.Groups["target"].Value.Trim();
+                lockType = "SemaphoreSlim.WaitAsync";
+            }
+
+            if (target != null)
+            {
+                totalLockAcquisitions++;
+
+                bool isUnsafeTarget = target == "this" ||
+                                      target.StartsWith("typeof(", StringComparison.Ordinal) ||
+                                      (target.StartsWith(""") && target.EndsWith("""));
+
+                if (isUnsafeTarget)
+                {
+                    unsafeTargetCount++;
+                    hazards.Add(new DiffLockHazardItem(
+                        row.NewNumber ?? 0, target, lockType, "UnsafeLockTarget", line,
+                        $"Locking on '{target}' is hazardous; use a private readonly object instance instead."));
+                }
+
+                if (activeLockDepth > 0)
+                {
+                    nestedLockCount++;
+                    string outer = lockStack.Count > 0 ? lockStack[^1] : "outer";
+                    hazards.Add(new DiffLockHazardItem(
+                        row.NewNumber ?? 0, target, lockType, "NestedLockPotentialDeadlock", line,
+                        $"Nested lock acquisition ('{target}' inside '{outer}') introduces potential lock inversion deadlock risk."));
+                }
+
+                if (!isUnsafeTarget && activeLockDepth == 0)
+                {
+                    safeLocks++;
+                }
+
+                activeLockDepth++;
+                lockStack.Add(target);
+            }
+
+            if (activeLockDepth > 0)
+            {
+                if (line.Contains("await ") || line.Contains(".GetAwaiter().GetResult()") || line.Contains(".Wait()") || line.Contains(".Result"))
+                {
+                    syncOverAsyncLockCount++;
+                    hazards.Add(new DiffLockHazardItem(
+                        row.NewNumber ?? 0, lockStack.Count > 0 ? lockStack[^1] : "lock", lockType, "AsyncOrBlockingInsideLock", line,
+                        "Awaiting or blocking inside a synchronization lock risks thread starvation and deadlocks."));
+                }
+            }
+
+            int openBraces = line.Count(c => c == '{');
+            int closeBraces = line.Count(c => c == '}');
+            if (closeBraces > openBraces && activeLockDepth > 0)
+            {
+                int reduce = Math.Min(activeLockDepth, closeBraces - openBraces);
+                activeLockDepth -= reduce;
+                while (reduce > 0 && lockStack.Count > 0)
+                {
+                    lockStack.RemoveAt(lockStack.Count - 1);
+                    reduce--;
+                }
+            }
+        }
+
+        if (totalLockAcquisitions == 0)
+        {
+            string emptySummary = FormatLockHierarchySummary(0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new DiffLockHierarchyAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<DiffLockHazardItem>(), "Clean Baseline", emptySummary);
+        }
+
+        double penalty = (unsafeTargetCount * 25.0) +
+                         (nestedLockCount * 20.0) +
+                         (syncOverAsyncLockCount * 20.0);
+
+        double score = Math.Clamp(100.0 - penalty, 0.0, 100.0);
+
+        string category = score switch
+        {
+            >= 90.0 => "Disciplined Lock Hierarchy",
+            >= 70.0 => "Moderate Lock Contention Risk",
+            _ => "Severe Deadlock Hazard"
+        };
+
+        string summary = FormatLockHierarchySummary(
+            totalLockAcquisitions, safeLocks, unsafeTargetCount, nestedLockCount, syncOverAsyncLockCount, score, category);
+
+        return new DiffLockHierarchyAudit(
+            totalLockAcquisitions, safeLocks, unsafeTargetCount, nestedLockCount, syncOverAsyncLockCount, score, hazards, category, summary);
+    }
+
+    public static string FormatLockHierarchySummary(
+        int totalLocks, int safeLocks, int unsafeTargets, int nestedLocks, int asyncInLocks, double score, string category)
+    {
+        if (totalLocks == 0)
+            return "Semantic diff lock hierarchy & deadlock audit: Clean diff · 0 lock acquisitions detected";
+
+        var parts = new List<string>();
+        parts.Add($"{totalLocks} lock acquisition{(totalLocks == 1 ? "" : "s")}");
+        if (safeLocks > 0) parts.Add($"\u2713 {safeLocks} disciplined");
+        if (unsafeTargets > 0) parts.Add($"\ud83d\udea8 {unsafeTargets} unsafe target{(unsafeTargets == 1 ? "" : "s")}");
+        if (nestedLocks > 0) parts.Add($"\u26a0 {nestedLocks} nested lock{(nestedLocks == 1 ? "" : "s")}");
+        if (asyncInLocks > 0) parts.Add($"\ud83d\udea8 {asyncInLocks} async/blocking inside lock");
+
+        string details = string.Join(" · ", parts);
+        return $"Semantic diff lock hierarchy audit ({details} · {category} · {score:0.#}% safety score)";
+    }
+
 }
 
 
@@ -21765,6 +21942,27 @@ public sealed record DiffConcurrentCollectionAudit(
     int LockedSectionCount,
     double ConcurrencySafetyScore,
     IReadOnlyList<DiffConcurrentCollectionHazardItem> Hazards,
+    string Category,
+    string Summary);
+
+
+
+public sealed record DiffLockHazardItem(
+    int LineNumber,
+    string LockTarget,
+    string LockType,
+    string HazardType,
+    string Excerpt,
+    string Recommendation);
+
+public sealed record DiffLockHierarchyAudit(
+    int TotalLockAcquisitions,
+    int SafeLocksCount,
+    int UnsafeTargetCount,
+    int NestedLockCount,
+    int AsyncOrBlockingInsideLockCount,
+    double LockHierarchySafetyScore,
+    IReadOnlyList<DiffLockHazardItem> Hazards,
     string Category,
     string Summary);
 

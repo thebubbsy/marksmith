@@ -11617,6 +11617,147 @@ public sealed class RecentFilesService
         return $"Workspace media asset optimization audit ({details} · {category} · {score:0.#}% health score)";
     }
 
+
+    public static WorkspaceCodeBlockLanguageTagAudit AuditWorkspaceCodeBlockLanguageTags(
+        IReadOnlyList<string>? explicitFiles = null,
+        Func<string, bool>? fileExistsProvider = null,
+        Func<string, string>? contentReader = null)
+    {
+        var files = (explicitFiles ?? Array.Empty<string>())
+            .Where(f => !string.IsNullOrWhiteSpace(f) && !f.EndsWith(".bak.md", StringComparison.OrdinalIgnoreCase))
+            .Distinct()
+            .ToList();
+
+        if (files.Count == 0)
+        {
+            string emptySummary = FormatWorkspaceCodeBlockSummary(0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new WorkspaceCodeBlockLanguageTagAudit(
+                0, 0, 0, 0, 100.0,
+                Array.Empty<WorkspaceCodeBlockLanguageTagItem>(), "Clean Baseline", emptySummary);
+        }
+
+        var reader = contentReader ?? (f => File.Exists(f) ? File.ReadAllText(f) : string.Empty);
+
+        var recognizedLanguages = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "csharp", "cs", "c#", "json", "yaml", "yml", "xml", "html", "css", "scss",
+            "javascript", "js", "typescript", "ts", "jsx", "tsx", "bash", "sh", "zsh",
+            "powershell", "ps1", "pwsh", "python", "py", "sql", "markdown", "md",
+            "mermaid", "diff", "dockerfile", "docker", "rust", "rs", "go", "golang",
+            "c", "cpp", "c++", "h", "hpp", "java", "kotlin", "swift", "r", "ruby", "rb",
+            "text", "txt", "plaintext", "graphql", "ini", "toml", "latex", "tex", "svg"
+        };
+
+        var items = new List<WorkspaceCodeBlockLanguageTagItem>();
+        int totalCodeBlocks = 0;
+        int taggedBlocks = 0;
+        int missingTagBlocks = 0;
+        int unknownTagBlocks = 0;
+
+        foreach (var file in files)
+        {
+            string text = reader(file);
+            if (string.IsNullOrWhiteSpace(text)) continue;
+
+            var lines = text.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+            bool inBlock = false;
+            string openingFence = "";
+
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string line = lines[i];
+                string trimmed = line.TrimStart();
+
+                if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+                {
+                    string fenceMarker = trimmed.Substring(0, 3);
+                    if (!inBlock)
+                    {
+                        inBlock = true;
+                        openingFence = fenceMarker;
+                        totalCodeBlocks++;
+
+                        string infoString = trimmed.Substring(3).Trim();
+                        string lang = infoString.Split(new[] { ' ', '{', ':' }, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "";
+
+                        bool hasTag = !string.IsNullOrWhiteSpace(lang);
+                        bool isRecognized = hasTag && recognizedLanguages.Contains(lang);
+
+                        if (!hasTag)
+                        {
+                            missingTagBlocks++;
+                            items.Add(new WorkspaceCodeBlockLanguageTagItem(
+                                file, i + 1, "", false, false, line.Trim(),
+                                "Missing code block language tag; add identifier (e.g. ```csharp) for syntax highlighting."));
+                        }
+                        else if (!isRecognized)
+                        {
+                            unknownTagBlocks++;
+                            taggedBlocks++;
+                            items.Add(new WorkspaceCodeBlockLanguageTagItem(
+                                file, i + 1, lang, true, false, line.Trim(),
+                                $"Unrecognized or obscure language tag '{lang}'; verify standard syntax highlighter alias."));
+                        }
+                        else
+                        {
+                            taggedBlocks++;
+                            items.Add(new WorkspaceCodeBlockLanguageTagItem(
+                                file, i + 1, lang, true, true, line.Trim(),
+                                "Standard language tag recognized."));
+                        }
+                    }
+                    else if (trimmed.StartsWith(openingFence))
+                    {
+                        inBlock = false;
+                        openingFence = "";
+                    }
+                }
+            }
+        }
+
+        if (totalCodeBlocks == 0)
+        {
+            string emptySummary = FormatWorkspaceCodeBlockSummary(0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new WorkspaceCodeBlockLanguageTagAudit(
+                0, 0, 0, 0, 100.0,
+                Array.Empty<WorkspaceCodeBlockLanguageTagItem>(), "Clean Baseline", emptySummary);
+        }
+
+        double penalty = (missingTagBlocks * 20.0) +
+                         (unknownTagBlocks * 10.0);
+
+        double score = Math.Clamp(100.0 - penalty, 0.0, 100.0);
+
+        string category = score switch
+        {
+            >= 90.0 => "High Language Tagging Discipline",
+            >= 70.0 => "Moderate Tagging Gaps",
+            _ => "Severe Untagged Code Debt"
+        };
+
+        string summary = FormatWorkspaceCodeBlockSummary(
+            totalCodeBlocks, taggedBlocks, missingTagBlocks, unknownTagBlocks, score, category);
+
+        return new WorkspaceCodeBlockLanguageTagAudit(
+            totalCodeBlocks, taggedBlocks, missingTagBlocks, unknownTagBlocks, score, items, category, summary);
+    }
+
+    public static string FormatWorkspaceCodeBlockSummary(
+        int totalBlocks, int taggedBlocks, int missingTags, int unknownTags, double score, string category)
+    {
+        if (totalBlocks == 0)
+            return "Workspace code block language tag audit: Clean workspace · 0 fenced code blocks detected";
+
+        var parts = new List<string>();
+        parts.Add($"{totalBlocks} code block{(totalBlocks == 1 ? "" : "s")}");
+        if (taggedBlocks > 0) parts.Add($"\u2713 {taggedBlocks} tagged");
+        if (missingTags > 0) parts.Add($"\ud83d\udea8 {missingTags} missing tag{(missingTags == 1 ? "" : "s")}");
+        if (unknownTags > 0) parts.Add($"\u26a0 {unknownTags} unrecognized tag{(unknownTags == 1 ? "" : "s")}");
+
+        string details = string.Join(" · ", parts);
+        return $"Workspace code block language audit ({details} · {category} · {score:0.#}% quality score)";
+    }
+
 }
 
 /// <summary>
@@ -13163,6 +13304,27 @@ public sealed record WorkspaceMediaOptimizationAudit(
     int MissingFileCount,
     double MediaOptimizationScore,
     IReadOnlyList<WorkspaceMediaOptimizationItem> Items,
+    string Category,
+    string Summary);
+
+
+
+public sealed record WorkspaceCodeBlockLanguageTagItem(
+    string DocumentPath,
+    int LineNumber,
+    string LanguageTag,
+    bool HasTag,
+    bool IsRecognizedLanguage,
+    string Excerpt,
+    string Recommendation);
+
+public sealed record WorkspaceCodeBlockLanguageTagAudit(
+    int TotalCodeBlocks,
+    int TaggedBlocksCount,
+    int MissingTagBlocksCount,
+    int UnknownTagBlocksCount,
+    double DocumentationQualityScore,
+    IReadOnlyList<WorkspaceCodeBlockLanguageTagItem> Items,
     string Category,
     string Summary);
 

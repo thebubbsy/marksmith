@@ -3754,4 +3754,53 @@ public class HistoryPolishTests : IDisposable
         Assert.True(hazardAudit.ConcurrencySafetyScore < 80.0);
     }
 
+
+    [Fact]
+    public void Run213_AuditLockHierarchyDeadlocks_DetectsUnsafeTargetsAndNestedLocks()
+    {
+        var emptyAudit = LineDiff.AuditLockHierarchyDeadlocks("", "");
+        Assert.Equal(0, emptyAudit.TotalLockAcquisitions);
+        Assert.Equal(100.0, emptyAudit.LockHierarchySafetyScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+
+        var safeCode = string.Join("\n",
+            "public void SafeMethod()",
+            "{",
+            "    lock (_gate)",
+            "    {",
+            "        _counter++;",
+            "    }",
+            "}"
+        );
+        var safeAudit = LineDiff.AuditLockHierarchyDeadlocks("", safeCode);
+        Assert.True(safeAudit.SafeLocksCount >= 1);
+        Assert.Equal(0, safeAudit.UnsafeTargetCount);
+        Assert.Equal(0, safeAudit.NestedLockCount);
+        Assert.Equal(100.0, safeAudit.LockHierarchySafetyScore);
+        Assert.Equal("Disciplined Lock Hierarchy", safeAudit.Category);
+
+        string formatted = LineDiff.FormatLockHierarchySummary(
+            safeAudit.TotalLockAcquisitions, safeAudit.SafeLocksCount, safeAudit.UnsafeTargetCount,
+            safeAudit.NestedLockCount, safeAudit.AsyncOrBlockingInsideLockCount,
+            safeAudit.LockHierarchySafetyScore, safeAudit.Category);
+        Assert.Equal(safeAudit.Summary, formatted);
+
+        var hazardCode = string.Join("\n",
+            "public async Task DeadlockRisk()",
+            "{",
+            "    lock (this)",
+            "    {",
+            "        lock (typeof(MyService))",
+            "        {",
+            "            await Task.Delay(50);",
+            "        }",
+            "    }",
+            "}"
+        );
+        var hazardAudit = LineDiff.AuditLockHierarchyDeadlocks("", hazardCode);
+        Assert.True(hazardAudit.UnsafeTargetCount >= 2);
+        Assert.True(hazardAudit.NestedLockCount >= 1);
+        Assert.True(hazardAudit.AsyncOrBlockingInsideLockCount >= 1);
+        Assert.True(hazardAudit.LockHierarchySafetyScore < 60.0);
+    }
 }

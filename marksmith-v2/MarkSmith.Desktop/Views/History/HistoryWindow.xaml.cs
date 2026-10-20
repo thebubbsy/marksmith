@@ -3955,6 +3955,19 @@ var auditResourceDisposalLeaksItem = new MenuFlyoutItem
                 };
                 menu.Items.Add(auditConcurrentCollectionItem);
 
+                var auditLockHierarchyItem = new MenuFlyoutItem
+                {
+                    Text = "Audit Semantic Diff Lock Hierarchy & Deadlock Hazards",
+                    Icon = new FontIcon { Glyph = "\uE8B9" }
+                };
+                auditLockHierarchyItem.Click += (_, _) =>
+                {
+                    var audit = MarkSmith.Services.LineDiff.AuditLockHierarchyDeadlocks(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+                    _vm.ShowNotice($"\u2713 {audit.Summary}");
+                };
+                menu.Items.Add(auditLockHierarchyItem);
+
 
 
 

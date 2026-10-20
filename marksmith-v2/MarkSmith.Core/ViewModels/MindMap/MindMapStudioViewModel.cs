@@ -14507,6 +14507,154 @@ namespace MarkSmith.ViewModels.MindMap
             return $"MindMap degree centrality & bridge audit ({scope}{details} · {category} · {score:0.#}% resilience score)";
         }
 
+
+        public GraphColorContrastAccessibilityAudit AuditGraphColorContrastAccessibility(bool selectionOnly = false, string? canvasBackgroundHex = null)
+        {
+            var selected = Nodes.Where(n => n.IsSelected).ToList();
+            var targetNodes = (selectionOnly && selected.Count > 0)
+                ? selected
+                : Nodes.ToList();
+
+            bool isSelection = selectionOnly && selected.Count > 0;
+            var audit = AuditGraphColorContrastAccessibility(targetNodes.Select(n => n.Model), canvasBackgroundHex, isSelection);
+            StatusMessage = audit.Summary;
+            return audit;
+        }
+
+        public static GraphColorContrastAccessibilityAudit AuditGraphColorContrastAccessibility(
+            IEnumerable<MindMapNode>? nodes,
+            string? canvasBackgroundHex = null,
+            bool isSelection = false)
+        {
+            var nodeList = nodes?.ToList() ?? new List<MindMapNode>();
+            int totalNodes = nodeList.Count;
+
+            if (totalNodes == 0)
+            {
+                string emptySummary = FormatColorContrastSummary(0, 0, 0, 0, 0.0, 100.0, "Clean Baseline", isSelection);
+                return new GraphColorContrastAccessibilityAudit(
+                    0, 0, 0, 0, 0.0, 100.0,
+                    Array.Empty<GraphColorContrastItem>(), "Clean Baseline", isSelection, emptySummary);
+            }
+
+            string bgHex = canvasBackgroundHex ?? "#1E1E1E";
+            var bgRgb = ParseColorRgb(bgHex);
+            double bgLum = CalculateRelativeLuminance(bgRgb.R, bgRgb.G, bgRgb.B);
+
+            var items = new List<GraphColorContrastItem>();
+            int compliantCount = 0;
+            int textContrastFailCount = 0;
+            int cardBoundaryWarnCount = 0;
+            double totalTextContrast = 0.0;
+
+            foreach (var node in nodeList)
+            {
+                string fillHex = node.ColorHex ?? "#FF7C4D";
+                var fillRgb = ParseColorRgb(fillHex);
+                double fillLum = CalculateRelativeLuminance(fillRgb.R, fillRgb.G, fillRgb.B);
+
+                double textLum = fillLum > 0.45 ? 0.013 : 1.0;
+                double textContrast = CalculateContrastRatio(fillLum, textLum);
+                double cardContrast = CalculateContrastRatio(fillLum, bgLum);
+
+                totalTextContrast += textContrast;
+
+                bool passesText = textContrast >= 4.5;
+                bool passesCard = cardContrast >= 3.0;
+
+                if (!passesText) textContrastFailCount++;
+                if (!passesCard) cardBoundaryWarnCount++;
+
+                if (passesText && passesCard) compliantCount++;
+
+                string status = (!passesText && !passesCard)
+                    ? "Severe Contrast Debt"
+                    : (!passesText ? "Text Readability Hazard (<4.5:1)" : (!passesCard ? "Card Boundary Blend (<3.0:1)" : "WCAG AA Compliant"));
+
+                string rec = (!passesText)
+                    ? $"Adjust node fill '{fillHex}' to increase text contrast (currently {textContrast:0.#}:1, target >=4.5:1)."
+                    : (!passesCard ? $"Adjust node fill '{fillHex}' to distinguish card boundary from background (currently {cardContrast:0.#}:1, target >=3.0:1)." : "Node contrast satisfies WCAG AA specifications.");
+
+                items.Add(new GraphColorContrastItem(
+                    node.Id, node.Title, fillHex, Math.Round(textContrast, 2), Math.Round(cardContrast, 2),
+                    passesText, passesCard, status, rec));
+            }
+
+            double avgTextContrast = Math.Round(totalTextContrast / totalNodes, 2);
+            double penalty = (textContrastFailCount * 25.0) + (cardBoundaryWarnCount * 10.0);
+            double score = Math.Clamp(100.0 - penalty, 0.0, 100.0);
+
+            string category = score switch
+            {
+                >= 90.0 => "High Cognitive Accessibility",
+                >= 70.0 => "Moderate Contrast Discrepancies",
+                _ => "Severe Contrast Hazards"
+            };
+
+            string summary = FormatColorContrastSummary(
+                totalNodes, compliantCount, textContrastFailCount, cardBoundaryWarnCount, avgTextContrast, score, category, isSelection);
+
+            return new GraphColorContrastAccessibilityAudit(
+                totalNodes, compliantCount, textContrastFailCount, cardBoundaryWarnCount, avgTextContrast, score, items, category, isSelection, summary);
+        }
+
+        private static (double R, double G, double B) ParseColorRgb(string? hex)
+        {
+            if (string.IsNullOrWhiteSpace(hex)) return (1.0, 1.0, 1.0);
+            string clean = hex.Trim().TrimStart('#');
+            try
+            {
+                if (clean.Length == 3)
+                {
+                    double r = Convert.ToInt32(new string(clean[0], 2), 16) / 255.0;
+                    double g = Convert.ToInt32(new string(clean[1], 2), 16) / 255.0;
+                    double b = Convert.ToInt32(new string(clean[2], 2), 16) / 255.0;
+                    return (r, g, b);
+                }
+                if (clean.Length == 8) clean = clean.Substring(2, 6);
+                if (clean.Length == 6)
+                {
+                    double r = Convert.ToInt32(clean.Substring(0, 2), 16) / 255.0;
+                    double g = Convert.ToInt32(clean.Substring(2, 2), 16) / 255.0;
+                    double b = Convert.ToInt32(clean.Substring(4, 2), 16) / 255.0;
+                    return (r, g, b);
+                }
+            }
+            catch { }
+            return (0.8, 0.8, 0.8);
+        }
+
+        private static double CalculateRelativeLuminance(double r, double g, double b)
+        {
+            static double ToLinear(double c) => (c <= 0.04045) ? c / 12.92 : Math.Pow((c + 0.055) / 1.055, 2.4);
+            return 0.2126 * ToLinear(r) + 0.7152 * ToLinear(g) + 0.0722 * ToLinear(b);
+        }
+
+        private static double CalculateContrastRatio(double l1, double l2)
+        {
+            double lighter = Math.Max(l1, l2);
+            double darker = Math.Min(l1, l2);
+            return (lighter + 0.05) / (darker + 0.05);
+        }
+
+        public static string FormatColorContrastSummary(
+            int totalNodes, int compliant, int textFailures, int cardWarnings, double avgContrast, double score, string category, bool isSelection)
+        {
+            string scope = isSelection ? "Selection · " : "";
+            if (totalNodes == 0)
+                return $"Graph color contrast accessibility audit ({scope}Clean galaxy · 0 nodes evaluated)";
+
+            var parts = new List<string>();
+            parts.Add($"{totalNodes} node{(totalNodes == 1 ? "" : "s")}");
+            if (compliant > 0) parts.Add($"\u2713 {compliant} compliant");
+            if (textFailures > 0) parts.Add($"\ud83d\udea8 {textFailures} text contrast hazard{(textFailures == 1 ? "" : "s")}");
+            if (cardWarnings > 0) parts.Add($"\u26a0 {cardWarnings} card boundary warning{(cardWarnings == 1 ? "" : "s")}");
+            parts.Add($"avg text contrast {avgContrast:0.#}:1");
+
+            string details = string.Join(" · ", parts);
+            return $"Graph color contrast accessibility audit ({scope}{details} · {category} · {score:0.#}% accessibility score)";
+        }
+
     }
 
 
@@ -16150,6 +16298,29 @@ namespace MarkSmith.ViewModels.MindMap
         int MaxDegree,
         double NetworkResilienceScore,
         IReadOnlyList<GraphDegreeCentralityBridgeItem> Items,
+        string Category,
+        bool IsSelectionScope,
+        string Summary);
+
+    public sealed record GraphColorContrastItem(
+        string NodeId,
+        string NodeTitle,
+        string FillColorHex,
+        double TextContrastRatio,
+        double CardContrastRatio,
+        bool PassesTextContrast,
+        bool PassesCardContrast,
+        string Status,
+        string Recommendation);
+
+    public sealed record GraphColorContrastAccessibilityAudit(
+        int TotalNodes,
+        int WcagCompliantCount,
+        int TextContrastFailureCount,
+        int CardBoundaryWarningCount,
+        double AverageTextContrast,
+        double ContrastAccessibilityScore,
+        IReadOnlyList<GraphColorContrastItem> Items,
         string Category,
         bool IsSelectionScope,
         string Summary);
