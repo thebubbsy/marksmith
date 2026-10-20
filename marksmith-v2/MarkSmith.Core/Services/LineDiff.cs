@@ -18992,6 +18992,127 @@ public static class LineDiff
         return $"Semantic diff Task.WhenAll & AggregateException audit ({details} · {category} · {score:0.#}% safety score)";
     }
 
+    public static DiffCancellationTokenAudit AuditCancellationTokenPropagation(string? beforeText, string? afterText)
+    {
+        var diff = Diff(beforeText ?? string.Empty, afterText ?? string.Empty);
+        var unified = BuildUnified(diff);
+        return AuditCancellationTokenPropagation(unified);
+    }
+
+    public static DiffCancellationTokenAudit AuditCancellationTokenPropagation(
+        IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows == null)
+        {
+            string emptySummary = FormatCancellationTokenSummary(0, 0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new DiffCancellationTokenAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<CancellationTokenHazardItem>(), "Clean Baseline", emptySummary);
+        }
+
+        var modifiedRows = unifiedRows
+            .Where(r => !r.IsGap && r.Kind == Kind.Added && !string.IsNullOrWhiteSpace(r.Text))
+            .ToList();
+
+        int totalModified = modifiedRows.Count;
+        if (totalModified == 0)
+        {
+            string emptySummary = FormatCancellationTokenSummary(0, 0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new DiffCancellationTokenAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<CancellationTokenHazardItem>(), "Clean Baseline", emptySummary);
+        }
+
+        var hazards = new List<CancellationTokenHazardItem>();
+        int asyncMethodsWithCancellation = 0;
+        int properlyForwarded = 0;
+        int ignoredTokenHazards = 0;
+        int swallowedHazards = 0;
+        int missingTokenHazards = 0;
+
+        for (int i = 0; i < modifiedRows.Count; i++)
+        {
+            var row = modifiedRows[i];
+            var line = row.Text.Trim();
+            int lineNum = row.NewNumber ?? (i + 1);
+
+            if (line.Contains("async ") && (line.Contains("CancellationToken ") || line.Contains("CancellationToken\t") || line.Contains("CancellationToken,")))
+            {
+                asyncMethodsWithCancellation++;
+            }
+
+            if (line.StartsWith("catch") && (line.Contains("OperationCanceledException") || line.Contains("TaskCanceledException")))
+            {
+                bool hasRethrow = false;
+                for (int j = i + 1; j < Math.Min(modifiedRows.Count, i + 6); j++)
+                {
+                    var nextLine = modifiedRows[j].Text.Trim();
+                    if (nextLine.Contains("throw;") || nextLine.Contains("throw "))
+                    {
+                        hasRethrow = true;
+                        break;
+                    }
+                    if (nextLine.StartsWith("catch") || nextLine.StartsWith("finally")) break;
+                }
+
+                if (!hasRethrow)
+                {
+                    swallowedHazards++;
+                    hazards.Add(new CancellationTokenHazardItem(
+                        lineNum, line, "Exception Handling", "SwallowedCancellation",
+                        "OperationCanceledException caught without re-throwing; cancels cancellation pipeline propagation"));
+                }
+            }
+
+            if (line.Contains("await ") && line.Contains("Async(") && !line.Contains("cancellationToken") && !line.Contains("ct") && !line.Contains("token"))
+            {
+                missingTokenHazards++;
+                hazards.Add(new CancellationTokenHazardItem(
+                    lineNum, line, "Async Call", "MissingForwardedToken",
+                    "Awaited asynchronous call does not pass CancellationToken parameter"));
+            }
+            else if (line.Contains("await ") && line.Contains("Async(") && (line.Contains("cancellationToken") || line.Contains("ct") || line.Contains("token")))
+            {
+                properlyForwarded++;
+            }
+        }
+
+        double penalty = (swallowedHazards * 25.0) + (missingTokenHazards * 10.0);
+        double score = Math.Clamp(100.0 - penalty, 0.0, 100.0);
+
+        string category = score switch
+        {
+            >= 90.0 => "Clean Baseline",
+            >= 70.0 => "Moderate Token Gaps",
+            _ => "High Cancellation Hazards"
+        };
+
+        string summary = FormatCancellationTokenSummary(
+            totalModified, asyncMethodsWithCancellation, properlyForwarded,
+            ignoredTokenHazards, swallowedHazards, missingTokenHazards, score, category);
+
+        return new DiffCancellationTokenAudit(
+            totalModified, asyncMethodsWithCancellation, properlyForwarded,
+            ignoredTokenHazards, swallowedHazards, missingTokenHazards, score, hazards, category, summary);
+    }
+
+    public static string FormatCancellationTokenSummary(
+        int totalModified, int asyncMethods, int forwarded,
+        int ignored, int swallowed, int missingForwarded, double score, string category)
+    {
+        if (totalModified == 0)
+            return "Semantic diff cancellation token audit: Clean Baseline · 0 modified lines detected";
+
+        var parts = new List<string>();
+        parts.Add($"{totalModified} modified line{(totalModified == 1 ? "" : "s")}");
+        if (forwarded > 0) parts.Add($"\u2713 {forwarded} forwarded token{(forwarded == 1 ? "" : "s")}");
+        if (swallowed > 0) parts.Add($"\ud83d\udea8 {swallowed} swallowed cancellation{(swallowed == 1 ? "" : "s")}");
+        if (missingForwarded > 0) parts.Add($"\u26a0 {missingForwarded} unforwarded call{(missingForwarded == 1 ? "" : "s")}");
+
+        string details = string.Join(" · ", parts);
+        return $"Semantic diff cancellation token audit ({details} · {category} · {score:0.#}% safety score)";
+    }
+
     public static string FormatMemorySpanSafetySummary(
         int totalModified, int asyncSpan, int closureSpan, int memoryEscape, int loopClosure, double score, string category)
     {
@@ -21335,3 +21456,23 @@ public sealed record DiffTaskWhenAllExceptionAudit(
     IReadOnlyList<TaskWhenAllExceptionHazardItem> Hazards,
     string Category,
     string Summary);
+
+
+public sealed record CancellationTokenHazardItem(
+    int LineNumber,
+    string CodeLine,
+    string MethodOrContext,
+    string HazardType,
+    string Recommendation);
+
+public sealed record DiffCancellationTokenAudit(
+    int TotalModifiedLines,
+    int AsyncMethodsWithCancellation,
+    int ProperlyForwardedTokens,
+    int IgnoredTokenHazards,
+    int SwallowedCancellationHazards,
+    int MissingTokenCallHazards,
+    double CancellationSafetyScore,
+    IReadOnlyList<CancellationTokenHazardItem> Hazards,
+    string Category,
+    string Summary);

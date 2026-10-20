@@ -1,4 +1,4 @@
-﻿using MarkSmith.Core.Composer;
+using MarkSmith.Core.Composer;
 using MarkSmith.ViewModels.ShapeStudio;
 using Xunit;
 
@@ -3837,5 +3837,35 @@ public class ShapeStudioPolishTests
         Assert.True(jitterAudit.OffGridPositionShapes >= 1);
         Assert.True(jitterAudit.NonModularDimensionShapes >= 1);
         Assert.True(jitterAudit.GridSnappingScore < 80.0);
+    }
+
+    [Fact]
+    public void Run210_AuditMagneticSnappingGuides_EvaluatesCardinalAnchorsAndJitter()
+    {
+        var emptyAudit = ShapeDesignStudioViewModel.AuditMagneticSnappingGuides(null, null);
+        Assert.Equal(0, emptyAudit.TotalShapes);
+        Assert.Equal(100.0, emptyAudit.MagneticAlignmentScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+
+        var s1 = new ShapeCanvasItemViewModel { Id = "s1", Name = "Shape1", X = 100, Y = 100, Width = 100, Height = 60 };
+        var s2 = new ShapeCanvasItemViewModel { Id = "s2", Name = "Shape2", X = 100, Y = 300, Width = 100, Height = 60 };
+        var alignedAudit = ShapeDesignStudioViewModel.AuditMagneticSnappingGuides(new[] { s1, s2 }, new[] { s1, s2 }, snapTolerance: 6.0);
+        Assert.Equal(2, alignedAudit.TotalShapes);
+        Assert.Equal(2, alignedAudit.MagneticallyLockedShapes);
+        Assert.Equal(0, alignedAudit.UnalignedShapes);
+        Assert.Equal(0, alignedAudit.NearMissJitterTotal);
+        Assert.Equal(100.0, alignedAudit.MagneticAlignmentScore);
+        Assert.Equal("High Magnetic Alignment", alignedAudit.Category);
+
+        string formatted = ShapeDesignStudioViewModel.FormatMagneticSnappingSummary(
+            alignedAudit.TotalShapes, alignedAudit.MagneticallyLockedShapes, alignedAudit.PartiallyAlignedShapes,
+            alignedAudit.UnalignedShapes, alignedAudit.NearMissJitterTotal, alignedAudit.MagneticAlignmentScore,
+            alignedAudit.Category, false, 6.0);
+        Assert.Equal(alignedAudit.Summary, formatted);
+
+        var sJitter = new ShapeCanvasItemViewModel { Id = "s3", Name = "JitterShape", X = 103, Y = 102, Width = 100, Height = 60 };
+        var jitterAudit = ShapeDesignStudioViewModel.AuditMagneticSnappingGuides(new[] { s1, sJitter }, new[] { s1, sJitter }, snapTolerance: 6.0);
+        Assert.True(jitterAudit.NearMissJitterTotal >= 1);
+        Assert.True(jitterAudit.MagneticAlignmentScore < 95.0);
     }
 }

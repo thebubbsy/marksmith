@@ -465,6 +465,9 @@
                                     <MenuFlyoutItem x:Name="OutlineStatsAuditGearMechanismGeometryItem" Text="Audit gear &amp; cogwheel intermeshing teeth, pitch radii &amp; kinematic loop" Click="OnOutlineStatsAuditGearMechanismGeometryClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="OutlineStatsAuditPyramidApexProportionalityItem" Text="Audit pyramid &amp; funnel tier apex proportionality &amp; area balance" Click="OnOutlineStatsAuditPyramidApexProportionalityClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem x:Name="OutlineStatsAuditVennGeometryItem" Text="Audit Venn diagram &amp; overlapping set geometry harmony" Click="OnOutlineStatsAuditVennGeometryClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

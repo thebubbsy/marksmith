@@ -6766,6 +6766,135 @@ public sealed class RecentFilesService
         return $"Workspace frontmatter & date hygiene audit ({details} · {category} · {score:0.#}% compliance score)";
     }
 
+    public static WorkspaceReadabilityAudit AuditWorkspaceDocumentReadabilityDensity(
+        IReadOnlyList<string>? explicitFiles = null,
+        Func<string, bool>? fileExistsProvider = null,
+        Func<string, string>? contentReader = null)
+    {
+        var files = (explicitFiles ?? Array.Empty<string>())
+            .Where(f => !string.IsNullOrWhiteSpace(f) && !f.EndsWith(".bak.md", StringComparison.OrdinalIgnoreCase))
+            .Distinct()
+            .ToList();
+
+        if (files.Count == 0)
+        {
+            string emptySummary = FormatWorkspaceDocumentReadabilitySummary(0, 0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new WorkspaceReadabilityAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<WorkspaceDocumentReadabilityItem>(), "Clean Baseline", emptySummary);
+        }
+
+        var exists = fileExistsProvider ?? File.Exists;
+        var reader = contentReader ?? (p => File.ReadAllText(p));
+
+        var items = new List<WorkspaceDocumentReadabilityItem>();
+        int totalWordsWorkspace = 0;
+        int totalReadTime = 0;
+        int totalMegaSections = 0;
+        int totalMicroStubs = 0;
+        int balancedDocs = 0;
+
+        foreach (var file in files)
+        {
+            if (!exists(file)) continue;
+
+            string content;
+            try { content = reader(file); } catch { continue; }
+
+            var words = content.Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            int docWords = words.Length;
+            int readMins = Math.Max(1, (int)Math.Ceiling(docWords / 200.0));
+
+            var lines = content.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+            var sectionWordCounts = new List<int>();
+            int currentSectionWords = 0;
+
+            foreach (var line in lines)
+            {
+                if (System.Text.RegularExpressions.Regex.IsMatch(line, @"^#{1,6}\s+"))
+                {
+                    if (currentSectionWords > 0)
+                    {
+                        sectionWordCounts.Add(currentSectionWords);
+                        currentSectionWords = 0;
+                    }
+                }
+                else
+                {
+                    var lineWords = line.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                    currentSectionWords += lineWords.Length;
+                }
+            }
+            if (currentSectionWords > 0) sectionWordCounts.Add(currentSectionWords);
+
+            int sectionCount = Math.Max(1, sectionWordCounts.Count);
+            int megaSections = sectionWordCounts.Count(c => c > 1000);
+            int microStubs = sectionWordCounts.Count(c => c < 15);
+
+            totalWordsWorkspace += docWords;
+            totalReadTime += readMins;
+            totalMegaSections += megaSections;
+            totalMicroStubs += microStubs;
+
+            bool hasHazard = megaSections > 0 || (microStubs > 3 && docWords > 100);
+            if (!hasHazard) balancedDocs++;
+
+            string details = hasHazard
+                ? $"{megaSections} mega-section(s) >1000 words, {microStubs} micro-stubs"
+                : $"Balanced density ({sectionCount} section{(sectionCount == 1 ? "" : "s")})";
+
+            items.Add(new WorkspaceDocumentReadabilityItem(
+                file, docWords, sectionCount, readMins, megaSections, microStubs,
+                0.0, hasHazard, details));
+        }
+
+        int totalScanned = items.Count;
+        if (totalScanned == 0)
+        {
+            string emptySummary = FormatWorkspaceDocumentReadabilitySummary(0, 0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new WorkspaceReadabilityAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<WorkspaceDocumentReadabilityItem>(), "Clean Baseline", emptySummary);
+        }
+
+        double penalty = (totalMegaSections * 15.0) + (totalMicroStubs * 5.0);
+        double score = Math.Clamp(100.0 - penalty, 0.0, 100.0);
+
+        string category = score switch
+        {
+            >= 90.0 => "Optimal Reading Flow",
+            >= 70.0 => "Moderate Section Skew",
+            _ => "Unbalanced Document Density"
+        };
+
+        string summary = FormatWorkspaceDocumentReadabilitySummary(
+            totalScanned, totalWordsWorkspace, totalReadTime, totalMegaSections,
+            totalMicroStubs, balancedDocs, score, category);
+
+        return new WorkspaceReadabilityAudit(
+            totalScanned, totalWordsWorkspace, totalReadTime, totalMegaSections,
+            totalMicroStubs, balancedDocs, score, items, category, summary);
+    }
+
+    public static string FormatWorkspaceDocumentReadabilitySummary(
+        int totalFiles, int totalWords, int totalReadTime, int megaSections,
+        int microStubs, int balancedDocs, double score, string category)
+    {
+        if (totalFiles == 0)
+            return "Workspace document readability & reading time audit: Clean Baseline · 0 workspace documents detected";
+
+        var parts = new List<string>();
+        parts.Add($"{totalFiles} file{(totalFiles == 1 ? "" : "s")}");
+        parts.Add($"{totalWords} total word{(totalWords == 1 ? "" : "s")}");
+        parts.Add($"~{totalReadTime} min read");
+        if (balancedDocs > 0) parts.Add($"\u2713 {balancedDocs} balanced");
+        if (megaSections > 0) parts.Add($"\u26a0 {megaSections} mega-section{(megaSections == 1 ? "" : "s")}");
+        if (microStubs > 0) parts.Add($"\u26a0 {microStubs} micro-stub{(microStubs == 1 ? "" : "s")}");
+
+        string details = string.Join(" · ", parts);
+        return $"Workspace document readability & reading time audit ({details} · {category} · {score:0.#}% balance score)";
+    }
+
     public static string FormatWorkspaceBacklinksSummary(
         int filesScanned, int totalHeadings, int referencedHeadings, int unreferencedHeadings,
         int totalBacklinks, double cohesionScore, string category)
@@ -12639,3 +12768,27 @@ public sealed record WorkspaceFrontmatterComplianceAudit(
     IReadOnlyList<WorkspaceFrontmatterItem> Items,
     string Category,
     string Summary);
+
+
+public sealed record WorkspaceDocumentReadabilityItem(
+    string FilePath,
+    int TotalWords,
+    int TotalSections,
+    int EstimatedReadTimeMinutes,
+    int MegaSectionCount,
+    int MicroStubCount,
+    double SectionDensityVariance,
+    bool HasReadabilityHazard,
+    string Details);
+
+public sealed record WorkspaceReadabilityAudit(
+    int TotalFilesScanned,
+    int TotalWordsWorkspace,
+    int TotalEstimatedReadMinutes,
+    int MegaSectionsFound,
+    int MicroStubsFound,
+    int BalancedDocuments,
+    double ReadabilityBalanceScore,
+    IReadOnlyList<WorkspaceDocumentReadabilityItem> Documents,
+    string Category,
+    string Summary);

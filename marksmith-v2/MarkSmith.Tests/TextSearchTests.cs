@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using MarkSmith.Services;
 using Xunit;
 
@@ -3915,5 +3915,51 @@ public class TextSearchTests
         Assert.True(hazardousAudit.UnclosedInlineTagCount >= 1);
         Assert.True(hazardousAudit.UnescapedRawAngleBracketCount >= 2);
         Assert.True(hazardousAudit.HtmlSanitizationScore < 50.0);
+    }
+
+    [Fact]
+    public void Run210_AuditMarkdownTaskListFormatting_ValidatesHygieneAndIndentation()
+    {
+        var emptyAudit = TextSearch.AuditMarkdownTaskListFormatting("");
+        Assert.Equal(0, emptyAudit.TotalTaskItems);
+        Assert.Equal(100.0, emptyAudit.FormattingHygieneScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+
+        var validMd = string.Join("\n",
+            "# Project Tasks",
+            "- [ ] Task Alpha",
+            "- [x] Task Beta completed",
+            "  - [ ] Subtask Beta.1",
+            "  - [X] Subtask Beta.2 completed"
+        );
+        var validAudit = TextSearch.AuditMarkdownTaskListFormatting(validMd);
+        Assert.Equal(4, validAudit.TotalTaskItems);
+        Assert.Equal(2, validAudit.CompletedTasks);
+        Assert.Equal(2, validAudit.PendingTasks);
+        Assert.Equal(0, validAudit.InconsistentIndentCount);
+        Assert.Equal(0, validAudit.MalformedCheckboxCount);
+        Assert.Equal(0, validAudit.OrphanedCheckboxCount);
+        Assert.Equal(1, validAudit.MaxNestingDepth);
+        Assert.Equal(100.0, validAudit.FormattingHygieneScore);
+        Assert.Equal("High Consistency", validAudit.Category);
+
+        string formatted = TextSearch.FormatTaskListFormattingSummary(
+            validAudit.TotalTaskItems, validAudit.CompletedTasks, validAudit.PendingTasks,
+            validAudit.InconsistentIndentCount, validAudit.MalformedCheckboxCount,
+            validAudit.OrphanedCheckboxCount, validAudit.MaxNestingDepth,
+            validAudit.FormattingHygieneScore, validAudit.Category);
+        Assert.Equal(validAudit.Summary, formatted);
+
+        var malformedMd = string.Join("\n",
+            "- [ ] Normal task",
+            " - [ ] Odd 1-space indentation",
+            "-[ ] Missing space before bracket",
+            "[ ] Orphaned checkbox outside list"
+        );
+        var malformedAudit = TextSearch.AuditMarkdownTaskListFormatting(malformedMd);
+        Assert.True(malformedAudit.MalformedCheckboxCount >= 1);
+        Assert.True(malformedAudit.OrphanedCheckboxCount >= 1);
+        Assert.True(malformedAudit.InconsistentIndentCount >= 1);
+        Assert.True(malformedAudit.FormattingHygieneScore < 75.0);
     }
 }

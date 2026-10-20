@@ -2616,6 +2616,25 @@ private async void OnAuditWorkspaceMarkdownTableAutoAlignAndExportClick(object s
         }
     }
 
+    private async void OnAuditWorkspaceDocumentReadabilityDensityClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var files = App.RecentFiles?.Load() ?? new List<string>();
+            var result = RecentFilesService.AuditWorkspaceDocumentReadabilityDensity(explicitFiles: files);
+            await Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            SetNotification(result.Summary, success: true);
+            if (RecentDocsActionBtn != null)
+            {
+                Services.CopyFeedback.ApplyButtonTick(RecentDocsActionBtn, null, $"\u2713 Readability {result.ReadabilityBalanceScore:F0}%");
+            }
+        }
+        catch (Exception ex)
+        {
+            SetNotification($"Readability audit error: {ex.Message}", success: false);
+        }
+    }
+
     private async void OnAuditWorkspaceFrontmatterAndDateHygieneClick(object sender, RoutedEventArgs e)
     {
         try

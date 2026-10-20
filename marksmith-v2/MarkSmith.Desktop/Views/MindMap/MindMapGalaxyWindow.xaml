@@ -390,6 +390,9 @@
                                     <MenuFlyoutItem x:Name="AuditGraphNodeBoundingCollisionsItem" Text="Audit graph node bounding box collisions &amp; label overlaps" Click="OnAuditGraphNodeBoundingCollisionsClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditGraphSemanticClusterCentroidsItem" Text="Audit graph semantic cluster centroids &amp; group boundary convexity" Click="OnAuditGraphSemanticClusterCentroidsClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
 
                                     <MenuFlyoutItem x:Name="AuditGraphDegreeDistributionAndHubDominanceItem" Text="Audit graph node degree distribution &amp; hub dominance" Click="OnAuditGraphDegreeDistributionAndHubDominanceClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>

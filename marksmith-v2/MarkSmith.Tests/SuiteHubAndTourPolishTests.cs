@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -7031,5 +7031,85 @@ Some paragraph in between.
         Assert.Contains("AuditWorkspaceFrontmatterAndDateHygieneItem", suiteXaml);
         Assert.Contains("OnAuditWorkspaceFrontmatterAndDateHygieneClick", suiteCs);
         Assert.Contains("AuditWorkspaceFrontmatterAndDateHygiene", suiteCs);
+    }
+
+    [Fact]
+    public void Run210_AuditWorkspaceDocumentReadabilityDensity_CalculatesReadingTimeAndDensity()
+    {
+        var emptyAudit = RecentFilesService.AuditWorkspaceDocumentReadabilityDensity(Array.Empty<string>());
+        Assert.Equal(0, emptyAudit.TotalFilesScanned);
+        Assert.Equal(100.0, emptyAudit.ReadabilityBalanceScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+
+        var words200 = string.Join(" ", Enumerable.Repeat("lorem", 200));
+        var words1200 = string.Join(" ", Enumerable.Repeat("ipsum", 1200));
+
+        var files = new[] { "doc1.md", "doc2.md", "doc3.md" };
+        var contents = new Dictionary<string, string>
+        {
+            ["doc1.md"] = $"# Header 1\n{words200}\n## Header 2\n{words200}",
+            ["doc2.md"] = $"# Mega Section\n{words1200}",
+            ["doc3.md"] = "# Stub\nTiny stub."
+        };
+
+        var audit = RecentFilesService.AuditWorkspaceDocumentReadabilityDensity(
+            files,
+            fileExistsProvider: f => true,
+            contentReader: f => contents.TryGetValue(f, out var c) ? c : "");
+
+        Assert.Equal(3, audit.TotalFilesScanned);
+        Assert.True(audit.TotalWordsWorkspace >= 1600);
+        Assert.True(audit.TotalEstimatedReadMinutes >= 8);
+        Assert.Equal(1, audit.MegaSectionsFound);
+        Assert.Equal(1, audit.MicroStubsFound);
+        Assert.True(audit.ReadabilityBalanceScore < 90.0);
+
+        string formatted = RecentFilesService.FormatWorkspaceDocumentReadabilitySummary(
+            audit.TotalFilesScanned, audit.TotalWordsWorkspace, audit.TotalEstimatedReadMinutes,
+            audit.MegaSectionsFound, audit.MicroStubsFound, audit.BalancedDocuments,
+            audit.ReadabilityBalanceScore, audit.Category);
+        Assert.Equal(audit.Summary, formatted);
+    }
+
+    [Fact]
+    public void Run210_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // Surface 1: MainWindow - Markdown Task List Formatting & Indentation Consistency
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("auditTaskListFormattingItem", mainCs);
+        Assert.Contains("AuditMarkdownTaskListFormatting", mainCs);
+
+        // Surface 2: MindMapGalaxyWindow - Graph Node Semantic Cluster Centroids & Group Boundary Convexity
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditGraphSemanticClusterCentroidsItem", galaxyXaml);
+        Assert.Contains("OnAuditGraphSemanticClusterCentroidsClick", galaxyCs);
+        Assert.Contains("AuditGraphSemanticClusterCentroids", galaxyCs);
+
+        // Surface 3: ShapeDesignStudioWindow - Diagram Magnetic Snapping Guide Rays & Cardinal Edge Anchors
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditMagneticSnappingGuidesItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditMagneticSnappingGuidesClick", shapeCs);
+        Assert.Contains("AuditMagneticSnappingGuides", shapeCs);
+
+        // Surface 4: SmartArtDesignStudioWindow - SmartArt Pyramid & Funnel Tier Apex Proportionality & Area Balance
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineStatsAuditPyramidApexProportionalityItem", smartArtXaml);
+        Assert.Contains("OnOutlineStatsAuditPyramidApexProportionalityClick", smartArtCs);
+        Assert.Contains("AuditPyramidApexProportionality", smartArtCs);
+
+        // Surface 5: HistoryWindow - Semantic Diff CancellationToken Propagation & Cancellation Hazards
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditCancellationTokenPropagationItem", historyCs);
+        Assert.Contains("AuditCancellationTokenPropagation", historyCs);
+
+        // Surface 6: SuiteHubView - Workspace Document Reading Time & Section Density Distribution
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("AuditWorkspaceDocumentReadabilityDensityItem", suiteXaml);
+        Assert.Contains("OnAuditWorkspaceDocumentReadabilityDensityClick", suiteCs);
+        Assert.Contains("AuditWorkspaceDocumentReadabilityDensity", suiteCs);
     }
 }

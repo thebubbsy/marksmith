@@ -6550,6 +6550,161 @@ namespace MarkSmith.ViewModels.MindMap
             string details = string.Join(" · ", parts);
             return $"Mind map bounding collision audit ({scope}{details} · {category} · {score:0.#}% clearance score)";
         }
+        public GraphClusterCentroidsAudit AuditGraphSemanticClusterCentroids(bool selectionOnly = false)
+        {
+            var selected = Nodes.Where(n => n.IsSelected).ToList();
+            var targetNodes = (selectionOnly && selected.Count > 0)
+                ? selected
+                : Nodes.ToList();
+
+            bool isSelection = selectionOnly && selected.Count > 0;
+            var audit = AuditGraphSemanticClusterCentroids(targetNodes.Select(n => n.Model), isSelection);
+            StatusMessage = audit.Summary;
+            return audit;
+        }
+
+        public static GraphClusterCentroidsAudit AuditGraphSemanticClusterCentroids(
+            IEnumerable<MindMapNode>? nodes,
+            bool isSelection = false)
+        {
+            var nodeList = nodes?.ToList() ?? new List<MindMapNode>();
+            int totalNodes = nodeList.Count;
+
+            if (totalNodes <= 1)
+            {
+                string emptySummary = FormatClusterCentroidsSummary(totalNodes, 0, 0, 0, 0.0, 100.0, "Clean Baseline", isSelection);
+                return new GraphClusterCentroidsAudit(
+                    totalNodes, 0, 0, 0, 0.0, 100.0,
+                    Array.Empty<GraphClusterCentroidItem>(), "Clean Baseline", isSelection, emptySummary);
+            }
+
+            var groups = nodeList.GroupBy(n =>
+            {
+                // Semantic cluster key: tags, title prefix, or general
+                if (n.Tags != null && n.Tags.Count > 0 && !string.IsNullOrWhiteSpace(n.Tags[0])) return n.Tags[0].Trim();
+                if (!string.IsNullOrWhiteSpace(n.Title) && n.Title.Contains(':'))
+                    return n.Title.Split(':')[0].Trim();
+                return "General";
+            }).ToList();
+
+            int totalClusters = groups.Count;
+            if (totalClusters <= 1)
+            {
+                string singleSummary = FormatClusterCentroidsSummary(totalNodes, 1, 1, 0, 0.0, 100.0, "Cohesive Single Cluster", isSelection);
+                return new GraphClusterCentroidsAudit(
+                    totalNodes, 1, 1, 0, 0.0, 100.0,
+                    new[] { new GraphClusterCentroidItem(groups[0].Key, totalNodes,
+                        groups[0].Average(n => n.X), groups[0].Average(n => n.Y), 50.0, 0.0, "None", false, "Unified single cluster") },
+                    "Cohesive Single Cluster", isSelection, singleSummary);
+            }
+
+            var clusterInfo = new List<(string Name, int Count, double Cx, double Cy, double Radius, List<MindMapNode> Nodes)>();
+            foreach (var g in groups)
+            {
+                var clusterNodes = g.ToList();
+                double cx = clusterNodes.Average(n => n.X);
+                double cy = clusterNodes.Average(n => n.Y);
+
+                double maxDist = 0.0;
+                foreach (var n in clusterNodes)
+                {
+                    double d = Math.Sqrt(Math.Pow(n.X - cx, 2) + Math.Pow(n.Y - cy, 2));
+                    if (d > maxDist) maxDist = d;
+                }
+                double radius = Math.Max(maxDist, 40.0);
+                clusterInfo.Add((g.Key, clusterNodes.Count, cx, cy, radius, clusterNodes));
+            }
+
+            var clusterItems = new List<GraphClusterCentroidItem>();
+            int driftingOrColliding = 0;
+            double totalSeparation = 0.0;
+            int separationPairs = 0;
+
+            for (int i = 0; i < clusterInfo.Count; i++)
+            {
+                var c1 = clusterInfo[i];
+                double minDistance = double.MaxValue;
+                string closestNeighbor = "None";
+                bool hasHazard = false;
+                string status = "Balanced Cluster";
+
+                for (int j = 0; j < clusterInfo.Count; j++)
+                {
+                    if (i == j) continue;
+                    var c2 = clusterInfo[j];
+                    double dist = Math.Sqrt(Math.Pow(c1.Cx - c2.Cx, 2) + Math.Pow(c1.Cy - c2.Cy, 2));
+                    if (dist < minDistance)
+                    {
+                        minDistance = dist;
+                        closestNeighbor = c2.Name;
+                    }
+
+                    if (i < j)
+                    {
+                        totalSeparation += dist;
+                        separationPairs++;
+                    }
+                }
+
+                var neighborInfo = clusterInfo.FirstOrDefault(c => c.Name == closestNeighbor);
+                double combinedRadius = c1.Radius + (neighborInfo.Radius > 0 ? neighborInfo.Radius : 40.0);
+                if (minDistance < combinedRadius * 0.75)
+                {
+                    hasHazard = true;
+                    status = $"Overlapping with '{closestNeighbor}' ({minDistance:F0}px < {combinedRadius:F0}px threshold)";
+                    driftingOrColliding++;
+                }
+                else if (minDistance > 2500.0)
+                {
+                    hasHazard = true;
+                    status = $"Excessive drift from canvas center ({minDistance:F0}px to '{closestNeighbor}')";
+                    driftingOrColliding++;
+                }
+
+                clusterItems.Add(new GraphClusterCentroidItem(
+                    c1.Name, c1.Count, c1.Cx, c1.Cy, c1.Radius, minDistance, closestNeighbor, hasHazard, status));
+            }
+
+            int cohesiveClusters = totalClusters - driftingOrColliding;
+            double avgSeparation = separationPairs > 0 ? totalSeparation / separationPairs : 0.0;
+            double penalty = driftingOrColliding * 15.0;
+            double score = Math.Clamp(100.0 - penalty, 0.0, 100.0);
+
+            string category = score switch
+            {
+                >= 90.0 => "Optimal Cluster Harmony",
+                >= 70.0 => "Moderate Boundary Overlaps",
+                _ => "High Cluster Drift & Collisions"
+            };
+
+            string summary = FormatClusterCentroidsSummary(
+                totalNodes, totalClusters, cohesiveClusters, driftingOrColliding,
+                avgSeparation, score, category, isSelection);
+
+            return new GraphClusterCentroidsAudit(
+                totalNodes, totalClusters, cohesiveClusters, driftingOrColliding,
+                avgSeparation, score, clusterItems, category, isSelection, summary);
+        }
+
+        public static string FormatClusterCentroidsSummary(
+            int totalNodes, int totalClusters, int cohesive, int driftingOrColliding,
+            double avgSeparation, double score, string category, bool isSelection = false)
+        {
+            string scope = isSelection ? "Selection · " : "";
+            if (totalNodes <= 1 || totalClusters == 0)
+                return $"MindMap semantic cluster centroid audit ({scope}0 multi-node clusters detected): Clean Baseline";
+
+            var parts = new List<string>();
+            parts.Add($"{totalNodes} node{(totalNodes == 1 ? "" : "s")}");
+            parts.Add($"{totalClusters} cluster{(totalClusters == 1 ? "" : "s")}");
+            if (cohesive > 0) parts.Add($"\u2713 {cohesive} cohesive");
+            if (driftingOrColliding > 0) parts.Add($"\u26a0 {driftingOrColliding} overlapping/drifting");
+            if (avgSeparation > 0) parts.Add($"~{avgSeparation:F0}px separation");
+
+            string details = string.Join(" · ", parts);
+            return $"MindMap semantic cluster centroid audit ({scope}{details} · {category} · {score:0.#}% balance score)";
+        }
+
 
 
         public static string FormatClosenessCentralitySummary(
@@ -15593,5 +15748,30 @@ namespace MarkSmith.ViewModels.MindMap
         string Category,
         bool IsSelectionScope,
         string Summary);
-
-}
+
+
+    public sealed record GraphClusterCentroidItem(
+        string ClusterName,
+        int NodeCount,
+        double CentroidX,
+        double CentroidY,
+        double Radius,
+        double MinDistanceToOtherCentroids,
+        string ClosestNeighborCluster,
+        bool HasDriftOrCollisionHazard,
+        string StatusDescription);
+
+    public sealed record GraphClusterCentroidsAudit(
+        int TotalNodes,
+        int TotalClusters,
+        int CohesiveClusters,
+        int DriftingOrCollidingClusters,
+        double AverageCentroidSeparation,
+        double ClusterBalanceScore,
+        IReadOnlyList<GraphClusterCentroidItem> Clusters,
+        string Category,
+        bool IsSelectionScope,
+        string Summary);
+
+}
+

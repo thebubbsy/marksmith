@@ -1,4 +1,4 @@
-﻿using MarkSmith.Services;
+using MarkSmith.Services;
 using MarkSmith.ViewModels.History;
 using Xunit;
 
@@ -3614,5 +3614,58 @@ public class HistoryPolishTests : IDisposable
             hazardousAudit.UnhandledWaitAllHazards, hazardousAudit.FireAndForgetDiscardHazards,
             hazardousAudit.ExceptionPropagationSafetyScore, hazardousAudit.Category);
         Assert.Equal(hazardousAudit.Summary, formatted);
+    }
+
+    [Fact]
+    public void Run210_AuditCancellationTokenPropagation_DetectsSwallowedAndMissingTokens()
+    {
+        var emptyAudit = LineDiff.AuditCancellationTokenPropagation("", "");
+        Assert.Equal(0, emptyAudit.TotalModifiedLines);
+        Assert.Equal(100.0, emptyAudit.CancellationSafetyScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+
+        var cleanCode = string.Join("\n",
+            "public async Task FetchDataAsync(CancellationToken ct)",
+            "{",
+            "    var res = await client.GetStringAsync(url, ct);",
+            "    return res;",
+            "}"
+        );
+        var cleanAudit = LineDiff.AuditCancellationTokenPropagation("", cleanCode);
+        Assert.Equal(100.0, cleanAudit.CancellationSafetyScore);
+        Assert.True(cleanAudit.ProperlyForwardedTokens >= 1);
+        Assert.Equal(0, cleanAudit.SwallowedCancellationHazards);
+        Assert.Equal(0, cleanAudit.MissingTokenCallHazards);
+
+        string formatted = LineDiff.FormatCancellationTokenSummary(
+            cleanAudit.TotalModifiedLines, cleanAudit.AsyncMethodsWithCancellation,
+            cleanAudit.ProperlyForwardedTokens, cleanAudit.IgnoredTokenHazards,
+            cleanAudit.SwallowedCancellationHazards, cleanAudit.MissingTokenCallHazards,
+            cleanAudit.CancellationSafetyScore, cleanAudit.Category);
+        Assert.Equal(cleanAudit.Summary, formatted);
+
+        var hazardousCode = string.Join("\n",
+            "public async Task RiskyAsync(CancellationToken ct)",
+            "{",
+            "    try {",
+            "        await client.GetStringAsync(url);",
+            "    }",
+            "    catch (OperationCanceledException)",
+            "    {",
+            "        // Swallowed cancellation without throw",
+            "    }",
+            "}"
+        );
+        var hazardousAudit = LineDiff.AuditCancellationTokenPropagation("", hazardousCode);
+        Assert.True(hazardousAudit.MissingTokenCallHazards >= 1);
+        Assert.True(hazardousAudit.SwallowedCancellationHazards >= 1);
+        Assert.True(hazardousAudit.CancellationSafetyScore < 70.0);
+
+        string formattedHazard = LineDiff.FormatCancellationTokenSummary(
+            hazardousAudit.TotalModifiedLines, hazardousAudit.AsyncMethodsWithCancellation,
+            hazardousAudit.ProperlyForwardedTokens, hazardousAudit.IgnoredTokenHazards,
+            hazardousAudit.SwallowedCancellationHazards, hazardousAudit.MissingTokenCallHazards,
+            hazardousAudit.CancellationSafetyScore, hazardousAudit.Category);
+        Assert.Equal(hazardousAudit.Summary, formattedHazard);
     }
 }

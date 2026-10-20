@@ -4191,6 +4191,14 @@ namespace MarkSmith.Views.MindMap
             ViewModel.StatusMessage = $"\u2713 {result.Summary}";
         }
 
+        private void OnAuditGraphSemanticClusterCentroidsClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditGraphSemanticClusterCentroids();
+            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+        }
+
         private void OnAuditGraphNodeBoundingCollisionsClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;

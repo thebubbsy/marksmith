@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -3476,5 +3476,49 @@ public class SmartArtStudioPolishTests
         );
         var undercutAudit = SmartArtDesignStudioViewModel.AuditGearMechanismGeometry(undercutMd, "Gear Process");
         Assert.True(undercutAudit.UndercutHazardGears >= 1);
+    }
+
+    [Fact]
+    public void Run210_AuditPyramidApexProportionality_ValidatesGeometryAndOverflow()
+    {
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditPyramidApexProportionality("", "Pyramid");
+        Assert.Equal(0, emptyAudit.TotalTiers);
+        Assert.Equal(100.0, emptyAudit.ProportionalHarmonyScore);
+        Assert.Equal("Empty Outline", emptyAudit.Category);
+
+        var balancedMd = string.Join("\n",
+            "- Apex Vision",
+            "  - Guidance",
+            "- Strategic Core",
+            "  - Plan",
+            "- Operational Base",
+            "  - Work"
+        );
+        var balancedAudit = SmartArtDesignStudioViewModel.AuditPyramidApexProportionality(balancedMd, "Pyramid");
+        Assert.Equal(3, balancedAudit.TotalTiers);
+        Assert.Equal(3, balancedAudit.TotalSubItems);
+        Assert.Equal(0, balancedAudit.TextOverflowHazards);
+        Assert.Equal(0, balancedAudit.InvertedTierHazards);
+        Assert.Equal(100.0, balancedAudit.ProportionalHarmonyScore);
+        Assert.Equal("Harmonious Proportions", balancedAudit.Category);
+
+        string formatted = SmartArtDesignStudioViewModel.FormatPyramidApexSummary(
+            balancedAudit.TotalTiers, balancedAudit.TotalSubItems, balancedAudit.ApexTierTextLength,
+            balancedAudit.TextOverflowHazards, balancedAudit.InvertedTierHazards,
+            balancedAudit.IsInvertedFunnelLayout, balancedAudit.ProportionalHarmonyScore,
+            balancedAudit.Category, "Pyramid");
+        Assert.Equal(balancedAudit.Summary, formatted);
+
+        var overflowMd = string.Join("\n",
+            "- Overly Verbose Apex Heading Exceeding Thirty Characters Length",
+            "  - Child A",
+            "  - Child B",
+            "  - Child C",
+            "- Base Tier"
+        );
+        var overflowAudit = SmartArtDesignStudioViewModel.AuditPyramidApexProportionality(overflowMd, "Pyramid");
+        Assert.True(overflowAudit.TextOverflowHazards >= 1);
+        Assert.True(overflowAudit.InvertedTierHazards >= 1);
+        Assert.True(overflowAudit.ProportionalHarmonyScore < 75.0);
     }
 }

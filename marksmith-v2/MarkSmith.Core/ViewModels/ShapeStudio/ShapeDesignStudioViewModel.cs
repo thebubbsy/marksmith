@@ -10741,6 +10741,146 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         return $"Diagram isometric grid snapping audit ({scope}{details} · {category} · {score:0.#}% precision score)";
     }
 
+    public DiagramMagneticSnappingAudit AuditMagneticSnappingGuides(bool selectionOnly = false, double snapTolerance = 6.0)
+    {
+        var selected = SelectedItems.ToList();
+        var targetShapes = (selectionOnly && selected.Count > 0) ? selected : Shapes.ToList();
+        bool isSelection = selectionOnly && selected.Count > 0;
+        var audit = AuditMagneticSnappingGuides(targetShapes, Shapes.ToList(), isSelection, snapTolerance);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static DiagramMagneticSnappingAudit AuditMagneticSnappingGuides(
+        IEnumerable<ShapeCanvasItemViewModel>? targetShapes,
+        IEnumerable<ShapeCanvasItemViewModel>? allShapes,
+        bool isSelection = false,
+        double snapTolerance = 6.0)
+    {
+        var list = (allShapes ?? Enumerable.Empty<ShapeCanvasItemViewModel>()).Where(s => s != null).ToList();
+        var targets = (targetShapes ?? list).Where(s => s != null && !s.IsLine).ToList();
+
+        int totalShapes = targets.Count;
+        if (totalShapes == 0)
+        {
+            string emptySummary = FormatMagneticSnappingSummary(0, 0, 0, 0, 0, 100.0, "Clean Baseline", isSelection, snapTolerance);
+            return new DiagramMagneticSnappingAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<MagneticGuideAnchorItem>(), "Clean Baseline", isSelection, emptySummary);
+        }
+
+        var otherShapes = list.Where(s => !s.IsLine).ToList();
+        var items = new List<MagneticGuideAnchorItem>();
+        int lockedCount = 0;
+        int partialCount = 0;
+        int unalignedCount = 0;
+        int totalNearMiss = 0;
+
+        foreach (var shape in targets)
+        {
+            double left = shape.X;
+            double right = shape.X + shape.Width;
+            double centerX = shape.X + (shape.Width / 2.0);
+            double top = shape.Y;
+            double bottom = shape.Y + shape.Height;
+            double centerY = shape.Y + (shape.Height / 2.0);
+
+            int alignedRays = 0;
+            int nearMissJitter = 0;
+
+            foreach (var other in otherShapes)
+            {
+                if (other.Id == shape.Id) continue;
+
+                double oLeft = other.X;
+                double oRight = other.X + other.Width;
+                double oCenterX = other.X + (other.Width / 2.0);
+                double oTop = other.Y;
+                double oBottom = other.Y + other.Height;
+                double oCenterY = other.Y + (other.Height / 2.0);
+
+                double[] myY = { top, centerY, bottom };
+                double[] otherY = { oTop, oCenterY, oBottom };
+
+                foreach (var y1 in myY)
+                {
+                    foreach (var y2 in otherY)
+                    {
+                        double diff = Math.Abs(y1 - y2);
+                        if (diff <= 0.5) alignedRays++;
+                        else if (diff <= snapTolerance) nearMissJitter++;
+                    }
+                }
+
+                double[] myX = { left, centerX, right };
+                double[] otherX = { oLeft, oCenterX, oRight };
+
+                foreach (var x1 in myX)
+                {
+                    foreach (var x2 in otherX)
+                    {
+                        double diff = Math.Abs(x1 - x2);
+                        if (diff <= 0.5) alignedRays++;
+                        else if (diff <= snapTolerance) nearMissJitter++;
+                    }
+                }
+            }
+
+            bool isLocked = alignedRays >= 2;
+            if (isLocked) lockedCount++;
+            else if (alignedRays == 1) partialCount++;
+            else unalignedCount++;
+
+            totalNearMiss += nearMissJitter;
+
+            string desc = isLocked
+                ? $"Magnetically locked ({alignedRays} cardinal ray alignments)"
+                : (alignedRays == 1 ? "Partially aligned (1 cardinal ray)" : (nearMissJitter > 0 ? $"Near-miss jitter ({nearMissJitter} guide offsets)" : "Floating unaligned"));
+
+            items.Add(new MagneticGuideAnchorItem(
+                shape.Id, shape.Name ?? "Shape", shape.X, shape.Y, shape.Width, shape.Height,
+                alignedRays, nearMissJitter, isLocked, desc));
+        }
+
+        double penalty = (unalignedCount * 12.0) + (totalNearMiss * 3.0);
+        double score = Math.Clamp(100.0 - penalty, 0.0, 100.0);
+
+        string category = score switch
+        {
+            >= 90.0 => "High Magnetic Alignment",
+            >= 70.0 => "Partial Cardinal Snapping",
+            _ => "Guide Jitter & Unaligned Shapes"
+        };
+
+        string summary = FormatMagneticSnappingSummary(
+            totalShapes, lockedCount, partialCount, unalignedCount, totalNearMiss,
+            score, category, isSelection, snapTolerance);
+
+        return new DiagramMagneticSnappingAudit(
+            totalShapes, lockedCount, partialCount, unalignedCount, totalNearMiss,
+            score, items, category, isSelection, summary);
+    }
+
+    public static string FormatMagneticSnappingSummary(
+        int totalShapes, int locked, int partial, int unaligned, int nearMissTotal,
+        double score, string category, bool isSelection = false, double snapTolerance = 6.0)
+    {
+        string scope = isSelection ? "Selection · " : "";
+        if (totalShapes == 0)
+            return $"Diagram magnetic snapping guide audit ({scope}0 shapes): Clean Baseline";
+
+        var parts = new List<string>();
+        parts.Add($"{totalShapes} shape{(totalShapes == 1 ? "" : "s")}");
+        if (locked > 0) parts.Add($"\u2713 {locked} locked");
+        if (partial > 0) parts.Add($"~ {partial} partial");
+        if (unaligned > 0) parts.Add($"\u26a0 {unaligned} unaligned");
+        if (nearMissTotal > 0) parts.Add($"\u26a0 {nearMissTotal} near-miss offset{(nearMissTotal == 1 ? "" : "s")}");
+        parts.Add($"\u00b1{snapTolerance:0.#}px tolerance");
+
+        string details = string.Join(" · ", parts);
+        return $"Diagram magnetic snapping guide audit ({scope}{details} · {category} · {score:0.#}% alignment score)";
+    }
+
     public static string FormatIsometricAlignmentSummary(
         int totalShapes, int totalRays, int alignedRays, int driftRays, int offAxisRays,
         double score, string category, bool isSelection)
@@ -15192,3 +15332,25 @@ public sealed record DiagramIsometricGridSnappingAudit(
     string Category,
     bool IsSelectionScope,
     string Summary);
+
+
+public sealed record MagneticGuideAnchorItem(
+    string ShapeId,
+    string ShapeName,
+    double X, double Y, double Width, double Height,
+    int AlignedRaysCount,
+    int NearMissJitterCount,
+    bool IsMagneticallyLocked,
+    string AlignmentDescription);
+
+public sealed record DiagramMagneticSnappingAudit(
+    int TotalShapes,
+    int MagneticallyLockedShapes,
+    int PartiallyAlignedShapes,
+    int UnalignedShapes,
+    int NearMissJitterTotal,
+    double MagneticAlignmentScore,
+    IReadOnlyList<MagneticGuideAnchorItem> Items,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);

@@ -4566,6 +4566,170 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         return $"SmartArt gear mechanism audit ({details} · {category} · {score:0.#}% harmony score)";
     }
 
+    public SmartArtPyramidApexAudit AuditPyramidApexProportionality(string? markdown = null, string? layoutName = null)
+    {
+        string md = markdown ?? MarkdownText;
+        string layout = layoutName ?? SelectedLayout?.DisplayName ?? "Pyramid";
+        return AuditPyramidApexProportionality(md, layout, isStatic: false);
+    }
+
+    public static SmartArtPyramidApexAudit AuditPyramidApexProportionality(
+        string? markdown,
+        string? layoutName = null,
+        bool isStatic = true)
+    {
+        string layout = layoutName ?? "Pyramid";
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            string emptySummary = FormatPyramidApexSummary(0, 0, 0, 0, 0, false, 100.0, "Empty Outline", layout);
+            return new SmartArtPyramidApexAudit(
+                0, 0, 0, 0, 0, false, 100.0,
+                Array.Empty<SmartArtPyramidTierItem>(), "Empty Outline", layout, emptySummary);
+        }
+
+        var lines = markdown.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        var tiers = new List<(string Label, List<string> SubItems)>();
+
+        foreach (var rawLine in lines)
+        {
+            var line = rawLine.TrimEnd();
+            if (string.IsNullOrWhiteSpace(line)) continue;
+
+            if (line.StartsWith("    - ") || line.StartsWith("    * ") || line.StartsWith("\t\t- ") ||
+                line.StartsWith("  - ") || line.StartsWith("  * ") || line.StartsWith("\t- "))
+            {
+                var text = line.TrimStart(' ', '\t', '-', '*').Trim();
+                if (tiers.Count > 0)
+                {
+                    tiers[^1].SubItems.Add(text);
+                }
+                else
+                {
+                    tiers.Add(("Introduction", new List<string> { text }));
+                }
+            }
+            else if (line.TrimStart().StartsWith("- ") || line.TrimStart().StartsWith("* "))
+            {
+                var label = line.TrimStart(' ', '\t', '-', '*').Trim();
+                tiers.Add((label, new List<string>()));
+            }
+        }
+
+        int totalTiers = tiers.Count;
+        int totalSubItems = tiers.Sum(t => t.SubItems.Count);
+
+        if (totalTiers == 0)
+        {
+            string emptySummary = FormatPyramidApexSummary(0, 0, 0, 0, 0, false, 100.0, "Empty Outline", layout);
+            return new SmartArtPyramidApexAudit(
+                0, 0, 0, 0, 0, false, 100.0,
+                Array.Empty<SmartArtPyramidTierItem>(), "Empty Outline", layout, emptySummary);
+        }
+
+        bool isFunnel = layout.Contains("Funnel", StringComparison.OrdinalIgnoreCase) ||
+                        layout.Contains("Inverted", StringComparison.OrdinalIgnoreCase);
+
+        var tierItems = new List<SmartArtPyramidTierItem>();
+        int textOverflowHazards = 0;
+        int invertedHazards = 0;
+        int apexTextLength = 0;
+
+        for (int i = 0; i < totalTiers; i++)
+        {
+            var tier = tiers[i];
+            int tierNumber = i + 1;
+            int textLen = tier.Label.Length;
+            int subCount = tier.SubItems.Count;
+
+            double widthRatio;
+            if (isFunnel)
+            {
+                widthRatio = totalTiers == 1 ? 1.0 : 1.0 - ((double)i / (totalTiers - 1) * 0.7);
+            }
+            else
+            {
+                widthRatio = totalTiers == 1 ? 1.0 : 0.3 + ((double)i / (totalTiers - 1) * 0.7);
+            }
+
+            bool isApexTier = isFunnel ? (tierNumber == totalTiers) : (tierNumber == 1);
+            if (isApexTier)
+            {
+                apexTextLength = textLen;
+            }
+
+            bool hasOverflow = isApexTier && (textLen > 25 || subCount > 2);
+            if (hasOverflow) textOverflowHazards++;
+
+            bool hasInversion = false;
+            if (!isFunnel && tierNumber == 1 && totalTiers > 1)
+            {
+                var baseTier = tiers[^1];
+                if (subCount > baseTier.SubItems.Count + 1 || textLen > baseTier.Label.Length * 2)
+                {
+                    hasInversion = true;
+                    invertedHazards++;
+                }
+            }
+            else if (isFunnel && tierNumber == totalTiers && totalTiers > 1)
+            {
+                var topTier = tiers[0];
+                if (subCount > topTier.SubItems.Count + 1)
+                {
+                    hasInversion = true;
+                    invertedHazards++;
+                }
+            }
+
+            string notes = (hasOverflow, hasInversion) switch
+            {
+                (true, true) => "Apex text overflow & inverted hierarchy hazard",
+                (true, false) => "Apex text overflow hazard (geometry cramped)",
+                (false, true) => "Inverted content volume hazard",
+                _ => "Balanced proportional tier"
+            };
+
+            tierItems.Add(new SmartArtPyramidTierItem(
+                tierNumber, tier.Label, textLen, subCount, widthRatio,
+                hasOverflow, hasInversion, notes));
+        }
+
+        double penalty = (textOverflowHazards * 15.0) + (invertedHazards * 20.0);
+        double score = Math.Clamp(100.0 - penalty, 0.0, 100.0);
+
+        string category = score switch
+        {
+            >= 90.0 => "Harmonious Proportions",
+            >= 70.0 => "Moderate Apex Disproportion",
+            _ => "Hazardous Tier Disproportion"
+        };
+
+        string summary = FormatPyramidApexSummary(
+            totalTiers, totalSubItems, apexTextLength, textOverflowHazards,
+            invertedHazards, isFunnel, score, category, layout);
+
+        return new SmartArtPyramidApexAudit(
+            totalTiers, totalSubItems, apexTextLength, textOverflowHazards,
+            invertedHazards, isFunnel, score, tierItems, category, layout, summary);
+    }
+
+    public static string FormatPyramidApexSummary(
+        int totalTiers, int totalSubItems, int apexLength, int textOverflows,
+        int invertedHazards, bool isFunnel, double score, string category, string layout)
+    {
+        if (totalTiers == 0)
+            return $"SmartArt {layout} apex proportionality audit: Clean Baseline · 0 tiers detected";
+
+        var parts = new List<string>();
+        parts.Add($"{totalTiers} tier{(totalTiers == 1 ? "" : "s")}");
+        if (totalSubItems > 0) parts.Add($"{totalSubItems} subitem{(totalSubItems == 1 ? "" : "s")}");
+        parts.Add($"apex {apexLength} chars");
+        if (textOverflows > 0) parts.Add($"\u26a0 {textOverflows} apex overflow{(textOverflows == 1 ? "" : "s")}");
+        if (invertedHazards > 0) parts.Add($"\ud83d\udea8 {invertedHazards} inversion hazard{(invertedHazards == 1 ? "" : "s")}");
+
+        string details = string.Join(" · ", parts);
+        return $"SmartArt {layout} apex proportionality audit ({details} · {category} · {score:0.#}% harmony score)";
+    }
+
     public static string FormatMatrixQuadrantGeometrySummary(
         int quadrantCount, bool is2x2, int totalWords, double avgWords, double cv,
         double score, string category, string layout)
@@ -13412,3 +13576,27 @@ public sealed record SmartArtGearMechanismAudit(
     string Category,
     string LayoutName,
     string Summary);
+
+
+public sealed record SmartArtPyramidTierItem(
+    int TierIndex,
+    string Label,
+    int TextLength,
+    int SubItemCount,
+    double RelativeWidthRatio,
+    bool HasTextOverflowHazard,
+    bool HasTierInversionHazard,
+    string TierNotes);
+
+public sealed record SmartArtPyramidApexAudit(
+    int TotalTiers,
+    int TotalSubItems,
+    int ApexTierTextLength,
+    int TextOverflowHazards,
+    int InvertedTierHazards,
+    bool IsInvertedFunnelLayout,
+    double ProportionalHarmonyScore,
+    IReadOnlyList<SmartArtPyramidTierItem> Tiers,
+    string Category,
+    string LayoutName,
+    string Summary);

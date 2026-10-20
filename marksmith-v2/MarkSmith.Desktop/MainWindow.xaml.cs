@@ -12194,6 +12194,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(auditInlineHtmlSanitizationItem);
 
+        var auditTaskListFormattingItem = new MenuFlyoutItem
+        {
+            Text = "Audit Markdown Task List Formatting & Indentation Consistency",
+            Icon = new FontIcon { Glyph = "\uE8B9" }
+        };
+        auditTaskListFormattingItem.Click += (_, _) =>
+        {
+            var docText = EditorDocument();
+            var summary = MarkSmith.Services.TextSearch.AuditMarkdownTaskListFormatting(docText).Summary;
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditTaskListFormattingItem);
+
 
 
         menu.ShowAt(anchor);

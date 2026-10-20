@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -4572,6 +4572,39 @@ namespace MarkSmith.Tests
         var collisionAudit = MindMapStudioViewModel.AuditGraphNodeBoundingCollisions(new[] { n1, collidingNode });
         Assert.Equal(1, collisionAudit.DirectCollisionCount);
         Assert.True(collisionAudit.CollisionFreeScore <= 80.0);
+    }
+
+    [Fact]
+    public void Run210_AuditGraphSemanticClusterCentroids_CalculatesDispersionAndCollisions()
+    {
+        var emptyAudit = MindMapStudioViewModel.AuditGraphSemanticClusterCentroids(null);
+        Assert.Equal(0, emptyAudit.TotalNodes);
+        Assert.Equal(100.0, emptyAudit.ClusterBalanceScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+
+        var a1 = new MindMapNode { Id = "A1", Title = "UI Shell", Tags = { "Frontend" }, X = 100, Y = 100 };
+        var a2 = new MindMapNode { Id = "A2", Title = "UI Button", Tags = { "Frontend" }, X = 120, Y = 110 };
+        var b1 = new MindMapNode { Id = "B1", Title = "API Core", Tags = { "Backend" }, X = 800, Y = 800 };
+        var b2 = new MindMapNode { Id = "B2", Title = "DB Layer", Tags = { "Backend" }, X = 820, Y = 810 };
+
+        var spacedAudit = MindMapStudioViewModel.AuditGraphSemanticClusterCentroids(new[] { a1, a2, b1, b2 });
+        Assert.Equal(4, spacedAudit.TotalNodes);
+        Assert.Equal(2, spacedAudit.TotalClusters);
+        Assert.Equal(2, spacedAudit.CohesiveClusters);
+        Assert.Equal(0, spacedAudit.DriftingOrCollidingClusters);
+        Assert.Equal(100.0, spacedAudit.ClusterBalanceScore);
+        Assert.Equal("Optimal Cluster Harmony", spacedAudit.Category);
+
+        string formatted = MindMapStudioViewModel.FormatClusterCentroidsSummary(
+            spacedAudit.TotalNodes, spacedAudit.TotalClusters, spacedAudit.CohesiveClusters,
+            spacedAudit.DriftingOrCollidingClusters, spacedAudit.AverageCentroidSeparation,
+            spacedAudit.ClusterBalanceScore, spacedAudit.Category, false);
+        Assert.Equal(spacedAudit.Summary, formatted);
+
+        var collidingNode = new MindMapNode { Id = "C1", Title = "Overlapping Core", Tags = { "Backend" }, X = 110, Y = 105 };
+        var collidingAudit = MindMapStudioViewModel.AuditGraphSemanticClusterCentroids(new[] { a1, collidingNode });
+        Assert.True(collidingAudit.DriftingOrCollidingClusters >= 1);
+        Assert.True(collidingAudit.ClusterBalanceScore <= 85.0);
     }
     }
 }

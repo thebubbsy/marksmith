@@ -6727,6 +6727,14 @@ namespace MarkSmith.Views.ShapeStudio
         ViewModel.StatusMessage = $"\u2713 {result.Summary}";
     }
 
+    private void OnSelectionAuditMagneticSnappingGuidesClick(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel == null) return;
+        var result = ViewModel.AuditMagneticSnappingGuides();
+        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+        ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+    }
+
     private void OnSelectionAuditIsometricGridSnappingClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel == null) return;

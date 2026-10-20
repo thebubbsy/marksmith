@@ -13490,3 +13490,58 @@ Reviewed: Run #209 Blueprint — executed the 3-block cycle covering all 6 MarkS
 6. **SuiteHubView (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #209 Block 3 Idea 6]**:
    - **Refinement Target**: Workspace Markdown Document Reading Time & Section Density Distribution Auditor.
    - **Deliverable**: Extend `RecentFilesService.AuditWorkspaceFrontmatterAndDateHygiene` to scan workspace documents for section word count distribution, calculating reading times, detecting unbalanced mega-sections (> 1500 words without subheadings), and computing workspace readability balance ($0-100\%$).
+
+
+---
+
+### 2026-10-21 (scheduled routine run #210)
+
+Reviewed: Run #210 Blueprint — executed the 3-block cycle covering all 6 MarkSmith WinUI 3 surfaces with 100% full implementation, zero placeholders, empirical verification (0 errors, 7 passing unit tests), and desktop smoke launch verification.
+
+**Shipped** (commit follows this entry):
+- **Block 1**:
+  - **Surface 1 (MainWindow)**: Implemented TextSearch.AuditMarkdownTaskListFormatting(markdownText), FormatTaskListFormattingSummary(...), MarkdownTaskFormattingItem, and MarkdownTaskFormattingAudit in TextSearch.cs. Scans markdown documents for task list checkboxes (- [ ], - [x], - [X]), validating indentation consistency (2 vs 4 spaces), detecting orphaned check items outside lists, and scoring task list syntax hygiene ($0-100\%). Wired to ShowLintIssueContextMenu in MainWindow.xaml.cs via uditTaskListFormattingItem (\uE8B9).
+  - **Surface 2 (MindMapGalaxyWindow)**: Implemented MindMapStudioViewModel.AuditGraphSemanticClusterCentroids(), FormatClusterCentroidsSummary(...), GraphClusterCentroidItem, and GraphClusterCentroidsAudit in MindMapStudioViewModel.cs. Calculates geometric centroids for tag/prefix clusters across canvas nodes, evaluating cluster dispersion radius, inter-cluster separation, and collision proximity hazards, scoring visual clustering balance ($0-100\%). Wired to ArrangeDropDownButton.Flyout in MindMapGalaxyWindow.xaml and MindMapGalaxyWindow.xaml.cs via AuditGraphSemanticClusterCentroidsItem (\uE8B9) and OnAuditGraphSemanticClusterCentroidsClick.
+- **Block 2**:
+  - **Surface 3 (ShapeDesignStudioWindow)**: Implemented ShapeDesignStudioViewModel.AuditMagneticSnappingGuides(shapes, allShapes, tolerance), FormatMagneticSnappingSummary(...), MagneticGuideAnchorItem, and DiagramMagneticSnappingAudit in ShapeDesignStudioViewModel.cs. Evaluates cardinal guide lines (top, bottom, left, right, center X/Y) across all diagram shapes, flagging alignment jitter and snapping guide adherence, scoring magnetic guide precision ($0-100\%). Wired to SelectionBoundsBorder.ContextFlyout in ShapeDesignStudioWindow.xaml and ShapeDesignStudioWindow.xaml.cs via SelectionAuditMagneticSnappingGuidesItem (\uE8B9) and OnSelectionAuditMagneticSnappingGuidesClick.
+  - **Surface 4 (SmartArtDesignStudioWindow)**: Implemented SmartArtDesignStudioViewModel.AuditPyramidApexProportionality(markdown, layoutName), FormatPyramidApexSummary(...), SmartArtPyramidTierItem, and SmartArtPyramidApexAudit in SmartArtDesignStudioViewModel.cs. Evaluates pyramid and funnel hierarchy diagrams for tier area progression, inverted apex geometry hazards, text length vs tier trapezoid width ratio, and tier inversion anomalies, scoring pyramid geometric harmony ($0-100\%). Wired to OutlineStatsFlyout in SmartArtDesignStudioWindow.xaml and SmartArtDesignStudioWindow.xaml.cs via OutlineStatsAuditPyramidApexProportionalityItem (\uE8B9) and OnOutlineStatsAuditPyramidApexProportionalityClick.
+- **Block 3**:
+  - **Surface 5 (HistoryWindow)**: Implemented LineDiff.AuditCancellationTokenPropagation(oldText, newText), FormatCancellationTokenSummary(...), CancellationTokenHazardItem, and DiffCancellationTokenAudit in LineDiff.cs. Evaluates diff additions and modifications for CancellationToken parameter forwarding across async call chains, detecting ignored tokens, missing token registrations, and unhandled OperationCanceledException drops, scoring cancellation safety ($0-100\%). Wired to DiffContextMenu in HistoryWindow.xaml.cs via uditCancellationTokenPropagationItem (\uE8B9).
+  - **Surface 6 (SuiteHubView)**: Implemented RecentFilesService.AuditWorkspaceDocumentReadabilityDensity(workspacePaths), FormatWorkspaceDocumentReadabilitySummary(...), WorkspaceDocumentReadabilityItem, and WorkspaceReadabilityAudit in RecentFilesService.cs. Scans workspace markdown documents for word count distribution, calculating estimated reading times, detecting unbalanced mega-sections (> 1000 words without subheadings) and micro-stubs, scoring workspace readability density ($0-100\%). Wired to RecentDocsFlyout in SuiteHubView.xaml and SuiteHubView.xaml.cs via AuditWorkspaceDocumentReadabilityDensityItem (\uE8B9) and OnAuditWorkspaceDocumentReadabilityDensityClick.
+- **Execution Phase Refinements**:
+  - Implemented comprehensive unit tests across all 6 surfaces:
+    - TextSearchTests.Run210_AuditMarkdownTaskListFormatting_ValidatesHygieneAndIndentation
+    - MindMapGalaxyPolishTests.Run210_AuditGraphSemanticClusterCentroids_CalculatesDispersionAndCollisions
+    - ShapeStudioPolishTests.Run210_AuditMagneticSnappingGuides_EvaluatesCardinalAnchorsAndJitter
+    - SmartArtStudioPolishTests.Run210_AuditPyramidApexProportionality_ValidatesGeometryAndOverflow
+    - HistoryPolishTests.Run210_AuditCancellationTokenPropagation_DetectsSwallowedAndMissingTokens
+    - SuiteHubAndTourPolishTests.Run210_AuditWorkspaceDocumentReadabilityDensity_CalculatesReadingTimeAndDensity
+    - SuiteHubAndTourPolishTests.Run210_AllSixSurfacesXamlAndCodeBehindWiring
+
+**Verified:**
+- dotnet build (marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj - Debug/x64): 0 errors, 24 warnings.
+- dotnet build (marksmith-v2/MarkSmith.Tests/MarkSmith.Tests.csproj - Debug): 0 errors.
+- dotnet test (Run210 filter): 7/7 tests passed (100% pass rate).
+- Smoke-launched Marksmith.exe (PID=27340, running cleanly for 3.5 seconds, gracefully terminated with zero crashes).
+
+---
+
+### Run #211 Blueprint — Carried-Forward Refinements & Next Cycle Targets
+1. **MainWindow (MainWindow.xaml.cs, TextSearch.cs)**:
+   - **Feature**: Markdown Table Pipe Delimiter Alignment & Header Structural Hygiene Auditor.
+   - **Deliverable**: Add TextSearch.AuditMarkdownTableAlignment(markdownText) and FormatTableAlignmentSummary(...), scanning markdown documents for table column count parity, delimiter misalignment, unescaped pipes inside code spans, and missing header separator hyphens, scoring table syntax structural hygiene ($0-100\%). Wire to ShowLintIssueContextMenu.
+2. **MindMapGalaxyWindow (MindMapGalaxyWindow.xaml, MindMapGalaxyWindow.xaml.cs, MindMapStudioViewModel.cs)**:
+   - **Feature**: Graph Node Radial Hierarchy Depth & Branch Density Distribution Auditor.
+   - **Deliverable**: Add MindMapStudioViewModel.AuditGraphRadialDepthDistribution() and FormatRadialDepthSummary(...), calculating radial distance from root/hub nodes, flagging over-concentrated depth layers, orphaned peripheral branches, and scoring graph radial distribution balance ($0-100\%). Wire to ArrangeDropDownButton.Flyout.
+3. **ShapeDesignStudioWindow (ShapeDesignStudioWindow.xaml, ShapeDesignStudioWindow.xaml.cs, ShapeDesignStudioViewModel.cs)**:
+   - **Feature**: Vector Path Tangent Continuity & Bezier Handle Symmetry Auditor.
+   - **Deliverable**: Add ShapeDesignStudioViewModel.AuditBezierHandleSymmetry(shapes) and FormatBezierSymmetrySummary(...), analyzing curve control points for ^1$ tangent smoothness and mirror symmetry across inflection points, scoring smooth path aesthetics ($0-100\%). Wire to SelectionBoundsBorder.ContextFlyout.
+4. **SmartArtDesignStudioWindow (SmartArtDesignStudioWindow.xaml, SmartArtDesignStudioWindow.xaml.cs, SmartArtDesignStudioViewModel.cs)**:
+   - **Feature**: Matrix / 2x2 Quadrant Axis Label Balance & Centroid Symmetry Auditor.
+   - **Deliverable**: Add SmartArtDesignStudioViewModel.AuditMatrixQuadrantBalance(markdown, layoutName) and FormatMatrixQuadrantSummary(...), evaluating 4-quadrant layout items for balanced density, quadrant label overflows, quadrant title symmetry, and scoring matrix composition harmony ($0-100\%). Wire to OutlineStatsFlyout.
+5. **HistoryWindow (HistoryWindow.xaml.cs, LineDiff.cs) [Carried Forward from Run #210 Block 3 Idea 5]**:
+   - **Refinement Target**: Semantic Diff Resource Disposal & IAsyncDisposable / wait using Leak Detection Auditor.
+   - **Deliverable**: Extend LineDiff.AuditCancellationTokenPropagation to evaluate IDisposable and IAsyncDisposable resource instantiations in diff additions, flagging unmanaged resource leaks and missing using declarations ($0-100\%). Wire to DiffContextMenu.
+6. **SuiteHubView (SuiteHubView.xaml, SuiteHubView.xaml.cs, RecentFilesService.cs) [Carried Forward from Run #210 Block 3 Idea 6]**:
+   - **Refinement Target**: Workspace Relative File Path & Cross-Document Markdown Wikilink Integrity Auditor.
+   - **Deliverable**: Extend RecentFilesService.AuditWorkspaceDocumentReadabilityDensity to scan workspace documents for [[wikilink]] and relative file path targets, verifying destination existence, detecting broken relative targets, and scoring workspace cross-reference integrity ($0-100\%). Wire to RecentDocsFlyout.
