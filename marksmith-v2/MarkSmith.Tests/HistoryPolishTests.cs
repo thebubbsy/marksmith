@@ -2945,4 +2945,60 @@ public class HistoryPolishTests : IDisposable
         Assert.True(probAudit.ThrowBlockerCount >= 1);
         Assert.True(probAudit.InliningOptimizationScore < 80.0);
     }
+
+    [Fact]
+    public void Run193_AuditExceptionHandlingAndFilterHazards_DetectsStackSlicingAndEmptyCatch()
+    {
+        // 1. Empty / null diff
+        var emptyAudit = LineDiff.AuditExceptionHandlingAndFilterHazards(null, null);
+        Assert.Equal(0, emptyAudit.TotalModifiedLines);
+        Assert.Equal(0, emptyAudit.TotalHazardsCount);
+        Assert.Equal(100.0, emptyAudit.ExceptionHygieneScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+        Assert.Contains("0 modified lines", emptyAudit.Summary);
+
+        // 2. Clean exception handling code (bare throw re-throw, logged catch)
+        var cleanCode = string.Join("\n",
+            "try",
+            "{",
+            "    DoWork();",
+            "}",
+            "catch (IOException ioEx)",
+            "{",
+            "    Logger.LogError(ioEx);",
+            "    throw;",
+            "}"
+        );
+
+        var cleanAudit = LineDiff.AuditExceptionHandlingAndFilterHazards("", cleanCode);
+        Assert.Equal(0, cleanAudit.StackSlicingCount);
+        Assert.Equal(0, cleanAudit.EmptyCatchCount);
+        Assert.Equal(0, cleanAudit.AsyncVoidCount);
+        Assert.Equal(100.0, cleanAudit.ExceptionHygieneScore);
+        Assert.Equal("Optimal Exception Handling & Unwinding Hygiene (≥90%)", cleanAudit.Category);
+
+        string formatted = LineDiff.FormatFilterHazardsSummary(
+            cleanAudit.TotalModifiedLines, cleanAudit.TotalHazardsCount, cleanAudit.StackSlicingCount,
+            cleanAudit.EmptyCatchCount, cleanAudit.AsyncVoidCount, cleanAudit.ExceptionHygieneScore, cleanAudit.Category);
+        Assert.Equal(cleanAudit.Summary, formatted);
+
+        // 3. Problematic code: throw ex; slicing, empty catch, async void handler
+        var probCode = string.Join("\n",
+            "public async void OnButtonClick()",
+            "{",
+            "    try { Compute(); }",
+            "    catch (Exception ex)",
+            "    {",
+            "        throw ex;",
+            "    }",
+            "    catch { }",
+            "}"
+        );
+
+        var probAudit = LineDiff.AuditExceptionHandlingAndFilterHazards("", probCode);
+        Assert.True(probAudit.StackSlicingCount >= 1);
+        Assert.True(probAudit.EmptyCatchCount >= 1);
+        Assert.True(probAudit.AsyncVoidCount >= 1);
+        Assert.True(probAudit.ExceptionHygieneScore < 60.0);
+    }
 }

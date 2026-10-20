@@ -10567,6 +10567,269 @@ public static class TextSearch
         string details = string.Join(" · ", parts);
         return $"Markdown footnote audit ({details} · {category} · {score:0.#}% integrity score)";
     }
+    public static MarkdownListNestingAudit AuditListNestingAndMarkerSequence(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            string emptySummary = "Markdown list audit: Clean document · 0 list items detected";
+            return new MarkdownListNestingAudit(
+                0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<MarkdownListNestingItem>(),
+                "Empty Document",
+                emptySummary);
+        }
+
+        var lines = markdownText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+        var maskedLines = new string[lines.Length];
+        bool inCodeFence = false;
+        bool inFrontmatter = false;
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string line = lines[i];
+            string trimmed = line.Trim();
+
+            if (i == 0 && (trimmed == "---" || trimmed == "+++"))
+            {
+                inFrontmatter = true;
+                maskedLines[i] = string.Empty;
+                continue;
+            }
+            if (inFrontmatter)
+            {
+                if (trimmed == "---" || trimmed == "+++")
+                {
+                    inFrontmatter = false;
+                }
+                maskedLines[i] = string.Empty;
+                continue;
+            }
+
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+            {
+                inCodeFence = !inCodeFence;
+                maskedLines[i] = string.Empty;
+                continue;
+            }
+            if (inCodeFence)
+            {
+                maskedLines[i] = string.Empty;
+                continue;
+            }
+
+            // Exclude thematic breaks (e.g. ---, ***, ___, - - -, * * *)
+            if (Regex.IsMatch(trimmed, @"^(?:[-*_]\s*){3,}$"))
+            {
+                maskedLines[i] = string.Empty;
+                continue;
+            }
+
+            maskedLines[i] = line;
+        }
+
+        var items = new List<MarkdownListNestingItem>();
+        int unorderedCount = 0;
+        int orderedCount = 0;
+        int maxDepth = 0;
+        int indentAnomalyCount = 0;
+        int markerInconsistencyCount = 0;
+        int sequenceMismatchCount = 0;
+
+        var activeUnorderedMarkers = new Dictionary<int, string>();
+        var expectedOrderedNumbers = new Dictionary<int, int>();
+        var activeListType = new Dictionary<int, bool>(); // true = ordered, false = unordered
+
+        var unorderedRegex = new Regex(@"^([-*+])(\s+)(.*)$");
+        var orderedRegex = new Regex(@"^(\d+)([.)])(\s+)(.*)$");
+
+        int blankLineCount = 0;
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string line = maskedLines[i];
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                blankLineCount++;
+                if (blankLineCount >= 2)
+                {
+                    // Consecutive blank lines terminate the active list block
+                    activeUnorderedMarkers.Clear();
+                    expectedOrderedNumbers.Clear();
+                    activeListType.Clear();
+                }
+                continue;
+            }
+
+            blankLineCount = 0;
+
+            int leadingSpaces = 0;
+            for (int c = 0; c < line.Length; c++)
+            {
+                if (line[c] == ' ') leadingSpaces++;
+                else if (line[c] == '\t') leadingSpaces += 4;
+                else break;
+            }
+
+            string trimmed = line.TrimStart();
+            var unorderMatch = unorderedRegex.Match(trimmed);
+            var orderMatch = orderedRegex.Match(trimmed);
+
+            if (!unorderMatch.Success && !orderMatch.Success)
+            {
+                // Non-list line (e.g. heading, paragraph) resets the active list block
+                activeUnorderedMarkers.Clear();
+                expectedOrderedNumbers.Clear();
+                activeListType.Clear();
+                continue;
+            }
+
+            int nestingLevel = leadingSpaces / 2;
+            if (nestingLevel > maxDepth) maxDepth = nestingLevel;
+
+            // Clear any deeper level state
+            var keysToRemove = activeUnorderedMarkers.Keys.Where(k => k > nestingLevel).ToList();
+            foreach (var k in keysToRemove)
+            {
+                activeUnorderedMarkers.Remove(k);
+                expectedOrderedNumbers.Remove(k);
+                activeListType.Remove(k);
+            }
+
+            bool isIndentAnomaly = leadingSpaces % 2 != 0;
+            if (isIndentAnomaly) indentAnomalyCount++;
+
+            if (unorderMatch.Success)
+            {
+                unorderedCount++;
+                string marker = unorderMatch.Groups[1].Value;
+                string content = unorderMatch.Groups[3].Value.Trim();
+
+                bool markerInconsistent = false;
+                if (activeListType.TryGetValue(nestingLevel, out bool prevIsOrdered) && prevIsOrdered)
+                {
+                    markerInconsistent = true;
+                    markerInconsistencyCount++;
+                }
+                else if (activeUnorderedMarkers.TryGetValue(nestingLevel, out string? activeMarker) && activeMarker != marker)
+                {
+                    markerInconsistent = true;
+                    markerInconsistencyCount++;
+                }
+                else
+                {
+                    activeUnorderedMarkers[nestingLevel] = marker;
+                }
+
+                activeListType[nestingLevel] = false;
+                expectedOrderedNumbers.Remove(nestingLevel);
+
+                string status = markerInconsistent
+                    ? $"Marker Inconsistency: Level {nestingLevel} mixed '{marker}' marker"
+                    : isIndentAnomaly
+                        ? $"Indentation Anomaly: {leadingSpaces} spaces (odd indent)"
+                        : $"Valid Unordered Item: Level {nestingLevel} '{marker}'";
+
+                items.Add(new MarkdownListNestingItem(
+                    i + 1, leadingSpaces, nestingLevel, false, marker, content,
+                    markerInconsistent, isIndentAnomaly, false, status));
+            }
+            else if (orderMatch.Success)
+            {
+                orderedCount++;
+                string numStr = orderMatch.Groups[1].Value;
+                string delim = orderMatch.Groups[2].Value;
+                string marker = numStr + delim;
+                string content = orderMatch.Groups[4].Value.Trim();
+                int numVal = int.TryParse(numStr, out int parsed) ? parsed : 1;
+
+                bool seqMismatch = false;
+                bool markerInconsistent = false;
+
+                if (activeListType.TryGetValue(nestingLevel, out bool prevIsOrdered) && !prevIsOrdered)
+                {
+                    markerInconsistent = true;
+                    markerInconsistencyCount++;
+                }
+
+                if (expectedOrderedNumbers.TryGetValue(nestingLevel, out int expectedNum))
+                {
+                    if (numVal != expectedNum)
+                    {
+                        seqMismatch = true;
+                        sequenceMismatchCount++;
+                    }
+                    expectedOrderedNumbers[nestingLevel] = numVal + 1;
+                }
+                else
+                {
+                    expectedOrderedNumbers[nestingLevel] = numVal + 1;
+                }
+
+                activeListType[nestingLevel] = true;
+                activeUnorderedMarkers.Remove(nestingLevel);
+
+                string status = seqMismatch
+                    ? $"Sequence Mismatch: Expected {expectedOrderedNumbers[nestingLevel] - 1}, found {numVal}"
+                    : markerInconsistent
+                        ? $"Marker Inconsistency: Ordered item following unordered at Level {nestingLevel}"
+                        : isIndentAnomaly
+                            ? $"Indentation Anomaly: {leadingSpaces} spaces (odd indent)"
+                            : $"Valid Ordered Item: Level {nestingLevel} #{numVal}";
+
+                items.Add(new MarkdownListNestingItem(
+                    i + 1, leadingSpaces, nestingLevel, true, marker, content,
+                    markerInconsistent, isIndentAnomaly, seqMismatch, status));
+            }
+        }
+
+        int totalListItems = items.Count;
+        double score = 100.0;
+        score -= indentAnomalyCount * 5.0;
+        score -= markerInconsistencyCount * 8.0;
+        score -= sequenceMismatchCount * 10.0;
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category;
+        if (totalListItems == 0) category = "No List Items";
+        else if (score >= 90.0) category = "Optimal List Structure & Marker Hierarchy (≥90%)";
+        else if (score >= 75.0) category = "Good List Nesting with Minor Formatting Inconsistencies (75-89%)";
+        else if (score >= 50.0) category = "Moderate List Indentation or Sequence Discrepancies (50-74%)";
+        else category = "Severe List Hierarchy & Numbering Sequence Defects (<50%)";
+
+        string summary = FormatListNestingSummary(
+            totalListItems, unorderedCount, orderedCount, maxDepth,
+            indentAnomalyCount, markerInconsistencyCount, sequenceMismatchCount, score, category);
+
+        return new MarkdownListNestingAudit(
+            totalListItems, unorderedCount, orderedCount, maxDepth,
+            indentAnomalyCount, markerInconsistencyCount, sequenceMismatchCount,
+            score, items, category, summary);
+    }
+
+    public static string FormatListNestingSummary(string? markdownText)
+        => AuditListNestingAndMarkerSequence(markdownText).Summary;
+
+    public static string FormatListNestingSummary(
+        int totalItems, int unordered, int ordered, int maxDepth,
+        int indentAnomalies, int markerInconsistencies, int seqMismatches,
+        double score, string category)
+    {
+        if (totalItems == 0)
+            return "Markdown list audit: Clean document · 0 list items detected";
+
+        var parts = new List<string>();
+        parts.Add($"{totalItems} item{(totalItems == 1 ? "" : "s")}");
+        if (unordered > 0) parts.Add($"{unordered} unordered");
+        if (ordered > 0) parts.Add($"{ordered} ordered");
+        if (maxDepth > 0) parts.Add($"depth {maxDepth}");
+        if (indentAnomalies > 0) parts.Add($"⚠️ {indentAnomalies} indent anomal{(indentAnomalies == 1 ? "y" : "ies")}");
+        if (markerInconsistencies > 0) parts.Add($"⚠️ {markerInconsistencies} marker mismatch{(markerInconsistencies == 1 ? "" : "es")}");
+        if (seqMismatches > 0) parts.Add($"⚠️ {seqMismatches} sequence jump{(seqMismatches == 1 ? "" : "s")}");
+
+        string details = string.Join(" · ", parts);
+        return $"Markdown list audit ({details} · {category} · {score:0.#}% consistency score)";
+    }
+
 }
 
 /// <summary>
@@ -11735,3 +11998,36 @@ public sealed record MarkdownFootnoteAudit(
     IReadOnlyList<MarkdownFootnoteSequenceItem> Items,
     string Category,
     string Summary);
+
+/// <summary>
+/// Represents evaluated metrics, nesting level, marker symbol, and sequential integrity for an individual markdown list item.
+/// </summary>
+public sealed record MarkdownListNestingItem(
+    int LineNumber,
+    int IndentSpaces,
+    int NestingLevel,
+    bool IsOrdered,
+    string Marker,
+    string Content,
+    bool HasMarkerInconsistency,
+    bool HasIndentationAnomaly,
+    bool HasSequenceMismatch,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of markdown unordered and ordered list nesting indentation,
+/// marker sequence integrity, mixed list sibling symbols, and numeric continuity.
+/// </summary>
+public sealed record MarkdownListNestingAudit(
+    int TotalListItems,
+    int UnorderedCount,
+    int OrderedCount,
+    int MaxNestingDepth,
+    int IndentationAnomalyCount,
+    int MarkerInconsistencyCount,
+    int SequenceMismatchCount,
+    double ConsistencyScore,
+    IReadOnlyList<MarkdownListNestingItem> Items,
+    string Category,
+    string Summary);
+

@@ -787,6 +787,9 @@
                                         <MenuFlyoutItem x:Name="SelectionAuditLayeringZOrderOcclusionItem" Text="Audit diagram shape Z-order layering, stacking depth &amp; overlap inversion" Click="OnSelectionAuditLayeringZOrderOcclusionClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="SelectionAuditVisualWeightContrastItem" Text="Audit diagram shape visual weight, WCAG contrast ratio &amp; readability" Click="OnSelectionAuditVisualWeightContrastClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

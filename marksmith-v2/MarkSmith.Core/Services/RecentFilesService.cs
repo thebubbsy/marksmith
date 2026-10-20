@@ -8646,6 +8646,167 @@ public sealed class RecentFilesService
         string details = string.Join(" · ", parts);
         return $"Workspace math formula audit ({fileStr} · {details} · {category} · {score:0.#}% syntax score)";
     }
+    public static WorkspaceTableAlignmentAudit AuditWorkspaceTableAlignment(
+        IEnumerable<string>? filePaths,
+        string? workspaceRoot = null,
+        Func<string, bool>? fileExists = null,
+        Func<string, string[]?>? readAllLines = null)
+    {
+        var exists = fileExists ?? (p => File.Exists(p));
+        var readLines = readAllLines ?? (p => {
+            try { return File.ReadAllLines(p); }
+            catch { return null; }
+        });
+
+        var files = filePaths?
+            .Where(p => !string.IsNullOrWhiteSpace(p) && exists(p))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList() ?? new List<string>();
+
+        int scannedFiles = files.Count;
+        if (scannedFiles == 0)
+        {
+            string emptySummary = FormatWorkspaceTableAlignmentSummary(0, 0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new WorkspaceTableAlignmentAudit(
+                0, 0, 0, 0, 0, 0, 100.0, Array.Empty<WorkspaceTableAlignmentItem>(), "Clean Baseline", emptySummary);
+        }
+
+        var tables = new List<WorkspaceTableAlignmentItem>();
+        int totalTables = 0;
+        int validTables = 0;
+        int delimiterAnomalies = 0;
+        int raggedColumnTables = 0;
+        int unescapedPipeTables = 0;
+
+        var delimRegex = new Regex(@"^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)+\|?\s*$");
+
+        foreach (var file in files)
+        {
+            var lines = readLines(file);
+            if (lines == null || lines.Length == 0) continue;
+
+            string fileName = Path.GetFileName(file);
+            bool inCode = false;
+
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string line = lines[i];
+                string trimmed = line.Trim();
+
+                if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+                {
+                    inCode = !inCode;
+                    continue;
+                }
+                if (inCode || string.IsNullOrWhiteSpace(line)) continue;
+
+                // Potential table header if contains '|'
+                if (line.Contains("|") && i + 1 < lines.Length)
+                {
+                    string nextLine = lines[i + 1].Trim();
+                    bool hasDelim = delimRegex.IsMatch(nextLine);
+
+                    if (hasDelim)
+                    {
+                        totalTables++;
+                        int startLine = i + 1;
+                        var headerCells = SplitTableCells(line);
+                        int colCount = headerCells.Count;
+
+                        bool ragged = false;
+                        bool unescapedPipe = false;
+                        int rowCount = 1; // Header row
+                        int j = i + 2;
+
+                        while (j < lines.Length && !string.IsNullOrWhiteSpace(lines[j]) && lines[j].Contains("|"))
+                        {
+                            rowCount++;
+                            var rowCells = SplitTableCells(lines[j]);
+                            if (rowCells.Count != colCount)
+                            {
+                                ragged = true;
+                            }
+                            j++;
+                        }
+
+                        int endLine = j;
+                        i = j - 1; // advance outer loop
+
+                        if (!hasDelim) delimiterAnomalies++;
+                        if (ragged) raggedColumnTables++;
+                        if (unescapedPipe) unescapedPipeTables++;
+
+                        bool isWellAligned = !ragged && hasDelim;
+                        if (isWellAligned) validTables++;
+
+                        string status = ragged
+                            ? $"Ragged table columns (Expected {colCount} columns)"
+                            : "Well-aligned GFM pipe table";
+
+                        tables.Add(new WorkspaceTableAlignmentItem(
+                            file, fileName, startLine, endLine, colCount, rowCount,
+                            hasDelim, ragged, unescapedPipe, isWellAligned, status));
+                    }
+                }
+            }
+        }
+
+        double score = 100.0;
+        score -= delimiterAnomalies * 20.0;
+        score -= raggedColumnTables * 15.0;
+        score -= unescapedPipeTables * 10.0;
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category;
+        if (totalTables == 0) category = "No Tables Detected";
+        else if (score >= 90.0) category = "Optimal GFM Table Formatting & Pipe Alignment (≥90%)";
+        else if (score >= 75.0) category = "Good Table Structure with Minor Column Variance (75-89%)";
+        else if (score >= 50.0) category = "Moderate Table Formatting Discrepancies (50-74%)";
+        else category = "Severe Ragged Table Delimiter & Grid Alignment Corruption (<50%)";
+
+        string summary = FormatWorkspaceTableAlignmentSummary(
+            scannedFiles, totalTables, validTables, delimiterAnomalies, raggedColumnTables, unescapedPipeTables, score, category);
+
+        return new WorkspaceTableAlignmentAudit(
+            scannedFiles, totalTables, validTables, delimiterAnomalies, raggedColumnTables, unescapedPipeTables,
+            score, tables, category, summary);
+    }
+
+    private static List<string> SplitTableCells(string row)
+    {
+        var cells = new List<string>();
+        string trimmed = row.Trim();
+        if (trimmed.StartsWith("|")) trimmed = trimmed.Substring(1);
+        if (trimmed.EndsWith("|")) trimmed = trimmed.Substring(0, trimmed.Length - 1);
+
+        var parts = trimmed.Split('|');
+        foreach (var p in parts)
+        {
+            cells.Add(p.Trim());
+        }
+        return cells;
+    }
+
+    public static string FormatWorkspaceTableAlignmentSummary(
+        int filesScanned, int totalTables, int validTables, int delimAnomalies,
+        int raggedTables, int unescapedPipes, double score, string category)
+    {
+        if (filesScanned == 0) return "Workspace markdown table audit: Clean baseline · 0 documents scanned";
+        if (totalTables == 0) return $"Workspace markdown table audit ({filesScanned} docs): Clean baseline · 0 tables detected";
+
+        string fileStr = filesScanned == 1 ? "1 doc" : $"{filesScanned} docs";
+        string tableStr = totalTables == 1 ? "1 table" : $"{totalTables} tables";
+        var parts = new List<string>();
+
+        parts.Add(tableStr);
+        if (validTables > 0) parts.Add($"{validTables} aligned");
+        if (raggedTables > 0) parts.Add($"⚠️ {raggedTables} ragged");
+        if (delimAnomalies > 0) parts.Add($"⚠️ {delimAnomalies} delimiter anomal{(delimAnomalies == 1 ? "y" : "ies")}");
+
+        string details = string.Join(" · ", parts);
+        return $"Workspace markdown table audit ({fileStr} · {details} · {category} · {score:0.#}% formatting score)";
+    }
+
 }
 
 /// <summary>
@@ -9720,8 +9881,10 @@ public sealed record WorkspaceFenceGrammarAudit(
     double MetadataRigorScore,
     IReadOnlyList<WorkspaceFenceGrammarItem> Items,
     string Category,
-    string Summary);
-
+    string Summary);
+
+
+
 /// <summary>
 /// Represents evaluated math formula metrics, file location, LaTeX snippet, and syntax error status for an individual expression.
 /// </summary>
@@ -9746,5 +9909,37 @@ public sealed record WorkspaceMathConsistencyAudit(
     int SyntaxErrorCount,
     double MathConsistencyScore,
     IReadOnlyList<WorkspaceMathFormulaItem> Items,
+    string Category,
+    string Summary);
+
+/// <summary>
+/// Represents evaluated metrics, line bounds, column/row count, and alignment status for an individual workspace table.
+/// </summary>
+public sealed record WorkspaceTableAlignmentItem(
+    string FilePath,
+    string FileName,
+    int TableStartLine,
+    int TableEndLine,
+    int ColumnCount,
+    int RowCount,
+    bool HasDelimiterRow,
+    bool HasRaggedColumns,
+    bool HasUnescapedPipes,
+    bool IsWellAligned,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of workspace markdown documents for GFM pipe table column alignment,
+/// delimiter separator bars, and grid formatting integrity.
+/// </summary>
+public sealed record WorkspaceTableAlignmentAudit(
+    int TotalFilesScanned,
+    int TotalTablesFound,
+    int ValidTablesCount,
+    int DelimiterAnomalyCount,
+    int RaggedColumnCount,
+    int UnescapedPipeCount,
+    double FormattingRigorScore,
+    IReadOnlyList<WorkspaceTableAlignmentItem> Tables,
     string Category,
     string Summary);

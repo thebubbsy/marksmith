@@ -3067,4 +3067,52 @@ public class ShapeStudioPolishTests
         Assert.True(occludedAudit.InvertedHierarchyCount >= 1);
         Assert.True(occludedAudit.LayeringEleganceScore < 75.0);
     }
+
+    [Fact]
+    public void Run193_AuditShapeVisualWeightAndContrast_ComputesWcagAaCompliance()
+    {
+        // 1. Empty canvas
+        var emptyAudit = ShapeDesignStudioViewModel.AuditShapeVisualWeightAndContrast(null);
+        Assert.Equal(0, emptyAudit.TotalShapes);
+        Assert.Equal(100.0, emptyAudit.AccessibilityScore);
+        Assert.Equal("Empty Canvas", emptyAudit.Category);
+        Assert.Contains("0 shapes", emptyAudit.Summary);
+
+        // 2. High contrast shapes (white fill with black text, black fill with white text)
+        var s1 = new ShapeCanvasItemViewModel { Id = "s1", Text = "Dark on Light", Fill = "#FFFFFF", TextColor = "#000000" };
+        var s2 = new ShapeCanvasItemViewModel { Id = "s2", Text = "Light on Dark", Fill = "#0055AA", TextColor = "#FFFFFF" };
+        var highContrastVm = new ShapeDesignStudioViewModel();
+        highContrastVm.Shapes.Clear();
+        highContrastVm.Shapes.Add(s1);
+        highContrastVm.Shapes.Add(s2);
+
+        var goodAudit = highContrastVm.AuditShapeVisualWeightAndContrast();
+        Assert.Equal(2, goodAudit.TotalShapes);
+        Assert.Equal(2, goodAudit.EvaluatedTextShapes);
+        Assert.Equal(2, goodAudit.PassingWcagCount);
+        Assert.Equal(0, goodAudit.FailingWcagCount);
+        Assert.True(goodAudit.AverageContrastRatio >= 10.0);
+        Assert.Equal(100.0, goodAudit.AccessibilityScore);
+        Assert.Equal("Optimal WCAG Typography & Contrast (≥90%)", goodAudit.Category);
+
+        string formatted = ShapeDesignStudioViewModel.FormatVisualWeightSummary(
+            goodAudit.TotalShapes, goodAudit.EvaluatedTextShapes, goodAudit.PassingWcagCount,
+            goodAudit.FailingWcagCount, goodAudit.AverageContrastRatio, goodAudit.AccessibilityScore,
+            goodAudit.Category, goodAudit.IsSelectionScope);
+        Assert.Equal(goodAudit.Summary, formatted);
+
+        // 3. Low contrast shape hazard (light gray text on white fill)
+        var s3 = new ShapeCanvasItemViewModel { Id = "s3", Text = "Low Contrast", Fill = "#FFFFFF", TextColor = "#CCCCCC" };
+        var poorVm = new ShapeDesignStudioViewModel();
+        poorVm.Shapes.Clear();
+        poorVm.Shapes.Add(s3);
+
+        var poorAudit = poorVm.AuditShapeVisualWeightAndContrast();
+        Assert.Equal(1, poorAudit.TotalShapes);
+        Assert.Equal(1, poorAudit.EvaluatedTextShapes);
+        Assert.Equal(0, poorAudit.PassingWcagCount);
+        Assert.Equal(1, poorAudit.FailingWcagCount);
+        Assert.True(poorAudit.AverageContrastRatio < 3.0);
+        Assert.True(poorAudit.AccessibilityScore < 90.0);
+    }
 }

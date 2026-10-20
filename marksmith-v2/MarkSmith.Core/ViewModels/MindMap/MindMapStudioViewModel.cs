@@ -11543,6 +11543,255 @@ namespace MarkSmith.ViewModels.MindMap
             string details = string.Join(" · ", parts);
             return $"Graph edge crossing & planarity audit ({scope}{nodeStr} · {category} · {score:0.#}% planarity score): {details}";
         }
+        public GraphArticulationAudit AuditCriticalPathAndArticulationPoints(bool selectionOnly = false)
+        {
+            var selected = Nodes.Where(n => n.IsSelected).ToList();
+            var targetNodes = (selectionOnly && selected.Count > 0)
+                ? selected
+                : Nodes.ToList();
+
+            bool isSelection = selectionOnly && selected.Count > 0;
+            var nodeIds = targetNodes.Select(n => n.Id).ToHashSet();
+            var relevantLinks = Links.Where(l => nodeIds.Contains(l.SourceNodeId) && nodeIds.Contains(l.TargetNodeId)).ToList();
+
+            var audit = AuditCriticalPathAndArticulationPoints(targetNodes.Select(n => n.Model), relevantLinks.Select(l => l.Model), isSelection);
+            StatusMessage = audit.Summary;
+            return audit;
+        }
+
+        public static GraphArticulationAudit AuditCriticalPathAndArticulationPoints(
+            IEnumerable<MindMapNode>? nodes,
+            IEnumerable<MindMapLink>? links,
+            bool isSelection = false)
+        {
+            var nodeList = nodes?.ToList() ?? new List<MindMapNode>();
+            var linkList = links?.ToList() ?? new List<MindMapLink>();
+
+            int totalNodes = nodeList.Count;
+            int totalLinks = linkList.Count;
+
+            if (totalNodes == 0)
+            {
+                string emptySummary = FormatArticulationPointsSummary(0, 0, 0, 0, 0, 100.0, "Empty MindMap", isSelection);
+                return new GraphArticulationAudit(
+                    0, 0, 0, 0, 0, 100.0,
+                    Array.Empty<GraphArticulationItem>(), "Empty MindMap", isSelection, emptySummary);
+            }
+
+            var nodeMap = nodeList.ToDictionary(n => n.Id, n => n);
+            var nodeIndex = new Dictionary<string, int>();
+            var indexToNode = new List<string>();
+
+            for (int i = 0; i < nodeList.Count; i++)
+            {
+                nodeIndex[nodeList[i].Id] = i;
+                indexToNode.Add(nodeList[i].Id);
+            }
+
+            // Build adjacency list with edge tracking (handling multi-edges)
+            var adj = new List<List<(int Target, int EdgeId)>>();
+            for (int i = 0; i < totalNodes; i++) adj.Add(new List<(int Target, int EdgeId)>());
+
+            var edgeDescriptions = new Dictionary<int, (string U, string V, string Label)>();
+            int validEdgeCount = 0;
+
+            for (int e = 0; e < linkList.Count; e++)
+            {
+                var link = linkList[e];
+                if (!nodeIndex.TryGetValue(link.SourceNodeId, out int u) || !nodeIndex.TryGetValue(link.TargetNodeId, out int v))
+                    continue;
+                if (u == v) continue; // ignore self-loops
+
+                adj[u].Add((v, validEdgeCount));
+                adj[v].Add((u, validEdgeCount));
+                edgeDescriptions[validEdgeCount] = (link.SourceNodeId, link.TargetNodeId, $"{link.SourceNodeId} <-> {link.TargetNodeId}");
+                validEdgeCount++;
+            }
+
+            // Tarjan's Biconnectivity DFS
+            int timer = 0;
+            var disc = new int[totalNodes];
+            var low = new int[totalNodes];
+            var visited = new bool[totalNodes];
+            var isArticulation = new bool[totalNodes];
+            var removalComponentCount = new int[totalNodes];
+            for (int i = 0; i < totalNodes; i++)
+            {
+                disc[i] = -1;
+                low[i] = -1;
+                removalComponentCount[i] = 1;
+            }
+
+            var bridgeEdges = new HashSet<int>();
+            int connectedComponents = 0;
+
+            for (int i = 0; i < totalNodes; i++)
+            {
+                if (!visited[i])
+                {
+                    connectedComponents++;
+                    Dfs(i, -1);
+                }
+            }
+
+            void Dfs(int u, int parentEdge)
+            {
+                visited[u] = true;
+                disc[u] = low[u] = ++timer;
+                int children = 0;
+                int cutBranches = 0;
+
+                foreach (var edge in adj[u])
+                {
+                    int v = edge.Target;
+                    int edgeId = edge.EdgeId;
+
+                    if (edgeId == parentEdge) continue;
+
+                    if (visited[v])
+                    {
+                        if (disc[v] < low[u])
+                        {
+                            low[u] = disc[v];
+                        }
+                    }
+                    else
+                    {
+                        children++;
+                        Dfs(v, edgeId);
+
+                        if (low[v] < low[u])
+                        {
+                            low[u] = low[v];
+                        }
+
+                        // Bridge check: low[v] > disc[u]
+                        if (low[v] > disc[u])
+                        {
+                            bridgeEdges.Add(edgeId);
+                        }
+
+                        // Articulation check for non-root: low[v] >= disc[u]
+                        if (parentEdge != -1 && low[v] >= disc[u])
+                        {
+                            isArticulation[u] = true;
+                            cutBranches++;
+                        }
+                    }
+                }
+
+                // Articulation check for root
+                if (parentEdge == -1)
+                {
+                    if (children > 1)
+                    {
+                        isArticulation[u] = true;
+                        removalComponentCount[u] = children;
+                    }
+                }
+                else if (isArticulation[u])
+                {
+                    removalComponentCount[u] = cutBranches + 1;
+                }
+            }
+
+            var bridgeLabels = new Dictionary<string, List<string>>();
+            foreach (var bId in bridgeEdges)
+            {
+                if (edgeDescriptions.TryGetValue(bId, out var desc))
+                {
+                    if (!bridgeLabels.TryGetValue(desc.U, out var listU))
+                    {
+                        listU = new List<string>();
+                        bridgeLabels[desc.U] = listU;
+                    }
+                    listU.Add(desc.Label);
+
+                    if (!bridgeLabels.TryGetValue(desc.V, out var listV))
+                    {
+                        listV = new List<string>();
+                        bridgeLabels[desc.V] = listV;
+                    }
+                    listV.Add(desc.Label);
+                }
+            }
+
+            var items = new List<GraphArticulationItem>();
+            int articulationCount = 0;
+
+            for (int i = 0; i < totalNodes; i++)
+            {
+                string id = indexToNode[i];
+                var node = nodeMap[id];
+                bool isArt = isArticulation[i];
+                if (isArt) articulationCount++;
+
+                int degree = adj[i].Count;
+                int splitCount = removalComponentCount[i];
+                var incidentBridges = bridgeLabels.TryGetValue(id, out var bList) ? (IReadOnlyList<string>)bList : Array.Empty<string>();
+
+                string severity = isArt
+                    ? (splitCount >= 3 ? "Critical" : "Moderate")
+                    : (incidentBridges.Count > 0 ? "Moderate" : "Normal");
+
+                string status = isArt
+                    ? $"Articulation Cut Vertex: Removal disconnects network into {splitCount} components"
+                    : incidentBridges.Count > 0
+                        ? $"Bridge Endpoint: Incident to {incidentBridges.Count} bottleneck bridge link(s)"
+                        : "Biconnected / Redundant (Safe Node)";
+
+                items.Add(new GraphArticulationItem(
+                    id, node.Title ?? id, isArt, degree, splitCount, incidentBridges, severity, status));
+            }
+
+            int bridgeCount = bridgeEdges.Count;
+            double score = 100.0;
+            score -= articulationCount * 15.0;
+            score -= bridgeCount * 10.0;
+            score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+            string category;
+            if (totalNodes == 0) category = "Empty MindMap";
+            else if (score >= 90.0) category = "High Structural Resilience & Redundancy (≥90%)";
+            else if (score >= 75.0) category = "Good Network Connectivity with Minor Bridge Points (75-89%)";
+            else if (score >= 50.0) category = "Moderate Bottleneck Hazards & Cut Vertices (50-74%)";
+            else category = "Fragile Topology with Critical Articulation Failure Points (<50%)";
+
+            string summary = FormatArticulationPointsSummary(
+                totalNodes, totalLinks, articulationCount, bridgeCount, connectedComponents, score, category, isSelection);
+
+            return new GraphArticulationAudit(
+                totalNodes, totalLinks, articulationCount, bridgeCount, connectedComponents,
+                score, items, category, isSelection, summary);
+        }
+
+        public static string FormatArticulationPointsSummary(
+            int totalNodes, int totalLinks, int articulationCount, int bridgeCount,
+            int components, double score, string category, bool isSelection = false)
+        {
+            string scope = isSelection ? "Selection · " : "";
+            if (totalNodes == 0) return $"Graph articulation & resilience audit ({scope}0 nodes): Empty mind map";
+
+            string nodeStr = totalNodes == 1 ? "1 node" : $"{totalNodes} nodes";
+            var parts = new List<string>();
+
+            if (articulationCount == 0)
+                parts.Add("0 cut vertices (High Biconnectivity)");
+            else
+                parts.Add($"⚠️ {articulationCount} articulation cut vertice{(articulationCount == 1 ? "" : "s")}");
+
+            if (bridgeCount == 0)
+                parts.Add("0 bridge bottlenecks");
+            else
+                parts.Add($"⚠️ {bridgeCount} bridge link{(bridgeCount == 1 ? "" : "s")}");
+
+            if (components > 1)
+                parts.Add($"{components} disconnected clusters");
+
+            string details = string.Join(" · ", parts);
+            return $"Graph articulation & resilience audit ({scope}{nodeStr} · {category} · {score:0.#}% resilience score): {details}";
+        }
+
     }
 
 
@@ -12739,6 +12988,36 @@ namespace MarkSmith.ViewModels.MindMap
         string Category,
         bool IsSelectionScope,
         string Summary);
+
+    /// <summary>
+    /// Represents evaluated metrics, articulation cut status, incident bridge edges, and removal component count for an individual mind map node.
+    /// </summary>
+    public sealed record GraphArticulationItem(
+        string NodeId,
+        string NodeTitle,
+        bool IsArticulationPoint,
+        int IncidentEdgesCount,
+        int SubgraphComponentsOnRemoval,
+        IReadOnlyList<string> IncidentBridgeEdges,
+        string Severity,
+        string Status);
+
+    /// <summary>
+    /// Represents the result of an audit of mind map graph articulation points (cut vertices), bridge bottlenecks,
+    /// and structural network resilience via Tarjan's biconnectivity DFS.
+    /// </summary>
+    public sealed record GraphArticulationAudit(
+        int TotalNodes,
+        int TotalEdges,
+        int ArticulationPointCount,
+        int BridgeCount,
+        int ConnectedComponentsCount,
+        double ResilienceScore,
+        IReadOnlyList<GraphArticulationItem> Items,
+        string Category,
+        bool IsSelectionScope,
+        string Summary);
+
 }
 
 

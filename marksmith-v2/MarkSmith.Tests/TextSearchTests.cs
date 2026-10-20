@@ -3138,4 +3138,65 @@ public class TextSearchTests
         Assert.True(probAudit.SequentialMismatches >= 1);
         Assert.True(probAudit.StructuralIntegrityScore < 75.0);
     }
+
+    [Fact]
+    public void Run193_AuditListNestingAndMarkerSequence_ValidatesIndentationAndSequence()
+    {
+        // 1. Empty / null document
+        var emptyAudit = TextSearch.AuditListNestingAndMarkerSequence(null);
+        Assert.Equal(0, emptyAudit.TotalListItems);
+        Assert.Equal(100.0, emptyAudit.ConsistencyScore);
+        Assert.Equal("Empty Document", emptyAudit.Category);
+        Assert.Contains("0 list items", emptyAudit.Summary);
+
+        // 2. Document with valid consistent lists
+        var validDoc = string.Join("\n",
+            "# Document with Lists",
+            "",
+            "Unordered list:",
+            "- Item 1",
+            "- Item 2",
+            "  - Sub item 2.1",
+            "  - Sub item 2.2",
+            "",
+            "Ordered list:",
+            "1. First step",
+            "2. Second step",
+            "3. Third step"
+        );
+
+        var validAudit = TextSearch.AuditListNestingAndMarkerSequence(validDoc);
+        Assert.Equal(7, validAudit.TotalListItems);
+        Assert.Equal(4, validAudit.UnorderedCount);
+        Assert.Equal(3, validAudit.OrderedCount);
+        Assert.Equal(0, validAudit.IndentationAnomalyCount);
+        Assert.Equal(0, validAudit.MarkerInconsistencyCount);
+        Assert.Equal(0, validAudit.SequenceMismatchCount);
+        Assert.Equal(100.0, validAudit.ConsistencyScore);
+        Assert.Equal("Optimal List Structure & Marker Hierarchy (≥90%)", validAudit.Category);
+
+        string formatted = TextSearch.FormatListNestingSummary(
+            validAudit.TotalListItems, validAudit.UnorderedCount, validAudit.OrderedCount,
+            validAudit.MaxNestingDepth, validAudit.IndentationAnomalyCount,
+            validAudit.MarkerInconsistencyCount, validAudit.SequenceMismatchCount,
+            validAudit.ConsistencyScore, validAudit.Category);
+        Assert.Equal(validAudit.Summary, formatted);
+
+        // 3. Problematic document: odd indent, mixed markers, sequence jump
+        var probDoc = string.Join("\n",
+            "- Item 1",
+            "* Item 2 mixed marker",
+            "   - Odd indent 3 spaces",
+            "",
+            "1. Step 1",
+            "3. Step 3 (jump from 1)"
+        );
+
+        var probAudit = TextSearch.AuditListNestingAndMarkerSequence(probDoc);
+        Assert.Equal(5, probAudit.TotalListItems);
+        Assert.True(probAudit.MarkerInconsistencyCount >= 1);
+        Assert.True(probAudit.IndentationAnomalyCount >= 1);
+        Assert.True(probAudit.SequenceMismatchCount >= 1);
+        Assert.True(probAudit.ConsistencyScore < 80.0);
+    }
 }

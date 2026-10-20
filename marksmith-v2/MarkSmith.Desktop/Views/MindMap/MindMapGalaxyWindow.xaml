@@ -393,6 +393,9 @@
                                     <MenuFlyoutItem x:Name="AuditGraphPlanarityItem" Text="Audit graph edge crossings, planarity &amp; Kuratowski obstruction" Click="OnAuditGraphPlanarityClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditGraphArticulationItem" Text="Audit graph articulation cut vertices, bridge bottlenecks &amp; network resilience" Click="OnAuditGraphArticulationClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                 </MenuFlyout>
 
                             </DropDownButton.Flyout>

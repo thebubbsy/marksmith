@@ -3823,5 +3823,61 @@ namespace MarkSmith.Tests
             Assert.Equal(1, crossAudit.CrossingCount);
             Assert.True(crossAudit.PlanarityScore < 100.0);
         }
+
+        [Fact]
+        public void Run193_AuditCriticalPathAndArticulationPoints_DetectsCutVerticesAndBridges()
+        {
+            // 1. Empty graph
+            var emptyAudit = MindMapStudioViewModel.AuditCriticalPathAndArticulationPoints(null, null);
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.Equal(100.0, emptyAudit.ResilienceScore);
+            Assert.Equal("Empty MindMap", emptyAudit.Category);
+            Assert.Contains("0 nodes", emptyAudit.Summary);
+
+            // 2. Triangle graph (biconnected, 0 articulation points, 0 bridges)
+            var n1 = new MindMapNode { Id = "n1", Title = "Node 1" };
+            var n2 = new MindMapNode { Id = "n2", Title = "Node 2" };
+            var n3 = new MindMapNode { Id = "n3", Title = "Node 3" };
+
+            var biconnectedLinks = new[]
+            {
+                new MindMapLink { Id = "l1", SourceNodeId = "n1", TargetNodeId = "n2" },
+                new MindMapLink { Id = "l2", SourceNodeId = "n2", TargetNodeId = "n3" },
+                new MindMapLink { Id = "l3", SourceNodeId = "n3", TargetNodeId = "n1" }
+            };
+
+            var biconnAudit = MindMapStudioViewModel.AuditCriticalPathAndArticulationPoints(new[] { n1, n2, n3 }, biconnectedLinks);
+            Assert.Equal(3, biconnAudit.TotalNodes);
+            Assert.Equal(3, biconnAudit.TotalEdges);
+            Assert.Equal(0, biconnAudit.ArticulationPointCount);
+            Assert.Equal(0, biconnAudit.BridgeCount);
+            Assert.Equal(100.0, biconnAudit.ResilienceScore);
+            Assert.Equal("High Structural Resilience & Redundancy (≥90%)", biconnAudit.Category);
+
+            string formatted = MindMapStudioViewModel.FormatArticulationPointsSummary(
+                biconnAudit.TotalNodes, biconnAudit.TotalEdges, biconnAudit.ArticulationPointCount,
+                biconnAudit.BridgeCount, biconnAudit.ConnectedComponentsCount, biconnAudit.ResilienceScore,
+                biconnAudit.Category, biconnAudit.IsSelectionScope);
+            Assert.Equal(biconnAudit.Summary, formatted);
+
+            // 3. Line graph: A - B - C (B is articulation point, (A,B) and (B,C) are bridges)
+            var a = new MindMapNode { Id = "a", Title = "A" };
+            var b = new MindMapNode { Id = "b", Title = "B (Hub)" };
+            var c = new MindMapNode { Id = "c", Title = "C" };
+
+            var bridgeLinks = new[]
+            {
+                new MindMapLink { Id = "ab", SourceNodeId = "a", TargetNodeId = "b" },
+                new MindMapLink { Id = "bc", SourceNodeId = "b", TargetNodeId = "c" }
+            };
+
+            var bridgeAudit = MindMapStudioViewModel.AuditCriticalPathAndArticulationPoints(new[] { a, b, c }, bridgeLinks);
+            Assert.Equal(3, bridgeAudit.TotalNodes);
+            Assert.Equal(2, bridgeAudit.TotalEdges);
+            Assert.Equal(1, bridgeAudit.ArticulationPointCount);
+            Assert.Equal(2, bridgeAudit.BridgeCount);
+            Assert.True(bridgeAudit.ResilienceScore < 80.0);
+            Assert.Contains(bridgeAudit.Items, i => i.NodeId == "b" && i.IsArticulationPoint);
+        }
     }
 }

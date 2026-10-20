@@ -5684,4 +5684,99 @@ Some paragraph in between.
         Assert.Contains("OnAuditWorkspaceMathFormulasClick", suiteCs);
         Assert.Contains("AuditWorkspaceMathFormulasAndKaTeX", suiteCs);
     }
+
+    [Fact]
+    public void Run193_AuditWorkspaceTableAlignment_ValidatesGfmPipeTables()
+    {
+        // 1. Empty workspace
+        var emptyAudit = RecentFilesService.AuditWorkspaceTableAlignment(Array.Empty<string>());
+        Assert.Equal(0, emptyAudit.TotalFilesScanned);
+        Assert.Equal(0, emptyAudit.TotalTablesFound);
+        Assert.Equal(100.0, emptyAudit.FormattingRigorScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+        Assert.Contains("0 documents scanned", emptyAudit.Summary);
+
+        // 2. Structured workspace with well-aligned table
+        var docTable = string.Join("\n",
+            "# Data Table",
+            "| Column 1 | Column 2 | Column 3 |",
+            "| :--- | :---: | ---: |",
+            "| Alpha | Beta | Gamma |",
+            "| One | Two | Three |"
+        );
+
+        var docRagged = string.Join("\n",
+            "# Ragged Table",
+            "| A | B | C |",
+            "| --- | --- | --- |",
+            "| 1 | 2 |",
+            "| 4 | 5 | 6 | 7 |"
+        );
+
+        var fileSystem = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+        {
+            [@"C:\workspace\table1.md"] = docTable.Split('\n'),
+            [@"C:\workspace\ragged.md"] = docRagged.Split('\n')
+        };
+
+        var audit = RecentFilesService.AuditWorkspaceTableAlignment(
+            fileSystem.Keys,
+            workspaceRoot: @"C:\workspace",
+            fileExists: p => fileSystem.ContainsKey(p),
+            readAllLines: p => fileSystem.TryGetValue(p, out var lines) ? lines : null);
+
+        Assert.Equal(2, audit.TotalFilesScanned);
+        Assert.Equal(2, audit.TotalTablesFound);
+        Assert.Equal(1, audit.ValidTablesCount);
+        Assert.Equal(1, audit.RaggedColumnCount);
+        Assert.True(audit.FormattingRigorScore < 90.0);
+
+        string formatted = RecentFilesService.FormatWorkspaceTableAlignmentSummary(
+            audit.TotalFilesScanned, audit.TotalTablesFound, audit.ValidTablesCount,
+            audit.DelimiterAnomalyCount, audit.RaggedColumnCount, audit.UnescapedPipeCount,
+            audit.FormattingRigorScore, audit.Category);
+        Assert.Equal(audit.Summary, formatted);
+    }
+
+    [Fact]
+    public void Run193_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // Surface 1: MainWindow - Markdown Unordered & Ordered List Nesting Indentation & Marker Sequence Auditor
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("auditListNestingItem", mainCs);
+        Assert.Contains("AuditListNestingAndMarkerSequence", mainCs);
+
+        // Surface 2: MindMapGalaxyWindow - Graph Critical Path & Bottleneck Articulation Point (Tarjan Biconnectivity) Auditor
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditGraphArticulationItem", galaxyXaml);
+        Assert.Contains("OnAuditGraphArticulationClick", galaxyCs);
+        Assert.Contains("AuditCriticalPathAndArticulationPoints", galaxyCs);
+
+        // Surface 3: ShapeDesignStudioWindow - Diagram Shape Visual Weight, Contrast Ratio & WCAG Typography Readability Auditor
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditVisualWeightContrastItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditVisualWeightContrastClick", shapeCs);
+        Assert.Contains("AuditShapeVisualWeightAndContrast", shapeCs);
+
+        // Surface 4: SmartArtDesignStudioWindow - SmartArt Funnel / Pyramid Stage Ingestion Flow & Volume Tapering Auditor
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineStatsAuditFunnelPyramidTaperItem", smartArtXaml);
+        Assert.Contains("OnOutlineStatsAuditFunnelPyramidTaperClick", smartArtCs);
+        Assert.Contains("AuditFunnelPyramidVolumeTapering", smartArtCs);
+
+        // Surface 5: HistoryWindow - Semantic Diff Exception Handling, Stack Unwinding & Filter Expression Hazards Analyzer
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditExceptionFilterHazards", historyCs);
+        Assert.Contains("AuditExceptionHandlingAndFilterHazards", historyCs);
+
+        // Surface 6: SuiteHubView - Workspace Markdown Table Column Alignment & Pipe Grid Formatter Integrity Auditor
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("AuditWorkspaceTableAlignmentItem", suiteXaml);
+        Assert.Contains("OnAuditWorkspaceTableAlignmentClick", suiteCs);
+        Assert.Contains("AuditWorkspaceTableAlignment", suiteCs);
+    }
 }

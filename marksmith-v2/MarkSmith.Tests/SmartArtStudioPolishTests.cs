@@ -2780,4 +2780,43 @@ public class SmartArtStudioPolishTests
         Assert.False(sparseAudit.HasOptimalGearDensity);
         Assert.True(sparseAudit.RotationalBalanceScore < 90.0);
     }
+
+    [Fact]
+    public void Run193_AuditFunnelPyramidVolumeTapering_ValidatesMonotonicProgression()
+    {
+        // 1. Empty outline
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditFunnelPyramidVolumeTapering(null);
+        Assert.Equal(0, emptyAudit.TotalStages);
+        Assert.Equal(100.0, emptyAudit.FlowHarmonyScore);
+        Assert.Equal("Empty Outline", emptyAudit.Category);
+        Assert.Contains("0 stages", emptyAudit.Summary);
+
+        // 2. Optimal 4-stage funnel pipeline (monotonic tapering)
+        var funnelMd = string.Join("\n",
+            "- Top of Funnel (100% Leads)",
+            "- Marketing Qualified Leads (60%)",
+            "- Sales Qualified Opportunities (30%)",
+            "- Closed Won Revenue (10%)"
+        );
+
+        var funnelAudit = SmartArtDesignStudioViewModel.AuditFunnelPyramidVolumeTapering(funnelMd, "Sales Funnel");
+        Assert.Equal(4, funnelAudit.TotalStages);
+        Assert.False(funnelAudit.IsInverted);
+        Assert.Equal(0, funnelAudit.MonotonicTaperViolations);
+        Assert.Equal(100.0, funnelAudit.FlowHarmonyScore);
+        Assert.Equal("Optimal Stage Progression & Tapering Rhythm (≥90%)", funnelAudit.Category);
+        Assert.Equal(100.0, funnelAudit.Stages[0].CalculatedWidthTaper);
+        Assert.Equal(20.0, funnelAudit.Stages[3].CalculatedWidthTaper);
+
+        string formatted = SmartArtDesignStudioViewModel.FormatFunnelPyramidSummary(
+            funnelAudit.TotalStages, funnelAudit.LayoutType, funnelAudit.IsInverted,
+            funnelAudit.MonotonicTaperViolations, funnelAudit.FlowHarmonyScore, funnelAudit.Category);
+        Assert.Equal(funnelAudit.Summary, formatted);
+
+        // 3. Single stage truncated pipeline (<2 stages)
+        var singleMd = "- Only Stage";
+        var singleAudit = SmartArtDesignStudioViewModel.AuditFunnelPyramidVolumeTapering(singleMd, "Funnel");
+        Assert.Equal(1, singleAudit.TotalStages);
+        Assert.True(singleAudit.FlowHarmonyScore < 75.0);
+    }
 }

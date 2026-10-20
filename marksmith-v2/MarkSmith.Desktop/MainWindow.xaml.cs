@@ -11977,6 +11977,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(auditFootnoteSequenceItem);
 
+        var auditListNestingItem = new MenuFlyoutItem
+        {
+            Text = "Audit Markdown Unordered & Ordered List Nesting Indentation & Marker Sequence",
+            Icon = new FontIcon { Glyph = "\uE8B9" }
+        };
+        auditListNestingItem.Click += (_, _) =>
+        {
+            var text = EditorDocument();
+            var summary = MarkSmith.Services.TextSearch.AuditListNestingAndMarkerSequence(text).Summary;
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditListNestingItem);
+
         menu.ShowAt(anchor);
     }
 

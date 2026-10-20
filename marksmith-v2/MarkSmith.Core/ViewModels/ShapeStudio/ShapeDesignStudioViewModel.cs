@@ -10967,6 +10967,189 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         string details = string.Join(" · ", parts);
         return $"Diagram shape Z-order layering & occlusion audit ({scope}{shapeStr} · {category} · {score:0.#}% elegance score): {details}";
     }
+    public DiagramShapeContrastAudit AuditShapeVisualWeightAndContrast()
+    {
+        var selected = Shapes.Where(s => s.IsSelected).ToList();
+        var target = selected.Count > 0 ? selected : Shapes.ToList();
+        bool isSelection = selected.Count > 0;
+        var audit = AuditShapeVisualWeightAndContrast(target, isSelection);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static DiagramShapeContrastAudit AuditShapeVisualWeightAndContrast(
+        IEnumerable<ShapeCanvasItemViewModel>? targetShapes,
+        bool isSelection = false)
+    {
+        var targetList = targetShapes?.ToList() ?? new List<ShapeCanvasItemViewModel>();
+        int totalShapes = targetList.Count;
+
+        if (totalShapes == 0)
+        {
+            string emptySummary = FormatVisualWeightSummary(0, 0, 0, 0, 0.0, 100.0, "Empty Canvas", isSelection);
+            return new DiagramShapeContrastAudit(
+                0, 0, 0, 0, 0.0, 100.0, Array.Empty<ShapeContrastItem>(), "Empty Canvas", isSelection, emptySummary);
+        }
+
+        var items = new List<ShapeContrastItem>();
+        int textShapesCount = 0;
+        int passingWcagCount = 0;
+        int failingWcagCount = 0;
+        double totalContrast = 0.0;
+
+        foreach (var shape in targetList)
+        {
+            string text = shape.Text ?? string.Empty;
+            string fill = shape.Fill ?? "#FFFFFF";
+            string? textColor = shape.TextColor;
+
+            // Resolve effective fill and text RGB
+            var (fR, fG, fB) = ParseColor(fill, (255, 255, 255));
+            double fillLum = RelativeLuminance(fR, fG, fB);
+
+            (byte tR, byte tG, byte tB) textRgb;
+            if (string.IsNullOrWhiteSpace(textColor))
+            {
+                // Default theme auto-guard: dark text for bright fills, white text for dark fills
+                textRgb = fillLum > 0.179 ? ((byte)30, (byte)30, (byte)30) : ((byte)255, (byte)255, (byte)255);
+            }
+            else
+            {
+                textRgb = ParseColor(textColor, (0, 0, 0));
+            }
+
+            double textLum = RelativeLuminance(textRgb.tR, textRgb.tG, textRgb.tB);
+            double maxL = Math.Max(fillLum, textLum);
+            double minL = Math.Min(fillLum, textLum);
+            double contrastRatio = Math.Round((maxL + 0.05) / (minL + 0.05), 2);
+
+            bool meetsNormal = contrastRatio >= 4.5;
+            bool meetsLarge = contrastRatio >= 3.0;
+
+            bool hasText = !string.IsNullOrWhiteSpace(text);
+            if (hasText)
+            {
+                textShapesCount++;
+                totalContrast += contrastRatio;
+                if (meetsNormal) passingWcagCount++;
+                else failingWcagCount++;
+            }
+
+            string status = !hasText
+                ? "No Text Label (Geometry Only)"
+                : meetsNormal
+                    ? $"Passes WCAG AA ({contrastRatio}:1 >= 4.5:1)"
+                    : meetsLarge
+                        ? $"Large Text Only ({contrastRatio}:1 >= 3.0:1, fails normal)"
+                        : $"Fails WCAG AA ({contrastRatio}:1 < 3.0:1 contrast hazard)";
+
+            items.Add(new ShapeContrastItem(
+                shape.Id, shape.ShapeType ?? "shape", text, fill,
+                textColor ?? (fillLum > 0.179 ? "#1E1E1E" : "#FFFFFF"),
+                contrastRatio, meetsNormal, meetsLarge, status));
+        }
+
+        double avgContrast = textShapesCount > 0 ? Math.Round(totalContrast / textShapesCount, 2) : 21.0;
+        double score = 100.0;
+        score -= failingWcagCount * 15.0;
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category;
+        if (textShapesCount == 0) category = "No Text Labels";
+        else if (score >= 90.0) category = "Optimal WCAG Typography & Contrast (≥90%)";
+        else if (score >= 75.0) category = "Acceptable Legibility with Minor Contrast Gaps (75-89%)";
+        else if (score >= 50.0) category = "Moderate Visual Accessibility Hazards (50-74%)";
+        else category = "Severe Unreadable Low-Contrast Text Defects (<50%)";
+
+        string summary = FormatVisualWeightSummary(
+            totalShapes, textShapesCount, passingWcagCount, failingWcagCount,
+            avgContrast, score, category, isSelection);
+
+        return new DiagramShapeContrastAudit(
+            totalShapes, textShapesCount, passingWcagCount, failingWcagCount,
+            avgContrast, score, items, category, isSelection, summary);
+    }
+
+    private static (byte R, byte G, byte B) ParseColor(string? hex, (byte R, byte G, byte B) fallback)
+    {
+        if (string.IsNullOrWhiteSpace(hex)) return fallback;
+        string s = hex.Trim().TrimStart('#');
+        if (s.Equals("Transparent", StringComparison.OrdinalIgnoreCase) || s.Equals("None", StringComparison.OrdinalIgnoreCase))
+            return fallback;
+
+        try
+        {
+            if (s.Length == 6)
+            {
+                byte r = Convert.ToByte(s.Substring(0, 2), 16);
+                byte g = Convert.ToByte(s.Substring(2, 2), 16);
+                byte b = Convert.ToByte(s.Substring(4, 2), 16);
+                return (r, g, b);
+            }
+            if (s.Length == 8)
+            {
+                byte a = Convert.ToByte(s.Substring(0, 2), 16);
+                byte r = Convert.ToByte(s.Substring(2, 2), 16);
+                byte g = Convert.ToByte(s.Substring(4, 2), 16);
+                byte b = Convert.ToByte(s.Substring(6, 2), 16);
+                // Blend with white
+                double alpha = a / 255.0;
+                byte br = (byte)Math.Clamp((int)(r * alpha + 255 * (1.0 - alpha)), 0, 255);
+                byte bg = (byte)Math.Clamp((int)(g * alpha + 255 * (1.0 - alpha)), 0, 255);
+                byte bb = (byte)Math.Clamp((int)(b * alpha + 255 * (1.0 - alpha)), 0, 255);
+                return (br, bg, bb);
+            }
+            if (s.Length == 3)
+            {
+                byte r = Convert.ToByte(new string(s[0], 2), 16);
+                byte g = Convert.ToByte(new string(s[1], 2), 16);
+                byte b = Convert.ToByte(new string(s[2], 2), 16);
+                return (r, g, b);
+            }
+        }
+        catch { }
+
+        return fallback;
+    }
+
+    private static double RelativeLuminance(byte r, byte g, byte b)
+    {
+        double rLin = LinearComponent(r / 255.0);
+        double gLin = LinearComponent(g / 255.0);
+        double bLin = LinearComponent(b / 255.0);
+        return 0.2126 * rLin + 0.7152 * gLin + 0.0722 * bLin;
+    }
+
+    private static double LinearComponent(double c)
+    {
+        return c <= 0.04045 ? c / 12.92 : Math.Pow((c + 0.055) / 1.055, 2.4);
+    }
+
+    public static string FormatVisualWeightSummary(
+        int totalShapes, int textShapes, int passing, int failing,
+        double avgContrast, double score, string category, bool isSelection = false)
+    {
+        string scope = isSelection ? "Selection · " : "";
+        if (totalShapes == 0) return $"Diagram shape visual weight & contrast audit ({scope}0 shapes): Empty canvas";
+
+        string shapeStr = totalShapes == 1 ? "1 shape" : $"{totalShapes} shapes";
+        var parts = new List<string>();
+
+        if (textShapes == 0)
+        {
+            parts.Add("0 text labels (Geometry only)");
+        }
+        else
+        {
+            parts.Add($"{passing}/{textShapes} WCAG AA pass");
+            if (failing > 0) parts.Add($"⚠️ {failing} low-contrast hazard{(failing == 1 ? "" : "s")}");
+            parts.Add($"{avgContrast:0.1}:1 avg ratio");
+        }
+
+        string details = string.Join(" · ", parts);
+        return $"Diagram shape visual weight & contrast audit ({scope}{shapeStr} · {category} · {score:0.#}% accessibility score): {details}";
+    }
+
 }
 
 /// <summary>
@@ -12157,8 +12340,10 @@ public sealed record DiagramGroupHierarchyAudit(
     IReadOnlyList<ShapeContainerHierarchyItem> Shapes,
     string Category,
     bool IsSelectionScope,
-    string Summary);
-
+    string Summary);
+
+
+
 /// <summary>
 /// Represents evaluated Z-order overlap, inverted stacking, and full occlusion state between two diagram shapes.
 /// </summary>
@@ -12182,6 +12367,35 @@ public sealed record ShapeLayeringZOrderAudit(
     int FullyOccludedCount,
     double LayeringEleganceScore,
     IReadOnlyList<ShapeLayeringOcclusionItem> Items,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);
+
+/// <summary>
+/// Represents evaluated metrics, fill/text colors, contrast ratio, and WCAG AA compliance for an individual diagram shape.
+/// </summary>
+public sealed record ShapeContrastItem(
+    string ShapeId,
+    string ShapeType,
+    string Text,
+    string FillColor,
+    string TextColor,
+    double ContrastRatio,
+    bool MeetsNormalWcagAa,
+    bool MeetsLargeWcagAa,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of diagram shape visual weight, contrast ratios, and WCAG 2.1 typography readability.
+/// </summary>
+public sealed record DiagramShapeContrastAudit(
+    int TotalShapes,
+    int EvaluatedTextShapes,
+    int PassingWcagCount,
+    int FailingWcagCount,
+    double AverageContrastRatio,
+    double AccessibilityScore,
+    IReadOnlyList<ShapeContrastItem> Items,
     string Category,
     bool IsSelectionScope,
     string Summary);

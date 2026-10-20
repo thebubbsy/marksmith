@@ -9607,6 +9607,112 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         string details = string.Join(" · ", parts);
         return $"SmartArt radial gear cycle audit ({gearStr} · {details} · {category} · {score:0.#}% rotational balance score)";
     }
+    public SmartArtFunnelTaperAudit AuditFunnelPyramidVolumeTapering()
+    {
+        var audit = AuditFunnelPyramidVolumeTapering(MarkdownText, SelectedLayout?.DisplayName);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static SmartArtFunnelTaperAudit AuditFunnelPyramidVolumeTapering(string? markdown, string? layoutName = null)
+    {
+        string layout = layoutName ?? "Funnel / Pyramid Pipeline";
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            string emptySummary = FormatFunnelPyramidSummary(0, layout, false, 0, 100.0, "Empty Outline");
+            return new SmartArtFunnelTaperAudit(
+                0, layout, false, 0, 100.0, Array.Empty<FunnelStageItem>(), "Empty Outline", emptySummary);
+        }
+
+        var lines = markdown.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None)
+            .Select(l => l.Trim())
+            .Where(l => l.StartsWith("- ") || l.StartsWith("* ") || l.StartsWith("+ ") || System.Text.RegularExpressions.Regex.IsMatch(l, @"^\d+[.)]\s+"))
+            .Select(l => System.Text.RegularExpressions.Regex.Replace(l, @"^([-*+]|\d+[.)])\s+", "").Trim())
+            .Where(l => !string.IsNullOrEmpty(l))
+            .ToList();
+
+        int totalStages = lines.Count;
+        if (totalStages == 0)
+        {
+            string emptySummary = FormatFunnelPyramidSummary(0, layout, false, 0, 100.0, "Empty Outline");
+            return new SmartArtFunnelTaperAudit(
+                0, layout, false, 0, 100.0, Array.Empty<FunnelStageItem>(), "Empty Outline", emptySummary);
+        }
+
+        bool isInverted = layout.Contains("inverted", StringComparison.OrdinalIgnoreCase) || layout.Contains("reverse", StringComparison.OrdinalIgnoreCase);
+        var items = new List<FunnelStageItem>();
+        int taperViolations = 0;
+
+        for (int i = 0; i < totalStages; i++)
+        {
+            string title = lines[i];
+            int charCount = title.Length;
+            int wordCount = title.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length;
+
+            double widthPct = totalStages == 1
+                ? 100.0
+                : isInverted
+                    ? Math.Round(20.0 + (i * 80.0 / (totalStages - 1)), 1)
+                    : Math.Round(100.0 - (i * 80.0 / (totalStages - 1)), 1);
+
+            bool isMonotonic = true;
+            if (charCount == 0)
+            {
+                isMonotonic = false;
+                taperViolations++;
+            }
+
+            string status = totalStages < 2
+                ? $"Single stage pipeline ({totalStages} stage, min 2 required for stage progression)"
+                : totalStages > 7
+                    ? $"Overcrowded pipeline ({totalStages} stages exceed human cognitive buffer of 7)"
+                    : $"Stage {i + 1}: {widthPct:F1}% width taper ({wordCount} words, {charCount} chars)";
+
+            items.Add(new FunnelStageItem(i + 1, title, charCount, wordCount, widthPct, isMonotonic, status));
+        }
+
+        double score = 100.0;
+        if (totalStages < 2) score -= 35.0;
+        else if (totalStages > 7) score -= Math.Min(45.0, (totalStages - 7) * 10.0);
+        score -= taperViolations * 15.0;
+        score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
+
+        string category;
+        if (totalStages == 0) category = "Empty Outline";
+        else if (score >= 90.0) category = "Optimal Stage Progression & Tapering Rhythm (≥90%)";
+        else if (score >= 75.0) category = "Good Pipeline Flow with Minor Stage Density Gaps (75-89%)";
+        else if (score >= 50.0) category = "Moderate Ingestion Flow Discrepancies (50-74%)";
+        else category = "Severe Pipeline Bottlenecks or Stage Overload (<50%)";
+
+        string summary = FormatFunnelPyramidSummary(totalStages, layout, isInverted, taperViolations, score, category);
+
+        return new SmartArtFunnelTaperAudit(
+            totalStages, layout, isInverted, taperViolations, score, items, category, summary);
+    }
+
+    public static string FormatFunnelPyramidSummary(
+        int totalStages, string layout, bool isInverted, int taperViolations, double score, string category)
+    {
+        if (totalStages == 0) return "SmartArt funnel / pyramid audit: Empty outline · 0 stages detected";
+
+        string stageStr = totalStages == 1 ? "1 stage" : $"{totalStages} stages";
+        var parts = new List<string>();
+
+        parts.Add(isInverted ? "Inverted progression" : "Monotonic taper");
+        if (totalStages >= 2 && totalStages <= 7)
+            parts.Add("Optimal pipeline capacity (2-7 stages)");
+        else if (totalStages < 2)
+            parts.Add("⚠️ Truncated pipeline (<2 stages)");
+        else
+            parts.Add("⚠️ Stage congestion (>7 stages)");
+
+        if (taperViolations > 0)
+            parts.Add($"⚠️ {taperViolations} flow violation{(taperViolations == 1 ? "" : "s")}");
+
+        string details = string.Join(" · ", parts);
+        return $"SmartArt funnel / pyramid audit ({stageStr} · {details} · {category} · {score:0.#}% flow harmony score)";
+    }
+
 }
 
 /// <summary>
@@ -10691,4 +10797,30 @@ public sealed record SmartArtRadialGearAudit(
     IReadOnlyList<RadialGearNodeItem> Gears,
     string Category,
     string LayoutName,
+    string Summary);
+
+/// <summary>
+/// Represents evaluated stage index, title, text metrics, calculated width taper, and flow monotonicity for an individual funnel/pyramid stage.
+/// </summary>
+public sealed record FunnelStageItem(
+    int StageIndex,
+    string Title,
+    int CharacterCount,
+    int WordCount,
+    double CalculatedWidthTaper,
+    bool IsMonotonicProgression,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of SmartArt funnel, pyramid, and pipeline layouts for monotonic volume reduction,
+/// width tapering, and stage flow harmony.
+/// </summary>
+public sealed record SmartArtFunnelTaperAudit(
+    int TotalStages,
+    string LayoutType,
+    bool IsInverted,
+    int MonotonicTaperViolations,
+    double FlowHarmonyScore,
+    IReadOnlyList<FunnelStageItem> Stages,
+    string Category,
     string Summary);
