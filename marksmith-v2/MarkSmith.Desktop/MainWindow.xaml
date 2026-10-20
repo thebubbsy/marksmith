@@ -2371,6 +2371,18 @@
                         </StackPanel>
                     </HyperlinkButton>
                     <Border Width="1" Height="12" Background="{ThemeResource CardStrokeColorDefaultBrush}" VerticalAlignment="Center" />
+                    <HyperlinkButton x:Name="StatusCopyDiagramsButton"
+                                     Click="OnStatusCopyDiagramsButtonClick"
+                                     RightTapped="OnStatusCopyDiagramsButtonRightTapped"
+                                     Padding="5,1" FontSize="11.5" Opacity="0.85"
+                                     ToolTipService.ToolTip="Copy all Mermaid diagrams and :::smartart / :::chart / :::shapes visual blocks to clipboard · Right-click for filters or Diagram Inventory Table"
+                                     AutomationProperties.Name="Copy Markdown diagrams and visual blocks">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <FontIcon Glyph="&#xE9D2;" FontSize="11" />
+                            <TextBlock x:Name="StatusCopyDiagramsText" Text="Copy Diagrams" />
+                        </StackPanel>
+                    </HyperlinkButton>
+                    <Border Width="1" Height="12" Background="{ThemeResource CardStrokeColorDefaultBrush}" VerticalAlignment="Center" />
                     <TextBlock x:Name="CursorPosText" Text="Ln 1, Col 1" VerticalAlignment="Center"
                                FontFamily="Consolas" FontSize="11.5" Opacity="0.7"
                                Tapped="OnCursorPosTextTapped" DoubleTapped="OnCursorPosTextDoubleTapped"

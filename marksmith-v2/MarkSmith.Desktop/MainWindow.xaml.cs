@@ -13641,6 +13641,243 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         menu.ShowAt(anchor);
     }
 
+    private sealed record MarkdownDiagramEntry(
+        string Kind,
+        string SubType,
+        int StartLine,
+        int EndLine,
+        int LineCount,
+        string RawBlock);
+
+    private List<MarkdownDiagramEntry> ExtractMarkdownDiagrams()
+    {
+        var results = new List<MarkdownDiagramEntry>();
+        var md = EditorDocument();
+        if (string.IsNullOrWhiteSpace(md))
+            return results;
+
+        var lines = md.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        int i = 0;
+        while (i < lines.Length)
+        {
+            var trimmed = lines[i].TrimStart();
+
+            // 1. Check for ```mermaid or ~~~mermaid fenced blocks
+            if ((trimmed.StartsWith("```mermaid", StringComparison.OrdinalIgnoreCase) ||
+                 trimmed.StartsWith("~~~mermaid", StringComparison.OrdinalIgnoreCase)))
+            {
+                string fence = trimmed.StartsWith("~~~", StringComparison.Ordinal) ? "~~~" : "```";
+                int startLine = i + 1;
+                var blockLines = new List<string> { lines[i] };
+                string subType = "flowchart";
+                i++;
+                bool foundSubType = false;
+                while (i < lines.Length)
+                {
+                    blockLines.Add(lines[i]);
+                    var innerTrim = lines[i].Trim();
+                    if (!foundSubType && !string.IsNullOrWhiteSpace(innerTrim) && !innerTrim.StartsWith("%%", StringComparison.Ordinal))
+                    {
+                        var firstToken = innerTrim.Split(new[] { ' ', '\t', '(', '[' }, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+                        if (!string.IsNullOrWhiteSpace(firstToken))
+                        {
+                            subType = firstToken;
+                            foundSubType = true;
+                        }
+                    }
+                    if (innerTrim.StartsWith(fence, StringComparison.Ordinal))
+                    {
+                        i++;
+                        break;
+                    }
+                    i++;
+                }
+                int endLine = startLine + blockLines.Count - 1;
+                results.Add(new MarkdownDiagramEntry(
+                    "Mermaid",
+                    subType,
+                    startLine,
+                    endLine,
+                    blockLines.Count,
+                    string.Join(Environment.NewLine, blockLines)));
+                continue;
+            }
+
+            // 2. Check for :::smartart, :::workflow, :::chart, :::timeline, :::canvas, :::shapes, :::columns, :::tabs
+            if (trimmed.StartsWith(":::", StringComparison.Ordinal))
+            {
+                var headerRest = trimmed.Substring(3).Trim();
+                var parts = headerRest.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length > 0)
+                {
+                    var directive = parts[0].ToLowerInvariant();
+                    if (directive is "smartart" or "workflow" or "chart" or "timeline" or "canvas" or "shapes" or "columns" or "tabs")
+                    {
+                        int startLine = i + 1;
+                        var blockLines = new List<string> { lines[i] };
+                        string subType = parts.Length > 1 ? string.Join(" ", parts.Skip(1)) : directive;
+                        i++;
+                        while (i < lines.Length)
+                        {
+                            blockLines.Add(lines[i]);
+                            if (lines[i].Trim() == ":::")
+                            {
+                                i++;
+                                break;
+                            }
+                            i++;
+                        }
+                        int endLine = startLine + blockLines.Count - 1;
+                        results.Add(new MarkdownDiagramEntry(
+                            $":::{directive}",
+                            subType,
+                            startLine,
+                            endLine,
+                            blockLines.Count,
+                            string.Join(Environment.NewLine, blockLines)));
+                        continue;
+                    }
+                }
+            }
+
+            i++;
+        }
+
+        return results;
+    }
+
+    private void OnStatusCopyDiagramsButtonClick(object sender, RoutedEventArgs e)
+    {
+        var diagrams = ExtractMarkdownDiagrams();
+        if (diagrams.Count == 0)
+        {
+            AnnounceStatus("No Mermaid diagrams or :::smartart / :::chart / :::shapes blocks found in document");
+            return;
+        }
+
+        var joined = string.Join(Environment.NewLine + Environment.NewLine, diagrams.Select(d => d.RawBlock));
+        _ = Services.ClipboardWriter.TrySetTextAsync(joined);
+        int mermaidCount = diagrams.Count(d => d.Kind == "Mermaid");
+        int wrapperCount = diagrams.Count - mermaidCount;
+        AnnounceStatus($"Copied {diagrams.Count:N0} diagram/visual block(s) ({mermaidCount:N0} Mermaid, {wrapperCount:N0} ::: wrapper) to clipboard");
+    }
+
+    private void OnStatusCopyDiagramsButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (sender is not FrameworkElement anchor)
+            return;
+
+        var menu = new MenuFlyout();
+
+        var copyAllItem = new MenuFlyoutItem
+        {
+            Text = "Copy all diagrams & visual blocks",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyAllItem.Click += (_, _) => OnStatusCopyDiagramsButtonClick(anchor, new RoutedEventArgs());
+        menu.Items.Add(copyAllItem);
+
+        var copyMermaidOnlyItem = new MenuFlyoutItem
+        {
+            Text = "Copy Mermaid diagrams only (```mermaid)",
+            Icon = new FontIcon { Glyph = "\uE9D2" }
+        };
+        copyMermaidOnlyItem.Click += (_, _) =>
+        {
+            var mermaids = ExtractMarkdownDiagrams().Where(d => d.Kind == "Mermaid").ToList();
+            if (mermaids.Count == 0)
+            {
+                AnnounceStatus("No ```mermaid diagram blocks found in document");
+                return;
+            }
+            _ = Services.ClipboardWriter.TrySetTextAsync(string.Join(Environment.NewLine + Environment.NewLine, mermaids.Select(m => m.RawBlock)));
+            AnnounceStatus($"Copied {mermaids.Count:N0} Mermaid diagram block(s) to clipboard");
+        };
+        menu.Items.Add(copyMermaidOnlyItem);
+
+        var copyWrappersOnlyItem = new MenuFlyoutItem
+        {
+            Text = "Copy :::smartart / :::chart / :::shapes blocks only",
+            Icon = new FontIcon { Glyph = "\uE80A" }
+        };
+        copyWrappersOnlyItem.Click += (_, _) =>
+        {
+            var wrappers = ExtractMarkdownDiagrams().Where(d => d.Kind != "Mermaid").ToList();
+            if (wrappers.Count == 0)
+            {
+                AnnounceStatus("No :::smartart / :::chart / :::shapes wrapper blocks found in document");
+                return;
+            }
+            _ = Services.ClipboardWriter.TrySetTextAsync(string.Join(Environment.NewLine + Environment.NewLine, wrappers.Select(w => w.RawBlock)));
+            AnnounceStatus($"Copied {wrappers.Count:N0} ::: visual wrapper block(s) to clipboard");
+        };
+        menu.Items.Add(copyWrappersOnlyItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var copyTableItem = new MenuFlyoutItem
+        {
+            Text = "Copy as Diagram & Visual Block Inventory Table",
+            Icon = new FontIcon { Glyph = "\uE8A1" }
+        };
+        copyTableItem.Click += (_, _) =>
+        {
+            var diagrams = ExtractMarkdownDiagrams();
+            if (diagrams.Count == 0)
+            {
+                AnnounceStatus("No diagrams or visual blocks found in document");
+                return;
+            }
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine($"**Diagram & Visual Block Inventory**: {diagrams.Count:N0} block(s)");
+            sb.AppendLine();
+            sb.AppendLine("| # | Block Kind | Layout / Subtype | Lines | Line Span |");
+            sb.AppendLine("| ---: | :--- | :--- | ---: | :--- |");
+            for (int idx = 0; idx < diagrams.Count; idx++)
+            {
+                var d = diagrams[idx];
+                var cleanSub = d.SubType.Replace("|", "\\|");
+                sb.AppendLine($"| {idx + 1} | `{d.Kind}` | `{cleanSub}` | {d.LineCount} | Ln {d.StartLine}–{d.EndLine} |");
+            }
+            _ = Services.ClipboardWriter.TrySetTextAsync(sb.ToString().TrimEnd());
+            AnnounceStatus($"Copied Diagram Inventory Table ({diagrams.Count:N0} blocks) to clipboard");
+        };
+        menu.Items.Add(copyTableItem);
+
+        var insertTableItem = new MenuFlyoutItem
+        {
+            Text = "Insert Diagram & Visual Block Inventory Table at cursor",
+            Icon = new FontIcon { Glyph = "\uE70F" }
+        };
+        insertTableItem.Click += (_, _) =>
+        {
+            var diagrams = ExtractMarkdownDiagrams();
+            if (diagrams.Count == 0)
+            {
+                AnnounceStatus("No diagrams or visual blocks found in document");
+                return;
+            }
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine($"## Diagram & Visual Block Inventory ({diagrams.Count:N0} Blocks)");
+            sb.AppendLine();
+            sb.AppendLine("| # | Block Kind | Layout / Subtype | Lines | Line Span |");
+            sb.AppendLine("| ---: | :--- | :--- | ---: | :--- |");
+            for (int idx = 0; idx < diagrams.Count; idx++)
+            {
+                var d = diagrams[idx];
+                var cleanSub = d.SubType.Replace("|", "\\|");
+                sb.AppendLine($"| {idx + 1} | `{d.Kind}` | `{cleanSub}` | {d.LineCount} | Ln {d.StartLine}–{d.EndLine} |");
+            }
+            sb.AppendLine();
+            InsertMarkdown(sb.ToString());
+            AnnounceStatus($"Inserted Diagram Inventory Table ({diagrams.Count:N0} blocks) at cursor");
+        };
+        menu.Items.Add(insertTableItem);
+
+        menu.ShowAt(anchor);
+    }
+
     private void OnStatusCopyMarkdownButtonClick(object sender, RoutedEventArgs e)
     {
         var selected = PasteTextBox?.SelectedText;
