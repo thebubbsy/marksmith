@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Threading.Tasks;
 using MarkSmith.Services;
@@ -3286,7 +3286,7 @@ public sealed partial class HistoryWindow : Window
                 {
                     var audit = MarkSmith.Services.LineDiff.AuditDiffChurnAcceleration(_vm.UnifiedDiffRows);
                     _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
-                    _vm.ShowNotice($"✓ {audit.Summary}");
+                    _vm.ShowNotice($"\u2713 {audit.Summary}");
                 };
                 menu.Items.Add(auditDiffChurnAcceleration);
 
@@ -3299,7 +3299,7 @@ public sealed partial class HistoryWindow : Window
                 {
                     var pr = MarkSmith.Services.LineDiff.SynthesizePullRequestDescription(_vm.UnifiedDiffRows);
                     _ = Services.ClipboardWriter.TrySetTextAsync(pr.PullRequestMarkdown);
-                    _vm.ShowNotice($"✓ {pr.Summary}");
+                    _vm.ShowNotice($"\u2713 {pr.Summary}");
                 };
                 menu.Items.Add(synthesizePullRequest);
 
@@ -3312,7 +3312,7 @@ public sealed partial class HistoryWindow : Window
                 {
                     var commit = MarkSmith.Services.LineDiff.SynthesizeConventionalCommitMessage(_vm.UnifiedDiffRows);
                     _ = Services.ClipboardWriter.TrySetTextAsync(commit.FullCommitMessage);
-                    _vm.ShowNotice($"✓ {commit.Summary}");
+                    _vm.ShowNotice($"\u2713 {commit.Summary}");
                 };
                 menu.Items.Add(synthesizeConventionalCommit);
 
@@ -3325,7 +3325,7 @@ public sealed partial class HistoryWindow : Window
                 {
                     var semver = MarkSmith.Services.LineDiff.SynthesizeSemanticVersionRecommendation(_vm.UnifiedDiffRows);
                     _ = Services.ClipboardWriter.TrySetTextAsync(semver.ChangelogMarkdown);
-                    _vm.ShowNotice($"✓ {semver.Summary}");
+                    _vm.ShowNotice($"\u2713 {semver.Summary}");
                 };
                 menu.Items.Add(synthesizeSemanticVersion);
 
@@ -3338,7 +3338,7 @@ public sealed partial class HistoryWindow : Window
                 {
                     var notes = MarkSmith.Services.LineDiff.SynthesizeReleaseNotesAndMigrationGuide(_vm.UnifiedDiffRows);
                     _ = Services.ClipboardWriter.TrySetTextAsync(notes.ReleaseNotesMarkdown);
-                    _vm.ShowNotice($"✓ {notes.Summary}");
+                    _vm.ShowNotice($"\u2713 {notes.Summary}");
                 };
                 menu.Items.Add(synthesizeReleaseNotes);
 
@@ -3351,7 +3351,7 @@ public sealed partial class HistoryWindow : Window
                 {
                     var churn = MarkSmith.Services.LineDiff.AuditCommitChurnHotspots(_vm.UnifiedDiffRows);
                     _ = Services.ClipboardWriter.TrySetTextAsync(churn.Summary);
-                    _vm.ShowNotice($"✓ {churn.Summary}");
+                    _vm.ShowNotice($"\u2713 {churn.Summary}");
                 };
                 menu.Items.Add(auditCommitChurn);
 
@@ -3364,7 +3364,7 @@ public sealed partial class HistoryWindow : Window
                 {
                     var audit = MarkSmith.Services.LineDiff.AuditChunkContextBoundaries(_vm.UnifiedDiffRows);
                     _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
-                    _vm.ShowNotice($"✓ {audit.Summary}");
+                    _vm.ShowNotice($"\u2713 {audit.Summary}");
                 };
                 menu.Items.Add(auditChunkBoundaries);
 
@@ -3377,7 +3377,7 @@ public sealed partial class HistoryWindow : Window
                 {
                     var audit = MarkSmith.Services.LineDiff.AuditSemanticHunkFoldingAndTokenContext(_vm.UnifiedDiffRows);
                     _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
-                    _vm.ShowNotice($"✓ {audit.Summary}");
+                    _vm.ShowNotice($"\u2713 {audit.Summary}");
                 };
                 menu.Items.Add(auditSemanticFolding);
 
@@ -3390,7 +3390,7 @@ public sealed partial class HistoryWindow : Window
                 {
                     var audit = MarkSmith.Services.LineDiff.AuditWordLevelDiffChunkingAndTokenShifts(_vm.UnifiedDiffRows);
                     _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
-                    _vm.ShowNotice($"✓ {audit.Summary}");
+                    _vm.ShowNotice($"\u2713 {audit.Summary}");
                 };
                 menu.Items.Add(auditWordDiff);
 
@@ -3403,7 +3403,7 @@ public sealed partial class HistoryWindow : Window
                 {
                     var audit = MarkSmith.Services.LineDiff.AuditCharacterLevenshteinEditDistance(_vm.UnifiedDiffRows);
                     _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
-                    _vm.ShowNotice($"✓ {audit.Summary}");
+                    _vm.ShowNotice($"\u2713 {audit.Summary}");
                 };
                 menu.Items.Add(auditLevenshtein);
 
@@ -3416,7 +3416,7 @@ public sealed partial class HistoryWindow : Window
                 {
                     var audit = MarkSmith.Services.LineDiff.AuditSemanticDiffTokenEntropy(_vm.UnifiedDiffRows);
                     _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
-                    _vm.ShowNotice($"✓ {audit.Summary}");
+                    _vm.ShowNotice($"\u2713 {audit.Summary}");
                 };
                 menu.Items.Add(auditDiffTokenEntropy);
 
@@ -3429,7 +3429,7 @@ public sealed partial class HistoryWindow : Window
                 {
                     var audit = MarkSmith.Services.LineDiff.AuditDiffLineWrapAndOverflow(_vm.UnifiedDiffRows);
                     _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
-                    _vm.ShowNotice($"✓ {audit.Summary}");
+                    _vm.ShowNotice($"\u2713 {audit.Summary}");
                 };
                 menu.Items.Add(auditDiffLineWrap);
 
@@ -3442,7 +3442,7 @@ public sealed partial class HistoryWindow : Window
                 {
                     var audit = MarkSmith.Services.LineDiff.AuditGitConflictMarkersAndRebaseResidue(_vm.UnifiedDiffRows);
                     _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
-                    _vm.ShowNotice($"✓ {audit.Summary}");
+                    _vm.ShowNotice($"\u2713 {audit.Summary}");
                 };
                 menu.Items.Add(auditGitConflictMarkers);
 
@@ -3455,7 +3455,7 @@ public sealed partial class HistoryWindow : Window
                 {
                     var audit = MarkSmith.Services.LineDiff.AuditSemanticDiffCoChangeClusters(_vm.UnifiedDiffRows);
                     _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
-                    _vm.ShowNotice($"✓ {audit.Summary}");
+                    _vm.ShowNotice($"\u2713 {audit.Summary}");
                 };
                 menu.Items.Add(auditSemanticCoChange);
 
@@ -3468,7 +3468,7 @@ public sealed partial class HistoryWindow : Window
                 {
                     var audit = MarkSmith.Services.LineDiff.AuditSemanticHunkCouplingAndPropagation(_vm.UnifiedDiffRows);
                     _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
-                    _vm.ShowNotice($"✓ {audit.Summary}");
+                    _vm.ShowNotice($"\u2713 {audit.Summary}");
                 };
                 menu.Items.Add(auditHunkCoupling);
 
@@ -3481,7 +3481,7 @@ public sealed partial class HistoryWindow : Window
                 {
                     var audit = MarkSmith.Services.LineDiff.AuditWordLevelDiffResolution(_vm.UnifiedDiffRows);
                     _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
-                    _vm.ShowNotice($"✓ {audit.Summary}");
+                    _vm.ShowNotice($"\u2713 {audit.Summary}");
                 };
                 menu.Items.Add(auditWordLevelDiff);
 
@@ -3494,7 +3494,7 @@ public sealed partial class HistoryWindow : Window
                 {
                     var audit = MarkSmith.Services.LineDiff.AuditIdentifierScopeTransitions(_vm.UnifiedDiffRows);
                     _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
-                    _vm.ShowNotice($"✓ {audit.Summary}");
+                    _vm.ShowNotice($"\u2713 {audit.Summary}");
                 };
                 menu.Items.Add(auditScopeTransitions);
 
@@ -3507,7 +3507,7 @@ public sealed partial class HistoryWindow : Window
                 {
                     var audit = MarkSmith.Services.LineDiff.AuditBlockRelocationAndMoves(_vm.UnifiedDiffRows);
                     _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
-                    _vm.ShowNotice($"✓ {audit.Summary}");
+                    _vm.ShowNotice($"\u2713 {audit.Summary}");
                 };
                 menu.Items.Add(auditBlockRelocation);
 
@@ -3520,7 +3520,7 @@ public sealed partial class HistoryWindow : Window
                 {
                     var audit = MarkSmith.Services.LineDiff.AuditFormattingVsSyntacticChangeEntropy(_vm.UnifiedDiffRows);
                     _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
-                    _vm.ShowNotice($"✓ {audit.Summary}");
+                    _vm.ShowNotice($"\u2713 {audit.Summary}");
                 };
                 menu.Items.Add(auditEntropy);
 
@@ -3533,7 +3533,7 @@ public sealed partial class HistoryWindow : Window
                 {
                     var audit = MarkSmith.Services.LineDiff.AuditCodeChurnVolatilityIndex(_vm.UnifiedDiffRows);
                     _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
-                    _vm.ShowNotice($"✓ {audit.Summary}");
+                    _vm.ShowNotice($"\u2713 {audit.Summary}");
                 };
                 menu.Items.Add(auditChurnVolatility);
 
@@ -3546,7 +3546,7 @@ public sealed partial class HistoryWindow : Window
                 {
                     var audit = MarkSmith.Services.LineDiff.AuditInlineModificationIntensity(_vm.UnifiedDiffRows);
                     _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
-                    _vm.ShowNotice($"✓ {audit.Summary}");
+                    _vm.ShowNotice($"\u2713 {audit.Summary}");
                 };
                 menu.Items.Add(auditInlineIntensity);
 
@@ -3559,7 +3559,7 @@ public sealed partial class HistoryWindow : Window
                 {
                     var audit = MarkSmith.Services.LineDiff.AuditDiffHunkLocalityAndFragmentation(_vm.UnifiedDiffRows);
                     _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
-                    _vm.ShowNotice($"✓ {audit.Summary}");
+                    _vm.ShowNotice($"\u2713 {audit.Summary}");
                 };
                 menu.Items.Add(auditHunkLocality);
 
@@ -3572,7 +3572,7 @@ public sealed partial class HistoryWindow : Window
                 {
                     var audit = MarkSmith.Services.LineDiff.AuditDiffHunkClusteringDistance(_vm.UnifiedDiffRows);
                     _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
-                    _vm.ShowNotice($"✓ {audit.Summary}");
+                    _vm.ShowNotice($"\u2713 {audit.Summary}");
                 };
                 menu.Items.Add(auditHunkClustering);
 
@@ -3585,7 +3585,7 @@ public sealed partial class HistoryWindow : Window
                 {
                     var audit = MarkSmith.Services.LineDiff.AuditMethodSignatureAndParameterDrift(_vm.UnifiedDiffRows);
                     _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
-                    _vm.ShowNotice($"✓ {audit.Summary}");
+                    _vm.ShowNotice($"\u2713 {audit.Summary}");
                 };
                 menu.Items.Add(auditMethodSignatureDrift);
 
@@ -3598,7 +3598,7 @@ public sealed partial class HistoryWindow : Window
                 {
                     var audit = MarkSmith.Services.LineDiff.AuditIdentifierRenamingEntropy(_vm.UnifiedDiffRows);
                     _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
-                    _vm.ShowNotice($"✓ {audit.Summary}");
+                    _vm.ShowNotice($"\u2713 {audit.Summary}");
                 };
                 menu.Items.Add(auditIdentifierRenaming);
 
@@ -3611,7 +3611,7 @@ public sealed partial class HistoryWindow : Window
                 {
                     var audit = MarkSmith.Services.LineDiff.AuditVariableScopeLocality(_vm.UnifiedDiffRows);
                     _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
-                    _vm.ShowNotice($"✓ {audit.Summary}");
+                    _vm.ShowNotice($"\u2713 {audit.Summary}");
                 };
                 menu.Items.Add(auditVariableScopeLocality);
 
@@ -3624,7 +3624,7 @@ public sealed partial class HistoryWindow : Window
                 {
                     var audit = MarkSmith.Services.LineDiff.AuditClosureCaptureAndScopeEscapes(_vm.UnifiedDiffRows);
                     _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
-                    _vm.ShowNotice($"✓ {audit.Summary}");
+                    _vm.ShowNotice($"\u2713 {audit.Summary}");
                 };
                 menu.Items.Add(auditClosureCaptureScope);
 
@@ -3637,7 +3637,7 @@ public sealed partial class HistoryWindow : Window
                 {
                     var audit = MarkSmith.Services.LineDiff.AuditControlFlowAndGuardClauses(_vm.UnifiedDiffRows);
                     _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
-                    _vm.ShowNotice($"✓ {audit.Summary}");
+                    _vm.ShowNotice($"\u2713 {audit.Summary}");
                 };
                 menu.Items.Add(auditControlFlow);
 
@@ -3650,7 +3650,7 @@ public sealed partial class HistoryWindow : Window
                 {
                     var audit = MarkSmith.Services.LineDiff.AuditExceptionHandlingAndRethrows(_vm.UnifiedDiffRows);
                     _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
-                    _vm.ShowNotice($"✓ {audit.Summary}");
+                    _vm.ShowNotice($"\u2713 {audit.Summary}");
                 };
                 menu.Items.Add(auditExceptionHandling);
 
@@ -3663,7 +3663,7 @@ public sealed partial class HistoryWindow : Window
                 {
                     var audit = MarkSmith.Services.LineDiff.AuditAsyncAwaitAndThreadContext(_vm.UnifiedDiffRows);
                     _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
-                    _vm.ShowNotice($"✓ {audit.Summary}");
+                    _vm.ShowNotice($"\u2713 {audit.Summary}");
                 };
                 menu.Items.Add(auditAsyncThreading);
 
@@ -3676,7 +3676,7 @@ public sealed partial class HistoryWindow : Window
                 {
                     var audit = MarkSmith.Services.LineDiff.AuditMemoryAllocationAndBoxingHazards(_vm.UnifiedDiffRows);
                     _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
-                    _vm.ShowNotice($"✓ {audit.Summary}");
+                    _vm.ShowNotice($"\u2713 {audit.Summary}");
                 };
                 menu.Items.Add(auditMemoryAllocation);
 
@@ -3689,7 +3689,7 @@ public sealed partial class HistoryWindow : Window
                 {
                     var audit = MarkSmith.Services.LineDiff.AuditThreadSafetyAndLockPrimitives(_vm.UnifiedDiffRows);
                     _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
-                    _vm.ShowNotice($"✓ {audit.Summary}");
+                    _vm.ShowNotice($"\u2713 {audit.Summary}");
                 };
                 menu.Items.Add(auditThreadSafety);
 
@@ -3702,7 +3702,7 @@ public sealed partial class HistoryWindow : Window
                 {
                     var audit = MarkSmith.Services.LineDiff.AuditDefensiveCopyingAndStructParameters(_vm.UnifiedDiffRows);
                     _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
-                    _vm.ShowNotice($"✓ {audit.Summary}");
+                    _vm.ShowNotice($"\u2713 {audit.Summary}");
                 };
                 menu.Items.Add(auditDefensiveCopying);
 
@@ -3715,7 +3715,7 @@ public sealed partial class HistoryWindow : Window
                 {
                     var audit = MarkSmith.Services.LineDiff.AuditMethodInliningAndPgoHazards(_vm.UnifiedDiffRows);
                     _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
-                    _vm.ShowNotice($"✓ {audit.Summary}");
+                    _vm.ShowNotice($"\u2713 {audit.Summary}");
                 };
                 menu.Items.Add(auditMethodInlining);
 
@@ -3728,7 +3728,7 @@ public sealed partial class HistoryWindow : Window
                 {
                     var audit = MarkSmith.Services.LineDiff.AuditExceptionHandlingAndFilterHazards(_vm.UnifiedDiffRows);
                     _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
-                    _vm.ShowNotice($"✓ {audit.Summary}");
+                    _vm.ShowNotice($"\u2713 {audit.Summary}");
                 };
                 menu.Items.Add(auditExceptionFilterHazards);
 
@@ -3741,7 +3741,7 @@ public sealed partial class HistoryWindow : Window
                 {
                     var audit = MarkSmith.Services.LineDiff.AuditAllocationAndClosureCaptureHazards(_vm.UnifiedDiffRows);
                     _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
-                    _vm.ShowNotice($"✓ {audit.Summary}");
+                    _vm.ShowNotice($"\u2713 {audit.Summary}");
                 };
                 menu.Items.Add(auditAllocationClosure);
 
@@ -3754,7 +3754,7 @@ public sealed partial class HistoryWindow : Window
                 {
                     var audit = MarkSmith.Services.LineDiff.AuditCacheLocalityAndFalseSharingHazards(_vm.UnifiedDiffRows);
                     _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
-                    _vm.ShowNotice($"✓ {audit.Summary}");
+                    _vm.ShowNotice($"\u2713 {audit.Summary}");
                 };
                 menu.Items.Add(auditCacheLocality);
                 var auditSynchronization = new MenuFlyoutItem
@@ -3766,7 +3766,7 @@ public sealed partial class HistoryWindow : Window
                 {
                     var audit = MarkSmith.Services.LineDiff.AuditSynchronizationAndDeadlockHazards(_vm.UnifiedDiffRows);
                     _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
-                    _vm.ShowNotice($"✓ {audit.Summary}");
+                    _vm.ShowNotice($"\u2713 {audit.Summary}");
                 };
                 menu.Items.Add(auditSynchronization);
                 var auditMemorySafety = new MenuFlyoutItem
@@ -3778,7 +3778,7 @@ public sealed partial class HistoryWindow : Window
                 {
                     var audit = MarkSmith.Services.LineDiff.AuditMemorySafetyAndUnsafePointerHazards(_vm.UnifiedDiffRows);
                     _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
-                    _vm.ShowNotice($"✓ {audit.Summary}");
+                    _vm.ShowNotice($"\u2713 {audit.Summary}");
                 };
                 menu.Items.Add(auditMemorySafety);
                 var auditStringAllocation = new MenuFlyoutItem
@@ -3790,7 +3790,7 @@ public sealed partial class HistoryWindow : Window
                 {
                     var audit = MarkSmith.Services.LineDiff.AuditStringAllocationAndMemoryPressureHazards(_vm.UnifiedDiffRows);
                     _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
-                    _vm.ShowNotice($"✓ {audit.Summary}");
+                    _vm.ShowNotice($"\u2713 {audit.Summary}");
                 };
                 menu.Items.Add(auditStringAllocation);
                 var auditPatternMatching = new MenuFlyoutItem
@@ -3802,7 +3802,7 @@ public sealed partial class HistoryWindow : Window
                 {
                     var audit = MarkSmith.Services.LineDiff.AuditPatternMatchingAndEnumBranchExhaustiveness(_vm.UnifiedDiffRows);
                     _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
-                    _vm.ShowNotice($"✓ {audit.Summary}");
+                    _vm.ShowNotice($"\u2713 {audit.Summary}");
                 };
                 menu.Items.Add(auditPatternMatching);
                 var auditTuplePatternMatching = new MenuFlyoutItem
@@ -3814,9 +3814,22 @@ public sealed partial class HistoryWindow : Window
                 {
                     var audit = MarkSmith.Services.LineDiff.AuditPatternMatchingAndEnumBranchExhaustiveness(_vm.UnifiedDiffRows);
                     _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
-                    _vm.ShowNotice($"✓ {audit.Summary}");
+                    _vm.ShowNotice($"\u2713 {audit.Summary}");
                 };
                 menu.Items.Add(auditTuplePatternMatching);
+                var auditTypePatternMatching = new MenuFlyoutItem
+                {
+                    Text = "Audit semantic diff active patterns, type tests & relational boundaries",
+                    Icon = new FontIcon { Glyph = "\uE8B9" }
+                };
+                auditTypePatternMatching.Click += (_, _) =>
+                {
+                    var audit = MarkSmith.Services.LineDiff.AuditPatternMatchingAndEnumBranchExhaustiveness(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+                    _vm.ShowNotice($"\u2713 {audit.Summary}");
+                };
+                menu.Items.Add(auditTypePatternMatching);
+
 
 
 

@@ -1,4 +1,4 @@
-using MarkSmith.Services;
+﻿using MarkSmith.Services;
 using MarkSmith.ViewModels.History;
 using Xunit;
 
@@ -3326,7 +3326,8 @@ public class HistoryPolishTests : IDisposable
         Assert.True(audit.WildcardDiscardTrapCount >= 1);
         Assert.True(audit.TotalHazards >= 1);
         Assert.True(audit.ExhaustivenessSafetyScore < 95.0);
-    }
+    }
+
 [Fact]
     public void Run201_AuditPatternMatchingAndEnumBranchExhaustiveness_DetectsRecursiveAndPositionalSubpatterns()
     {
@@ -3350,5 +3351,32 @@ public class HistoryPolishTests : IDisposable
         Assert.True(audit.WildcardDiscardTrapCount >= 2);
         Assert.True(audit.TotalHazards >= 2);
         Assert.True(audit.ExhaustivenessSafetyScore < 90.0);
-    }
-}
+    }
+
+
+    [Fact]
+    public void Run202_AuditPatternMatchingAndEnumBranchExhaustiveness_DetectsRelationalGapsAndTypeTests()
+    {
+        // Relational pattern without default/wildcard fallback
+        var relationalCode = string.Join("\n",
+            "public class ScoreMatcher",
+            "{",
+            "    public string Grade(int score)",
+            "    {",
+            "        return score switch",
+            "        {",
+            "            > 90 => \"A\",",
+            "            > 80 and <= 90 => \"B\"",
+            "        };",
+            "    }",
+            "}"
+        );
+
+        var audit = LineDiff.AuditPatternMatchingAndEnumBranchExhaustiveness("", relationalCode);
+        Assert.True(audit.UnhandledSwitchCount >= 1);
+        Assert.True(audit.TotalHazards >= 1);
+        Assert.True(audit.ExhaustivenessSafetyScore < 95.0);
+    }
+
+}
+

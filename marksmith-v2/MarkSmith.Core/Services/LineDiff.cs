@@ -18110,6 +18110,32 @@ public static class LineDiff
                     "Implement exhaustive handling for all expected variants or throw ArgumentOutOfRangeException with domain details",
                     "Unimplemented Variant"));
             }
+
+            // Relational pattern gaps: e.g. > 0 and <= 100 without fallback _ or default
+            if (Regex.IsMatch(line, @"(>|<|>=|<=)\s*\d+(\s+and\s+(>|<|>=|<=)\s*\d+)?\s*=>") &&
+                !modifiedRows.Any(r => Regex.IsMatch(r.Text, @"_\s*=>|default\s*:")))
+            {
+                unhandledSwitchCount++;
+                items.Add(new PatternMatchingBranchItem(
+                    lineNum, op, "Non-Exhaustive Relational Pattern",
+                    line.Trim(), 2,
+                    "Relational pattern has potential boundary gaps and lacks wildcard or default fallback arm",
+                    "Add an exhaustive default or wildcard arm (_ => ...) to handle uncovered boundary numbers",
+                    "Uncovered Boundary"));
+            }
+
+            // Type test pattern without null check: e.g. is string s or string s => ... without null check or default
+            if (Regex.IsMatch(line, @"\b(?:is\s+[A-Z]\w+\s+\w+|[A-Z]\w+\s+\w+\s*=>)\b") &&
+                !modifiedRows.Any(r => r.Text.Contains("null") || Regex.IsMatch(r.Text, @"_\s*=>|default\s*:")))
+            {
+                missingNullCheckCount++;
+                items.Add(new PatternMatchingBranchItem(
+                    lineNum, op, "Unchecked Type Test Pattern",
+                    line.Trim(), 1,
+                    "Type-test pattern matching does not account for null inputs or unhandled subtypes",
+                    "Add explicit null check or default arm to guarantee exhaustive domain coverage",
+                    "Unchecked Type Pattern"));
+            }
         }
 
         int totalHazards = unhandledSwitchCount + wildcardDiscardTrapCount + missingDefaultBranchCount + missingNullCheckCount;

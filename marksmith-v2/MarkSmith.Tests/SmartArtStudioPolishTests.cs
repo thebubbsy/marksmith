@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -3127,7 +3127,8 @@ public class SmartArtStudioPolishTests
             audit.TotalRings, audit.TotalWords, audit.HasCenterCore, audit.IsMonotonicProgression,
             audit.CrowdedRingCount, audit.RadialBalanceScore, audit.Category, "Target Diagram");
         Assert.Equal(audit.Summary, formatted);
-    }
+    }
+
 [Fact]
     public void Run201_AuditPyramidLayerProportionality_ValidatesTiersAndApexFit()
     {
@@ -3166,5 +3167,48 @@ public class SmartArtStudioPolishTests
         var riskAudit = SmartArtDesignStudioViewModel.AuditPyramidLayerProportionality(longApexMd, "Pyramid List");
         Assert.True(riskAudit.TruncationRiskCount >= 1);
         Assert.True(riskAudit.ProportionalityScore < 95.0);
-    }
-}
+    }
+
+
+    [Fact]
+    public void Run202_AuditFunnelStageProportionality_ValidatesTiersAndNeckTruncation()
+    {
+        // 1. Empty outline
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditFunnelStageProportionality("");
+        Assert.Equal(0, emptyAudit.TotalStages);
+        Assert.Equal(100.0, emptyAudit.FunnelGeometricScore);
+        Assert.Equal("Empty Funnel", emptyAudit.Category);
+
+        // 2. 4 balanced funnel stages
+        var funnelMd = string.Join("\n",
+            "- Awareness",
+            "- Interest",
+            "- Decision",
+            "- Action"
+        );
+        var goodAudit = SmartArtDesignStudioViewModel.AuditFunnelStageProportionality(funnelMd, "Funnel");
+        Assert.Equal(4, goodAudit.TotalStages);
+        Assert.False(goodAudit.IsInvertedExpansion);
+        Assert.True(goodAudit.IsStrictlyMonotonic);
+        Assert.Equal(0, goodAudit.TruncationRiskCount);
+        Assert.True(goodAudit.FunnelGeometricScore >= 90.0);
+
+        string formatted = SmartArtDesignStudioViewModel.FormatFunnelProportionalitySummary(
+            goodAudit.TotalStages, goodAudit.IsInvertedExpansion, goodAudit.IsStrictlyMonotonic,
+            goodAudit.MaxWidthDropPercentage, goodAudit.TruncationRiskCount,
+            goodAudit.FunnelGeometricScore, goodAudit.Category, "Funnel");
+        Assert.Equal(goodAudit.Summary, formatted);
+
+        // 3. Narrow neck truncation risk
+        var neckTruncMd = string.Join("\n",
+            "- Awareness",
+            "- Interest",
+            "- Extremely Long Verbose Text Inside Narrow Funnel Neck Spout"
+        );
+        var riskAudit = SmartArtDesignStudioViewModel.AuditFunnelStageProportionality(neckTruncMd, "Funnel");
+        Assert.True(riskAudit.TruncationRiskCount >= 1);
+        Assert.True(riskAudit.FunnelGeometricScore < 95.0);
+    }
+
+}
+

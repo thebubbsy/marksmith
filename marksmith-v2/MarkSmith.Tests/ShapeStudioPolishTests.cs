@@ -1,4 +1,4 @@
-using MarkSmith.Core.Composer;
+﻿using MarkSmith.Core.Composer;
 using MarkSmith.ViewModels.ShapeStudio;
 using Xunit;
 
@@ -3477,7 +3477,8 @@ public class ShapeStudioPolishTests
             uniformAudit.HairlineStrokeCount, uniformAudit.AverageStrokeThickness, uniformAudit.StrokeThicknessStdDev,
             uniformAudit.OutlineHarmonyScore, uniformAudit.Category, uniformAudit.IsSelectionScope);
         Assert.Equal(uniformAudit.Summary, formatted);
-    }
+    }
+
 [Fact]
     public void Run201_AuditShapeElevationAndShadowHarmony_EvaluatesElevationAndStacking()
     {
@@ -3539,5 +3540,65 @@ public class ShapeStudioPolishTests
         var badAudit = invertedVm.AuditShapeElevationAndShadowHarmony();
         Assert.True(badAudit.InvertedLayeringCount >= 1);
         Assert.True(badAudit.ElevationHarmonyScore < 90.0);
-    }
-}
+    }
+
+
+    [Fact]
+    public void Run202_AuditShapeGroupNestingHierarchy_EvaluatesDepthsAndContainers()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+        vm.Shapes.Clear();
+
+        // 1. Empty canvas
+        var emptyAudit = vm.AuditShapeGroupNestingHierarchy();
+        Assert.Equal(0, emptyAudit.TotalShapes);
+        Assert.Equal(100.0, emptyAudit.HierarchyComplexityScore);
+        Assert.Equal("Empty Canvas", emptyAudit.Category);
+
+        // 2. Normal nesting: 1 outer container enclosing 2 child cards
+        var outer = new ShapeCanvasItemViewModel
+        {
+            Id = "outer",
+            Name = "System Group",
+            X = 10,
+            Y = 10,
+            Width = 500,
+            Height = 400
+        };
+        var child1 = new ShapeCanvasItemViewModel
+        {
+            Id = "ch1",
+            Name = "Card A",
+            X = 30,
+            Y = 30,
+            Width = 120,
+            Height = 80
+        };
+        var child2 = new ShapeCanvasItemViewModel
+        {
+            Id = "ch2",
+            Name = "Card B",
+            X = 200,
+            Y = 30,
+            Width = 120,
+            Height = 80
+        };
+        vm.Shapes.Add(outer);
+        vm.Shapes.Add(child1);
+        vm.Shapes.Add(child2);
+
+        var goodAudit = vm.AuditShapeGroupNestingHierarchy();
+        Assert.Equal(3, goodAudit.TotalShapes);
+        Assert.Equal(1, goodAudit.TotalContainers);
+        Assert.Equal(1, goodAudit.MaxNestingDepth);
+        Assert.True(goodAudit.HierarchyComplexityScore >= 95.0);
+
+        string formatted = ShapeDesignStudioViewModel.FormatGroupNestingSummary(
+            goodAudit.TotalShapes, goodAudit.TotalContainers, goodAudit.MaxNestingDepth,
+            goodAudit.AverageNestingDepth, goodAudit.OvercrowdedContainerCount,
+            goodAudit.HierarchyComplexityScore, goodAudit.Category, false);
+        Assert.Equal(goodAudit.Summary, formatted);
+    }
+
+}
+

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -6380,7 +6380,8 @@ Some paragraph in between.
         Assert.Contains("AuditWorkspaceMarkdownTableAutoAlignItem", suiteXaml);
         Assert.Contains("OnAuditWorkspaceMarkdownTableAutoAlignClick", suiteCs);
         Assert.Contains("AuditWorkspaceMarkdownTableAutoAlign", suiteCs);
-    }
+    }
+
 [Fact]
     public void Run201_ExportWorkspaceTableAutoAlignmentReport_GeneratesMarkdownSummaryReport()
     {
@@ -6434,5 +6435,78 @@ Some paragraph in between.
         Assert.Contains("AuditWorkspaceMarkdownTableAutoAlignAndExportItem", suiteXaml);
         Assert.Contains("OnAuditWorkspaceMarkdownTableAutoAlignAndExportClick", suiteCs);
         Assert.Contains("ExportWorkspaceTableAutoAlignmentReport", suiteCs);
-    }
-}
+    }
+
+
+    [Fact]
+    public void Run202_ApplyWorkspaceTableAutoAlignmentFixes_AlignsPipesAndPadsColumns()
+    {
+        var rawTable = string.Join("\n",
+            "| Col1 | LongColumn2 |",
+            "| --- | --- |",
+            "| a | b |"
+        );
+        var inMemoryStorage = new Dictionary<string, string>
+        {
+            ["test.md"] = rawTable
+        };
+
+        var result = RecentFilesService.ApplyWorkspaceTableAutoAlignmentFixes(
+            explicitFiles: new[] { "test.md" },
+            dryRun: false,
+            fileExistsProvider: f => inMemoryStorage.ContainsKey(f),
+            contentReader: f => inMemoryStorage[f],
+            contentWriter: (f, content) => inMemoryStorage[f] = content);
+
+        Assert.Equal(1, result.TotalFilesScanned);
+        Assert.Equal(1, result.TotalFilesModified);
+        Assert.Equal(1, result.TotalTablesAligned);
+        Assert.False(result.IsDryRun);
+        Assert.Contains("test.md", inMemoryStorage.Keys);
+        Assert.Contains("| Col1 | LongColumn2 |", inMemoryStorage["test.md"]);
+    }
+
+    [Fact]
+    public void Run202_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // Surface 1: MainWindow - Markdown Footnote Reference & Definition Integrity Auditor
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("auditFootnotesIntegrityItem", mainCs);
+        Assert.Contains("AuditMarkdownFootnotes", mainCs);
+
+        // Surface 2: MindMapGalaxyWindow - Graph Bipartiteness & 2-Colorability Conflict Auditor
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditGraphBipartitenessOddCyclesItem", galaxyXaml);
+        Assert.Contains("OnAuditGraphBipartitenessAndOddCyclesClick", galaxyCs);
+        Assert.Contains("AuditGraphBipartitenessAndOddCycles", galaxyCs);
+
+        // Surface 3: ShapeDesignStudioWindow - Shape Group Nesting Depth & Hierarchy Complexity Auditor
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditShapeGroupNestingItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditShapeGroupNestingClick", shapeCs);
+        Assert.Contains("AuditShapeGroupNestingHierarchy", shapeCs);
+
+        // Surface 4: SmartArtDesignStudioWindow - SmartArt Funnel / Pipeline Stage Conversion Rate Proportionality Auditor
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineStatsAuditFunnelStageProportionalityItem", smartArtXaml);
+        Assert.Contains("OnOutlineStatsAuditFunnelStageProportionalityClick", smartArtCs);
+        Assert.Contains("AuditFunnelStageProportionality", smartArtCs);
+
+        // Surface 5: HistoryWindow - Semantic Diff Active Pattern / Relational Gap Analyzer
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditTypePatternMatching", historyCs);
+        Assert.Contains("AuditPatternMatchingAndEnumBranchExhaustiveness", historyCs);
+
+        // Surface 6: SuiteHubView - Workspace Markdown Table Auto-Alignment Batch Applicator & File Fixer
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("ApplyWorkspaceMarkdownTableAutoAlignItem", suiteXaml);
+        Assert.Contains("OnApplyWorkspaceMarkdownTableAutoAlignClick", suiteCs);
+        Assert.Contains("ApplyWorkspaceTableAutoAlignmentFixes", suiteCs);
+    }
+
+}
+

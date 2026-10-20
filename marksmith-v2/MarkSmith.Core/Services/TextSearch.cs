@@ -12318,10 +12318,243 @@ public static class TextSearch
 
         string details = string.Join(" · ", parts);
         return $"Markdown task lists audit ({details} · {category} · {score:0.#}% compliance score)";
-    }
-}
-
-/// <summary>
+    }
+
+
+    /// <summary>
+    /// Audits markdown footnote references and definitions:
+    /// scans document markdown for valid footnote references ([^1], [^note]),
+    /// footnote definitions ([^1]: text), unreferenced orphan definitions,
+    /// missing definitions (references without definitions), duplicate definition labels,
+    /// and scores footnote structural integrity (0-100%).
+    /// </summary>
+    public static MarkdownFootnoteIntegrityAudit AuditMarkdownFootnotes(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            string emptySummary = "Markdown footnotes audit: Clean document · 0 footnote references detected";
+            return new MarkdownFootnoteIntegrityAudit(
+                0, 0, 0, 0, 0, 0, true, 100.0,
+                Array.Empty<MarkdownFootnoteIntegrityItem>(),
+                "Clean Baseline",
+                emptySummary);
+        }
+
+        var lines = markdownText.Replace("\r\n", "\n").Split('\n');
+        var items = new List<MarkdownFootnoteIntegrityItem>();
+        bool inFencedBlock = false;
+        string? activeFence = null;
+
+        var defMap = new Dictionary<string, (int LineNumber, string Excerpt)>(StringComparer.OrdinalIgnoreCase);
+        var defDuplicates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var defDuplicateItems = new List<(string Label, int LineNumber)>();
+        var refs = new List<(string Label, int LineNumber, string LineText)>();
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string line = lines[i];
+            string trimmed = line.Trim();
+
+            // Track fenced code blocks
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+            {
+                string fenceMarker = trimmed.Substring(0, 3);
+                if (!inFencedBlock)
+                {
+                    inFencedBlock = true;
+                    activeFence = fenceMarker;
+                }
+                else if (activeFence == fenceMarker)
+                {
+                    inFencedBlock = false;
+                    activeFence = null;
+                }
+                continue;
+            }
+
+            if (inFencedBlock || string.IsNullOrWhiteSpace(trimmed))
+                continue;
+
+            // 1. Footnote definition: e.g. [^1]: This is footnote text
+            var defMatch = Regex.Match(line, @"^\s*\[\^([^\]]+)\]:\s*(.*)$");
+            if (defMatch.Success)
+            {
+                string label = defMatch.Groups[1].Value.Trim();
+                string excerpt = defMatch.Groups[2].Value.Trim();
+                if (defMap.ContainsKey(label))
+                {
+                    defDuplicates.Add(label);
+                    defDuplicateItems.Add((label, i + 1));
+                }
+                else
+                {
+                    defMap[label] = (i + 1, excerpt);
+                }
+                continue;
+            }
+
+            // 2. Footnote references in line: [^label]
+            var refMatches = Regex.Matches(line, @"\[\^([^\]]+)\](?!:)");
+            foreach (Match m in refMatches)
+            {
+                string label = m.Groups[1].Value.Trim();
+                refs.Add((label, i + 1, line));
+            }
+        }
+
+        int totalDefs = defMap.Count + defDuplicateItems.Count;
+        int totalRefs = refs.Count;
+
+        var referencedLabels = new HashSet<string>(refs.Select(r => r.Label), StringComparer.OrdinalIgnoreCase);
+        var definedLabels = new HashSet<string>(defMap.Keys, StringComparer.OrdinalIgnoreCase);
+
+        var missingDefs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var r in refs)
+        {
+            if (!definedLabels.Contains(r.Label))
+            {
+                missingDefs.Add(r.Label);
+                items.Add(new MarkdownFootnoteIntegrityItem(
+                    r.LineNumber, r.Label, "Reference",
+                    IsResolved: false,
+                    IsMissingDefinition: true,
+                    IsUnreferencedOrphan: false,
+                    IsDuplicate: false,
+                    r.LineText,
+                    $"Add definition '[^{r.Label}]: ...' to resolve reference"));
+            }
+            else
+            {
+                items.Add(new MarkdownFootnoteIntegrityItem(
+                    r.LineNumber, r.Label, "Reference",
+                    IsResolved: true,
+                    IsMissingDefinition: false,
+                    IsUnreferencedOrphan: false,
+                    IsDuplicate: false,
+                    r.LineText,
+                    "Reference correctly resolves to definition"));
+            }
+        }
+
+        var orphanDefs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var kvp in defMap)
+        {
+            if (!referencedLabels.Contains(kvp.Key))
+            {
+                orphanDefs.Add(kvp.Key);
+                items.Add(new MarkdownFootnoteIntegrityItem(
+                    kvp.Value.LineNumber, kvp.Key, "Definition",
+                    IsResolved: false,
+                    IsMissingDefinition: false,
+                    IsUnreferencedOrphan: true,
+                    IsDuplicate: defDuplicates.Contains(kvp.Key),
+                    kvp.Value.Excerpt,
+                    $"Footnote '[^{kvp.Key}]' is defined but never referenced in document body"));
+            }
+            else
+            {
+                items.Add(new MarkdownFootnoteIntegrityItem(
+                    kvp.Value.LineNumber, kvp.Key, "Definition",
+                    IsResolved: true,
+                    IsMissingDefinition: false,
+                    IsUnreferencedOrphan: false,
+                    IsDuplicate: defDuplicates.Contains(kvp.Key),
+                    kvp.Value.Excerpt,
+                    "Definition is referenced in document body"));
+            }
+        }
+
+        foreach (var dup in defDuplicateItems)
+        {
+            items.Add(new MarkdownFootnoteIntegrityItem(
+                dup.LineNumber, dup.Label, "Definition",
+                IsResolved: false,
+                IsMissingDefinition: false,
+                IsUnreferencedOrphan: false,
+                IsDuplicate: true,
+                $"Duplicate definition of '[^{dup.Label}]'",
+                $"Remove or rename duplicate footnote definition on line {dup.LineNumber}"));
+        }
+
+        // Sequential numeric check
+        bool isSequentialNumeric = true;
+        var numericRefs = refs
+            .Select(r => int.TryParse(r.Label, out int n) ? (int?)n : null)
+            .Where(n => n.HasValue)
+            .Select(n => n!.Value)
+            .ToList();
+
+        if (numericRefs.Count > 1)
+        {
+            int expected = 1;
+            foreach (var num in numericRefs)
+            {
+                if (num != expected && num != expected - 1)
+                {
+                    isSequentialNumeric = false;
+                    break;
+                }
+                if (num == expected) expected++;
+            }
+        }
+
+        int resolvedCount = refs.Count(r => definedLabels.Contains(r.Label));
+        int missingCount = missingDefs.Count;
+        int orphanCount = orphanDefs.Count;
+        int duplicateCount = defDuplicates.Count + defDuplicateItems.Count;
+
+        double integrityScore = 100.0;
+        integrityScore -= (missingCount * 25.0);
+        integrityScore -= (orphanCount * 12.0);
+        integrityScore -= (duplicateCount * 15.0);
+        if (!isSequentialNumeric && numericRefs.Count > 0) integrityScore -= 5.0;
+        integrityScore = Math.Round(Math.Clamp(integrityScore, 0.0, 100.0), 1);
+
+        string category = integrityScore switch
+        {
+            >= 95.0 => "Pristine Footnote Integrity",
+            >= 80.0 => "Good Footnote Consistency",
+            >= 60.0 => "Moderate Footnote Drift",
+            >= 40.0 => "High Missing Definition Errors",
+            _ => "Broken Footnote Reference Structure"
+        };
+
+        string summary = FormatFootnotesSummary(
+            totalDefs, totalRefs, resolvedCount, missingCount, orphanCount, duplicateCount,
+            isSequentialNumeric, integrityScore, category);
+
+        return new MarkdownFootnoteIntegrityAudit(
+            totalDefs, totalRefs, resolvedCount, missingCount, orphanCount, duplicateCount,
+            isSequentialNumeric, integrityScore, items, category, summary);
+    }
+
+    public static string FormatFootnotesSummary(string? markdownText)
+        => AuditMarkdownFootnotes(markdownText).Summary;
+
+    public static string FormatFootnotesSummary(
+        int totalDefs, int totalRefs, int resolvedCount, int missingCount,
+        int orphanCount, int duplicateCount, bool isSequential, double score, string category)
+    {
+        if (totalDefs == 0 && totalRefs == 0)
+            return "Markdown footnotes audit: Clean document · 0 footnote references detected";
+
+        var parts = new List<string>();
+        parts.Add($"{totalRefs} refs, {totalDefs} defs ({resolvedCount} resolved)");
+        if (missingCount > 0) parts.Add($"⚠ {missingCount} missing defs");
+        if (orphanCount > 0) parts.Add($"ℹ {orphanCount} unreferenced");
+        if (duplicateCount > 0) parts.Add($"🚨 {duplicateCount} duplicates");
+        if (!isSequential) parts.Add("non-sequential");
+
+        string details = string.Join(" · ", parts);
+        return $"Markdown footnotes audit ({details} · {category} · {score:0.#}% integrity score)";
+    }
+
+}
+
+
+
+/// <summary>
+
 /// Represents the result of an audit for Git merge conflict markers and syntax ambiguities.
 /// </summary>
 public sealed record ConflictMarkerAndAmbiguityAudit(
@@ -13720,7 +13953,8 @@ public sealed record MarkdownStrikethroughAudit(
     double ConsistencyScore,
     IReadOnlyList<MarkdownStrikethroughItem> Items,
     string Category,
-    string Summary);
+    string Summary);
+
 /// <summary>
 /// Represents evaluated metrics, line number, task text, state, and issue for an individual markdown task list item.
 /// </summary>
@@ -13747,4 +13981,37 @@ public sealed record MarkdownTaskListsAudit(
     double ComplianceScore,
     IReadOnlyList<MarkdownTaskListItem> Items,
     string Category,
-    string Summary);
+    string Summary);
+
+
+/// <summary>
+/// Represents evaluated metrics, line number, identifier, and resolution status for an individual markdown footnote reference or definition.
+/// </summary>
+public sealed record MarkdownFootnoteIntegrityItem(
+    int LineNumber,
+    string Identifier,
+    string ItemType,
+    bool IsResolved,
+    bool IsMissingDefinition,
+    bool IsUnreferencedOrphan,
+    bool IsDuplicate,
+    string Excerpt,
+    string Recommendation);
+
+/// <summary>
+/// Represents the result of an audit of markdown footnote references ([^1], [^note]) and definitions ([^1]: text),
+/// unreferenced orphan definitions, missing definitions, duplicate labels, and sequential numeric integrity.
+/// </summary>
+public sealed record MarkdownFootnoteIntegrityAudit(
+    int TotalDefinitions,
+    int TotalReferences,
+    int ResolvedCount,
+    int MissingDefinitionCount,
+    int UnreferencedDefinitionCount,
+    int DuplicateDefinitionCount,
+    bool IsSequentialNumeric,
+    double StructuralIntegrityScore,
+    IReadOnlyList<MarkdownFootnoteIntegrityItem> Items,
+    string Category,
+    string Summary);
+

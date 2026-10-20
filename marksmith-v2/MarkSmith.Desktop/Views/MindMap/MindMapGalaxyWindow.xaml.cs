@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -4142,14 +4142,30 @@ namespace MarkSmith.Views.MindMap
             var result = ViewModel.AuditGraphDiameterAndSmallWorldProperties(); // AuditGraphDiameterAndSmallWorld
             _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
             ViewModel.StatusMessage = $"✓ {result.Summary}";
-        }
-
-        private void OnAuditGraphCyclesAndFeedbackArcSetClick(object sender, RoutedEventArgs e)
-        {
-            if (ViewModel == null) return;
-            var result = ViewModel.AuditGraphCyclesAndFeedbackArcSet();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+        }
+
+
+
+        private void OnAuditGraphCyclesAndFeedbackArcSetClick(object sender, RoutedEventArgs e)
+
+        {
+
+            if (ViewModel == null) return;
+
+            var result = ViewModel.AuditGraphCyclesAndFeedbackArcSet();
+
+            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+
+            ViewModel.StatusMessage = $"✓ {result.Summary}";
+
+        }
+
+        private void OnAuditGraphBipartitenessAndOddCyclesClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditGraphBipartitenessAndOddCycles();
+            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"\u2713 {result.Summary}";
         }
 
         private void OnAuditGraphDegreeDistributionClick(object sender, RoutedEventArgs e)

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using MarkSmith.Services;
 using Xunit;
 
@@ -3508,7 +3508,8 @@ public class TextSearchTests
         var brokenAudit = TextSearch.AuditMarkdownStrikethroughAndUnderline(brokenDoc);
         Assert.True(brokenAudit.UnclosedCount > 0 || brokenAudit.InvalidWhitespaceCount > 0);
         Assert.True(brokenAudit.ConsistencyScore < 95.0);
-    }
+    }
+
 [Fact]
     public void Run201_AuditMarkdownTaskLists_ValidatesGfmCheckboxesAndCompletionMetrics()
     {
@@ -3552,5 +3553,57 @@ public class TextSearchTests
         Assert.True(brokenAudit.MalformedCount >= 2);
         Assert.True(brokenAudit.OrphanedCount >= 1);
         Assert.True(brokenAudit.ComplianceScore < 75.0);
-    }
-}
+    }
+
+
+    [Fact]
+    public void Run202_AuditMarkdownFootnotes_ValidatesReferencesDefinitionsAndOrphans()
+    {
+        // 1. Empty markdown
+        var emptyAudit = TextSearch.AuditMarkdownFootnotes("");
+        Assert.Equal(0, emptyAudit.TotalDefinitions);
+        Assert.Equal(0, emptyAudit.TotalReferences);
+        Assert.Equal(100.0, emptyAudit.StructuralIntegrityScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+
+        // 2. Clean doc with resolved footnotes
+        var cleanDoc = string.Join("\n",
+            "# Footnote Document",
+            "Here is the first claim[^1] and a second claim[^2].",
+            "",
+            "[^1]: First citation reference.",
+            "[^2]: Second citation reference."
+        );
+        var cleanAudit = TextSearch.AuditMarkdownFootnotes(cleanDoc);
+        Assert.Equal(2, cleanAudit.TotalDefinitions);
+        Assert.Equal(2, cleanAudit.TotalReferences);
+        Assert.Equal(2, cleanAudit.ResolvedCount);
+        Assert.Equal(0, cleanAudit.MissingDefinitionCount);
+        Assert.Equal(0, cleanAudit.UnreferencedDefinitionCount);
+        Assert.True(cleanAudit.StructuralIntegrityScore >= 95.0);
+
+        string formatted = TextSearch.FormatFootnotesSummary(
+            cleanAudit.TotalDefinitions, cleanAudit.TotalReferences, cleanAudit.ResolvedCount,
+            cleanAudit.MissingDefinitionCount, cleanAudit.UnreferencedDefinitionCount,
+            cleanAudit.DuplicateDefinitionCount, cleanAudit.IsSequentialNumeric,
+            cleanAudit.StructuralIntegrityScore, cleanAudit.Category);
+        Assert.Equal(cleanAudit.Summary, formatted);
+
+        // 3. Broken doc with missing def, orphan def, duplicate def
+        var brokenDoc = string.Join("\n",
+            "Reference with missing definition[^missing].",
+            "Another citation[^dup].",
+            "",
+            "[^orphan]: Defined but never cited.",
+            "[^dup]: First definition.",
+            "[^dup]: Duplicate definition."
+        );
+        var brokenAudit = TextSearch.AuditMarkdownFootnotes(brokenDoc);
+        Assert.True(brokenAudit.MissingDefinitionCount >= 1);
+        Assert.True(brokenAudit.UnreferencedDefinitionCount >= 1);
+        Assert.True(brokenAudit.DuplicateDefinitionCount >= 1);
+        Assert.True(brokenAudit.StructuralIntegrityScore < 70.0);
+    }
+
+}
+

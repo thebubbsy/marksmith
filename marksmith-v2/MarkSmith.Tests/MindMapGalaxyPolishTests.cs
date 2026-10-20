@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -4236,5 +4236,58 @@ namespace MarkSmith.Tests
             Assert.False(cyclicAudit.IsAcyclicDag);
             Assert.True(cyclicAudit.AcyclicComplianceScore < 85.0);
         }
+
+        [Fact]
+        public void Run202_AuditGraphBipartitenessAndOddCycles_ValidatesColoringAndPartitions()
+        {
+            // 1. Empty graph
+            var emptyAudit = MindMapStudioViewModel.AuditGraphBipartitenessAndOddCycles(null, null);
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.True(emptyAudit.IsBipartite);
+            Assert.Equal(100.0, emptyAudit.BipartitePartitionScore);
+            Assert.Equal("Empty Galaxy", emptyAudit.Category);
+
+            // 2. Bipartite graph (even cycle / tree): 1 - 2, 2 - 3, 3 - 4
+            var n1 = new MindMapNode { Id = "1", Title = "A" };
+            var n2 = new MindMapNode { Id = "2", Title = "B" };
+            var n3 = new MindMapNode { Id = "3", Title = "C" };
+            var n4 = new MindMapNode { Id = "4", Title = "D" };
+
+            var bipLinks = new List<MindMapLink>
+            {
+                new MindMapLink { Id = "e1", SourceNodeId = "1", TargetNodeId = "2" },
+                new MindMapLink { Id = "e2", SourceNodeId = "2", TargetNodeId = "3" },
+                new MindMapLink { Id = "e3", SourceNodeId = "3", TargetNodeId = "4" }
+            };
+
+            var bipAudit = MindMapStudioViewModel.AuditGraphBipartitenessAndOddCycles(
+                new[] { n1, n2, n3, n4 }, bipLinks);
+            Assert.Equal(4, bipAudit.TotalNodes);
+            Assert.Equal(3, bipAudit.TotalEdges);
+            Assert.True(bipAudit.IsBipartite);
+            Assert.Equal(0, bipAudit.ConflictEdgeCount);
+            Assert.Equal(100.0, bipAudit.BipartitePartitionScore);
+
+            string formatted = MindMapStudioViewModel.FormatBipartitenessSummary(
+                bipAudit.TotalNodes, bipAudit.TotalEdges, bipAudit.IsBipartite,
+                bipAudit.OddCycleCount, bipAudit.ConflictEdgeCount,
+                bipAudit.PartitionASize, bipAudit.PartitionBSize,
+                bipAudit.BipartitePartitionScore, bipAudit.Category, false);
+            Assert.Equal(bipAudit.Summary, formatted);
+
+            // 3. Non-bipartite graph (triangle / odd cycle): 1 - 2, 2 - 3, 3 - 1
+            var triLinks = new List<MindMapLink>
+            {
+                new MindMapLink { Id = "t1", SourceNodeId = "1", TargetNodeId = "2" },
+                new MindMapLink { Id = "t2", SourceNodeId = "2", TargetNodeId = "3" },
+                new MindMapLink { Id = "t3", SourceNodeId = "3", TargetNodeId = "1" }
+            };
+
+            var triAudit = MindMapStudioViewModel.AuditGraphBipartitenessAndOddCycles(
+                new[] { n1, n2, n3 }, triLinks);
+            Assert.False(triAudit.IsBipartite);
+            Assert.True(triAudit.ConflictEdgeCount >= 1);
+            Assert.True(triAudit.BipartitePartitionScore < 80.0);
+        }
     }
-}
+}

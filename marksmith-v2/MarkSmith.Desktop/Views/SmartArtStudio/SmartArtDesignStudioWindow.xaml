@@ -437,10 +437,16 @@
                                         </MenuFlyoutItem>
                                         <MenuFlyoutItem x:Name="OutlineStatsAuditTargetBullseyeProgressionItem" Text="Audit SmartArt concentric target / bullseye ring radius progression &amp; area balance" Click="OnOutlineStatsAuditTargetBullseyeProgressionClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="OutlineStatsAuditPyramidProportionalityItem" Text="Audit SmartArt segmented pyramid / layer hierarchy proportionality &amp; apex fit" Click="OnOutlineStatsAuditPyramidProportionalityClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+
+                                        <MenuFlyoutItem x:Name="OutlineStatsAuditPyramidProportionalityItem" Text="Audit SmartArt segmented pyramid / layer hierarchy proportionality &amp; apex fit" Click="OnOutlineStatsAuditPyramidProportionalityClick">
+
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+
+                                        </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="OutlineStatsAuditFunnelStageProportionalityItem" Text="Audit funnel / pipeline stage conversion rate proportionality" Click="OnOutlineStatsAuditFunnelStageProportionalityClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

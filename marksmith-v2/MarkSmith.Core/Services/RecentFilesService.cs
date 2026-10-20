@@ -5629,8 +5629,10 @@ public sealed class RecentFilesService
         }
 
         return sb.ToString().TrimEnd();
-    }
-
+    }
+
+
+
     public static string AlignMarkdownTableColumns(string tableMarkdown)
     {
         if (string.IsNullOrWhiteSpace(tableMarkdown)) return tableMarkdown ?? string.Empty;
@@ -5688,6 +5690,105 @@ public sealed class RecentFilesService
         }
         return sb.ToString().TrimEnd();
     }
+
+    public static WorkspaceTableAutoFixResult ApplyWorkspaceTableAutoAlignmentFixes(
+        IReadOnlyList<string>? explicitFiles = null,
+        bool dryRun = false,
+        Func<string, bool>? fileExistsProvider = null,
+        Func<string, string>? contentReader = null,
+        Action<string, string>? contentWriter = null)
+    {
+        var files = explicitFiles ?? Array.Empty<string>();
+        int filesScanned = 0;
+        int filesModified = 0;
+        int tablesAligned = 0;
+        int pipesPadded = 0;
+
+        foreach (var file in files)
+        {
+            if (string.IsNullOrWhiteSpace(file)) continue;
+            bool exists = fileExistsProvider?.Invoke(file) ?? System.IO.File.Exists(file);
+            if (!exists) continue;
+
+            string content = contentReader?.Invoke(file) ?? System.IO.File.ReadAllText(file);
+            filesScanned++;
+
+            var lines = content.Replace("\r\n", "\n").Split('\n');
+            var newLines = new List<string>();
+            bool inCodeFence = false;
+            var currentTableLines = new List<string>();
+            bool fileChanged = false;
+
+            void FlushCurrentTable()
+            {
+                if (currentTableLines.Count >= 2 && currentTableLines[1].Trim().Trim('|').Split('|').Any(c => c.Trim().StartsWith("-") || c.Trim().StartsWith(":-")))
+                {
+                    string rawTable = string.Join("\n", currentTableLines);
+                    string aligned = AlignMarkdownTableColumns(rawTable);
+                    if (aligned != rawTable)
+                    {
+                        tablesAligned++;
+                        fileChanged = true;
+                        newLines.AddRange(aligned.Split('\n'));
+                        pipesPadded += Math.Max(0, aligned.Length - rawTable.Length);
+                        currentTableLines.Clear();
+                        return;
+                    }
+                }
+                newLines.AddRange(currentTableLines);
+                currentTableLines.Clear();
+            }
+
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string line = lines[i];
+                string trimmed = line.Trim();
+
+                if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+                {
+                    FlushCurrentTable();
+                    inCodeFence = !inCodeFence;
+                    newLines.Add(line);
+                    continue;
+                }
+
+                if (!inCodeFence && trimmed.StartsWith("|") && trimmed.EndsWith("|") && trimmed.Contains('|'))
+                {
+                    currentTableLines.Add(line);
+                }
+                else
+                {
+                    FlushCurrentTable();
+                    newLines.Add(line);
+                }
+            }
+            FlushCurrentTable();
+
+            if (fileChanged)
+            {
+                filesModified++;
+                if (!dryRun)
+                {
+                    string updatedContent = string.Join("\n", newLines);
+                    if (contentWriter != null)
+                    {
+                        contentWriter(file, updatedContent);
+                    }
+                    else
+                    {
+                        System.IO.File.WriteAllText(file, updatedContent);
+                    }
+                }
+            }
+        }
+
+        string dryStr = dryRun ? "Dry-run: " : "";
+        string summary = $"{dryStr}Workspace markdown table auto-fix: {filesScanned} files scanned, {filesModified} modified, {tablesAligned} tables aligned with column padding";
+
+        return new WorkspaceTableAutoFixResult(
+            filesScanned, filesModified, tablesAligned, pipesPadded, dryRun, summary);
+    }
+
 
     public static string FormatWorkspaceTableFormattingSummary(
         int totalDocs, int totalTables, int validCount, int raggedCount,
@@ -11200,3 +11301,13 @@ public sealed record WorkspaceHeadingSlugAndTocAudit(
     IReadOnlyList<HeadingSlugItem> Items,
     string Category,
     string Summary);
+
+
+public sealed record WorkspaceTableAutoFixResult(
+    int TotalFilesScanned,
+    int TotalFilesModified,
+    int TotalTablesAligned,
+    int TotalPipesPadded,
+    bool IsDryRun,
+    string Summary);
+

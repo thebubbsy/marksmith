@@ -344,9 +344,15 @@
                                     </MenuFlyoutItem>
                                     <MenuFlyoutItem x:Name="AuditGraphDiameterSmallWorldItem" Text="Audit graph diameter, average path length &amp; small-world navigation" Click="OnAuditGraphDiameterAndSmallWorldClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditGraphCyclesFeedbackArcSetItem" Text="Audit graph cycles, back-edges &amp; feedback arc set minimization" Click="OnAuditGraphCyclesAndFeedbackArcSetClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+
+                                    <MenuFlyoutItem x:Name="AuditGraphCyclesFeedbackArcSetItem" Text="Audit graph cycles, back-edges &amp; feedback arc set minimization" Click="OnAuditGraphCyclesAndFeedbackArcSetClick">
+
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+
+                                    </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditGraphBipartitenessOddCyclesItem" Text="Audit graph bipartiteness, 2-colorability &amp; odd-length cycles" Click="OnAuditGraphBipartitenessAndOddCyclesClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
                                     <MenuFlyoutItem x:Name="AuditGraphDegreeDistributionItem" Text="Audit node degree distribution skewness, hub centrality &amp; scale-free network" Click="OnAuditGraphDegreeDistributionClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>

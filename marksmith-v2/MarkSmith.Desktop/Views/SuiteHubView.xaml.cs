@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -2499,8 +2499,29 @@ private async void OnAuditWorkspaceMarkdownTableAutoAlignAndExportClick(object s
         {
             SetNotification($"Audit failed: {ex.Message}", success: false);
         }
-    }
-
+    }
+
+
+
+    private async void OnApplyWorkspaceMarkdownTableAutoAlignClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var files = App.RecentFiles?.Load() ?? new List<string>();
+            var result = RecentFilesService.ApplyWorkspaceTableAutoAlignmentFixes(explicitFiles: files);
+            await Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            SetNotification(result.Summary, success: true);
+            if (RecentDocsActionBtn != null)
+            {
+                Services.CopyFeedback.ApplyButtonTick(RecentDocsActionBtn, null, "\u2713 Auto-Align");
+            }
+        }
+        catch (Exception ex)
+        {
+            SetNotification($"Table auto-fix failed: {ex.Message}", success: false);
+        }
+    }
+
     private async void OnAuditWorkspaceMarkdownTableAutoAlignClick(object sender, RoutedEventArgs e)
     {
         try

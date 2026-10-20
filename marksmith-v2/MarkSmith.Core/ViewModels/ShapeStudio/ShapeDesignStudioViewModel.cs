@@ -9544,7 +9544,8 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
 
         string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · 100% uniform solid stroke";
         return $"Stroke weight & dash uniformity audit ({scopeStr}{shapeStr} · {category} · {harmonyScore:0.#}% harmony): avg {avgWeight:0.##}pt (±{stdDev:0.##}pt){details}";
-    }
+    }
+
 
     public DiagramShapeElevationShadowAudit AuditShapeElevationAndShadowHarmony(bool selectionOnly = false)
         => AuditShapeElevationAndShadowHarmony(selectionOnly && Shapes.Any(s => s.IsSelected) ? Shapes.Where(s => s.IsSelected) : Shapes, selectionOnly);
@@ -9675,6 +9676,182 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         string issuePart = alerts.Count > 0 ? " · " + string.Join(" · ", alerts) : " · Clean 2.5D depth hierarchy";
         return $"Diagram shape visual elevation & shadow harmony audit ({scopeStr}{shapeStr}{issuePart} · {category} · {harmonyScore:0.#}% harmony score)";
     }
+
+
+    public DiagramShapeGroupNestingAudit AuditShapeGroupNestingHierarchy(bool selectionOnly = false)
+    {
+        var selected = Shapes.Where(s => s.IsSelected).ToList();
+        var targets = (selectionOnly && selected.Count > 0)
+            ? selected
+            : Shapes.ToList();
+
+        bool isSelection = selectionOnly && selected.Count > 0;
+        var audit = AuditShapeGroupNestingHierarchy(targets, Shapes.ToList(), isSelection);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static DiagramShapeGroupNestingAudit AuditShapeGroupNestingHierarchy(
+        IEnumerable<ShapeCanvasItemViewModel>? targetShapes,
+        IEnumerable<ShapeCanvasItemViewModel>? allShapes,
+        bool isSelection = false)
+    {
+        var list = (allShapes ?? Enumerable.Empty<ShapeCanvasItemViewModel>()).Where(s => s != null && !s.IsLine).ToList();
+        var targets = (targetShapes ?? list).Where(s => s != null && !s.IsLine).ToList();
+
+        int totalShapes = list.Count;
+        if (totalShapes == 0)
+        {
+            string emptySummary = FormatGroupNestingSummary(0, 0, 0, 0.0, 0, 100.0, "Empty Canvas", isSelection);
+            return new DiagramShapeGroupNestingAudit(
+                0, 0, 0, 0.0, 0, 100.0,
+                Array.Empty<ShapeNestingTierItem>(),
+                "Empty Canvas", isSelection, emptySummary);
+        }
+
+        var childrenMap = new Dictionary<string, List<ShapeCanvasItemViewModel>>();
+        var parentMap = new Dictionary<string, ShapeCanvasItemViewModel>();
+        foreach (var s in list) childrenMap[s.Id] = new List<ShapeCanvasItemViewModel>();
+
+        var sortedByArea = list.OrderByDescending(s => s.Width * s.Height).ToList();
+        foreach (var candidate in sortedByArea)
+        {
+            double cLeft = candidate.X;
+            double cTop = candidate.Y;
+            double cRight = candidate.X + candidate.Width;
+            double cBottom = candidate.Y + candidate.Height;
+            double cArea = candidate.Width * candidate.Height;
+
+            foreach (var potentialChild in sortedByArea)
+            {
+                if (potentialChild.Id == candidate.Id) continue;
+                double chArea = potentialChild.Width * potentialChild.Height;
+                if (chArea <= 0 || cArea < chArea * 1.25) continue;
+
+                double chCenterX = potentialChild.X + (potentialChild.Width / 2.0);
+                double chCenterY = potentialChild.Y + (potentialChild.Height / 2.0);
+
+                if (chCenterX >= cLeft && chCenterX <= cRight &&
+                    chCenterY >= cTop && chCenterY <= cBottom)
+                {
+                    if (parentMap.TryGetValue(potentialChild.Id, out var existingParent))
+                    {
+                        double epArea = existingParent.Width * existingParent.Height;
+                        if (cArea < epArea)
+                        {
+                            childrenMap[existingParent.Id].Remove(potentialChild);
+                            parentMap[potentialChild.Id] = candidate;
+                            childrenMap[candidate.Id].Add(potentialChild);
+                        }
+                    }
+                    else
+                    {
+                        parentMap[potentialChild.Id] = candidate;
+                        childrenMap[candidate.Id].Add(potentialChild);
+                    }
+                }
+            }
+        }
+
+        int GetDepth(ShapeCanvasItemViewModel shape)
+        {
+            int d = 0;
+            var curr = shape;
+            var visited = new HashSet<string>();
+            while (parentMap.TryGetValue(curr.Id, out var p) && visited.Add(curr.Id))
+            {
+                d++;
+                curr = p;
+            }
+            return d;
+        }
+
+        int GetSubtreeDescendants(ShapeCanvasItemViewModel shape, HashSet<string> visited)
+        {
+            if (!visited.Add(shape.Id)) return 0;
+            int count = 0;
+            if (childrenMap.TryGetValue(shape.Id, out var chList))
+            {
+                count += chList.Count;
+                foreach (var ch in chList)
+                    count += GetSubtreeDescendants(ch, visited);
+            }
+            return count;
+        }
+
+        var items = new List<ShapeNestingTierItem>();
+        int maxDepth = 0;
+        int totalDepths = 0;
+        int overcrowdedContainers = 0;
+        int containerCount = 0;
+
+        foreach (var s in targets)
+        {
+            int depth = GetDepth(s);
+            if (depth > maxDepth) maxDepth = depth;
+            totalDepths += depth;
+
+            int directChildren = childrenMap.TryGetValue(s.Id, out var ch) ? ch.Count : 0;
+            int descendants = GetSubtreeDescendants(s, new HashSet<string>());
+            if (directChildren > 0) containerCount++;
+            if (directChildren > 8) overcrowdedContainers++;
+
+            string status = directChildren > 0
+                ? (depth >= 3 ? "Deep Nested Container" : "Standard Container Group")
+                : (depth >= 3 ? "Deep Nested Leaf" : "Standard Leaf Shape");
+
+            string recommendation = depth >= 3
+                ? $"Nesting depth {depth} exceeds recommended 2 levels; consider flattening group hierarchy"
+                : directChildren > 8
+                    ? $"Container has {directChildren} direct children; group into sub-clusters"
+                    : "Optimal group nesting depth";
+
+            items.Add(new ShapeNestingTierItem(
+                s.Id, s.Name ?? s.Prst, depth, directChildren, descendants,
+                Math.Round(s.Width * s.Height, 1), status, recommendation));
+        }
+
+        double avgDepth = targets.Count > 0 ? Math.Round((double)totalDepths / targets.Count, 2) : 0.0;
+
+        double score = 100.0;
+        if (maxDepth > 2) score -= ((maxDepth - 2) * 18.0);
+        if (overcrowdedContainers > 0) score -= (overcrowdedContainers * 12.0);
+        score = Math.Round(Math.Clamp(score, 0.0, 100.0), 1);
+
+        string category = score switch
+        {
+            >= 90.0 => "Optimal Group Hierarchy & Depth",
+            >= 75.0 => "Acceptable Nesting Depth",
+            >= 60.0 => "Deep Nesting Complexity Drift",
+            >= 40.0 => "High Nesting Cascading Hazard",
+            _ => "Severe Deep Group Entanglement"
+        };
+
+        string summary = FormatGroupNestingSummary(
+            targets.Count, containerCount, maxDepth, avgDepth, overcrowdedContainers,
+            score, category, isSelection);
+
+        return new DiagramShapeGroupNestingAudit(
+            targets.Count, containerCount, maxDepth, avgDepth, overcrowdedContainers,
+            score, items, category, isSelection, summary);
+    }
+
+    public static string FormatGroupNestingSummary(
+        int totalShapes, int containers, int maxDepth, double avgDepth, int overcrowded,
+        double score, string category, bool isSelection)
+    {
+        string scope = isSelection ? "Selection · " : "";
+        if (totalShapes == 0) return $"Shape group nesting audit ({scope}0 shapes): Canvas is empty";
+
+        var parts = new List<string>();
+        parts.Add($"{totalShapes} shapes, {containers} containers");
+        parts.Add($"max depth {maxDepth}, avg {avgDepth:0.##}");
+        if (overcrowded > 0) parts.Add($"⚠ {overcrowded} overcrowded");
+
+        string details = string.Join(" · ", parts);
+        return $"Shape group nesting audit ({scope}{details} · {category} · {score:0.#}% score)";
+    }
+
 
 
     /// <summary>
@@ -13705,7 +13882,8 @@ public sealed record DiagramConnectorPortAttachmentAudit(
     IReadOnlyList<ConnectorAttachmentPortItem> Items,
     string Category,
     bool IsSelectionScope,
-    string Summary);
+    string Summary);
+
 /// <summary>
 /// Represents evaluated simulated elevation, stroke depth, Z-order, and layering harmony for an individual shape.
 /// </summary>
@@ -13732,4 +13910,28 @@ public sealed record DiagramShapeElevationShadowAudit(
     IReadOnlyList<DiagramShapeElevationShadowItem> Items,
     string Category,
     bool IsSelectionScope,
-    string Summary);
+    string Summary);
+
+
+public sealed record ShapeNestingTierItem(
+    string ShapeId,
+    string Name,
+    int Depth,
+    int DirectChildCount,
+    int TotalDescendantCount,
+    double BoundingArea,
+    string Status,
+    string Recommendation);
+
+public sealed record DiagramShapeGroupNestingAudit(
+    int TotalShapes,
+    int TotalContainers,
+    int MaxNestingDepth,
+    double AverageNestingDepth,
+    int OvercrowdedContainerCount,
+    double HierarchyComplexityScore,
+    IReadOnlyList<ShapeNestingTierItem> Items,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);
+

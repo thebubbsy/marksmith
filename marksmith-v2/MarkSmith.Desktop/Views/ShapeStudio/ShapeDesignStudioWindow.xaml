@@ -810,10 +810,16 @@
                                     </MenuFlyoutItem>
                                     <MenuFlyoutItem x:Name="SelectionAuditShapeStrokeDashItem" Text="Audit diagram shape stroke dash pattern, border weight &amp; cap uniformity" Click="OnSelectionAuditShapeStrokeDashClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="SelectionAuditShapeElevationShadowItem" Text="Audit diagram shape shadow, visual elevation &amp; 2.5D layering harmony" Click="OnSelectionAuditShapeElevationShadowClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+
+                                    <MenuFlyoutItem x:Name="SelectionAuditShapeElevationShadowItem" Text="Audit diagram shape shadow, visual elevation &amp; 2.5D layering harmony" Click="OnSelectionAuditShapeElevationShadowClick">
+
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+
+                                    </MenuFlyoutItem>
+                    <MenuFlyoutItem x:Name="SelectionAuditShapeGroupNestingItem" Text="Audit shape group nesting depth &amp; hierarchy complexity" Click="OnSelectionAuditShapeGroupNestingClick">
+                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                    </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.UI.Xaml;
@@ -6677,16 +6677,32 @@ namespace MarkSmith.Views.ShapeStudio
         var result = ViewModel.AuditShapeStrokeDashUniformity(selectionOnly: ViewModel.Shapes.Any(s => s.IsSelected));
         _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
         ViewModel.StatusMessage = $"✓ {result.Summary}";
-    }
-
-    private void OnSelectionAuditShapeElevationShadowClick(object sender, RoutedEventArgs e)
-    {
-        if (ViewModel == null) return;
-        var result = ViewModel.AuditShapeElevationAndShadowHarmony(selectionOnly: ViewModel.Shapes.Any(s => s.IsSelected));
-        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-        ViewModel.StatusMessage = $"✓ {result.Summary}";
     }
 
+
+
+    private void OnSelectionAuditShapeElevationShadowClick(object sender, RoutedEventArgs e)
+
+    {
+
+        if (ViewModel == null) return;
+
+        var result = ViewModel.AuditShapeElevationAndShadowHarmony(selectionOnly: ViewModel.Shapes.Any(s => s.IsSelected));
+
+        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+
+        ViewModel.StatusMessage = $"✓ {result.Summary}";
+
+    }
+
+
+    private void OnSelectionAuditShapeGroupNestingClick(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel == null) return;
+        var result = ViewModel.AuditShapeGroupNestingHierarchy(selectionOnly: ViewModel.Shapes.Any(s => s.IsSelected));
+        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+        ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+    }
     }
 }
 

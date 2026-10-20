@@ -12292,6 +12292,175 @@ namespace MarkSmith.ViewModels.MindMap
             return $"Mind Map cycle audit ({scope}{details} · {category} · {score:0.#}% DAG score)";
         }
 
+
+        public GraphBipartiteOddCyclesAudit AuditGraphBipartitenessAndOddCycles(bool selectionOnly = false)
+        {
+            var selected = Nodes.Where(n => n.IsSelected).ToList();
+            var targetNodes = (selectionOnly && selected.Count > 0)
+                ? selected
+                : Nodes.ToList();
+
+            bool isSelection = selectionOnly && selected.Count > 0;
+            var nodeIds = new HashSet<string>(targetNodes.Select(n => n.Id));
+            var relevantLinks = Links.Where(l => nodeIds.Contains(l.SourceNodeId) && nodeIds.Contains(l.TargetNodeId)).ToList();
+
+            var audit = AuditGraphBipartitenessAndOddCycles(targetNodes.Select(n => n.Model), relevantLinks.Select(l => l.Model), isSelection);
+            StatusMessage = audit.Summary;
+            return audit;
+        }
+
+        public static GraphBipartiteOddCyclesAudit AuditGraphBipartitenessAndOddCycles(
+            IEnumerable<MindMapNode>? nodes,
+            IEnumerable<MindMapLink>? links,
+            bool isSelection = false)
+        {
+            var nodeList = nodes?.ToList() ?? new List<MindMapNode>();
+            var linkList = links?.ToList() ?? new List<MindMapLink>();
+            int totalNodes = nodeList.Count;
+            int totalEdges = linkList.Count;
+
+            if (totalNodes == 0)
+            {
+                string emptySummary = FormatBipartitenessSummary(0, 0, true, 0, 0, 0, 0, 100.0, "Empty Galaxy", isSelection);
+                return new GraphBipartiteOddCyclesAudit(
+                    0, 0, true, 0, 0, 0, 0, 100.0,
+                    Array.Empty<GraphBipartiteConflictItem>(),
+                    "Empty Galaxy", isSelection, emptySummary);
+            }
+
+            var nodeMap = nodeList.ToDictionary(n => n.Id, n => n.Title ?? n.Id);
+            var adj = new Dictionary<string, List<(string TargetId, string LinkId)>>();
+            foreach (var node in nodeList) adj[node.Id] = new List<(string TargetId, string LinkId)>();
+
+            var selfLoops = new List<GraphBipartiteConflictItem>();
+            foreach (var link in linkList)
+            {
+                if (adj.ContainsKey(link.SourceNodeId) && adj.ContainsKey(link.TargetNodeId))
+                {
+                    if (link.SourceNodeId == link.TargetNodeId)
+                    {
+                        string title = nodeMap.TryGetValue(link.SourceNodeId, out var t) ? t : link.SourceNodeId;
+                        selfLoops.Add(new GraphBipartiteConflictItem(
+                            selfLoops.Count + 1,
+                            link.SourceNodeId, title,
+                            link.TargetNodeId, title,
+                            "SelfLoop",
+                            $"{title} -> {title}",
+                            "Self-loops violate 2-colorability; remove reflexivity"));
+                        continue;
+                    }
+                    adj[link.SourceNodeId].Add((link.TargetNodeId, link.Id));
+                    adj[link.TargetNodeId].Add((link.SourceNodeId, link.Id));
+                }
+            }
+
+            var color = new Dictionary<string, int>();
+            var parent = new Dictionary<string, string?>();
+            var conflicts = new List<GraphBipartiteConflictItem>(selfLoops);
+            int oddCycleCount = selfLoops.Count;
+
+            foreach (var startNode in nodeList)
+            {
+                if (color.ContainsKey(startNode.Id)) continue;
+
+                var queue = new Queue<string>();
+                color[startNode.Id] = 0;
+                parent[startNode.Id] = null;
+                queue.Enqueue(startNode.Id);
+
+                while (queue.Count > 0)
+                {
+                    var u = queue.Dequeue();
+                    int c = color[u];
+                    int nextC = 1 - c;
+
+                    if (adj.TryGetValue(u, out var neighbors))
+                    {
+                        foreach (var (v, linkId) in neighbors)
+                        {
+                            if (parent.TryGetValue(u, out var p) && p == v)
+                            {
+                                continue;
+                            }
+
+                            if (!color.TryGetValue(v, out int vColor))
+                            {
+                                color[v] = nextC;
+                                parent[v] = u;
+                                queue.Enqueue(v);
+                            }
+                            else if (vColor == c)
+                            {
+                                string uTitle = nodeMap.TryGetValue(u, out var ut) ? ut : u;
+                                string vTitle = nodeMap.TryGetValue(v, out var vt) ? vt : v;
+                                string cycleStr = $"{uTitle} <-> {vTitle}";
+
+                                conflicts.Add(new GraphBipartiteConflictItem(
+                                    conflicts.Count + 1,
+                                    u, uTitle, v, vTitle,
+                                    "SameColorPartitionConflict",
+                                    cycleStr,
+                                    $"Edge connects nodes of identical partition color {c}; partition conflict"));
+                                oddCycleCount++;
+                            }
+                        }
+                    }
+                }
+            }
+
+            int partitionASize = color.Values.Count(c => c == 0);
+            int partitionBSize = color.Values.Count(c => c == 1);
+            int conflictEdgeCount = conflicts.Count;
+            bool isBipartite = conflictEdgeCount == 0;
+
+            double score = 100.0;
+            if (!isBipartite)
+            {
+                score -= (oddCycleCount * 25.0);
+                score -= (conflictEdgeCount * 10.0);
+            }
+            score = Math.Round(Math.Clamp(score, 0.0, 100.0), 1);
+
+            string category = score switch
+            {
+                >= 95.0 => "Pure Bipartite 2-Colorable Graph",
+                >= 80.0 => "Near-Bipartite Minor Conflict",
+                >= 60.0 => "Moderate Triadic Odd Cycles",
+                >= 40.0 => "Dense Odd Cycle Entanglement",
+                _ => "Non-Bipartite Complex Network"
+            };
+
+            string summary = FormatBipartitenessSummary(
+                totalNodes, totalEdges, isBipartite, oddCycleCount, conflictEdgeCount,
+                partitionASize, partitionBSize, score, category, isSelection);
+
+            return new GraphBipartiteOddCyclesAudit(
+                totalNodes, totalEdges, isBipartite, oddCycleCount, conflictEdgeCount,
+                partitionASize, partitionBSize, score, conflicts, category, isSelection, summary);
+        }
+
+        public static string FormatBipartitenessSummary(
+            int totalNodes, int totalEdges, bool isBipartite, int oddCycles, int conflicts,
+            int partA, int partB, double score, string category, bool isSelection)
+        {
+            string scope = isSelection ? "Selection · " : "";
+            if (totalNodes == 0) return $"Mind map graph bipartiteness audit ({scope}0 nodes): Empty galaxy";
+
+            var parts = new List<string>();
+            parts.Add($"{totalNodes} nodes, {totalEdges} edges");
+            if (isBipartite)
+                parts.Add($"2-colorable: Set A={partA}, Set B={partB}");
+            else
+            {
+                if (oddCycles > 0) parts.Add($"⚠ {oddCycles} odd cycles");
+                if (conflicts > 0) parts.Add($"🚨 {conflicts} partition conflicts");
+            }
+
+            string details = string.Join(" · ", parts);
+            return $"Mind map graph bipartiteness audit ({scope}{details} · {category} · {score:0.#}% score)";
+        }
+
+
         public GraphBiconnectedComponentsAudit AuditGraphArticulationPointsAndBiconnectedComponents(bool selectionOnly = false)
         {
             var selected = Nodes.Where(n => n.IsSelected).ToList();
@@ -13902,6 +14071,38 @@ namespace MarkSmith.ViewModels.MindMap
         double AcyclicComplianceScore,
         IReadOnlyList<GraphCycleItem> Cycles,
         IReadOnlyList<string> FeedbackArcSet,
+        string Category,
+        bool IsSelectionScope,
+        string Summary);
+
+
+    /// <summary>
+    /// Represents an individual coloring conflict or odd-length cycle within the mind map graph.
+    /// </summary>
+    public sealed record GraphBipartiteConflictItem(
+        int ConflictIndex,
+        string SourceNodeId,
+        string SourceTitle,
+        string TargetNodeId,
+        string TargetTitle,
+        string ConflictType,
+        string OddCycleSequence,
+        string Recommendation);
+
+    /// <summary>
+    /// Represents the result of an audit of mind map graph bipartiteness, 2-colorability,
+    /// odd-length cycle detection, and partition balance.
+    /// </summary>
+    public sealed record GraphBipartiteOddCyclesAudit(
+        int TotalNodes,
+        int TotalEdges,
+        bool IsBipartite,
+        int OddCycleCount,
+        int ConflictEdgeCount,
+        int PartitionASize,
+        int PartitionBSize,
+        double BipartitePartitionScore,
+        IReadOnlyList<GraphBipartiteConflictItem> Conflicts,
         string Category,
         bool IsSelectionScope,
         string Summary);

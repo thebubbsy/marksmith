@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -5098,14 +5098,22 @@ namespace MarkSmith.Views.SmartArtStudio
         var result = ViewModel.AuditTargetBullseyeRadiusProgression();
         _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
         ViewModel.StatusMessage = $"✓ {result.Summary}";
-    }
-
-    private void OnOutlineStatsAuditPyramidProportionalityClick(object sender, RoutedEventArgs e)
-    {
-        if (ViewModel == null) return;
-        var result = ViewModel.AuditPyramidLayerProportionality();
-        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-        ViewModel.StatusMessage = $"✓ {result.Summary}";
+    }
+
+
+
+    private void OnOutlineStatsAuditPyramidProportionalityClick(object sender, RoutedEventArgs e)
+
+    {
+
+        if (ViewModel == null) return;
+
+        var result = ViewModel.AuditPyramidLayerProportionality();
+
+        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+
+        ViewModel.StatusMessage = $"✓ {result.Summary}";
+
     }
 
 
@@ -5117,7 +5125,15 @@ namespace MarkSmith.Views.SmartArtStudio
         private readonly List<StudioNodeViewModel> _outlineSearchMatches = new();
         private int _currentOutlineMatchIndex = -1;
 
-        private void OnOutlineSearchBoxTextChanged(object sender, TextChangedEventArgs e)
+        private void OnOutlineStatsAuditFunnelStageProportionalityClick(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel == null) return;
+        var result = ViewModel.AuditFunnelStageProportionality();
+        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+        ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+    }
+
+    private void OnOutlineSearchBoxTextChanged(object sender, TextChangedEventArgs e)
         {
             PerformOutlineSearch(OutlineSearchBox?.Text ?? "");
         }

@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.UI.Composition.SystemBackdrops;
 using Microsoft.Windows.AppNotifications;
@@ -12085,6 +12085,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             AnnounceStatus(summary);
         };
         menu.Items.Add(auditTaskListsItem);
+
+        var auditFootnotesIntegrityItem = new MenuFlyoutItem
+        {
+            Text = "Audit Markdown Footnote Reference & Definition Integrity",
+            Icon = new FontIcon { Glyph = "\uE7C1" }
+        };
+        auditFootnotesIntegrityItem.Click += (_, _) =>
+        {
+            var docText = EditorDocument();
+            var summary = MarkSmith.Services.TextSearch.AuditMarkdownFootnotes(docText).Summary;
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditFootnotesIntegrityItem);
 
         menu.ShowAt(anchor);
     }

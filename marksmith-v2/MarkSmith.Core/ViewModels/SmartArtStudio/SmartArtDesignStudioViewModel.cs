@@ -3450,7 +3450,8 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
         string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · 100% radial balance";
         return $"SmartArt concentric bullseye audit ({layoutName} · {ringStr} · {category} · {score:0.#}% score){details}";
-    }
+    }
+
 
     public SmartArtPyramidHierarchyAudit AuditPyramidLayerProportionality(string? markdown = null, string? layoutName = null)
     {
@@ -3591,6 +3592,146 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         string issues = alerts.Count > 0 ? " · " + string.Join(" · ", alerts) : " · Proportional apex & base geometry";
         return $"SmartArt pyramid proportionality audit ({orient} · {tierStr}, {totalWords} words{issues} · {category} · {score:0.#}% score)";
     }
+
+
+    public SmartArtFunnelConversionAudit AuditFunnelStageProportionality(string? markdown = null, string? layoutName = null)
+    {
+        string md = markdown ?? MarkdownText;
+        string layout = layoutName ?? SelectedLayout?.DisplayName ?? "Funnel";
+        return AuditFunnelStageProportionality(md, layout, isStatic: false);
+    }
+
+    public static SmartArtFunnelConversionAudit AuditFunnelStageProportionality(string? markdown, string? layoutName = null, bool isStatic = true)
+    {
+        string layout = layoutName ?? "Funnel";
+        bool isInverted = layout.Contains("inverted", StringComparison.OrdinalIgnoreCase) ||
+                          layout.Contains("expansion", StringComparison.OrdinalIgnoreCase);
+
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            string emptySummary = FormatFunnelProportionalitySummary(0, isInverted, true, 0.0, 0, 100.0, "Empty Funnel", layout);
+            return new SmartArtFunnelConversionAudit(
+                0, isInverted, true, 0.0, 0, 100.0,
+                Array.Empty<SmartArtFunnelConversionStageItem>(),
+                "Empty Funnel", layout, emptySummary);
+        }
+
+        var lines = markdown.Replace("\r\n", "\n").Split('\n');
+        var stages = new List<(string Label, int LineNumber, List<string> SubItems)>();
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string raw = lines[i];
+            string trimmed = raw.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed)) continue;
+
+            int indent = raw.Length - raw.TrimStart().Length;
+            string clean = trimmed.TrimStart('-', '*', '+', '1', '2', '3', '4', '5', '6', '7', '8', '9', '.', ' ');
+
+            if (indent <= 1)
+            {
+                stages.Add((clean, i + 1, new List<string>()));
+            }
+            else if (stages.Count > 0)
+            {
+                stages[^1].SubItems.Add(clean);
+            }
+        }
+
+        int totalStages = stages.Count;
+        if (totalStages == 0)
+        {
+            string emptySummary = FormatFunnelProportionalitySummary(0, isInverted, true, 0.0, 0, 100.0, "Empty Funnel", layout);
+            return new SmartArtFunnelConversionAudit(
+                0, isInverted, true, 0.0, 0, 100.0,
+                Array.Empty<SmartArtFunnelConversionStageItem>(),
+                "Empty Funnel", layout, emptySummary);
+        }
+
+        var items = new List<SmartArtFunnelConversionStageItem>();
+        bool isStrictlyMonotonic = true;
+        double maxDrop = 0.0;
+        int truncationRisks = 0;
+        double prevWidth = isInverted ? 0.2 : 1.05;
+
+        for (int i = 0; i < totalStages; i++)
+        {
+            var st = stages[i];
+            double relativeWidth = isInverted
+                ? Math.Round(0.3 + (0.7 * i / Math.Max(1, totalStages - 1)), 2)
+                : Math.Round(1.0 - (0.65 * i / Math.Max(1, totalStages - 1)), 2);
+
+            double drop = (i > 0) ? Math.Abs(relativeWidth - prevWidth) / prevWidth * 100.0 : 0.0;
+            if (drop > maxDrop) maxDrop = drop;
+
+            if (isInverted)
+            {
+                if (relativeWidth < prevWidth - 0.01) isStrictlyMonotonic = false;
+            }
+            else
+            {
+                if (relativeWidth > prevWidth + 0.01) isStrictlyMonotonic = false;
+            }
+            prevWidth = relativeWidth;
+
+            bool isNarrowNeck = isInverted ? (i == 0) : (i == totalStages - 1);
+            bool hasTruncation = (isNarrowNeck && st.Label.Length > 22) ||
+                                 (relativeWidth < 0.55 && (st.Label.Length > 35 || st.SubItems.Count > 2));
+            if (hasTruncation) truncationRisks++;
+
+            string status = hasTruncation
+                ? "Truncation Risk in Narrow Stage"
+                : (!isStrictlyMonotonic ? "Non-Monotonic Stage Width Inversion" : "Optimal Stage Proportion");
+
+            string recommendation = hasTruncation
+                ? $"Stage '{st.Label}' has {st.Label.Length} chars at width ratio {relativeWidth:0.##}; shorten label for funnel neck"
+                : "Conforming funnel stage geometry";
+
+            items.Add(new SmartArtFunnelConversionStageItem(
+                i + 1, st.Label, 0, relativeWidth, Math.Round(drop, 1),
+                isStrictlyMonotonic, hasTruncation, st.SubItems.Count, status, recommendation));
+        }
+
+        double score = 100.0;
+        if (!isStrictlyMonotonic) score -= 25.0;
+        if (truncationRisks > 0) score -= (truncationRisks * 12.0);
+        if (totalStages < 2) score -= 15.0;
+        else if (totalStages > 8) score -= 10.0;
+        score = Math.Round(Math.Clamp(score, 0.0, 100.0), 1);
+
+        string category = score switch
+        {
+            >= 90.0 => "Optimal Funnel Geometry & Flow",
+            >= 75.0 => "Good Funnel Stage Proportions",
+            >= 60.0 => "Moderate Funnel Bottleneck Drift",
+            >= 40.0 => "High Narrow Stage Truncation Risk",
+            _ => "Distorted Funnel Stage Hierarchy"
+        };
+
+        string summary = FormatFunnelProportionalitySummary(
+            totalStages, isInverted, isStrictlyMonotonic, maxDrop, truncationRisks, score, category, layout);
+
+        return new SmartArtFunnelConversionAudit(
+            totalStages, isInverted, isStrictlyMonotonic, Math.Round(maxDrop, 1), truncationRisks,
+            score, items, category, layout, summary);
+    }
+
+    public static string FormatFunnelProportionalitySummary(
+        int totalStages, bool isInverted, bool isMonotonic, double maxDrop, int truncationRisks,
+        double score, string category, string layout)
+    {
+        if (totalStages == 0) return $"SmartArt funnel stage audit ({layout} · 0 stages): Empty layout";
+
+        var parts = new List<string>();
+        parts.Add($"{totalStages} stages");
+        if (isInverted) parts.Add("inverted expansion");
+        if (!isMonotonic) parts.Add("⚠ non-monotonic");
+        if (truncationRisks > 0) parts.Add($"⚠ {truncationRisks} neck truncation risks");
+
+        string details = string.Join(" · ", parts);
+        return $"SmartArt funnel stage audit ({layout} · {details} · {category} · {score:0.#}% score)";
+    }
+
 
 
     public static string FormatChevronUniformitySummary(
@@ -12041,7 +12182,8 @@ public sealed record SmartArtTargetBullseyeAudit(
     double RadialBalanceScore,
     IReadOnlyList<TargetRingInfo> Items,
     string Category,
-    string Summary);
+    string Summary);
+
 /// <summary>
 /// Represents evaluated metrics, relative width ratio, truncation risk, and apex status for an individual SmartArt pyramid tier.
 /// </summary>
@@ -12070,4 +12212,30 @@ public sealed record SmartArtPyramidHierarchyAudit(
     IReadOnlyList<PyramidLayerTierItem> Tiers,
     string Category,
     string LayoutName,
-    string Summary);
+    string Summary);
+
+
+public sealed record SmartArtFunnelConversionStageItem(
+    int StageIndex,
+    string StageName,
+    int IndentLevel,
+    double RelativeWidth,
+    double WidthDropPercentage,
+    bool IsMonotonic,
+    bool HasTruncationRisk,
+    int SubItemCount,
+    string Status,
+    string Recommendation);
+
+public sealed record SmartArtFunnelConversionAudit(
+    int TotalStages,
+    bool IsInvertedExpansion,
+    bool IsStrictlyMonotonic,
+    double MaxWidthDropPercentage,
+    int TruncationRiskCount,
+    double FunnelGeometricScore,
+    IReadOnlyList<SmartArtFunnelConversionStageItem> Stages,
+    string Category,
+    string LayoutName,
+    string Summary);
+
