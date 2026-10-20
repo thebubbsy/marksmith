@@ -6508,5 +6508,80 @@ Some paragraph in between.
         Assert.Contains("ApplyWorkspaceTableAutoAlignmentFixes", suiteCs);
     }
 
+    [Fact]
+    public void Run203_ApplyWorkspaceTableAutoAlignmentFixes_CreatesBackupsAndRestores()
+    {
+        var inMemoryStorage = new Dictionary<string, string>
+        {
+            ["doc.md"] = "| Col1 | Col2 |\n| --- | --- |\n| A | B |"
+        };
+
+        var result = RecentFilesService.ApplyWorkspaceTableAutoAlignmentFixes(
+            explicitFiles: new[] { "doc.md" },
+            dryRun: false,
+            createBackup: true,
+            fileExistsProvider: path => inMemoryStorage.ContainsKey(path),
+            contentReader: path => inMemoryStorage[path],
+            contentWriter: (path, text) => inMemoryStorage[path] = text);
+
+        Assert.Equal(1, result.TotalFilesScanned);
+        Assert.Equal(1, result.TotalFilesModified);
+        Assert.Equal(1, result.BackupsCreated);
+        Assert.True(inMemoryStorage.ContainsKey("doc.md.bak.md"));
+
+        var restoreResult = RecentFilesService.RestoreWorkspaceTableAutoAlignmentBackups(
+            explicitFiles: new[] { "doc.md" },
+            fileExistsProvider: path => inMemoryStorage.ContainsKey(path),
+            contentReader: path => inMemoryStorage[path],
+            contentWriter: (path, text) => inMemoryStorage[path] = text,
+            fileDeleter: path => inMemoryStorage.Remove(path));
+
+        Assert.Equal(1, restoreResult.TotalBackupsScanned);
+        Assert.Equal(1, restoreResult.TotalFilesRestored);
+        Assert.False(inMemoryStorage.ContainsKey("doc.md.bak.md"));
+    }
+
+    [Fact]
+    public void Run203_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // Surface 1: MainWindow - Markdown Blockquote Nesting & Callout Inheritance Auditor
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("auditBlockquoteHierarchyItem", mainCs);
+        Assert.Contains("AuditMarkdownBlockquoteNesting", mainCs);
+
+        // Surface 2: MindMapGalaxyWindow - Graph Edge Crossing & Planarity Heuristic Auditor
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditGraphEdgeIntersectionPlanarityItem", galaxyXaml);
+        Assert.Contains("OnAuditGraphEdgeIntersectionPlanarityClick", galaxyCs);
+        Assert.Contains("AuditGraphEdgeIntersectionPlanarity", galaxyCs);
+
+        // Surface 3: ShapeDesignStudioWindow - Shape Connector Anchor Point Snapping & Routing Alignment Auditor
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditConnectorRoutingAlignmentItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditConnectorRoutingAlignmentClick", shapeCs);
+        Assert.Contains("AuditConnectorAnchorSnapping", shapeCs);
+
+        // Surface 4: SmartArtDesignStudioWindow - SmartArt Chevron / Process Arrow Gap & Angle Consistency Auditor
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineStatsAuditChevronGeometryItem", smartArtXaml);
+        Assert.Contains("OnOutlineStatsAuditChevronGeometryClick", smartArtCs);
+        Assert.Contains("AuditChevronProcessGeometry", smartArtCs);
+
+        // Surface 5: HistoryWindow - Semantic Diff Null-Conditional & Nullable Value Type Pattern Analyzer
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditNullPatternMatching", historyCs);
+        Assert.Contains("AuditPatternMatchingAndEnumBranchExhaustiveness", historyCs);
+
+        // Surface 6: SuiteHubView - Workspace Markdown Table Auto-Alignment Multi-Backup Safety Manager
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("RestoreWorkspaceTableBackupsItem", suiteXaml);
+        Assert.Contains("OnRestoreWorkspaceTableBackupsClick", suiteCs);
+        Assert.Contains("RestoreWorkspaceTableAutoAlignmentBackups", suiteCs);
+    }
+
 }
 

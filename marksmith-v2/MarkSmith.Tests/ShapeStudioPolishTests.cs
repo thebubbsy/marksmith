@@ -3600,5 +3600,64 @@ public class ShapeStudioPolishTests
         Assert.Equal(goodAudit.Summary, formatted);
     }
 
+    [Fact]
+    public void Run203_AuditConnectorAnchorSnapping_EvaluatesEndpointsAndFloatingConnectors()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+        vm.Shapes.Clear();
+
+        // 1. Empty canvas
+        var emptyAudit = vm.AuditConnectorAnchorSnapping();
+        Assert.Equal(0, emptyAudit.TotalConnectors);
+        Assert.Equal(100.0, emptyAudit.ConnectionFidelityScore);
+        Assert.Equal("Static Canvas", emptyAudit.Category);
+
+        // 2. Fully snapped connector between shape 1 right anchor and shape 2 left anchor
+        // Shape 1: (0, 0), 100x60 -> Right anchor is at (100, 30)
+        var s1 = new ShapeCanvasItemViewModel
+        {
+            Id = "s1",
+            Name = "Block 1",
+            X = 0,
+            Y = 0,
+            Width = 100,
+            Height = 60
+        };
+        // Shape 2: (200, 0), 100x60 -> Left anchor is at (200, 30)
+        var s2 = new ShapeCanvasItemViewModel
+        {
+            Id = "s2",
+            Name = "Block 2",
+            X = 200,
+            Y = 0,
+            Width = 100,
+            Height = 60
+        };
+        // Connector: from (100, 30) to (200, 30)
+        var conn = new ShapeCanvasItemViewModel
+        {
+            Id = "c1",
+            Prst = "line",
+            X = 100,
+            Y = 30,
+            Width = 100,
+            Height = 0
+        };
+
+        var snappedAudit = ShapeDesignStudioViewModel.AuditConnectorAnchorSnapping(
+            new[] { conn }, new[] { s1, s2, conn });
+        Assert.Equal(1, snappedAudit.TotalConnectors);
+        Assert.Equal(1, snappedAudit.SnappedConnectors);
+        Assert.Equal(0, snappedAudit.FloatingConnectors);
+        Assert.True(snappedAudit.ConnectionFidelityScore >= 95.0);
+
+        string formatted = ShapeDesignStudioViewModel.FormatConnectorSnappingSummary(
+            snappedAudit.TotalConnectors, snappedAudit.SnappedConnectors,
+            snappedAudit.PartiallySnappedCount, snappedAudit.FloatingConnectors,
+            snappedAudit.NearMissCount, snappedAudit.ConnectionFidelityScore,
+            snappedAudit.Category, false);
+        Assert.Equal(snappedAudit.Summary, formatted);
+    }
+
 }
 

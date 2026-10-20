@@ -12549,6 +12549,210 @@ public static class TextSearch
         return $"Markdown footnotes audit ({details} · {category} · {score:0.#}% integrity score)";
     }
 
+    /// <summary>
+    /// Audits markdown blockquote nesting levels, ragged/broken prefixes, standard blockquotes vs GFM alert callouts,
+    /// nested callout structures, and scores quotation structural hierarchy (0-100%).
+    /// </summary>
+    public static MarkdownBlockquoteNestingAudit AuditMarkdownBlockquoteNesting(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            string emptySummary = "Markdown blockquote audit: Clean document · 0 quoted lines detected";
+            return new MarkdownBlockquoteNestingAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<MarkdownBlockquoteNestingItem>(),
+                "Clean Baseline",
+                emptySummary);
+        }
+
+        var lines = markdownText.Replace("\r\n", "\n").Split('\n');
+        var items = new List<MarkdownBlockquoteNestingItem>();
+        bool inFencedBlock = false;
+        string? activeFence = null;
+
+        int totalQuotedLines = 0;
+        int maxNestingDepth = 0;
+        int standardQuoteCount = 0;
+        int alertCalloutCount = 0;
+        int nestedCalloutCount = 0;
+        int raggedPrefixCount = 0;
+
+        int prevDepth = 0;
+        bool prevWasQuoted = false;
+
+        var alertRegex = new Regex(@"^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]", RegexOptions.IgnoreCase);
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            int lineNum = i + 1;
+            string rawLine = lines[i];
+            string trimmedStart = rawLine.TrimStart();
+
+            // Handle fenced code blocks inside document
+            if (trimmedStart.StartsWith("```") || trimmedStart.StartsWith("~~~"))
+            {
+                string fenceMarker = trimmedStart.Substring(0, 3);
+                if (!inFencedBlock)
+                {
+                    inFencedBlock = true;
+                    activeFence = fenceMarker;
+                }
+                else if (trimmedStart.StartsWith(activeFence ?? "```"))
+                {
+                    inFencedBlock = false;
+                    activeFence = null;
+                }
+                prevDepth = 0;
+                prevWasQuoted = false;
+                continue;
+            }
+
+            if (inFencedBlock)
+            {
+                continue;
+            }
+
+            // Count leading blockquote depth '>'
+            int depth = 0;
+            int idx = 0;
+            while (idx < rawLine.Length)
+            {
+                char c = rawLine[idx];
+                if (c == '>')
+                {
+                    depth++;
+                    idx++;
+                }
+                else if (char.IsWhiteSpace(c))
+                {
+                    idx++;
+                }
+                else
+                {
+                    break;
+                }
+            }
+
+            if (depth == 0)
+            {
+                // If previous line was quoted and current line is non-empty plain text without an empty blank line,
+                // this can be a ragged/lazy quote continuation
+                if (prevWasQuoted && !string.IsNullOrWhiteSpace(rawLine) && !rawLine.StartsWith('#'))
+                {
+                    raggedPrefixCount++;
+                    items.Add(new MarkdownBlockquoteNestingItem(
+                        lineNum, 0, string.Empty, false, null, true, false,
+                        rawLine.Trim(),
+                        "Add matching '>' blockquote prefix to continue blockquote paragraph or insert a blank line to close it"));
+                }
+                prevDepth = 0;
+                prevWasQuoted = false;
+                continue;
+            }
+
+            totalQuotedLines++;
+            if (depth > maxNestingDepth) maxNestingDepth = depth;
+
+            string contentAfterQuotes = rawLine.Substring(idx).Trim();
+            string prefix = rawLine.Substring(0, idx).Trim();
+
+            // Check if jumping depth by > 1 from previous quoted line
+            bool isRagged = false;
+            if (prevWasQuoted && depth > prevDepth + 1)
+            {
+                isRagged = true;
+                raggedPrefixCount++;
+            }
+
+            // Check if this line introduces a GFM alert callout
+            var alertMatch = alertRegex.Match(contentAfterQuotes);
+            bool isAlert = alertMatch.Success;
+            string? alertType = isAlert ? alertMatch.Groups[1].Value.ToUpperInvariant() : null;
+            bool isNestedCallout = isAlert && depth > 1;
+
+            if (isAlert)
+            {
+                alertCalloutCount++;
+                if (isNestedCallout)
+                {
+                    nestedCalloutCount++;
+                }
+            }
+            else
+            {
+                standardQuoteCount++;
+            }
+
+            string rec = "Valid blockquote syntax";
+            if (isRagged)
+            {
+                rec = $"Gradually increase blockquote nesting depth by 1 level instead of jumping from level {prevDepth} to {depth}";
+            }
+            else if (isNestedCallout)
+            {
+                rec = "Avoid deeply nesting alert callouts inside multi-level quotes; place top-level for maximum visibility";
+            }
+            else if (depth > 4)
+            {
+                rec = $"Blockquote nesting depth of {depth} is very deep; consider flattening quotation hierarchy";
+            }
+
+            items.Add(new MarkdownBlockquoteNestingItem(
+                lineNum, depth, prefix, isAlert, alertType, isRagged, isNestedCallout,
+                contentAfterQuotes.Length > 60 ? contentAfterQuotes.Substring(0, 57) + "..." : contentAfterQuotes,
+                rec));
+
+            prevDepth = depth;
+            prevWasQuoted = true;
+        }
+
+        double score = 100.0;
+        score -= (raggedPrefixCount * 12.0);
+        score -= (nestedCalloutCount * 8.0);
+        if (maxNestingDepth > 4)
+        {
+            score -= ((maxNestingDepth - 4) * 5.0);
+        }
+        score = Math.Round(Math.Clamp(score, 0.0, 100.0), 1);
+
+        string category = score switch
+        {
+            >= 95.0 => "Pristine Hierarchy",
+            >= 85.0 => "High Quality",
+            >= 70.0 => "Moderate Quality",
+            >= 50.0 => "Ragged Structure",
+            _ => "Deeply Tangled"
+        };
+
+        string summary = FormatBlockquoteNestingHierarchySummary(
+            totalQuotedLines, maxNestingDepth, standardQuoteCount, alertCalloutCount,
+            nestedCalloutCount, raggedPrefixCount, score, category);
+
+        return new MarkdownBlockquoteNestingAudit(
+            totalQuotedLines, maxNestingDepth, standardQuoteCount, alertCalloutCount,
+            nestedCalloutCount, raggedPrefixCount, score, items, category, summary);
+    }
+
+    public static string FormatBlockquoteNestingHierarchySummary(string? markdownText)
+        => AuditMarkdownBlockquoteNesting(markdownText).Summary;
+
+    public static string FormatBlockquoteNestingHierarchySummary(
+        int totalLines, int maxDepth, int standardCount, int alertCount,
+        int nestedCalloutCount, int raggedCount, double score, string category)
+    {
+        if (totalLines == 0 && raggedCount == 0)
+            return "Markdown blockquote audit: Clean document · 0 quoted lines detected";
+
+        var parts = new List<string>();
+        parts.Add($"{totalLines} quoted lines (max depth {maxDepth})");
+        if (alertCount > 0) parts.Add($"{alertCount} alert callouts");
+        if (nestedCalloutCount > 0) parts.Add($"ℹ {nestedCalloutCount} nested alerts");
+        if (raggedCount > 0) parts.Add($"⚠ {raggedCount} ragged prefixes");
+
+        string details = string.Join(" · ", parts);
+        return $"Markdown blockquote audit ({details} · {category} · {score:0.#}% hierarchy score)";
+    }
+
 }
 
 
@@ -14012,6 +14216,37 @@ public sealed record MarkdownFootnoteIntegrityAudit(
     bool IsSequentialNumeric,
     double StructuralIntegrityScore,
     IReadOnlyList<MarkdownFootnoteIntegrityItem> Items,
+    string Category,
+    string Summary);
+
+
+/// <summary>
+/// Represents evaluated metrics, line number, nesting depth, prefix, alert type, and structural health for a markdown blockquote line.
+/// </summary>
+public sealed record MarkdownBlockquoteNestingItem(
+    int LineNumber,
+    int NestingDepth,
+    string Prefix,
+    bool IsAlertCallout,
+    string? AlertType,
+    bool IsRaggedPrefix,
+    bool IsNestedCallout,
+    string Excerpt,
+    string Recommendation);
+
+/// <summary>
+/// Represents the result of an audit of markdown blockquote nesting levels (> and >>), ragged prefixes,
+/// standard blockquotes vs GFM alert callouts (> [!NOTE]), and quotation hierarchy structural integrity.
+/// </summary>
+public sealed record MarkdownBlockquoteNestingAudit(
+    int TotalBlockquoteLines,
+    int MaxNestingDepth,
+    int StandardQuoteCount,
+    int AlertCalloutCount,
+    int NestedCalloutCount,
+    int RaggedPrefixCount,
+    double StructuralHierarchyScore,
+    IReadOnlyList<MarkdownBlockquoteNestingItem> Items,
     string Category,
     string Summary);
 

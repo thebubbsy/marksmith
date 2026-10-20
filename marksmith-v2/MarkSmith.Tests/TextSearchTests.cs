@@ -3605,5 +3605,46 @@ public class TextSearchTests
         Assert.True(brokenAudit.StructuralIntegrityScore < 70.0);
     }
 
+    [Fact]
+    public void Run203_AuditMarkdownBlockquoteNesting_ValidatesHierarchyAndAlertCallouts()
+    {
+        // 1. Empty markdown
+        var emptyAudit = TextSearch.AuditMarkdownBlockquoteNesting("");
+        Assert.Equal(0, emptyAudit.TotalBlockquoteLines);
+        Assert.Equal(100.0, emptyAudit.StructuralHierarchyScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+
+        // 2. Clean blockquotes with alert callout
+        var cleanDoc = string.Join("\n",
+            "# Document with Quotes",
+            "> [!NOTE]",
+            "> This is a helpful callout note.",
+            "",
+            "> Standard single level blockquote text."
+        );
+        var cleanAudit = TextSearch.AuditMarkdownBlockquoteNesting(cleanDoc);
+        Assert.Equal(3, cleanAudit.TotalBlockquoteLines);
+        Assert.Equal(1, cleanAudit.AlertCalloutCount);
+        Assert.Equal(2, cleanAudit.StandardQuoteCount);
+        Assert.Equal(0, cleanAudit.RaggedPrefixCount);
+        Assert.True(cleanAudit.StructuralHierarchyScore >= 95.0);
+
+        string formatted = TextSearch.FormatBlockquoteNestingHierarchySummary(
+            cleanAudit.TotalBlockquoteLines, cleanAudit.MaxNestingDepth,
+            cleanAudit.StandardQuoteCount, cleanAudit.AlertCalloutCount,
+            cleanAudit.NestedCalloutCount, cleanAudit.RaggedPrefixCount,
+            cleanAudit.StructuralHierarchyScore, cleanAudit.Category);
+        Assert.Equal(cleanAudit.Summary, formatted);
+
+        // 3. Ragged blockquote prefix jumping from depth 1 to depth 3
+        var raggedDoc = string.Join("\n",
+            "> First line level 1",
+            ">>> Jumped directly to level 3 without level 2"
+        );
+        var raggedAudit = TextSearch.AuditMarkdownBlockquoteNesting(raggedDoc);
+        Assert.True(raggedAudit.RaggedPrefixCount >= 1);
+        Assert.True(raggedAudit.StructuralHierarchyScore < 95.0);
+    }
+
 }
 

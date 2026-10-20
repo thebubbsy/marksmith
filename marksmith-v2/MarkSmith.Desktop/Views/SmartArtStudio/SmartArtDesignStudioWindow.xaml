@@ -447,6 +447,9 @@
                                     <MenuFlyoutItem x:Name="OutlineStatsAuditFunnelStageProportionalityItem" Text="Audit funnel / pipeline stage conversion rate proportionality" Click="OnOutlineStatsAuditFunnelStageProportionalityClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="OutlineStatsAuditChevronGeometryItem" Text="Audit chevron / process arrow gap &amp; angle consistency" Click="OnOutlineStatsAuditChevronGeometryClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

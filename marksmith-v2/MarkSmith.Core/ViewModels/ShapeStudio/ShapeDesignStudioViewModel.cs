@@ -9836,6 +9836,188 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
             score, items, category, isSelection, summary);
     }
 
+    public DiagramConnectorSnapAudit AuditConnectorAnchorSnapping(bool selectionOnly = false)
+    {
+        var selected = SelectedItems.ToList();
+        var targetShapes = (selectionOnly && selected.Count > 0)
+            ? selected
+            : Shapes.ToList();
+
+        bool isSelection = selectionOnly && selected.Count > 0;
+        var audit = AuditConnectorAnchorSnapping(targetShapes, Shapes.ToList(), isSelection);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static DiagramConnectorSnapAudit AuditConnectorAnchorSnapping(
+        IEnumerable<ShapeCanvasItemViewModel>? targetShapes,
+        IEnumerable<ShapeCanvasItemViewModel>? allShapes,
+        bool isSelection = false)
+    {
+        var list = (allShapes ?? Enumerable.Empty<ShapeCanvasItemViewModel>()).Where(s => s != null).ToList();
+        var targets = (targetShapes ?? list).Where(s => s != null).ToList();
+
+        var connectors = targets.Where(s => s.IsLine).ToList();
+        var nonLineShapes = list.Where(s => !s.IsLine && s.Width > 0 && s.Height > 0).ToList();
+
+        int totalConnectors = connectors.Count;
+        if (totalConnectors == 0)
+        {
+            string emptySummary = FormatConnectorSnappingSummary(0, 0, 0, 0, 0, 100.0, "Static Canvas", isSelection);
+            return new DiagramConnectorSnapAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<DiagramConnectorSnapItem>(),
+                "Static Canvas", isSelection, emptySummary);
+        }
+
+        var items = new List<DiagramConnectorSnapItem>();
+        int fullySnapped = 0;
+        int partiallySnapped = 0;
+        int floating = 0;
+        int nearMisses = 0;
+
+        const double SnapThreshold = 4.0;
+        const double NearMissThreshold = 16.0;
+
+        foreach (var conn in connectors)
+        {
+            double startX, startY, endX, endY;
+            if (conn.PathPoints != null && conn.PathPoints.Count >= 2)
+            {
+                var pStart = conn.PathPoints[0];
+                var pEnd = conn.PathPoints[^1];
+                startX = conn.X + (pStart.X * conn.Width / 100.0);
+                startY = conn.Y + (pStart.Y * conn.Height / 100.0);
+                endX = conn.X + (pEnd.X * conn.Width / 100.0);
+                endY = conn.Y + (pEnd.Y * conn.Height / 100.0);
+            }
+            else
+            {
+                startX = conn.X;
+                startY = conn.Y;
+                endX = conn.X + conn.Width;
+                endY = conn.Y + conn.Height;
+            }
+
+            (bool snapped, string? shapeId, string? anchorName, double dist, bool isNearMiss) EvaluateEndpoint(double px, double py)
+            {
+                double bestDist = double.MaxValue;
+                string? bestShape = null;
+                string? bestAnchor = null;
+
+                foreach (var sh in nonLineShapes)
+                {
+                    double w = sh.Width;
+                    double h = sh.Height;
+                    var anchors = new (string Name, double X, double Y)[]
+                    {
+                        ("Top", sh.X + (w / 2.0), sh.Y),
+                        ("Bottom", sh.X + (w / 2.0), sh.Y + h),
+                        ("Left", sh.X, sh.Y + (h / 2.0)),
+                        ("Right", sh.X + w, sh.Y + (h / 2.0)),
+                        ("Center", sh.X + (w / 2.0), sh.Y + (h / 2.0))
+                    };
+
+                    foreach (var a in anchors)
+                    {
+                        double dx = px - a.X;
+                        double dy = py - a.Y;
+                        double d = Math.Sqrt(dx * dx + dy * dy);
+                        if (d < bestDist)
+                        {
+                            bestDist = d;
+                            bestShape = sh.Name ?? sh.Id;
+                            bestAnchor = a.Name;
+                        }
+                    }
+                }
+
+                if (bestDist <= SnapThreshold)
+                {
+                    return (true, bestShape, bestAnchor, Math.Round(bestDist, 1), false);
+                }
+                if (bestDist <= NearMissThreshold)
+                {
+                    return (false, bestShape, bestAnchor, Math.Round(bestDist, 1), true);
+                }
+                return (false, null, null, Math.Round(bestDist, 1), false);
+            }
+
+            var startRes = EvaluateEndpoint(startX, startY);
+            var endRes = EvaluateEndpoint(endX, endY);
+
+            bool isNearMiss = startRes.isNearMiss || endRes.isNearMiss;
+            if (isNearMiss) nearMisses++;
+
+            if (startRes.snapped && endRes.snapped)
+            {
+                fullySnapped++;
+            }
+            else if (startRes.snapped || endRes.snapped)
+            {
+                partiallySnapped++;
+            }
+            else
+            {
+                floating++;
+            }
+
+            string rec = (startRes.snapped && endRes.snapped)
+                ? "Perfect anchor point snapping"
+                : isNearMiss
+                    ? $"Near-miss floating endpoint within {Math.Min(startRes.dist, endRes.dist):0.#}px of shape anchor; snap to port"
+                    : "Floating connector with no nearby shape anchor points";
+
+            items.Add(new DiagramConnectorSnapItem(
+                conn.Id,
+                startRes.snapped, startRes.shapeId, startRes.anchorName, startRes.dist,
+                endRes.snapped, endRes.shapeId, endRes.anchorName, endRes.dist,
+                isNearMiss, rec));
+        }
+
+        double score = 100.0;
+        score -= (floating * 15.0);
+        score -= (partiallySnapped * 6.0);
+        score -= (nearMisses * 5.0);
+        score = Math.Round(Math.Clamp(score, 0.0, 100.0), 1);
+
+        string category = score switch
+        {
+            >= 95.0 => "High-Fidelity Connected Diagram",
+            >= 80.0 => "Mostly Snapped with Minor Detachment",
+            >= 60.0 => "Moderate Unattached Floating Connectors",
+            >= 40.0 => "Low Snapping Routing Drift",
+            _ => "Unanchored Floating Connector Mesh"
+        };
+
+        string summary = FormatConnectorSnappingSummary(
+            totalConnectors, fullySnapped, partiallySnapped, floating, nearMisses,
+            score, category, isSelection);
+
+        return new DiagramConnectorSnapAudit(
+            totalConnectors, fullySnapped, partiallySnapped, floating, nearMisses,
+            score, items, category, isSelection, summary);
+    }
+
+    public static string FormatConnectorSnappingSummary(
+        int totalConnectors, int snapped, int partial, int floating, int nearMisses,
+        double score, string category, bool isSelection)
+    {
+        string scope = isSelection ? "Selection · " : "";
+        if (totalConnectors == 0) return $"Connector port snapping audit ({scope}0 connectors): Static canvas";
+
+        var parts = new List<string>();
+        parts.Add($"{totalConnectors} connectors");
+        parts.Add($"{snapped} fully snapped");
+        if (partial > 0) parts.Add($"ℹ {partial} 1-ended");
+        if (floating > 0) parts.Add($"⚠ {floating} floating");
+        if (nearMisses > 0) parts.Add($"🚨 {nearMisses} near-miss");
+
+        string details = string.Join(" · ", parts);
+        return $"Connector port snapping audit ({scope}{details} · {category} · {score:0.#}% score)";
+    }
+
+
     public static string FormatGroupNestingSummary(
         int totalShapes, int containers, int maxDepth, double avgDepth, int overcrowded,
         double score, string category, bool isSelection)
@@ -13931,6 +14113,32 @@ public sealed record DiagramShapeGroupNestingAudit(
     int OvercrowdedContainerCount,
     double HierarchyComplexityScore,
     IReadOnlyList<ShapeNestingTierItem> Items,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);
+
+
+public sealed record DiagramConnectorSnapItem(
+    string ConnectorId,
+    bool StartSnapped,
+    string? StartShapeId,
+    string? StartAnchor,
+    double StartDistance,
+    bool EndSnapped,
+    string? EndShapeId,
+    string? EndAnchor,
+    double EndDistance,
+    bool IsNearMiss,
+    string Recommendation);
+
+public sealed record DiagramConnectorSnapAudit(
+    int TotalConnectors,
+    int SnappedConnectors,
+    int PartiallySnappedCount,
+    int FloatingConnectors,
+    int NearMissCount,
+    double ConnectionFidelityScore,
+    IReadOnlyList<DiagramConnectorSnapItem> Items,
     string Category,
     bool IsSelectionScope,
     string Summary);

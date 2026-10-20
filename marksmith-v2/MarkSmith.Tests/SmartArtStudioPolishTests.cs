@@ -3210,5 +3210,45 @@ public class SmartArtStudioPolishTests
         Assert.True(riskAudit.FunnelGeometricScore < 95.0);
     }
 
+    [Fact]
+    public void Run203_AuditChevronProcessGeometry_ValidatesStagesGapsAndTruncation()
+    {
+        // 1. Empty outline
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditChevronProcessGeometry("");
+        Assert.Equal(0, emptyAudit.TotalStages);
+        Assert.Equal(100.0, emptyAudit.LayoutHarmonyScore);
+        Assert.Equal("Empty Process", emptyAudit.Category);
+
+        // 2. Harmonious 3-stage chevron process
+        var goodProcessMd = string.Join("\n",
+            "- Plan",
+            "- Execute",
+            "- Review"
+        );
+        var goodAudit = SmartArtDesignStudioViewModel.AuditChevronProcessGeometry(goodProcessMd, "Chevron Process");
+        Assert.Equal(3, goodAudit.TotalStages);
+        Assert.True(goodAudit.HasUniformGaps);
+        Assert.True(goodAudit.HasUniformAngles);
+        Assert.Equal(0, goodAudit.TruncationRiskCount);
+        Assert.True(goodAudit.LayoutHarmonyScore >= 95.0);
+
+        string formatted = SmartArtDesignStudioViewModel.FormatChevronGeometrySummary(
+            goodAudit.TotalStages, goodAudit.AverageGap, goodAudit.GapVariance,
+            goodAudit.HasUniformGaps, goodAudit.HasUniformAngles,
+            goodAudit.TruncationRiskCount, goodAudit.LayoutHarmonyScore,
+            goodAudit.Category, "Chevron Process");
+        Assert.Equal(goodAudit.Summary, formatted);
+
+        // 3. Stage with excessive label length causing truncation risk
+        var longProcessMd = string.Join("\n",
+            "- Step One",
+            "- This is an absurdly long chevron stage label exceeding 28 characters threshold",
+            "- Step Three"
+        );
+        var riskAudit = SmartArtDesignStudioViewModel.AuditChevronProcessGeometry(longProcessMd, "Chevron Process");
+        Assert.True(riskAudit.TruncationRiskCount >= 1);
+        Assert.True(riskAudit.LayoutHarmonyScore < 95.0);
+    }
+
 }
 

@@ -4289,5 +4289,55 @@ namespace MarkSmith.Tests
             Assert.True(triAudit.ConflictEdgeCount >= 1);
             Assert.True(triAudit.BipartitePartitionScore < 80.0);
         }
+        [Fact]
+        public void Run203_AuditGraphEdgeIntersectionPlanarity_DetectsIntersectionsAndPlanarGraphs()
+        {
+            // 1. Empty graph
+            var emptyAudit = MindMapStudioViewModel.AuditGraphEdgeIntersectionPlanarity(null, null);
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.True(emptyAudit.IsPlanar);
+            Assert.Equal(100.0, emptyAudit.PlanarityClarityScore);
+            Assert.Equal("Empty Galaxy", emptyAudit.Category);
+
+            // 2. Planar graph: 2 parallel edges (1-2 and 3-4)
+            var n1 = new MindMapNode { Id = "1", Title = "TopLeft", X = 0, Y = 0, Width = 100, Height = 50 };
+            var n2 = new MindMapNode { Id = "2", Title = "TopRight", X = 200, Y = 0, Width = 100, Height = 50 };
+            var n3 = new MindMapNode { Id = "3", Title = "BottomLeft", X = 0, Y = 200, Width = 100, Height = 50 };
+            var n4 = new MindMapNode { Id = "4", Title = "BottomRight", X = 200, Y = 200, Width = 100, Height = 50 };
+
+            var parallelLinks = new List<MindMapLink>
+            {
+                new MindMapLink { Id = "e1", SourceNodeId = "1", TargetNodeId = "2" },
+                new MindMapLink { Id = "e2", SourceNodeId = "3", TargetNodeId = "4" }
+            };
+
+            var planarAudit = MindMapStudioViewModel.AuditGraphEdgeIntersectionPlanarity(
+                new[] { n1, n2, n3, n4 }, parallelLinks);
+            Assert.Equal(4, planarAudit.TotalNodes);
+            Assert.Equal(2, planarAudit.TotalEdges);
+            Assert.True(planarAudit.IsPlanar);
+            Assert.Equal(0, planarAudit.CrossingCount);
+            Assert.Equal(100.0, planarAudit.PlanarityClarityScore);
+
+            string formatted = MindMapStudioViewModel.FormatEdgeIntersectionPlanaritySummary(
+                planarAudit.TotalNodes, planarAudit.TotalEdges, planarAudit.CrossingCount,
+                planarAudit.CrossingDensity, planarAudit.IsPlanar, planarAudit.PlanarityClarityScore,
+                planarAudit.Category, false);
+            Assert.Equal(planarAudit.Summary, formatted);
+
+            // 3. Crossing edges (X cross): 1 to 4 and 3 to 2
+            var crossLinks = new List<MindMapLink>
+            {
+                new MindMapLink { Id = "x1", SourceNodeId = "1", TargetNodeId = "4" },
+                new MindMapLink { Id = "x2", SourceNodeId = "3", TargetNodeId = "2" }
+            };
+
+            var crossAudit = MindMapStudioViewModel.AuditGraphEdgeIntersectionPlanarity(
+                new[] { n1, n2, n3, n4 }, crossLinks);
+            Assert.False(crossAudit.IsPlanar);
+            Assert.Equal(1, crossAudit.CrossingCount);
+            Assert.True(crossAudit.PlanarityClarityScore < 95.0);
+        }
+
     }
 }

@@ -4168,6 +4168,14 @@ namespace MarkSmith.Views.MindMap
             ViewModel.StatusMessage = $"\u2713 {result.Summary}";
         }
 
+        private void OnAuditGraphEdgeIntersectionPlanarityClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditGraphEdgeIntersectionPlanarity();
+            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+        }
+
         private void OnAuditGraphDegreeDistributionClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
@@ -4299,7 +4307,7 @@ namespace MarkSmith.Views.MindMap
         private void OnAuditGraphPlanarityClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
-            var result = ViewModel.AuditGraphEdgeCrossingsAndPlanarity();
+            var result = ViewModel.AuditGraphEdgeIntersectionPlanarity();
             _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
             ViewModel.StatusMessage = $"✓ {result.Summary}";
         }

@@ -12100,6 +12100,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(auditFootnotesIntegrityItem);
 
+        var auditBlockquoteHierarchyItem = new MenuFlyoutItem
+        {
+            Text = "Audit Markdown Blockquote Nesting & Callout Inheritance",
+            Icon = new FontIcon { Glyph = "\uE8BD" }
+        };
+        auditBlockquoteHierarchyItem.Click += (_, _) =>
+        {
+            var docText = EditorDocument();
+            var summary = MarkSmith.Services.TextSearch.AuditMarkdownBlockquoteNesting(docText).Summary;
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditBlockquoteHierarchyItem);
+
         menu.ShowAt(anchor);
     }
 

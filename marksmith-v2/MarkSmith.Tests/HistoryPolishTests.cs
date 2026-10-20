@@ -3378,5 +3378,28 @@ public class HistoryPolishTests : IDisposable
         Assert.True(audit.ExhaustivenessSafetyScore < 95.0);
     }
 
+    [Fact]
+    public void Run203_AuditPatternMatchingAndEnumBranchExhaustiveness_DetectsNullPatternsAndBooleanSwitches()
+    {
+        var nullableCode = string.Join("\n",
+            "public class NullableSwitcher",
+            "{",
+            "    public string Parse(int? value)",
+            "    {",
+            "        return value switch",
+            "        {",
+            "            1 => \"One\",",
+            "            2 => \"Two\"",
+            "        };",
+            "    }",
+            "}"
+        );
+
+        var audit = LineDiff.AuditPatternMatchingAndEnumBranchExhaustiveness("", nullableCode);
+        Assert.True(audit.MissingNullCheckCount >= 1);
+        Assert.True(audit.TotalHazards >= 1);
+        Assert.True(audit.ExhaustivenessSafetyScore < 100.0);
+    }
+
 }
 

@@ -3829,6 +3829,18 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"\u2713 {audit.Summary}");
                 };
                 menu.Items.Add(auditTypePatternMatching);
+                var auditNullPatternMatching = new MenuFlyoutItem
+                {
+                    Text = "Audit semantic diff null-conditional patterns & nullable value type switches",
+                    Icon = new FontIcon { Glyph = "\uE8B9" }
+                };
+                auditNullPatternMatching.Click += (_, _) =>
+                {
+                    var audit = MarkSmith.Services.LineDiff.AuditPatternMatchingAndEnumBranchExhaustiveness(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+                    _vm.ShowNotice($"\u2713 {audit.Summary}");
+                };
+                menu.Items.Add(auditNullPatternMatching);
 
 
 

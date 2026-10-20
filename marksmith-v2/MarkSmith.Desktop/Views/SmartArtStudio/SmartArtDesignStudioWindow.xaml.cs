@@ -5133,6 +5133,14 @@ namespace MarkSmith.Views.SmartArtStudio
         ViewModel.StatusMessage = $"\u2713 {result.Summary}";
     }
 
+    private void OnOutlineStatsAuditChevronGeometryClick(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel == null) return;
+        var result = ViewModel.AuditChevronProcessGeometry();
+        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+        ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+    }
+
     private void OnOutlineSearchBoxTextChanged(object sender, TextChangedEventArgs e)
         {
             PerformOutlineSearch(OutlineSearchBox?.Text ?? "");

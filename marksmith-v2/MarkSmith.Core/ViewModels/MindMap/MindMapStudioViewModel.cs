@@ -12439,6 +12439,176 @@ namespace MarkSmith.ViewModels.MindMap
                 partitionASize, partitionBSize, score, conflicts, category, isSelection, summary);
         }
 
+        public GraphEdgeIntersectionPlanarityAudit AuditGraphEdgeIntersectionPlanarity(bool selectionOnly = false)
+        {
+            var selected = Nodes.Where(n => n.IsSelected).ToList();
+            var targetNodes = (selectionOnly && selected.Count > 0)
+                ? selected
+                : Nodes.ToList();
+
+            bool isSelection = selectionOnly && selected.Count > 0;
+            var nodeIds = new HashSet<string>(targetNodes.Select(n => n.Id));
+            var relevantLinks = Links.Where(l => nodeIds.Contains(l.SourceNodeId) && nodeIds.Contains(l.TargetNodeId)).ToList();
+
+            var audit = AuditGraphEdgeIntersectionPlanarity(targetNodes.Select(n => n.Model), relevantLinks.Select(l => l.Model), isSelection);
+            StatusMessage = audit.Summary;
+            return audit;
+        }
+
+        public static GraphEdgeIntersectionPlanarityAudit AuditGraphEdgeIntersectionPlanarity(
+            IEnumerable<MindMapNode>? nodes,
+            IEnumerable<MindMapLink>? links,
+            bool isSelection = false)
+        {
+            var nodeList = nodes?.ToList() ?? new List<MindMapNode>();
+            var linkList = links?.ToList() ?? new List<MindMapLink>();
+            int totalNodes = nodeList.Count;
+            int totalEdges = linkList.Count;
+
+            if (totalNodes == 0)
+            {
+                string emptySummary = FormatEdgeIntersectionPlanaritySummary(0, 0, 0, 0.0, true, 100.0, "Empty Galaxy", isSelection);
+                return new GraphEdgeIntersectionPlanarityAudit(
+                    0, 0, 0, 0.0, true, 100.0,
+                    Array.Empty<GraphEdgeIntersectionItem>(),
+                    "Empty Galaxy", isSelection, emptySummary);
+            }
+
+            var nodeMap = nodeList.ToDictionary(n => n.Id, n => n);
+
+            var validLinks = new List<MindMapLink>();
+            foreach (var link in linkList)
+            {
+                if (nodeMap.ContainsKey(link.SourceNodeId) && nodeMap.ContainsKey(link.TargetNodeId))
+                {
+                    if (link.SourceNodeId != link.TargetNodeId)
+                    {
+                        validLinks.Add(link);
+                    }
+                }
+            }
+
+            var crossings = new List<GraphEdgeIntersectionItem>();
+
+            for (int i = 0; i < validLinks.Count; i++)
+            {
+                var e1 = validLinks[i];
+                var u1 = nodeMap[e1.SourceNodeId];
+                var v1 = nodeMap[e1.TargetNodeId];
+
+                double x1_a = u1.X + (u1.Width / 2.0);
+                double y1_a = u1.Y + (u1.Height / 2.0);
+                double x1_b = v1.X + (v1.Width / 2.0);
+                double y1_b = v1.Y + (v1.Height / 2.0);
+
+                for (int j = i + 1; j < validLinks.Count; j++)
+                {
+                    var e2 = validLinks[j];
+                    if (e1.SourceNodeId == e2.SourceNodeId || e1.SourceNodeId == e2.TargetNodeId ||
+                        e1.TargetNodeId == e2.SourceNodeId || e1.TargetNodeId == e2.TargetNodeId)
+                    {
+                        continue;
+                    }
+
+                    var u2 = nodeMap[e2.SourceNodeId];
+                    var v2 = nodeMap[e2.TargetNodeId];
+
+                    double x2_a = u2.X + (u2.Width / 2.0);
+                    double y2_a = u2.Y + (u2.Height / 2.0);
+                    double x2_b = v2.X + (v2.Width / 2.0);
+                    double y2_b = v2.Y + (v2.Height / 2.0);
+
+                    if (Math.Max(x1_a, x1_b) < Math.Min(x2_a, x2_b) ||
+                        Math.Max(x2_a, x2_b) < Math.Min(x1_a, x1_b) ||
+                        Math.Max(y1_a, y1_b) < Math.Min(y2_a, y2_b) ||
+                        Math.Max(y2_a, y2_b) < Math.Min(y1_a, y1_b))
+                    {
+                        continue;
+                    }
+
+                    static double Ccw(double ax, double ay, double bx, double by, double cx, double cy)
+                        => (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
+
+                    double d1 = Ccw(x2_a, y2_a, x2_b, y2_b, x1_a, y1_a);
+                    double d2 = Ccw(x2_a, y2_a, x2_b, y2_b, x1_b, y1_b);
+                    double d3 = Ccw(x1_a, y1_a, x1_b, y1_b, x2_a, y2_a);
+                    double d4 = Ccw(x1_a, y1_a, x1_b, y1_b, x2_b, y2_b);
+
+                    if (((d1 > 1e-5 && d2 < -1e-5) || (d1 < -1e-5 && d2 > 1e-5)) &&
+                        ((d3 > 1e-5 && d4 < -1e-5) || (d3 < -1e-5 && d4 > 1e-5)))
+                    {
+                        double denom = (x1_a - x1_b) * (y2_a - y2_b) - (y1_a - y1_b) * (x2_a - x2_b);
+                        double ix = 0.0, iy = 0.0;
+                        if (Math.Abs(denom) > 1e-5)
+                        {
+                            double t1 = x1_a * y1_b - y1_a * x1_b;
+                            double t2 = x2_a * y2_b - y2_a * x2_b;
+                            ix = Math.Round((t1 * (x2_a - x2_b) - (x1_a - x1_b) * t2) / denom, 1);
+                            iy = Math.Round((t1 * (y2_a - y2_b) - (y1_a - y1_b) * t2) / denom, 1);
+                        }
+
+                        crossings.Add(new GraphEdgeIntersectionItem(
+                            crossings.Count + 1,
+                            e1.Id, u1.Title ?? u1.Id, v1.Title ?? v1.Id,
+                            e2.Id, u2.Title ?? u2.Id, v2.Title ?? v2.Id,
+                            ix, iy,
+                            "Reroute edge or separate intersecting node clusters to eliminate visual crossing clutter"));
+                    }
+                }
+            }
+
+            int crossingCount = crossings.Count;
+            bool isPlanar = crossingCount == 0;
+            double crossingDensity = totalEdges > 1 ? Math.Round((double)crossingCount / totalEdges, 2) : 0.0;
+
+            double score = 100.0;
+            if (crossingCount > 0)
+            {
+                score -= (crossingCount * 12.0);
+            }
+            score = Math.Round(Math.Clamp(score, 0.0, 100.0), 1);
+
+            string category = score switch
+            {
+                >= 95.0 => "Strictly Planar Graph (0 edge crossings)",
+                >= 80.0 => "Near-Planar Layout (minimal link clutter)",
+                >= 60.0 => "Moderate Edge Crossing Clutter",
+                >= 40.0 => "Dense Edge Crossing Clutter",
+                _ => "Severely Entangled Non-Planar Network"
+            };
+
+            string summary = FormatEdgeIntersectionPlanaritySummary(
+                totalNodes, totalEdges, crossingCount, crossingDensity,
+                isPlanar, score, category, isSelection);
+
+            return new GraphEdgeIntersectionPlanarityAudit(
+                totalNodes, totalEdges, crossingCount, crossingDensity,
+                isPlanar, score, crossings, category, isSelection, summary);
+        }
+
+        public static string FormatEdgeIntersectionPlanaritySummary(
+            int totalNodes, int totalEdges, int crossings, double density,
+            bool isPlanar, double score, string category, bool isSelection)
+        {
+            string scope = isSelection ? "Selection · " : "";
+            if (totalNodes == 0) return $"Mind map edge crossings audit ({scope}0 nodes): Empty galaxy";
+
+            var parts = new List<string>();
+            parts.Add($"{totalNodes} nodes, {totalEdges} edges");
+            if (isPlanar)
+            {
+                parts.Add("0 crossings (Planar)");
+            }
+            else
+            {
+                parts.Add($"⚠ {crossings} crossings (density {density:0.##})");
+            }
+
+            string details = string.Join(" · ", parts);
+            return $"Mind map edge crossings audit ({scope}{details} · {category} · {score:0.#}% score)";
+        }
+
+
         public static string FormatBipartitenessSummary(
             int totalNodes, int totalEdges, bool isBipartite, int oddCycles, int conflicts,
             int partA, int partB, double score, string category, bool isSelection)
@@ -14103,6 +14273,30 @@ namespace MarkSmith.ViewModels.MindMap
         int PartitionBSize,
         double BipartitePartitionScore,
         IReadOnlyList<GraphBipartiteConflictItem> Conflicts,
+        string Category,
+        bool IsSelectionScope,
+        string Summary);
+
+    public sealed record GraphEdgeIntersectionItem(
+        int CrossingIndex,
+        string Edge1Id,
+        string Edge1SourceTitle,
+        string Edge1TargetTitle,
+        string Edge2Id,
+        string Edge2SourceTitle,
+        string Edge2TargetTitle,
+        double IntersectionX,
+        double IntersectionY,
+        string Recommendation);
+
+    public sealed record GraphEdgeIntersectionPlanarityAudit(
+        int TotalNodes,
+        int TotalEdges,
+        int CrossingCount,
+        double CrossingDensity,
+        bool IsPlanar,
+        double PlanarityClarityScore,
+        IReadOnlyList<GraphEdgeIntersectionItem> Crossings,
         string Category,
         bool IsSelectionScope,
         string Summary);

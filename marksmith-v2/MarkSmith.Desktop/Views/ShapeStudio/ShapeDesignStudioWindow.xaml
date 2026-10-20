@@ -820,6 +820,9 @@
                     <MenuFlyoutItem x:Name="SelectionAuditShapeGroupNestingItem" Text="Audit shape group nesting depth &amp; hierarchy complexity" Click="OnSelectionAuditShapeGroupNestingClick">
                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                     </MenuFlyoutItem>
+                    <MenuFlyoutItem x:Name="SelectionAuditConnectorRoutingAlignmentItem" Text="Audit connector anchor snapping &amp; routing alignment" Click="OnSelectionAuditConnectorRoutingAlignmentClick">
+                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                    </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

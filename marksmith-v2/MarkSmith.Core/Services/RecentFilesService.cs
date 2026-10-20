@@ -5694,6 +5694,7 @@ public sealed class RecentFilesService
     public static WorkspaceTableAutoFixResult ApplyWorkspaceTableAutoAlignmentFixes(
         IReadOnlyList<string>? explicitFiles = null,
         bool dryRun = false,
+        bool createBackup = true,
         Func<string, bool>? fileExistsProvider = null,
         Func<string, string>? contentReader = null,
         Action<string, string>? contentWriter = null)
@@ -5703,6 +5704,7 @@ public sealed class RecentFilesService
         int filesModified = 0;
         int tablesAligned = 0;
         int pipesPadded = 0;
+        int backupsCreated = 0;
 
         foreach (var file in files)
         {
@@ -5769,6 +5771,20 @@ public sealed class RecentFilesService
                 filesModified++;
                 if (!dryRun)
                 {
+                    if (createBackup && !file.EndsWith(".bak.md", StringComparison.OrdinalIgnoreCase))
+                    {
+                        string backupPath = file + ".bak.md";
+                        if (contentWriter != null)
+                        {
+                            contentWriter(backupPath, content);
+                        }
+                        else
+                        {
+                            System.IO.File.WriteAllText(backupPath, content);
+                        }
+                        backupsCreated++;
+                    }
+
                     string updatedContent = string.Join("\n", newLines);
                     if (contentWriter != null)
                     {
@@ -5783,10 +5799,56 @@ public sealed class RecentFilesService
         }
 
         string dryStr = dryRun ? "Dry-run: " : "";
-        string summary = $"{dryStr}Workspace markdown table auto-fix: {filesScanned} files scanned, {filesModified} modified, {tablesAligned} tables aligned with column padding";
+        string backupStr = (!dryRun && backupsCreated > 0) ? $" ({backupsCreated} .bak.md snapshots created)" : "";
+        string summary = $"{dryStr}Workspace markdown table auto-fix: {filesScanned} files scanned, {filesModified} modified, {tablesAligned} tables aligned with column padding{backupStr}";
 
         return new WorkspaceTableAutoFixResult(
-            filesScanned, filesModified, tablesAligned, pipesPadded, dryRun, summary);
+            filesScanned, filesModified, tablesAligned, pipesPadded, dryRun, summary, backupsCreated);
+    }
+
+    public static WorkspaceTableRollbackResult RestoreWorkspaceTableAutoAlignmentBackups(
+        IReadOnlyList<string>? explicitFiles = null,
+        Func<string, bool>? fileExistsProvider = null,
+        Func<string, string>? contentReader = null,
+        Action<string, string>? contentWriter = null,
+        Action<string>? fileDeleter = null)
+    {
+        var files = explicitFiles ?? Array.Empty<string>();
+        int filesScanned = 0;
+        int filesRestored = 0;
+
+        foreach (var file in files)
+        {
+            if (string.IsNullOrWhiteSpace(file)) continue;
+            string backupPath = file.EndsWith(".bak.md", StringComparison.OrdinalIgnoreCase) ? file : file + ".bak.md";
+            string targetPath = file.EndsWith(".bak.md", StringComparison.OrdinalIgnoreCase) ? file.Substring(0, file.Length - 7) : file;
+
+            bool backupExists = fileExistsProvider?.Invoke(backupPath) ?? System.IO.File.Exists(backupPath);
+            if (!backupExists) continue;
+
+            filesScanned++;
+            string backupContent = contentReader?.Invoke(backupPath) ?? System.IO.File.ReadAllText(backupPath);
+            if (contentWriter != null)
+            {
+                contentWriter(targetPath, backupContent);
+            }
+            else
+            {
+                System.IO.File.WriteAllText(targetPath, backupContent);
+            }
+            filesRestored++;
+            if (fileDeleter != null)
+            {
+                fileDeleter(backupPath);
+            }
+            else
+            {
+                try { System.IO.File.Delete(backupPath); } catch { }
+            }
+        }
+
+        string summary = $"Workspace table backup restore: {filesRestored} files restored from .bak.md snapshots ({filesScanned} backups inspected)";
+        return new WorkspaceTableRollbackResult(filesScanned, filesRestored, summary);
     }
 
 
@@ -11309,5 +11371,11 @@ public sealed record WorkspaceTableAutoFixResult(
     int TotalTablesAligned,
     int TotalPipesPadded,
     bool IsDryRun,
+    string Summary,
+    int BackupsCreated = 0);
+
+public sealed record WorkspaceTableRollbackResult(
+    int TotalBackupsScanned,
+    int TotalFilesRestored,
     string Summary);
 

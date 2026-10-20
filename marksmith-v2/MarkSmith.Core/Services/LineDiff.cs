@@ -18050,6 +18050,16 @@ public static class LineDiff
         int missingNullCheckCount = 0;
         var items = new List<PatternMatchingBranchItem>();
 
+        var nullableVars = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var r in modifiedRows)
+        {
+            var match = Regex.Match(r.Text, @"\b(?:int|bool|double|float|long|short|byte|char|decimal|DateTime|Guid)\?\s+(\w+)");
+            if (match.Success)
+            {
+                nullableVars.Add(match.Groups[1].Value);
+            }
+        }
+
         for (int i = 0; i < modifiedRows.Count; i++)
         {
             var row = modifiedRows[i];
@@ -18136,6 +18146,49 @@ public static class LineDiff
                     "Add explicit null check or default arm to guarantee exhaustive domain coverage",
                     "Unchecked Type Pattern"));
             }
+
+            // Nullable value type switches without null check
+            bool isDirectNullableSwitch = Regex.IsMatch(line, @"\b(?:int|bool|double|float|long|short|byte|char|decimal|DateTime|Guid)\?\s+\w+\s*switch\b");
+            bool isVarNullableSwitch = nullableVars.Count > 0 && Regex.IsMatch(line, $@"\b(?:{string.Join("|", nullableVars.Select(Regex.Escape))})\s+switch\b");
+            if ((isDirectNullableSwitch || isVarNullableSwitch) &&
+                !modifiedRows.Any(r => r.Text.Contains("null") || Regex.IsMatch(r.Text, @"_\s*=>|default\s*:")))
+            {
+                missingNullCheckCount++;
+                items.Add(new PatternMatchingBranchItem(
+                    lineNum, op, "Nullable Value Type Switch Missing Null Arm",
+                    line.Trim(), 2,
+                    "Nullable value type switch expression does not handle null state or provide fallback default arm",
+                    "Add an explicit 'null => ...' branch or wildcard discard arm to prevent SwitchExpressionException",
+                    "Unchecked Nullable Value"));
+            }
+
+            // Boolean switch expressions with only one branch
+            if (Regex.IsMatch(line, @"\bswitch\s*\([^\)]*\)\s*\{|\b\w+\s*switch\s*\{") &&
+                modifiedRows.Any(r => Regex.IsMatch(r.Text, @"\btrue\s*=>")) &&
+                !modifiedRows.Any(r => Regex.IsMatch(r.Text, @"\bfalse\s*=>|_\s*=>|default\s*:")))
+            {
+                unhandledSwitchCount++;
+                items.Add(new PatternMatchingBranchItem(
+                    lineNum, op, "Non-Exhaustive Boolean Switch",
+                    line.Trim(), 2,
+                    "Boolean switch handles 'true' but lacks 'false' branch or wildcard fallback",
+                    "Add an explicit 'false => ...' arm or wildcard fallback arm to ensure exhaustiveness",
+                    "Incomplete Boolean Switch"));
+            }
+
+            // Null-state pattern matching: 'not null =>' or '{ } =>' without null arm
+            if (Regex.IsMatch(line, @"(\bnot\s+null|\{\s*\})\s*=>") &&
+                !modifiedRows.Any(r => r.Text.Contains("null =>") || r.Text.Contains("case null:") || Regex.IsMatch(r.Text, @"_\s*=>|default\s*:")))
+            {
+                missingNullCheckCount++;
+                items.Add(new PatternMatchingBranchItem(
+                    lineNum, op, "Null-State Pattern Without Null Arm",
+                    line.Trim(), 1,
+                    "Non-null pattern arm ('not null' or '{ }') does not provide companion null handling or fallback",
+                    "Add an explicit 'null => ...' branch or wildcard discard arm to prevent SwitchExpressionException",
+                    "Unchecked Null-State"));
+            }
+
         }
 
         int totalHazards = unhandledSwitchCount + wildcardDiscardTrapCount + missingDefaultBranchCount + missingNullCheckCount;

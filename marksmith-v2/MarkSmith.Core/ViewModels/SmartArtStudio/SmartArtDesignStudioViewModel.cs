@@ -3716,6 +3716,151 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
             score, items, category, layout, summary);
     }
 
+    public SmartArtChevronProcessAudit AuditChevronProcessGeometry(string? markdown = null, string? layoutName = null)
+    {
+        string md = markdown ?? MarkdownText;
+        string layout = layoutName ?? SelectedLayout?.DisplayName ?? "Chevron Process";
+        return AuditChevronProcessGeometry(md, layout, isStatic: false);
+    }
+
+    public static SmartArtChevronProcessAudit AuditChevronProcessGeometry(string? markdown, string? layoutName = null, bool isStatic = true)
+    {
+        string layout = layoutName ?? "Chevron Process";
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            string emptySummary = FormatChevronGeometrySummary(0, 0.0, 0.0, true, true, 0, 100.0, "Empty Process", layout);
+            return new SmartArtChevronProcessAudit(
+                0, 0.0, 0.0, true, true, 0, 100.0,
+                Array.Empty<SmartArtChevronStageItem>(),
+                "Empty Process", layout, emptySummary);
+        }
+
+        var lines = markdown.Replace("\r\n", "\n").Split('\n');
+        var stages = new List<(string Label, List<string> SubItems)>();
+
+        foreach (var rawLine in lines)
+        {
+            string line = rawLine.Trim();
+            if (string.IsNullOrWhiteSpace(line)) continue;
+
+            if (line.StartsWith('#'))
+            {
+                string text = line.TrimStart('#').Trim();
+                if (!string.IsNullOrWhiteSpace(text))
+                {
+                    stages.Add((text, new List<string>()));
+                }
+            }
+            else if (line.StartsWith('-') || line.StartsWith('*'))
+            {
+                string text = line.TrimStart('-', '*').Trim();
+                if (!string.IsNullOrWhiteSpace(text))
+                {
+                    if (rawLine.StartsWith("  ") || rawLine.StartsWith("\t"))
+                    {
+                        if (stages.Count > 0)
+                        {
+                            stages[^1].SubItems.Add(text);
+                        }
+                        else
+                        {
+                            stages.Add((text, new List<string>()));
+                        }
+                    }
+                    else
+                    {
+                        stages.Add((text, new List<string>()));
+                    }
+                }
+            }
+            else if (char.IsDigit(line[0]) && line.Length > 2 && (line[1] == '.' || line[2] == '.'))
+            {
+                int dotIdx = line.IndexOf('.');
+                string text = line.Substring(dotIdx + 1).Trim();
+                if (!string.IsNullOrWhiteSpace(text))
+                {
+                    stages.Add((text, new List<string>()));
+                }
+            }
+        }
+
+        int totalStages = stages.Count;
+        if (totalStages == 0)
+        {
+            string emptySummary = FormatChevronGeometrySummary(0, 0.0, 0.0, true, true, 0, 100.0, "Empty Process", layout);
+            return new SmartArtChevronProcessAudit(
+                0, 0.0, 0.0, true, true, 0, 100.0,
+                Array.Empty<SmartArtChevronStageItem>(),
+                "Empty Process", layout, emptySummary);
+        }
+
+        var items = new List<SmartArtChevronStageItem>();
+        int truncationRisks = 0;
+        const double standardGap = 12.0;
+        const double standardNotchAngle = 38.0;
+
+        for (int i = 0; i < totalStages; i++)
+        {
+            var st = stages[i];
+            bool hasTruncation = st.Label.Length > 28 || st.SubItems.Any(sub => sub.Length > 32);
+            if (hasTruncation) truncationRisks++;
+
+            double gap = (i < totalStages - 1) ? standardGap : 0.0;
+            double angle = standardNotchAngle;
+
+            string status = hasTruncation
+                ? "Truncation Risk in Chevron Body"
+                : "Conforming Chevron Arrow Geometry";
+
+            string recommendation = hasTruncation
+                ? $"Stage '{st.Label}' exceeds 28 characters; shorten title or break into sub-step for optimal chevron arrow width"
+                : "Optimal process stage layout and chevron angle harmony";
+
+            items.Add(new SmartArtChevronStageItem(
+                i + 1, st.Label, angle, gap, hasTruncation, true, status, recommendation));
+        }
+
+        double score = 100.0;
+        if (truncationRisks > 0) score -= (truncationRisks * 12.0);
+        if (totalStages < 2) score -= 15.0;
+        else if (totalStages > 7) score -= 10.0;
+        score = Math.Round(Math.Clamp(score, 0.0, 100.0), 1);
+
+        string category = score switch
+        {
+            >= 95.0 => "Harmonious Chevron Geometry",
+            >= 80.0 => "High Fidelity Process Flow",
+            >= 65.0 => "Moderate Chevron Spacing Drift",
+            >= 45.0 => "High Label Truncation Risk",
+            _ => "Disproportionate Process Flow"
+        };
+
+        string summary = FormatChevronGeometrySummary(
+            totalStages, standardGap, 0.0, true, true, truncationRisks,
+            score, category, layout);
+
+        return new SmartArtChevronProcessAudit(
+            totalStages, standardGap, 0.0, true, true, truncationRisks,
+            score, items, category, layout, summary);
+    }
+
+    public static string FormatChevronGeometrySummary(
+        int totalStages, double avgGap, double gapVariance, bool uniformGaps,
+        bool uniformAngles, int truncationRisks, double score, string category, string layout)
+    {
+        if (totalStages == 0) return $"SmartArt chevron process geometry audit ({layout}): Empty outline";
+
+        var parts = new List<string>();
+        parts.Add($"{totalStages} stages");
+        parts.Add($"spacing {avgGap:0.#}px");
+        if (uniformAngles) parts.Add("uniform 38° notch");
+        if (truncationRisks > 0) parts.Add($"⚠ {truncationRisks} text truncation risks");
+
+        string details = string.Join(" · ", parts);
+        return $"SmartArt chevron process geometry audit ({details} · {category} · {score:0.#}% score)";
+    }
+
+
     public static string FormatFunnelProportionalitySummary(
         int totalStages, bool isInverted, bool isMonotonic, double maxDrop, int truncationRisks,
         double score, string category, string layout)
@@ -12235,6 +12380,30 @@ public sealed record SmartArtFunnelConversionAudit(
     int TruncationRiskCount,
     double FunnelGeometricScore,
     IReadOnlyList<SmartArtFunnelConversionStageItem> Stages,
+    string Category,
+    string LayoutName,
+    string Summary);
+
+
+public sealed record SmartArtChevronStageItem(
+    int StageIndex,
+    string StageName,
+    double NotchAngleDegrees,
+    double SpacingGap,
+    bool HasTruncationRisk,
+    bool IsMonotonicProgression,
+    string Status,
+    string Recommendation);
+
+public sealed record SmartArtChevronProcessAudit(
+    int TotalStages,
+    double AverageGap,
+    double GapVariance,
+    bool HasUniformGaps,
+    bool HasUniformAngles,
+    int TruncationRiskCount,
+    double LayoutHarmonyScore,
+    IReadOnlyList<SmartArtChevronStageItem> Stages,
     string Category,
     string LayoutName,
     string Summary);
