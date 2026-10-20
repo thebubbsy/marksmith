@@ -3064,4 +3064,41 @@ public class SmartArtStudioPolishTests
         Assert.True(crowdedAudit.IsCrowdedFlow);
         Assert.True(crowdedAudit.ProcessCadenceScore < 80.0);
     }
+
+
+    [Fact]
+    public void Run199_AuditMatrixQuadrantSymmetry_EvaluatesQuadrantsAndParity()
+    {
+        // 1. Empty outline
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditMatrixQuadrantSymmetry("");
+        Assert.Equal(0, emptyAudit.TotalQuadrants);
+        Assert.Equal(100.0, emptyAudit.SymmetryBalanceScore);
+        Assert.Equal("Empty Matrix", emptyAudit.SymmetryCategory);
+
+        // 2. 4 balanced quadrants
+        var matrixMd = string.Join("\n",
+            "- Strengths",
+            "  - Strong brand",
+            "  - Modern platform",
+            "- Weaknesses",
+            "  - Small team",
+            "  - Limited budget",
+            "- Opportunities",
+            "  - New markets",
+            "  - Cloud expansion",
+            "- Threats",
+            "  - New competitors",
+            "  - Regulatory shifts"
+        );
+        var audit = SmartArtDesignStudioViewModel.AuditMatrixQuadrantSymmetry(matrixMd);
+        Assert.Equal(4, audit.TotalQuadrants);
+        Assert.True(audit.TotalItems >= 4);
+        Assert.True(audit.SymmetryBalanceScore >= 80.0);
+
+        string formatted = SmartArtDesignStudioViewModel.FormatMatrixQuadrantSummary(
+            audit.Quadrants.Count(q => !q.IsEmpty), audit.TotalItems, audit.TotalWords,
+            audit.Quadrants.Count(q => q.IsEmpty), audit.Quadrants.Count(q => q.IsOverloaded),
+            audit.SymmetryBalanceScore, audit.SymmetryCategory);
+        Assert.Equal(audit.Summary, formatted);
+    }
 }

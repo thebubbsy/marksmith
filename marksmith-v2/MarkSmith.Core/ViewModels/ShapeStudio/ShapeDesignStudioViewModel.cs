@@ -7188,6 +7188,133 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
             nonOrthogonalBendsCount, precisionScore, items, category, isSelection, summary);
     }
 
+    public DiagramShapeTextPaddingAudit AuditShapeTextPaddingAndOverflow(
+        IEnumerable<ShapeCanvasItemViewModel>? shapes = null, bool selectionOnly = false)
+    {
+        var targetShapes = (shapes ?? Shapes).ToList();
+        var selected = Shapes.Where(s => s.IsSelected).ToList();
+        bool isSelection = selectionOnly && selected.Count > 0;
+        if (isSelection)
+        {
+            targetShapes = selected;
+        }
+
+        var textShapes = targetShapes.Where(s =>
+            !s.IsLine &&
+            s.ShapeType != "Line" &&
+            s.Prst != "line" &&
+            s.Prst != "straightConnector1" &&
+            s.Prst != "bentConnector3" &&
+            s.Prst != "curvedConnector3" &&
+            !string.IsNullOrWhiteSpace(s.Text)).ToList();
+
+        int nTotal = targetShapes.Count;
+        int nText = textShapes.Count;
+
+        if (nText == 0)
+        {
+            string emptySummary = FormatTextPaddingOverflowSummary(nTotal, 0, 0, 0, 0, 100.0, "Clean Baseline", isSelection);
+            return new DiagramShapeTextPaddingAudit(
+                nTotal, 0, 0, 0, 0, 100.0,
+                Array.Empty<ShapeTextPaddingItem>(),
+                "Clean Baseline", isSelection, emptySummary);
+        }
+
+        var items = new List<ShapeTextPaddingItem>();
+        int wellPaddedCount = 0;
+        int crampedCount = 0;
+        int overflowCount = 0;
+
+        foreach (var s in textShapes)
+        {
+            double[] insets = s.LabelInsets ?? PresetGeometry.TextInsets(s.Prst, s.Width, s.Height);
+            double insetL = insets != null && insets.Length > 0 ? insets[0] : 8.0;
+            double insetT = insets != null && insets.Length > 1 ? insets[1] : 6.0;
+            double insetR = insets != null && insets.Length > 2 ? insets[2] : 8.0;
+            double insetB = insets != null && insets.Length > 3 ? insets[3] : 6.0;
+
+            double availW = Math.Max(0.0, s.Width - (insetL + insetR));
+            double availH = Math.Max(0.0, s.Height - (insetT + insetB));
+
+            double fontSize = s.LabelFontSize > 0 ? s.LabelFontSize : 12.0;
+            var textLines = s.Text.Replace("\r\n", "\n").Split('\n');
+            int lineCount = textLines.Length;
+            int maxLineChars = textLines.Max(l => l.Length);
+
+            double estW = maxLineChars * (fontSize * 0.55);
+            double estH = lineCount * (fontSize * 1.25);
+
+            bool hasOverflow = estW > availW || estH > availH;
+            bool isCramped = !hasOverflow && (availW - estW < 6.0 || availH - estH < 6.0);
+
+            if (hasOverflow) overflowCount++;
+            else if (isCramped) crampedCount++;
+            else wellPaddedCount++;
+
+            string status = hasOverflow
+                ? "Text Overflow Detected"
+                : (isCramped ? "Cramped Label Margin" : "Optimal Enclosure Padding");
+
+            string recommendation = hasOverflow
+                ? "Increase shape dimensions or reduce font size to prevent text clipping"
+                : (isCramped ? "Enlarge shape slightly for cleaner breathing room" : "Clean text enclosure padding");
+
+            items.Add(new ShapeTextPaddingItem(
+                s.Id, s.Name ?? s.Id, s.Prst, s.Text,
+                Math.Round(s.Width, 1), Math.Round(s.Height, 1),
+                Math.Round(insetL, 1), Math.Round(insetT, 1), Math.Round(insetR, 1), Math.Round(insetB, 1),
+                Math.Round(availW, 1), Math.Round(availH, 1),
+                Math.Round(estW, 1), Math.Round(estH, 1),
+                hasOverflow, isCramped, status, recommendation));
+        }
+
+        double score = 100.0;
+        score -= (overflowCount * 18.0);
+        score -= (crampedCount * 6.0);
+        score = Math.Round(Math.Clamp(score, 0.0, 100.0), 1);
+
+        string category = score switch
+        {
+            >= 90.0 => "Optimal Text Enclosure & Padding",
+            >= 75.0 => "Acceptable Label Margins",
+            >= 60.0 => "Moderate Label Crowding",
+            >= 40.0 => "High Text Boundary Clipping Risk",
+            _ => "Severe Text Label Overflow"
+        };
+
+        string summary = FormatTextPaddingOverflowSummary(
+            nTotal, nText, wellPaddedCount, crampedCount, overflowCount,
+            score, category, isSelection);
+
+        return new DiagramShapeTextPaddingAudit(
+            nTotal, nText, wellPaddedCount, crampedCount, overflowCount,
+            score, items, category, isSelection, summary);
+    }
+
+    public static string FormatTextPaddingOverflowSummary(
+        int totalShapes, int textShapes, int wellPadded, int cramped, int overflow,
+        double score, string category, bool isSelection = false)
+    {
+        string scope = isSelection ? "Selection · " : "";
+        if (textShapes == 0)
+            return $"Diagram shape text padding audit ({scope}{totalShapes} shapes): 0 text labels on canvas";
+
+        string shapeSuffix = textShapes == 1 ? string.Empty : "s";
+        string overflowSuffix = overflow == 1 ? string.Empty : "s";
+        string crampedSuffix = cramped == 1 ? string.Empty : "s";
+
+        var parts = new List<string>
+        {
+            $"{textShapes} labeled shape{shapeSuffix}",
+            $"{wellPadded} well-padded"
+        };
+        if (overflow > 0) parts.Add($"⚠️ {overflow} text overflow{overflowSuffix}");
+        if (cramped > 0) parts.Add($"{cramped} cramped margin{crampedSuffix}");
+
+        string details = string.Join(" · ", parts);
+        return $"Diagram shape text padding & boundary audit ({scope}{details} · {category} · {score:0.#}% enclosure score)";
+    }
+
     public static string FormatConnectorAttachmentSummary(
         int totalShapes, int totalConnectors, int snappedPorts, int danglingArrows,
         int nonOrthogonalBends, double score, string category, bool isSelection = false)
@@ -13387,6 +13514,44 @@ public sealed record ConnectorAttachmentPortItem(
 /// Represents the result of an audit of diagram connector arrowheads, snap port attachment accuracy,
 /// endpoint drift, and orthogonality compliance.
 /// </summary>
+/// <summary>
+/// Represents evaluated text bounding, insets, and overflow status for an individual diagram shape.
+/// </summary>
+public sealed record ShapeTextPaddingItem(
+    string ShapeId,
+    string ShapeName,
+    string ShapeType,
+    string Text,
+    double ShapeWidth,
+    double ShapeHeight,
+    double InsetLeft,
+    double InsetTop,
+    double InsetRight,
+    double InsetBottom,
+    double AvailableWidth,
+    double AvailableHeight,
+    double EstimatedTextWidth,
+    double EstimatedTextHeight,
+    bool HasOverflow,
+    bool IsCramped,
+    string Status,
+    string Recommendation);
+
+/// <summary>
+/// Represents the result of an audit of diagram shape text padding, label boundaries, and text overflow clipping hazards.
+/// </summary>
+public sealed record DiagramShapeTextPaddingAudit(
+    int TotalShapes,
+    int TextShapeCount,
+    int WellPaddedCount,
+    int CrampedCount,
+    int OverflowCount,
+    double EnclosureCleanlinessScore,
+    IReadOnlyList<ShapeTextPaddingItem> Items,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);
+
 public sealed record DiagramConnectorPortAttachmentAudit(
     int TotalShapes,
     int TotalConnectors,

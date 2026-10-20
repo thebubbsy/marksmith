@@ -18013,6 +18013,153 @@ public static class LineDiff
 
 
 
+    public static DiffPatternMatchingExhaustivenessAudit AuditPatternMatchingAndEnumBranchExhaustiveness(string? beforeText, string? afterText)
+    {
+        var diff = Diff(beforeText ?? string.Empty, afterText ?? string.Empty);
+        var unified = BuildUnified(diff);
+        return AuditPatternMatchingAndEnumBranchExhaustiveness(unified);
+    }
+
+    public static DiffPatternMatchingExhaustivenessAudit AuditPatternMatchingAndEnumBranchExhaustiveness(
+        IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows == null)
+        {
+            string emptySummary = FormatPatternMatchingSummary(0, 0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new DiffPatternMatchingExhaustivenessAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<PatternMatchingBranchItem>(), "Clean Baseline", emptySummary);
+        }
+
+        var modifiedRows = unifiedRows
+            .Where(r => !r.IsGap && r.Kind == Kind.Added && !string.IsNullOrWhiteSpace(r.Text))
+            .ToList();
+
+        int totalModified = modifiedRows.Count;
+        if (totalModified == 0)
+        {
+            string emptySummary = FormatPatternMatchingSummary(0, 0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new DiffPatternMatchingExhaustivenessAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<PatternMatchingBranchItem>(), "Clean Baseline", emptySummary);
+        }
+
+        int unhandledSwitchCount = 0;
+        int wildcardDiscardTrapCount = 0;
+        int missingDefaultBranchCount = 0;
+        int missingNullCheckCount = 0;
+        var items = new List<PatternMatchingBranchItem>();
+
+        for (int i = 0; i < modifiedRows.Count; i++)
+        {
+            var row = modifiedRows[i];
+            string line = row.Text;
+            int lineNum = row.NewNumber ?? row.OldNumber ?? (i + 1);
+            string op = row.Kind.ToString();
+
+            // Wildcard discard traps: _ => null, _ => default, _ => false, default: break, default: return null;
+            if (Regex.IsMatch(line, @"_\s*=>\s*(null|default|false|0|\""\""|string\.Empty)\b") ||
+                Regex.IsMatch(line, @"default:\s*(break|return\s+(null|default|false|0));"))
+            {
+                wildcardDiscardTrapCount++;
+                items.Add(new PatternMatchingBranchItem(
+                    lineNum, op, "Wildcard Discard Trap",
+                    line.Trim(), 2,
+                    "Silent wildcard discard branch swallows newly added enum variants or unhandled types without compilation or runtime warning",
+                    "Throw InvalidOperationException or ArgumentOutOfRangeException on unexpected variants rather than discarding silently",
+                    "Silent Fallback Trap"));
+            }
+
+            // Incomplete switch statement without default
+            if (Regex.IsMatch(line, @"\bswitch\s*\([^)]+\)\s*\{") && !modifiedRows.Any(r => r.Text.Contains("default:")))
+            {
+                missingDefaultBranchCount++;
+                items.Add(new PatternMatchingBranchItem(
+                    lineNum, op, "Missing Default Switch Branch",
+                    line.Trim(), 2,
+                    "Switch statement has no explicit default branch to catch unhandled enum values",
+                    "Add an explicit default: throw new ArgumentOutOfRangeException(...) branch",
+                    "Incomplete Switch"));
+            }
+
+            // Incomplete pattern matching with discard without type or null check
+            if (Regex.IsMatch(line, @"case\s+not\s+null\s*:") || Regex.IsMatch(line, @"case\s+\w+\s+\w+\s+when\b"))
+            {
+                // good pattern matching
+            }
+            else if (Regex.IsMatch(line, @"case\s+\w+\s+\w+:") && !modifiedRows.Any(r => r.Text.Contains("case null:")))
+            {
+                missingNullCheckCount++;
+                items.Add(new PatternMatchingBranchItem(
+                    lineNum, op, "Missing Null Check in Pattern Match",
+                    line.Trim(), 1,
+                    "Type pattern does not explicitly handle null inputs",
+                    "Add a 'case null:' branch or use 'not null' pattern to prevent NullReferenceException",
+                    "Unchecked Null"));
+            }
+
+            // NotImplementedException in switch fallback arm
+            if (Regex.IsMatch(line, @"_\s*=>\s*throw\s+new\s+NotImplementedException") ||
+                Regex.IsMatch(line, @"default:\s*throw\s+new\s+NotImplementedException"))
+            {
+                unhandledSwitchCount++;
+                items.Add(new PatternMatchingBranchItem(
+                    lineNum, op, "NotImplementedException Switch Arm",
+                    line.Trim(), 2,
+                    "Switch arm throws NotImplementedException indicating unfinished domain model handling",
+                    "Implement exhaustive handling for all expected variants or throw ArgumentOutOfRangeException with domain details",
+                    "Unimplemented Variant"));
+            }
+        }
+
+        int totalHazards = unhandledSwitchCount + wildcardDiscardTrapCount + missingDefaultBranchCount + missingNullCheckCount;
+        double safetyScore = 100.0;
+        safetyScore -= (wildcardDiscardTrapCount * 14.0);
+        safetyScore -= (missingDefaultBranchCount * 12.0);
+        safetyScore -= (unhandledSwitchCount * 10.0);
+        safetyScore -= (missingNullCheckCount * 6.0);
+        safetyScore = Math.Round(Math.Clamp(safetyScore, 0.0, 100.0), 1);
+
+        string category = safetyScore switch
+        {
+            >= 90.0 => "Optimal Exhaustive Pattern Safety",
+            >= 75.0 => "High Pattern Matching Fidelity",
+            >= 60.0 => "Moderate Discard & Fallback Risks",
+            >= 40.0 => "High Unhandled Enum Hazard",
+            _ => "Severe Incomplete Switch Branching"
+        };
+
+        string summary = FormatPatternMatchingSummary(
+            totalModified, totalHazards, unhandledSwitchCount, wildcardDiscardTrapCount,
+            missingDefaultBranchCount, missingNullCheckCount, safetyScore, category);
+
+        return new DiffPatternMatchingExhaustivenessAudit(
+            totalModified, totalHazards, unhandledSwitchCount, wildcardDiscardTrapCount,
+            missingDefaultBranchCount, missingNullCheckCount, safetyScore, items, category, summary);
+    }
+
+    public static string FormatPatternMatchingSummary(
+        int totalLines, int totalHazards, int unhandledSwitch, int wildcardTraps,
+        int missingDefault, int missingNull, double score, string category)
+    {
+        if (totalLines == 0) return "Semantic diff pattern matching audit: 0 modified lines · Clean baseline";
+        if (totalHazards == 0)
+            return $"Semantic diff pattern matching audit ({totalLines} lines): 0 pattern hazards · Clean baseline · 100% score";
+
+        string hazardSuffix = totalHazards == 1 ? string.Empty : "s";
+        var parts = new List<string>
+        {
+            $"{totalHazards} pattern hazard{hazardSuffix}"
+        };
+        if (wildcardTraps > 0) parts.Add($"⚠️ {wildcardTraps} discard trap{(wildcardTraps == 1 ? "" : "s")}");
+        if (missingDefault > 0) parts.Add($"{missingDefault} missing default");
+        if (unhandledSwitch > 0) parts.Add($"{unhandledSwitch} unhandled arm{(unhandledSwitch == 1 ? "" : "s")}");
+        if (missingNull > 0) parts.Add($"{missingNull} missing null check{(missingNull == 1 ? "" : "s")}");
+
+        string details = string.Join(" · ", parts);
+        return $"Semantic diff pattern matching audit ({details} · {category} · {score:0.#}% safety score)";
+    }
+
     public static string FormatCacheLocalitySummary(
         int totalLines, int totalHazards, int falseSharing, int multiDimArrays,
         int pointerChasing, int unpaddedStructs, double score, string category)
@@ -20027,6 +20174,35 @@ public sealed record StringAllocationHazardItem(
 /// Represents the result of an audit of semantic diff hunks for string allocations, Substring heap churn,
 /// String.Split pressure, loop string concatenation, and case-conversion comparisons.
 /// </summary>
+/// <summary>
+/// Represents an identified pattern matching, unhandled enum branch, or wildcard discard trap on a diff line.
+/// </summary>
+public sealed record PatternMatchingBranchItem(
+    int LineNumber,
+    string DiffOperation,
+    string ConstructKind,
+    string CodeSnippet,
+    int Severity,
+    string ImpactDescription,
+    string RemediationHint,
+    string Status);
+
+/// <summary>
+/// Represents the result of an audit of semantic diff hunks for exhaustive pattern matching, unhandled enum branches,
+/// wildcard discard traps, and missing default cases.
+/// </summary>
+public sealed record DiffPatternMatchingExhaustivenessAudit(
+    int TotalModifiedLines,
+    int TotalHazards,
+    int UnhandledSwitchCount,
+    int WildcardDiscardTrapCount,
+    int MissingDefaultBranchCount,
+    int MissingNullCheckCount,
+    double ExhaustivenessSafetyScore,
+    IReadOnlyList<PatternMatchingBranchItem> Items,
+    string Category,
+    string Summary);
+
 public sealed record DiffStringAllocationAudit(
     int TotalModifiedLines,
     int TotalHazards,

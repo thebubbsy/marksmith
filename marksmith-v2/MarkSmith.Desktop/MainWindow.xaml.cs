@@ -11957,7 +11957,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         auditHtmlEntitiesItem.Click += (_, _) =>
         {
             var text = EditorDocument();
-            var summary = MarkSmith.Services.TextSearch.AuditHtmlEntitiesAndEscapedCharacters(text).Summary;
+            var summary = MarkSmith.Services.TextSearch.AuditMarkdownHtmlEntities(text).Summary; // AuditHtmlEntitiesAndEscapedCharacters
             _ = Services.ClipboardWriter.TrySetTextAsync(summary);
             AnnounceStatus(summary);
         };
@@ -12057,6 +12057,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             AnnounceStatus(summary);
         };
         menu.Items.Add(auditMathDelimiterBalanceItem);
+
 
         menu.ShowAt(anchor);
     }

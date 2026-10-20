@@ -10349,6 +10349,9 @@ public static class TextSearch
     /// <summary>
     /// Formats a human-readable summary of markdown HTML entities and character escape audits.
     /// </summary>
+    public static MarkdownHtmlEntitiesAudit AuditMarkdownHtmlEntities(string? markdownText)
+        => AuditHtmlEntitiesAndEscapedCharacters(markdownText);
+
     public static string FormatHtmlEntitiesSummary(string? markdownText)
         => AuditHtmlEntitiesAndEscapedCharacters(markdownText).Summary;
 

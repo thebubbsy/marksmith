@@ -6229,4 +6229,91 @@ Some paragraph in between.
         Assert.Contains("OnAuditWorkspaceHeadingSlugsClick", suiteCs);
         Assert.Contains("AuditWorkspaceHeadingSlugsAndTocAnchors", suiteCs);
     }
+
+
+    [Fact]
+    public void Run199_AuditWorkspaceMarkdownTableFormatting_ValidatesColumnsAndPipes()
+    {
+        // 1. Empty workspace
+        var emptyAudit = RecentFilesService.AuditWorkspaceMarkdownTableFormatting(Array.Empty<string>());
+        Assert.Equal(0, emptyAudit.TotalDocumentsEvaluated);
+        Assert.Equal(100.0, emptyAudit.TabularIntegrityScore);
+        Assert.Equal("Empty Workspace", emptyAudit.Category);
+
+        // 2. Document with valid markdown table
+        var tempFile = Path.Combine(Path.GetTempPath(), $"ms_test_tables_{Guid.NewGuid():N}.md");
+        try
+        {
+            var content = string.Join("\n",
+                "# Performance Report",
+                "",
+                "| Metric | Target | Actual |",
+                "|---|---|---|",
+                "| Throughput | 1000 | 1250 |",
+                "| Latency | <10ms | 4.2ms |",
+                ""
+            );
+            File.WriteAllText(tempFile, content);
+
+            var audit = RecentFilesService.AuditWorkspaceMarkdownTableFormatting(new[] { tempFile });
+            Assert.Equal(1, audit.TotalDocumentsEvaluated);
+            Assert.Equal(1, audit.TotalTablesFound);
+            Assert.Equal(1, audit.ValidTablesCount);
+            Assert.Equal(0, audit.RaggedTablesCount);
+            Assert.Equal(100.0, audit.TabularIntegrityScore);
+
+            string formatted = RecentFilesService.FormatWorkspaceTableFormattingSummary(
+                audit.TotalDocumentsEvaluated, audit.TotalTablesFound, audit.ValidTablesCount,
+                audit.RaggedTablesCount, audit.MissingDelimiterTablesCount,
+                audit.EmptyHeaderOnlyTablesCount, audit.TabularIntegrityScore, audit.Category);
+            Assert.Equal(audit.Summary, formatted);
+        }
+        finally
+        {
+            if (File.Exists(tempFile)) File.Delete(tempFile);
+        }
+    }
+
+    [Fact]
+    public void Run199_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // Surface 1: MainWindow - Markdown HTML Entity & Character Escape Completeness Auditor
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("auditHtmlEntitiesItem", mainCs);
+        Assert.Contains("AuditMarkdownHtmlEntities", mainCs);
+
+        // Surface 2: MindMapGalaxyWindow - Graph Degree Distribution Skewness & Scale-Free Power-Law Fit Auditor
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditGraphDegreeDistributionItem", galaxyXaml);
+        Assert.Contains("OnAuditGraphDegreeDistributionClick", galaxyCs);
+        Assert.Contains("AuditGraphDegreeDistributionAndPowerLaw", galaxyCs);
+
+        // Surface 3: ShapeDesignStudioWindow - Diagram Shape Text Padding & Label Boundary Overflow Auditor
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditShapeTextPaddingItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditShapeTextPaddingClick", shapeCs);
+        Assert.Contains("AuditShapeTextPaddingAndOverflow", shapeCs);
+
+        // Surface 4: SmartArtDesignStudioWindow - SmartArt Matrix / Grid Layout Quadrant Symmetry & Cell Aspect Ratio Auditor
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineStatsAuditMatrixQuadrantSymmetryItem", smartArtXaml);
+        Assert.Contains("OnAuditMatrixQuadrantSymmetryClick", smartArtCs);
+        Assert.Contains("AuditMatrixQuadrantSymmetry", smartArtCs);
+
+        // Surface 5: HistoryWindow - Semantic Diff Exhaustive Pattern Matching & Unhandled Enum Branch Analyzer
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditPatternMatching", historyCs);
+        Assert.Contains("AuditPatternMatchingAndEnumBranchExhaustiveness", historyCs);
+
+        // Surface 6: SuiteHubView - Workspace Markdown Table Pipe Alignment & Column Uniformity Auditor
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("AuditWorkspaceMarkdownTablesItem", suiteXaml);
+        Assert.Contains("OnAuditWorkspaceMarkdownTablesClick", suiteCs);
+        Assert.Contains("AuditWorkspaceMarkdownTableFormatting", suiteCs);
+    }
+
 }

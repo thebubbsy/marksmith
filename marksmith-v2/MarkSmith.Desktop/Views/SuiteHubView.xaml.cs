@@ -2463,6 +2463,25 @@ public sealed partial class SuiteHubView : UserControl
         }
     }
 
+    private async void OnAuditWorkspaceMarkdownTablesClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var files = App.RecentFiles?.Load() ?? new List<string>();
+            var result = RecentFilesService.AuditWorkspaceMarkdownTableFormatting(explicitFiles: files);
+            await Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            SetNotification(result.Summary, success: true);
+            if (RecentDocsActionBtn != null)
+            {
+                Services.CopyFeedback.ApplyButtonTick(RecentDocsActionBtn, null, "\u2713 Tables");
+            }
+        }
+        catch (Exception ex)
+        {
+            SetNotification($"Audit failed: {ex.Message}", success: false);
+        }
+    }
+
     private async void OnAuditWorkspaceHeadingSlugsClick(object sender, RoutedEventArgs e)
     {
         try

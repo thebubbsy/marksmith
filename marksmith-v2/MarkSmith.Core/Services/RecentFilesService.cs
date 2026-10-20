@@ -5581,6 +5581,12 @@ public sealed class RecentFilesService
         return AuditWorkspaceTableFormatting(new[] { filePath }, fileExistsProvider, contentReader);
     }
 
+    public static WorkspaceTableFormattingAudit AuditWorkspaceMarkdownTableFormatting(
+        IReadOnlyList<string>? explicitFiles = null,
+        Func<string, bool>? fileExistsProvider = null,
+        Func<string, string>? contentReader = null)
+        => AuditWorkspaceTableFormatting(explicitFiles, fileExistsProvider, contentReader);
+
     public static string FormatWorkspaceTableFormattingSummary(
         int totalDocs, int totalTables, int validCount, int raggedCount,
         int missingDelimiters, int emptyHeaderOnly, double score, string category)

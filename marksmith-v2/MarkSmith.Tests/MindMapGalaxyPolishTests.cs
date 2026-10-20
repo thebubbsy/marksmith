@@ -4106,5 +4106,45 @@ namespace MarkSmith.Tests
                 audit.Nodes);
             Assert.Equal(audit.Summary, formatted);
         }
+
+        [Fact]
+        public void Run199_AuditGraphDegreeDistributionAndPowerLaw_ComputesSkewnessAndHubs()
+        {
+            // 1. Empty graph
+            var emptyAudit = MindMapStudioViewModel.AuditGraphDegreeDistributionAndPowerLaw(null, null);
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.Equal(100.0, emptyAudit.ScaleFreeFitScore);
+            Assert.Equal("Empty Map", emptyAudit.Category);
+
+            // 2. Star graph with central hub (node 1) connected to 4 leaves
+            var hub = new MindMapNode { Id = "1", Title = "Central Hub" };
+            var l1 = new MindMapNode { Id = "2", Title = "Leaf A" };
+            var l2 = new MindMapNode { Id = "3", Title = "Leaf B" };
+            var l3 = new MindMapNode { Id = "4", Title = "Leaf C" };
+            var l4 = new MindMapNode { Id = "5", Title = "Leaf D" };
+
+            var links = new List<MindMapLink>
+            {
+                new MindMapLink { Id = "e1", SourceNodeId = "1", TargetNodeId = "2" },
+                new MindMapLink { Id = "e2", SourceNodeId = "1", TargetNodeId = "3" },
+                new MindMapLink { Id = "e3", SourceNodeId = "1", TargetNodeId = "4" },
+                new MindMapLink { Id = "e4", SourceNodeId = "1", TargetNodeId = "5" }
+            };
+
+            var audit = MindMapStudioViewModel.AuditGraphDegreeDistributionAndPowerLaw(
+                new[] { hub, l1, l2, l3, l4 }, links);
+            Assert.Equal(5, audit.TotalNodes);
+            Assert.Equal(4, audit.TotalEdges);
+            Assert.Equal(4, audit.MaxDegree);
+            Assert.True(audit.MeanDegree > 0.0);
+            Assert.True(audit.DegreeStdDev > 0.0);
+            Assert.True(audit.LeafCount >= 4);
+
+            string formatted = MindMapStudioViewModel.FormatDegreeDistributionSummary(
+                audit.TotalNodes, audit.TotalEdges, audit.MeanDegree, audit.DegreeStdDev,
+                audit.DegreeSkewness, audit.MaxDegree, audit.SuperHubCount,
+                audit.LeafCount, audit.IsolatedCount, audit.ScaleFreeFitScore, audit.Category, audit.IsSelectionScope);
+            Assert.Equal(audit.Summary, formatted);
+        }
     }
 }

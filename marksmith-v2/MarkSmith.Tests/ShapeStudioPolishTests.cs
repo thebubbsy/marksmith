@@ -3365,4 +3365,67 @@ public class ShapeStudioPolishTests
             audit.RoutingPrecisionScore, audit.Category, audit.IsSelectionScope);
         Assert.Equal(audit.Summary, formatted);
     }
+
+
+    [Fact]
+    public void Run199_AuditShapeTextPaddingAndOverflow_EvaluatesPaddingAndOverflow()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+        vm.Shapes.Clear();
+
+        // 1. Empty canvas
+        var emptyAudit = vm.AuditShapeTextPaddingAndOverflow();
+        Assert.Equal(0, emptyAudit.TotalShapes);
+        Assert.Equal(0, emptyAudit.TextShapeCount);
+        Assert.Equal(100.0, emptyAudit.EnclosureCleanlinessScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+
+        // 2. Normal well-padded shape
+        var normalBox = new ShapeCanvasItemViewModel
+        {
+            Id = "s1",
+            Name = "Title Box",
+            X = 50,
+            Y = 50,
+            Width = 200,
+            Height = 100,
+            Prst = "rect",
+            Text = "Short Title"
+        };
+        vm.Shapes.Add(normalBox);
+
+        var normalAudit = vm.AuditShapeTextPaddingAndOverflow();
+        Assert.Equal(1, normalAudit.TotalShapes);
+        Assert.Equal(1, normalAudit.TextShapeCount);
+        Assert.Equal(1, normalAudit.WellPaddedCount);
+        Assert.Equal(0, normalAudit.OverflowCount);
+        Assert.Equal(100.0, normalAudit.EnclosureCleanlinessScore);
+
+        string formatted = ShapeDesignStudioViewModel.FormatTextPaddingOverflowSummary(
+            normalAudit.TotalShapes, normalAudit.TextShapeCount, normalAudit.WellPaddedCount,
+            normalAudit.CrampedCount, normalAudit.OverflowCount,
+            normalAudit.EnclosureCleanlinessScore, normalAudit.Category, normalAudit.IsSelectionScope);
+        Assert.Equal(normalAudit.Summary, formatted);
+
+        // 3. Tiny shape with massive text causing overflow
+        var tinyBox = new ShapeCanvasItemViewModel
+        {
+            Id = "s2",
+            Name = "Overflow Box",
+            X = 300,
+            Y = 50,
+            Width = 25,
+            Height = 15,
+            Prst = "rect",
+            Text = "This very long paragraph of text will massively exceed the small rectangle boundaries"
+        };
+        vm.Shapes.Add(tinyBox);
+
+        var overflowAudit = vm.AuditShapeTextPaddingAndOverflow();
+        Assert.Equal(2, overflowAudit.TotalShapes);
+        Assert.Equal(2, overflowAudit.TextShapeCount);
+        Assert.True(overflowAudit.OverflowCount >= 1);
+        Assert.True(overflowAudit.EnclosureCleanlinessScore < 90.0);
+    }
+
 }

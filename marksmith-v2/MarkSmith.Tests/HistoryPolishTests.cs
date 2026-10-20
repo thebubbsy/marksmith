@@ -3252,4 +3252,57 @@ public class HistoryPolishTests : IDisposable
         Assert.True(badAudit.TotalHazards >= 3);
         Assert.True(badAudit.AllocationEfficiencyScore < 75.0);
     }
+
+
+    [Fact]
+    public void Run199_AuditPatternMatchingAndEnumBranchExhaustiveness_DetectsDiscardTrapsAndUnhandledArms()
+    {
+        // 1. Clean code
+        var cleanCode = string.Join("\n",
+            "public class CleanMatcher",
+            "{",
+            "    public string Match(Command cmd)",
+            "    {",
+            "        return cmd switch",
+            "        {",
+            "            Command.Start => \"Starting\",",
+            "            Command.Stop => \"Stopping\",",
+            "            _ => throw new ArgumentOutOfRangeException(nameof(cmd))",
+            "        };",
+            "    }",
+            "}"
+        );
+
+        var cleanAudit = LineDiff.AuditPatternMatchingAndEnumBranchExhaustiveness("", cleanCode);
+        Assert.Equal(0, cleanAudit.TotalHazards);
+        Assert.Equal(100.0, cleanAudit.ExhaustivenessSafetyScore);
+        Assert.Equal("Optimal Exhaustive Pattern Safety", cleanAudit.Category);
+
+        string formatted = LineDiff.FormatPatternMatchingSummary(
+            cleanAudit.TotalModifiedLines, cleanAudit.TotalHazards, cleanAudit.UnhandledSwitchCount,
+            cleanAudit.WildcardDiscardTrapCount, cleanAudit.MissingDefaultBranchCount,
+            cleanAudit.MissingNullCheckCount, cleanAudit.ExhaustivenessSafetyScore, cleanAudit.Category);
+        Assert.Equal(cleanAudit.Summary, formatted);
+
+        // 2. Risky code with discard traps and missing default
+        var badCode = string.Join("\n",
+            "public class TrapMatcher",
+            "{",
+            "    public string Match(Command cmd)",
+            "    {",
+            "        return cmd switch",
+            "        {",
+            "            Command.Start => \"Starting\",",
+            "            _ => null",
+            "        };",
+            "    }",
+            "}"
+        );
+
+        var badAudit = LineDiff.AuditPatternMatchingAndEnumBranchExhaustiveness("", badCode);
+        Assert.True(badAudit.WildcardDiscardTrapCount >= 1);
+        Assert.True(badAudit.TotalHazards >= 1);
+        Assert.True(badAudit.ExhaustivenessSafetyScore < 90.0);
+    }
+
 }

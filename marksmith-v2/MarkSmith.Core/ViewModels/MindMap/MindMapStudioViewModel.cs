@@ -8574,6 +8574,13 @@ namespace MarkSmith.ViewModels.MindMap
             return vm.AuditDegreeDistributionAndHubs();
         }
 
+        public GraphDegreeDistributionAudit AuditGraphDegreeDistributionAndPowerLaw(bool selectionOnly = false)
+            => AuditDegreeDistributionAndHubs(selectionOnly);
+
+        public static GraphDegreeDistributionAudit AuditGraphDegreeDistributionAndPowerLaw(
+            IEnumerable<MindMapNode>? nodes, IEnumerable<MindMapLink>? links)
+            => AuditDegreeDistributionAndHubs(nodes, links);
+
         public static string FormatDegreeDistributionSummary(
             int totalNodes, int totalEdges, double meanDegree, double stdDev, double skewness,
             int maxDegree, int superHubs, int leafCount, int isolatedCount, double score,

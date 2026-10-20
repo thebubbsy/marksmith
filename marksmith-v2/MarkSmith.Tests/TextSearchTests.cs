@@ -3437,4 +3437,40 @@ public class TextSearchTests
         Assert.True(brokenAudit.UnclosedDelimiterCount > 0 || brokenAudit.UnescapedCurrencyCount > 0 || brokenAudit.UnbalancedBraceCount > 0);
         Assert.True(brokenAudit.MathRenderingFidelityScore < 90.0);
     }
+
+    [Fact]
+    public void Run199_AuditMarkdownHtmlEntities_ValidatesEntitiesAndBrokenEscapes()
+    {
+        // 1. Empty markdown
+        var emptyAudit = TextSearch.AuditMarkdownHtmlEntities("");
+        Assert.Equal(0, emptyAudit.TotalEntities);
+        Assert.Equal(100.0, emptyAudit.HygieneScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+
+        // 2. Clean doc with valid entities
+        var cleanDoc = string.Join("\n",
+            "# Guide &amp; Overview",
+            "This document costs &pound;20 &copy; 2026.",
+            "Water is H&#x2082;O."
+        );
+        var cleanAudit = TextSearch.AuditMarkdownHtmlEntities(cleanDoc);
+        Assert.True(cleanAudit.TotalEntities >= 2);
+        Assert.Equal(0, cleanAudit.BrokenEntityCount);
+        Assert.True(cleanAudit.HygieneScore >= 95.0);
+
+        string formatted = TextSearch.FormatHtmlEntitiesSummary(
+            cleanAudit.TotalEntities, cleanAudit.NamedEntityCount, cleanAudit.NumericEntityCount,
+            cleanAudit.BrokenEntityCount, cleanAudit.AmbiguousEscapeCount,
+            cleanAudit.UnescapedBracketCount, cleanAudit.HygieneScore, cleanAudit.Category);
+        Assert.Equal(cleanAudit.Summary, formatted);
+
+        // 3. Broken doc with broken entity missing semicolon and unescaped angle brackets
+        var brokenDoc = string.Join("\n",
+            "Invalid entity &amp without semicolon here.",
+            "This <tag> is unescaped outside code fence."
+        );
+        var brokenAudit = TextSearch.AuditMarkdownHtmlEntities(brokenDoc);
+        Assert.True(brokenAudit.BrokenEntityCount > 0 || brokenAudit.UnescapedBracketCount > 0);
+        Assert.True(brokenAudit.HygieneScore < 95.0);
+    }
 }
