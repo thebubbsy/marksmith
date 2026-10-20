@@ -3250,5 +3250,40 @@ public class SmartArtStudioPolishTests
         Assert.True(riskAudit.LayoutHarmonyScore < 95.0);
     }
 
-}
 
+    [Fact]
+    public void Run204_AuditVennDiagramGeometry_ValidatesRadiiOverlapAndLabels()
+    {
+        // 1. Empty outline
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditVennDiagramGeometry("");
+        Assert.Equal(0, emptyAudit.SetCount);
+        Assert.Equal(100.0, emptyAudit.SetHarmonyScore);
+        Assert.Equal("Empty Outline", emptyAudit.Category);
+
+        // 2. Harmonious 2-set Venn diagram
+        var goodVennMd = string.Join("\n",
+            "- Set Alpha",
+            "- Set Beta"
+        );
+        var goodAudit = SmartArtDesignStudioViewModel.AuditVennDiagramGeometry(goodVennMd, "Linear Venn");
+        Assert.Equal(2, goodAudit.SetCount);
+        Assert.True(goodAudit.IsRadiusBalanced);
+        Assert.True(goodAudit.SetHarmonyScore >= 95.0);
+
+        string formatted = SmartArtDesignStudioViewModel.FormatVennGeometrySummary(
+            goodAudit.SetCount, goodAudit.CircleRadius, goodAudit.OverlapDistance,
+            goodAudit.OverlapRatio, goodAudit.IsRadiusBalanced, goodAudit.SetHarmonyScore,
+            goodAudit.Category, "Linear Venn");
+        Assert.Equal(goodAudit.Summary, formatted);
+
+        // 3. Set with overly long label causing intersection clipping risk
+        var longVennMd = string.Join("\n",
+            "- Set Alpha With Very Long Text Exceeding Twenty Eight Characters Threshold",
+            "- Set Beta"
+        );
+        var riskAudit = SmartArtDesignStudioViewModel.AuditVennDiagramGeometry(longVennMd, "Linear Venn");
+        Assert.True(riskAudit.Sets.Any(s => s.Recommendation.Contains("overlap clipping")));
+        Assert.True(riskAudit.SetHarmonyScore < 95.0);
+    }
+
+}

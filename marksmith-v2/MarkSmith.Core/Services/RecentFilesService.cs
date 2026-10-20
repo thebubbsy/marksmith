@@ -5851,6 +5851,195 @@ public sealed class RecentFilesService
         return new WorkspaceTableRollbackResult(filesScanned, filesRestored, summary);
     }
 
+    public static WorkspaceCrossFileLinkAudit AuditWorkspaceCrossFileLinks(
+        IReadOnlyList<string>? explicitFiles = null,
+        Func<string, bool>? fileExistsProvider = null,
+        Func<string, string>? contentReader = null)
+    {
+        var files = (explicitFiles ?? Array.Empty<string>())
+            .Where(f => !string.IsNullOrWhiteSpace(f) && !f.EndsWith(".bak.md", StringComparison.OrdinalIgnoreCase))
+            .Distinct()
+            .ToList();
+
+        int filesScanned = 0;
+        int totalLinks = 0;
+        int validLocalLinks = 0;
+        int brokenTargetFiles = 0;
+        int brokenAnchorHeaders = 0;
+        int externalLinks = 0;
+        var items = new List<WorkspaceCrossFileLinkItem>();
+
+        var linkRegex = new Regex(@"\[(?<text>[^\]]+)\]\((?<url>[^)\s]+)(?:\s+""[^""]*"")?\)");
+        var headingRegex = new Regex(@"^(#{1,6})\s+(?<title>.+)$", RegexOptions.Multiline);
+
+        var fileContents = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var file in files)
+        {
+            bool exists = fileExistsProvider?.Invoke(file) ?? System.IO.File.Exists(file);
+            if (exists)
+            {
+                string text = contentReader?.Invoke(file) ?? System.IO.File.ReadAllText(file);
+                fileContents[file] = text;
+            }
+        }
+
+        foreach (var file in files)
+        {
+            if (!fileContents.TryGetValue(file, out var docContent))
+            {
+                continue;
+            }
+
+            filesScanned++;
+            string dir = Path.GetDirectoryName(file) ?? string.Empty;
+            var lines = docContent.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+
+            for (int lineIdx = 0; lineIdx < lines.Length; lineIdx++)
+            {
+                string line = lines[lineIdx];
+                var matches = linkRegex.Matches(line);
+
+                foreach (Match m in matches)
+                {
+                    totalLinks++;
+                    string linkText = m.Groups["text"].Value;
+                    string targetUrl = m.Groups["url"].Value;
+
+                    bool isExternal = targetUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                                      targetUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+                                      targetUrl.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase) ||
+                                      targetUrl.StartsWith("ftp://", StringComparison.OrdinalIgnoreCase);
+
+                    if (isExternal)
+                    {
+                        externalLinks++;
+                        items.Add(new WorkspaceCrossFileLinkItem(
+                            file, lineIdx + 1, linkText, targetUrl, true, true, true,
+                            "External web/protocol URL"));
+                        continue;
+                    }
+
+                    string targetFilePathPart = targetUrl;
+                    string? targetAnchor = null;
+                    int hashIdx = targetUrl.IndexOf('#');
+                    if (hashIdx >= 0)
+                    {
+                        targetFilePathPart = targetUrl.Substring(0, hashIdx);
+                        targetAnchor = targetUrl.Substring(hashIdx + 1);
+                    }
+
+                    string resolvedTargetFile = file;
+                    if (!string.IsNullOrWhiteSpace(targetFilePathPart))
+                    {
+                        try
+                        {
+                            resolvedTargetFile = Path.GetFullPath(Path.Combine(dir, targetFilePathPart));
+                        }
+                        catch
+                        {
+                            resolvedTargetFile = Path.Combine(dir, targetFilePathPart);
+                        }
+                    }
+
+                    bool targetExists = fileContents.ContainsKey(resolvedTargetFile) ||
+                                        (fileExistsProvider?.Invoke(resolvedTargetFile) ?? System.IO.File.Exists(resolvedTargetFile));
+
+                    if (!targetExists)
+                    {
+                        brokenTargetFiles++;
+                        items.Add(new WorkspaceCrossFileLinkItem(
+                            file, lineIdx + 1, linkText, targetUrl, false, false, false,
+                            $"Target file '{targetFilePathPart}' not found in workspace"));
+                        continue;
+                    }
+
+                    bool anchorValid = true;
+                    if (!string.IsNullOrWhiteSpace(targetAnchor))
+                    {
+                        string targetDocContent = fileContents.TryGetValue(resolvedTargetFile, out var tc)
+                            ? tc
+                            : (contentReader?.Invoke(resolvedTargetFile) ?? (System.IO.File.Exists(resolvedTargetFile) ? System.IO.File.ReadAllText(resolvedTargetFile) : string.Empty));
+
+                        var headingMatches = headingRegex.Matches(targetDocContent);
+                        bool found = false;
+                        foreach (Match hm in headingMatches)
+                        {
+                            string headingTitle = hm.Groups["title"].Value.Trim();
+                            string slug = Regex.Replace(headingTitle.ToLowerInvariant(), @"[^\w\s-]", "")
+                                               .Replace(' ', '-')
+                                               .Trim('-');
+                            if (string.Equals(slug, targetAnchor, StringComparison.OrdinalIgnoreCase) ||
+                                string.Equals(headingTitle, targetAnchor, StringComparison.OrdinalIgnoreCase))
+                            {
+                                found = true;
+                                break;
+                            }
+                        }
+
+                        if (!found)
+                        {
+                            anchorValid = false;
+                            brokenAnchorHeaders++;
+                            items.Add(new WorkspaceCrossFileLinkItem(
+                                file, lineIdx + 1, linkText, targetUrl, false, true, false,
+                                $"Anchor heading '#{targetAnchor}' not found in '{Path.GetFileName(resolvedTargetFile)}'"));
+                            continue;
+                        }
+                    }
+
+                    validLocalLinks++;
+                    items.Add(new WorkspaceCrossFileLinkItem(
+                        file, lineIdx + 1, linkText, targetUrl, false, true, true,
+                        "Resolved cross-file reference"));
+                }
+            }
+        }
+
+        double score = 100.0;
+        if (totalLinks > 0)
+        {
+            score -= (brokenTargetFiles * 20.0);
+            score -= (brokenAnchorHeaders * 10.0);
+        }
+        score = Math.Round(Math.Clamp(score, 0.0, 100.0), 1);
+
+        string category = score switch
+        {
+            >= 95.0 => "High-Cohesion Link Graph",
+            >= 80.0 => "Well-Linked Workspace",
+            >= 60.0 => "Moderate Broken Relative Links",
+            >= 40.0 => "High Broken Link Rate",
+            _ => "Severely Fragmented Hyperlinks"
+        };
+
+        string summary = FormatWorkspaceCrossFileLinkSummary(
+            filesScanned, totalLinks, validLocalLinks, brokenTargetFiles,
+            brokenAnchorHeaders, externalLinks, score, category);
+
+        return new WorkspaceCrossFileLinkAudit(
+            filesScanned, totalLinks, validLocalLinks, brokenTargetFiles,
+            brokenAnchorHeaders, externalLinks, score, items, category, summary);
+    }
+
+    public static string FormatWorkspaceCrossFileLinkSummary(
+        int filesScanned, int totalLinks, int validLocal, int brokenFiles,
+        int brokenAnchors, int external, double score, string category)
+    {
+        if (filesScanned == 0) return "Workspace cross-file link audit: 0 files scanned · Workspace is empty";
+        if (totalLinks == 0) return $"Workspace cross-file link audit ({filesScanned} files): 0 markdown links detected";
+
+        var parts = new List<string>();
+        parts.Add($"{filesScanned} files, {totalLinks} links");
+        parts.Add($"{validLocal} valid local");
+        if (external > 0) parts.Add($"{external} external");
+        if (brokenFiles > 0) parts.Add($"⚠ {brokenFiles} missing target files");
+        if (brokenAnchors > 0) parts.Add($"⚠ {brokenAnchors} missing anchors");
+
+        string details = string.Join(" · ", parts);
+        return $"Workspace cross-file link audit ({details} · {category} · {score:0.#}% cohesion score)";
+    }
+
 
     public static string FormatWorkspaceTableFormattingSummary(
         int totalDocs, int totalTables, int validCount, int raggedCount,
@@ -11377,5 +11566,27 @@ public sealed record WorkspaceTableAutoFixResult(
 public sealed record WorkspaceTableRollbackResult(
     int TotalBackupsScanned,
     int TotalFilesRestored,
+    string Summary);
+
+public sealed record WorkspaceCrossFileLinkItem(
+    string SourceFilePath,
+    int LineNumber,
+    string LinkText,
+    string TargetUrl,
+    bool IsExternal,
+    bool TargetFileExists,
+    bool AnchorExists,
+    string Recommendation);
+
+public sealed record WorkspaceCrossFileLinkAudit(
+    int TotalFilesScanned,
+    int TotalLinksEvaluated,
+    int ValidLocalLinks,
+    int BrokenTargetFiles,
+    int BrokenAnchorHeaders,
+    int ExternalLinksCount,
+    double HyperlinkCohesionScore,
+    IReadOnlyList<WorkspaceCrossFileLinkItem> Items,
+    string Category,
     string Summary);
 

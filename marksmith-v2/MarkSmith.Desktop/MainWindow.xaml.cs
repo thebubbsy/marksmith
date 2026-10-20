@@ -12114,6 +12114,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(auditBlockquoteHierarchyItem);
 
+        var auditHorizontalRulesItem = new MenuFlyoutItem
+        {
+            Text = "Audit Markdown Horizontal Rule & Thematic Break Spacing Consistency",
+            Icon = new FontIcon { Glyph = "\uE8B9" }
+        };
+        auditHorizontalRulesItem.Click += (_, _) =>
+        {
+            var docText = EditorDocument();
+            var summary = MarkSmith.Services.TextSearch.AuditMarkdownHorizontalRules(docText).Summary;
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditHorizontalRulesItem);
+
         menu.ShowAt(anchor);
     }
 

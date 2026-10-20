@@ -4176,6 +4176,14 @@ namespace MarkSmith.Views.MindMap
             ViewModel.StatusMessage = $"\u2713 {result.Summary}";
         }
 
+        private void OnAuditGraphDiameterAndGeodesicPathsClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditGraphDiameterAndGeodesicPaths();
+            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+        }
+
         private void OnAuditGraphDegreeDistributionClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;

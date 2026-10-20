@@ -18239,6 +18239,156 @@ public static class LineDiff
         return $"Semantic diff pattern matching audit ({details} · {category} · {score:0.#}% safety score)";
     }
 
+    public static DiffStringInterpolationBoxingAudit AuditStringAllocationsAndSpanSafety(string? beforeText, string? afterText)
+    {
+        var diff = Diff(beforeText ?? string.Empty, afterText ?? string.Empty);
+        var unified = BuildUnified(diff);
+        return AuditStringAllocationsAndSpanSafety(unified);
+    }
+
+    public static DiffStringInterpolationBoxingAudit AuditStringAllocationsAndSpanSafety(
+        IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows == null)
+        {
+            string emptySummary = FormatStringInterpolationBoxingSummary(0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new DiffStringInterpolationBoxingAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<StringInterpolationBoxingHazardItem>(), "Clean Baseline", emptySummary);
+        }
+
+        var modifiedRows = unifiedRows
+            .Where(r => !r.IsGap && r.Kind == Kind.Added && !string.IsNullOrWhiteSpace(r.Text))
+            .ToList();
+
+        int totalModified = modifiedRows.Count;
+        if (totalModified == 0)
+        {
+            string emptySummary = FormatStringInterpolationBoxingSummary(0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new DiffStringInterpolationBoxingAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<StringInterpolationBoxingHazardItem>(), "Clean Baseline", emptySummary);
+        }
+
+        int interpolationInLoopCount = 0;
+        int valueTypeBoxingCount = 0;
+        int formattableStringCount = 0;
+        int loggingEagerInterpolationCount = 0;
+        var items = new List<StringInterpolationBoxingHazardItem>();
+
+        int loopDepth = 0;
+
+        for (int i = 0; i < modifiedRows.Count; i++)
+        {
+            var row = modifiedRows[i];
+            string line = row.Text;
+            int lineNum = row.NewNumber ?? row.OldNumber ?? (i + 1);
+            string op = row.Kind.ToString();
+
+            if (Regex.IsMatch(line, @"\b(for|while|foreach)\b"))
+            {
+                loopDepth = Math.Max(loopDepth, 1);
+            }
+
+            if (loopDepth > 0 && Regex.IsMatch(line, @"\$\s*""[^""]*\{"))
+            {
+                interpolationInLoopCount++;
+                items.Add(new StringInterpolationBoxingHazardItem(
+                    lineNum, op, "String Interpolation Inside Loop",
+                    line.Trim(), 2,
+                    "Interpolated string inside loop allocates a new string heap instance per iteration",
+                    "Use StringBuilder or string.Create / Span-based formatting to eliminate per-iteration allocations",
+                    "Loop Heap Churn"));
+            }
+
+            if (Regex.IsMatch(line, @"\b(string\.Format|Console\.Write(Line)?)\s*\(\s*""[^""]*""\s*,\s*[^)]*\b\d+\b") ||
+                Regex.IsMatch(line, @"\b(string\.Format|Console\.Write(Line)?)\s*\(\s*""[^""]*""\s*,\s*(true|false)\b") ||
+                Regex.IsMatch(line, @"\bstring\.Format\s*\([^)]*\b(int|double|float|long|short|byte|bool|DateTime|Guid)\b"))
+            {
+                valueTypeBoxingCount++;
+                items.Add(new StringInterpolationBoxingHazardItem(
+                    lineNum, op, "Value Type Boxing in String Formatting",
+                    line.Trim(), 2,
+                    "Passing primitive value types to params object[] allocates boxed objects on the managed heap",
+                    "Use C# 10 interpolated string handlers, generic formatting overloads, or .ToString() / ISpanFormattable",
+                    "Heap Boxing Overhead"));
+            }
+
+            if (Regex.IsMatch(line, @"\bFormattableString\b") ||
+                Regex.IsMatch(line, @"\bFormattableStringFactory\.Create\b"))
+            {
+                formattableStringCount++;
+                items.Add(new StringInterpolationBoxingHazardItem(
+                    lineNum, op, "FormattableString Object Allocation",
+                    line.Trim(), 1,
+                    "FormattableString creates an intermediate heap object and an object[] arguments array",
+                    "Use standard string interpolation with DefaultInterpolatedStringHandler if FormattableString semantics are unneeded",
+                    "Intermediate Allocation"));
+            }
+
+            if (Regex.IsMatch(line, @"\bLog(Debug|Information|Warning|Error|Trace|Critical)\s*\(\s*\$"""))
+            {
+                loggingEagerInterpolationCount++;
+                items.Add(new StringInterpolationBoxingHazardItem(
+                    lineNum, op, "Eager Interpolated String in Logger Call",
+                    line.Trim(), 2,
+                    "Evaluating $\"\" eagerly allocates formatted strings even when the target log level is disabled",
+                    "Use structured message templates with named tokens or [LoggerMessage] source generators",
+                    "Eager String Allocation"));
+            }
+
+            if (line.Contains('}') && loopDepth > 0)
+            {
+                loopDepth--;
+            }
+        }
+
+        double score = 100.0;
+        score -= (interpolationInLoopCount * 12.0);
+        score -= (valueTypeBoxingCount * 8.0);
+        score -= (loggingEagerInterpolationCount * 10.0);
+        score -= (formattableStringCount * 5.0);
+        score = Math.Round(Math.Clamp(score, 0.0, 100.0), 1);
+
+        string category = score switch
+        {
+            >= 95.0 => "Zero-Allocation String Purity",
+            >= 80.0 => "High Span & Formatting Efficiency",
+            >= 60.0 => "Moderate String Heap Churn",
+            >= 40.0 => "High Boxing & Loop Churn Hazard",
+            _ => "Severe Heap Thrashing / Unbounded Churn"
+        };
+
+        string summary = FormatStringInterpolationBoxingSummary(
+            totalModified, interpolationInLoopCount, valueTypeBoxingCount,
+            formattableStringCount, loggingEagerInterpolationCount, score, category);
+
+        return new DiffStringInterpolationBoxingAudit(
+            totalModified, interpolationInLoopCount, valueTypeBoxingCount,
+            formattableStringCount, loggingEagerInterpolationCount, score, items, category, summary);
+    }
+
+    public static string FormatStringInterpolationBoxingSummary(
+        int totalModified, int inLoop, int boxing, int formattable, int loggingEager,
+        double score, string category)
+    {
+        if (totalModified == 0) return "Semantic diff string allocation audit: 0 modified lines · Clean baseline";
+
+        int totalHazards = inLoop + boxing + formattable + loggingEager;
+        if (totalHazards == 0)
+            return $"Semantic diff string allocation audit ({totalModified} lines): 0 allocation hazards · Clean baseline · 100% score";
+
+        var parts = new List<string>();
+        parts.Add($"{totalHazards} allocation hazard{(totalHazards == 1 ? "" : "s")}");
+        if (inLoop > 0) parts.Add($"⚠ {inLoop} in-loop interpolation");
+        if (boxing > 0) parts.Add($"📦 {boxing} value-type boxing");
+        if (loggingEager > 0) parts.Add($"⚡ {loggingEager} eager log formatting");
+        if (formattable > 0) parts.Add($"ℹ {formattable} FormattableString");
+
+        string details = string.Join(" · ", parts);
+        return $"Semantic diff string allocation audit ({details} · {category} · {score:0.#}% score)";
+    }
+
     public static string FormatCacheLocalitySummary(
         int totalLines, int totalHazards, int falseSharing, int multiDimArrays,
         int pointerChasing, int unpaddedStructs, double score, string category)
@@ -20294,3 +20444,25 @@ public sealed record DiffStringAllocationAudit(
     IReadOnlyList<StringAllocationHazardItem> Items,
     string Category,
     string Summary);
+
+public sealed record StringInterpolationBoxingHazardItem(
+    int LineNumber,
+    string Operation,
+    string HazardType,
+    string CodeExcerpt,
+    int Severity,
+    string TechnicalImpact,
+    string Recommendation,
+    string RiskCategory);
+
+public sealed record DiffStringInterpolationBoxingAudit(
+    int TotalModifiedLines,
+    int InterpolationInLoopCount,
+    int ValueTypeBoxingCount,
+    int FormattableStringCount,
+    int LoggingEagerInterpolationCount,
+    double AllocationSafetyScore,
+    IReadOnlyList<StringInterpolationBoxingHazardItem> Items,
+    string Category,
+    string Summary);
+

@@ -3401,5 +3401,44 @@ public class HistoryPolishTests : IDisposable
         Assert.True(audit.ExhaustivenessSafetyScore < 100.0);
     }
 
-}
 
+    [Fact]
+    public void Run204_AuditStringAllocationsAndSpanSafety_DetectsLoopInterpolationAndBoxing()
+    {
+        // 1. Clean code
+        var cleanCode = string.Join("\n",
+            "public void Process(ReadOnlySpan<char> span)",
+            "{",
+            "    int length = span.Length;",
+            "}"
+        );
+        var cleanAudit = LineDiff.AuditStringAllocationsAndSpanSafety("", cleanCode);
+        Assert.Equal(100.0, cleanAudit.AllocationSafetyScore);
+        Assert.Equal(0, cleanAudit.InterpolationInLoopCount);
+        Assert.Equal(0, cleanAudit.ValueTypeBoxingCount);
+
+        // 2. Loop interpolation and value type boxing
+        var badCode = string.Join("\n",
+            "public void Churn()",
+            "{",
+            "    for (int i = 0; i < 100; i++)",
+            "    {",
+            "        string s = $\"Index: {i}\";",
+            "        string fmt = string.Format(\"Val: {0}\", 42);",
+            "    }",
+            "}"
+        );
+        var badAudit = LineDiff.AuditStringAllocationsAndSpanSafety("", badCode);
+        Assert.True(badAudit.InterpolationInLoopCount >= 1);
+        Assert.True(badAudit.ValueTypeBoxingCount >= 1);
+        Assert.True(badAudit.AllocationSafetyScore < 85.0);
+
+        string formatted = LineDiff.FormatStringInterpolationBoxingSummary(
+            badAudit.TotalModifiedLines, badAudit.InterpolationInLoopCount,
+            badAudit.ValueTypeBoxingCount, badAudit.FormattableStringCount,
+            badAudit.LoggingEagerInterpolationCount, badAudit.AllocationSafetyScore,
+            badAudit.Category);
+        Assert.Equal(badAudit.Summary, formatted);
+    }
+
+}

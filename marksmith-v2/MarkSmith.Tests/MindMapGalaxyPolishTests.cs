@@ -4339,5 +4339,54 @@ namespace MarkSmith.Tests
             Assert.True(crossAudit.PlanarityClarityScore < 95.0);
         }
 
+    
+        [Fact]
+        public void Run204_AuditGraphDiameterAndGeodesicPaths_CalculatesDiameterAndGeodesicSteps()
+        {
+            // 1. Empty galaxy
+            var emptyAudit = MindMapStudioViewModel.AuditGraphDiameterAndGeodesicPaths(null, null);
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.Equal(0, emptyAudit.GraphDiameter);
+            Assert.Equal(100.0, emptyAudit.NetworkBreadthScore);
+            Assert.Equal("Empty Galaxy", emptyAudit.Category);
+
+            // 2. Linear chain of 4 nodes: 1 - 2 - 3 - 4 (Diameter = 3, Radius = 2)
+            var n1 = new MindMapNode { Id = "1", Title = "Node 1" };
+            var n2 = new MindMapNode { Id = "2", Title = "Node 2" };
+            var n3 = new MindMapNode { Id = "3", Title = "Node 3" };
+            var n4 = new MindMapNode { Id = "4", Title = "Node 4" };
+
+            var links = new List<MindMapLink>
+            {
+                new MindMapLink { Id = "l1", SourceNodeId = "1", TargetNodeId = "2" },
+                new MindMapLink { Id = "l2", SourceNodeId = "2", TargetNodeId = "3" },
+                new MindMapLink { Id = "l3", SourceNodeId = "3", TargetNodeId = "4" }
+            };
+
+            var chainAudit = MindMapStudioViewModel.AuditGraphDiameterAndGeodesicPaths(
+                new[] { n1, n2, n3, n4 }, links);
+            Assert.Equal(4, chainAudit.TotalNodes);
+            Assert.Equal(3, chainAudit.TotalEdges);
+            Assert.Equal(3, chainAudit.GraphDiameter);
+            Assert.Equal(2, chainAudit.GraphRadius);
+            Assert.Equal(1, chainAudit.ConnectedComponentsCount);
+            Assert.Equal(3, chainAudit.LongestGeodesicPath.Count);
+            Assert.True(chainAudit.NetworkBreadthScore >= 90.0);
+
+            string formatted = MindMapStudioViewModel.FormatGraphDiameterSummary(
+                chainAudit.TotalNodes, chainAudit.TotalEdges, chainAudit.GraphDiameter,
+                chainAudit.GraphRadius, chainAudit.AveragePathLength,
+                chainAudit.ConnectedComponentsCount, chainAudit.NetworkBreadthScore,
+                chainAudit.Category, false);
+            Assert.Equal(chainAudit.Summary, formatted);
+
+            // 3. Disconnected components
+            var n5 = new MindMapNode { Id = "5", Title = "Isolated" };
+            var disconnectedAudit = MindMapStudioViewModel.AuditGraphDiameterAndGeodesicPaths(
+                new[] { n1, n2, n3, n4, n5 }, links);
+            Assert.Equal(2, disconnectedAudit.ConnectedComponentsCount);
+            Assert.True(disconnectedAudit.NetworkBreadthScore < chainAudit.NetworkBreadthScore);
+        }
+
     }
 }

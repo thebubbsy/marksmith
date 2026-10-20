@@ -3646,5 +3646,51 @@ public class TextSearchTests
         Assert.True(raggedAudit.StructuralHierarchyScore < 95.0);
     }
 
-}
 
+    [Fact]
+    public void Run204_AuditMarkdownHorizontalRules_ValidatesSpacingAndMarkers()
+    {
+        // 1. Empty markdown
+        var emptyAudit = TextSearch.AuditMarkdownHorizontalRules("");
+        Assert.Equal(0, emptyAudit.TotalBreaks);
+        Assert.Equal(100.0, emptyAudit.SpacingConsistencyScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+
+        // 2. Clean document with spaced horizontal rule
+        var cleanDoc = string.Join("\n",
+            "# Document Header",
+            "",
+            "---",
+            "",
+            "Body paragraph after rule."
+        );
+        var cleanAudit = TextSearch.AuditMarkdownHorizontalRules(cleanDoc);
+        Assert.Equal(1, cleanAudit.TotalBreaks);
+        Assert.Equal(1, cleanAudit.DashBreakCount);
+        Assert.Equal(0, cleanAudit.AsteriskBreakCount);
+        Assert.Equal(0, cleanAudit.MissingBlankLineCount);
+        Assert.Equal(0, cleanAudit.MixedMarkerStyleCount);
+        Assert.True(cleanAudit.SpacingConsistencyScore >= 95.0);
+
+        string formatted = TextSearch.FormatHorizontalRulesSummary(
+            cleanAudit.TotalBreaks, cleanAudit.DashBreakCount, cleanAudit.AsteriskBreakCount,
+            cleanAudit.UnderscoreBreakCount, cleanAudit.MissingBlankLineCount,
+            cleanAudit.MixedMarkerStyleCount, cleanAudit.SpacingConsistencyScore, cleanAudit.Category);
+        Assert.Equal(cleanAudit.Summary, formatted);
+
+        // 3. Document with missing blank lines and mixed styles (--- and ***)
+        var brokenDoc = string.Join("\n",
+            "",
+            "---",
+            "Text directly under",
+            "",
+            "***"
+        );
+        var brokenAudit = TextSearch.AuditMarkdownHorizontalRules(brokenDoc);
+        Assert.Equal(2, brokenAudit.TotalBreaks);
+        Assert.True(brokenAudit.MissingBlankLineCount >= 1);
+        Assert.True(brokenAudit.MixedMarkerStyleCount >= 2);
+        Assert.True(brokenAudit.SpacingConsistencyScore < 80.0);
+    }
+
+}

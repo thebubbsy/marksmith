@@ -10017,8 +10017,168 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         return $"Connector port snapping audit ({scope}{details} · {category} · {score:0.#}% score)";
     }
 
+    public DiagramRadialAlignmentAudit AuditRadialAndConcentricAlignment(bool selectionOnly = false)
+    {
+        var selected = SelectedItems.ToList();
+        var targetShapes = (selectionOnly && selected.Count > 0) ? selected : Shapes.ToList();
+        bool isSelection = selectionOnly && selected.Count > 0;
+        var audit = AuditRadialAndConcentricAlignment(targetShapes, Shapes.ToList(), isSelection);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
 
-    public static string FormatGroupNestingSummary(
+    public static DiagramRadialAlignmentAudit AuditRadialAndConcentricAlignment(
+        IEnumerable<ShapeCanvasItemViewModel>? targetShapes,
+        IEnumerable<ShapeCanvasItemViewModel>? allShapes,
+        bool isSelection = false)
+    {
+        var list = (allShapes ?? Enumerable.Empty<ShapeCanvasItemViewModel>()).Where(s => s != null).ToList();
+        var targets = (targetShapes ?? list).Where(s => s != null && !s.IsLine).ToList();
+
+        int totalShapes = targets.Count;
+        if (totalShapes < 3)
+        {
+            string emptySummary = FormatRadialAlignmentSummary(totalShapes, 0, 0, 0, 0, 100.0, 100.0, "Clean Baseline", isSelection);
+            return new DiagramRadialAlignmentAudit(
+                totalShapes, 0, 0, 0, 0, 100.0, 100.0,
+                Array.Empty<RadialShapeItem>(), "Clean Baseline", isSelection, emptySummary);
+        }
+
+        double sumX = 0, sumY = 0;
+        foreach (var s in targets)
+        {
+            sumX += s.X + (s.Width / 2.0);
+            sumY += s.Y + (s.Height / 2.0);
+        }
+        double cx = Math.Round(sumX / totalShapes, 1);
+        double cy = Math.Round(sumY / totalShapes, 1);
+
+        var shapeData = new List<(ShapeCanvasItemViewModel Shape, double Radius, double Angle)>();
+        foreach (var s in targets)
+        {
+            double sx = s.X + (s.Width / 2.0);
+            double sy = s.Y + (s.Height / 2.0);
+            double dx = sx - cx;
+            double dy = sy - cy;
+            double r = Math.Sqrt(dx * dx + dy * dy);
+            double angleRad = Math.Atan2(dy, dx);
+            double angleDeg = angleRad * (180.0 / Math.PI);
+            if (angleDeg < 0) angleDeg += 360.0;
+            shapeData.Add((s, r, angleDeg));
+        }
+
+        shapeData.Sort((a, b) => a.Radius.CompareTo(b.Radius));
+        var rings = new List<List<(ShapeCanvasItemViewModel Shape, double Radius, double Angle)>>();
+        foreach (var item in shapeData)
+        {
+            bool added = false;
+            foreach (var ring in rings)
+            {
+                double ringMean = ring.Average(x => x.Radius);
+                if (Math.Abs(item.Radius - ringMean) <= 35.0)
+                {
+                    ring.Add(item);
+                    added = true;
+                    break;
+                }
+            }
+            if (!added)
+            {
+                rings.Add(new List<(ShapeCanvasItemViewModel Shape, double Radius, double Angle)> { item });
+            }
+        }
+
+        int ringCount = rings.Count;
+        var items = new List<RadialShapeItem>();
+        double totalRadiusDev = 0;
+        double totalAngularDev = 0;
+        int angleEvaluatedCount = 0;
+
+        for (int rIdx = 0; rIdx < rings.Count; rIdx++)
+        {
+            var ring = rings[rIdx];
+            double ringMeanR = ring.Average(x => x.Radius);
+            ring.Sort((a, b) => a.Angle.CompareTo(b.Angle));
+
+            double expectedAngleDelta = ring.Count > 1 ? 360.0 / ring.Count : 360.0;
+
+            for (int i = 0; i < ring.Count; i++)
+            {
+                var curr = ring[i];
+                double devR = Math.Round(Math.Abs(curr.Radius - ringMeanR), 1);
+                totalRadiusDev += devR;
+
+                string rec = devR > 15.0
+                    ? $"Align radial distance closer to ring {rIdx + 1} mean ({ringMeanR:0.#}px)"
+                    : "Radial distance is well-balanced";
+
+                if (ring.Count > 1)
+                {
+                    double nextAngle = (i < ring.Count - 1) ? ring[i + 1].Angle : ring[0].Angle + 360.0;
+                    double actualDelta = nextAngle - curr.Angle;
+                    double angleDeltaErr = Math.Abs(actualDelta - expectedAngleDelta);
+                    totalAngularDev += angleDeltaErr;
+                    angleEvaluatedCount++;
+
+                    if (angleDeltaErr > 20.0)
+                    {
+                        rec = $"Evenly space angular interval around ring {rIdx + 1} (expected ~{expectedAngleDelta:0.#}°, got {actualDelta:0.#}°)";
+                    }
+                }
+
+                items.Add(new RadialShapeItem(
+                    curr.Shape.Id, curr.Shape.Name ?? curr.Shape.ShapeType ?? "Shape",
+                    Math.Round(curr.Radius, 1), Math.Round(curr.Angle, 1),
+                    rIdx + 1, devR, rec));
+            }
+        }
+
+        double radiusVariance = totalShapes > 0 ? Math.Round(totalRadiusDev / totalShapes, 1) : 0.0;
+        double avgAngleErr = angleEvaluatedCount > 0 ? Math.Round(totalAngularDev / angleEvaluatedCount, 1) : 0.0;
+        double angularEvenness = Math.Round(Math.Clamp(100.0 - (avgAngleErr * 1.5), 0.0, 100.0), 1);
+
+        double score = 100.0;
+        score -= (radiusVariance * 0.8);
+        score -= (avgAngleErr * 0.7);
+        score = Math.Round(Math.Clamp(score, 0.0, 100.0), 1);
+
+        string category = score switch
+        {
+            >= 95.0 => "High-Fidelity Radial Alignment",
+            >= 80.0 => "Harmonious Concentric Rings",
+            >= 60.0 => "Moderate Radial/Angular Skew",
+            >= 40.0 => "Irregular Radial Distribution",
+            _ => "Asymmetric Non-Concentric Cluster"
+        };
+
+        string summary = FormatRadialAlignmentSummary(
+            totalShapes, ringCount, cx, cy, radiusVariance, angularEvenness,
+            score, category, isSelection);
+
+        return new DiagramRadialAlignmentAudit(
+            totalShapes, ringCount, cx, cy, radiusVariance, angularEvenness,
+            score, items, category, isSelection, summary);
+    }
+
+    public static string FormatRadialAlignmentSummary(
+        int totalShapes, int ringCount, double cx, double cy,
+        double radiusVar, double angularEvenness, double score, string category, bool isSelection)
+    {
+        string scope = isSelection ? "Selection · " : "";
+        if (totalShapes < 3) return $"Radial alignment audit ({scope}{totalShapes} shapes): Clean baseline (< 3 shapes)";
+
+        var parts = new List<string>();
+        parts.Add($"{totalShapes} shapes");
+        parts.Add($"{ringCount} concentric rings");
+        parts.Add($"centroid ({cx:0.#}, {cy:0.#})");
+        parts.Add($"radial dev ±{radiusVar:0.#}px");
+        parts.Add($"angular evenness {angularEvenness:0.#}%");
+
+        string details = string.Join(" · ", parts);
+        return $"Diagram radial & concentric alignment audit ({scope}{details} · {category} · {score:0.#}% score)";
+    }
+
+public static string FormatGroupNestingSummary(
         int totalShapes, int containers, int maxDepth, double avgDepth, int overcrowded,
         double score, string category, bool isSelection)
     {
@@ -14139,6 +14299,28 @@ public sealed record DiagramConnectorSnapAudit(
     int NearMissCount,
     double ConnectionFidelityScore,
     IReadOnlyList<DiagramConnectorSnapItem> Items,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);
+
+public sealed record RadialShapeItem(
+    string Id,
+    string Name,
+    double DistanceFromCentroid,
+    double AngleDegrees,
+    int AssignedRing,
+    double DeviationFromRingMean,
+    string Recommendation);
+
+public sealed record DiagramRadialAlignmentAudit(
+    int TotalShapes,
+    int RingCount,
+    double CentroidX,
+    double CentroidY,
+    double RadiusVariance,
+    double AngularEvennessScore,
+    double RotationalBalanceScore,
+    IReadOnlyList<RadialShapeItem> Shapes,
     string Category,
     bool IsSelectionScope,
     string Summary);

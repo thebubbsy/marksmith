@@ -823,6 +823,9 @@
                     <MenuFlyoutItem x:Name="SelectionAuditConnectorRoutingAlignmentItem" Text="Audit connector anchor snapping &amp; routing alignment" Click="OnSelectionAuditConnectorRoutingAlignmentClick">
                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                     </MenuFlyoutItem>
+                    <MenuFlyoutItem x:Name="SelectionAuditRadialAlignmentItem" Text="Audit diagram radial &amp; concentric ring alignment" Click="OnSelectionAuditRadialAlignmentClick">
+                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                    </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

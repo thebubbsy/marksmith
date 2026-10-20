@@ -3860,6 +3860,157 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         return $"SmartArt chevron process geometry audit ({details} · {category} · {score:0.#}% score)";
     }
 
+    public SmartArtVennGeometryAudit AuditVennDiagramGeometry(string? markdown = null, string? layoutName = null)
+    {
+        string md = markdown ?? MarkdownText;
+        string layout = layoutName ?? SelectedLayout?.DisplayName ?? "Linear Venn";
+        return AuditVennDiagramGeometry(md, layout, isStatic: false);
+    }
+
+    public static SmartArtVennGeometryAudit AuditVennDiagramGeometry(string? markdown, string? layoutName = null, bool isStatic = true)
+    {
+        string layout = layoutName ?? "Linear Venn";
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            string emptySummary = FormatVennGeometrySummary(0, 0, 0, 0, true, 100.0, "Empty Outline", layout);
+            return new SmartArtVennGeometryAudit(
+                0, 0, 0, 0, true, 100.0,
+                Array.Empty<VennSetItem>(), "Empty Outline", layout, emptySummary);
+        }
+
+        var lines = markdown.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        var stages = new List<(string Label, List<string> Bullets)>();
+
+        foreach (var rawLine in lines)
+        {
+            string line = rawLine.Trim();
+            if (string.IsNullOrWhiteSpace(line)) continue;
+
+            if (line.StartsWith('#'))
+            {
+                string text = line.TrimStart('#').Trim();
+                if (!string.IsNullOrWhiteSpace(text))
+                {
+                    stages.Add((text, new List<string>()));
+                }
+            }
+            else if (line.StartsWith('-') || line.StartsWith('*'))
+            {
+                string text = line.TrimStart('-', '*').Trim();
+                if (!string.IsNullOrWhiteSpace(text))
+                {
+                    if (rawLine.StartsWith("  ") || rawLine.StartsWith("\t"))
+                    {
+                        if (stages.Count > 0)
+                        {
+                            stages[^1].Bullets.Add(text);
+                        }
+                        else
+                        {
+                            stages.Add((text, new List<string>()));
+                        }
+                    }
+                    else
+                    {
+                        stages.Add((text, new List<string>()));
+                    }
+                }
+            }
+            else if (!line.StartsWith(":::"))
+            {
+                stages.Add((line, new List<string>()));
+            }
+        }
+
+        int setCount = stages.Count;
+        if (setCount == 0)
+        {
+            string emptySummary = FormatVennGeometrySummary(0, 0, 0, 0, true, 100.0, "Empty Outline", layout);
+            return new SmartArtVennGeometryAudit(
+                0, 0, 0, 0, true, 100.0,
+                Array.Empty<VennSetItem>(), "Empty Outline", layout, emptySummary);
+        }
+
+        double circleRadius = 120.0;
+        double overlapRatio = 0.35;
+        double overlapDistance = Math.Round(circleRadius * 2.0 * overlapRatio, 1);
+        double centerSpacing = (circleRadius * 2.0) - overlapDistance;
+
+        var items = new List<VennSetItem>();
+        int truncationRisks = 0;
+        int bulletImbalances = 0;
+
+        for (int i = 0; i < stages.Count; i++)
+        {
+            var stage = stages[i];
+            double cx = 200.0 + (i * centerSpacing);
+            double cy = 200.0;
+
+            if (setCount == 3 && i == 2)
+            {
+                cx = 200.0 + (centerSpacing / 2.0);
+                cy = 200.0 + (centerSpacing * 0.866);
+            }
+
+            bool textRisk = stage.Label.Length > 28;
+            if (textRisk) truncationRisks++;
+
+            int bulletCount = stage.Bullets.Count;
+            if (bulletCount > 5) bulletImbalances++;
+
+            string rec = textRisk
+                ? $"Shorten set label '{stage.Label}' ({stage.Label.Length} chars) to prevent intersection overlap clipping"
+                : (bulletCount > 5 ? "Too many bullet items inside circle; consider concise keywords" : "Set geometry and label balance are optimal");
+
+            items.Add(new VennSetItem(
+                i + 1, stage.Label, Math.Round(cx, 1), Math.Round(cy, 1),
+                circleRadius, bulletCount, rec));
+        }
+
+        bool isRadiusBalanced = true;
+        double score = 100.0;
+        if (setCount > 4)
+        {
+            score -= ((setCount - 4) * 15.0);
+        }
+        score -= (truncationRisks * 8.0);
+        score -= (bulletImbalances * 6.0);
+        score = Math.Round(Math.Clamp(score, 0.0, 100.0), 1);
+
+        string category = score switch
+        {
+            >= 95.0 => "Harmonious Venn Set Balance",
+            >= 80.0 => "Well-Proportioned Overlapping Sets",
+            >= 60.0 => "Moderate Intersection Label Crowding",
+            >= 40.0 => "High Set Overcrowding Risk",
+            _ => "Excessive Set Complexity"
+        };
+
+        string summary = FormatVennGeometrySummary(
+            setCount, circleRadius, overlapDistance, overlapRatio, isRadiusBalanced,
+            score, category, layout);
+
+        return new SmartArtVennGeometryAudit(
+            setCount, circleRadius, overlapDistance, overlapRatio, isRadiusBalanced,
+            score, items, category, layout, summary);
+    }
+
+    public static string FormatVennGeometrySummary(
+        int setCount, double circleRadius, double overlapDistance, double overlapRatio,
+        bool isBalanced, double score, string category, string layout)
+    {
+        if (setCount == 0) return $"SmartArt Venn geometry audit ({layout}): Empty outline";
+
+        var parts = new List<string>();
+        parts.Add($"{setCount} sets");
+        parts.Add($"r={circleRadius:0.#}px");
+        parts.Add($"overlap {overlapDistance:0.#}px ({(overlapRatio * 100):0.#}%)");
+        if (isBalanced) parts.Add("balanced radii");
+
+        string details = string.Join(" · ", parts);
+        return $"SmartArt Venn diagram geometry audit ({details} · {category} · {score:0.#}% score)";
+    }
+
 
     public static string FormatFunnelProportionalitySummary(
         int totalStages, bool isInverted, bool isMonotonic, double maxDrop, int truncationRisks,
@@ -12404,6 +12555,27 @@ public sealed record SmartArtChevronProcessAudit(
     int TruncationRiskCount,
     double LayoutHarmonyScore,
     IReadOnlyList<SmartArtChevronStageItem> Stages,
+    string Category,
+    string LayoutName,
+    string Summary);
+
+public sealed record VennSetItem(
+    int SetIndex,
+    string Label,
+    double CenterX,
+    double CenterY,
+    double Radius,
+    int BulletCount,
+    string Recommendation);
+
+public sealed record SmartArtVennGeometryAudit(
+    int SetCount,
+    double CircleRadius,
+    double OverlapDistance,
+    double OverlapRatio,
+    bool IsRadiusBalanced,
+    double SetHarmonyScore,
+    IReadOnlyList<VennSetItem> Sets,
     string Category,
     string LayoutName,
     string Summary);

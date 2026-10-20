@@ -6583,5 +6583,75 @@ Some paragraph in between.
         Assert.Contains("RestoreWorkspaceTableAutoAlignmentBackups", suiteCs);
     }
 
-}
 
+    [Fact]
+    public void Run204_AuditWorkspaceCrossFileLinks_ValidatesRelativeLinksAndAnchors()
+    {
+        var inMemoryStorage = new Dictionary<string, string>
+        {
+            [@"C:\workspace\doc1.md"] = "# Introduction\n\nSee [Guide](doc2.md#getting-started) and [Broken](doc3.md).",
+            [@"C:\workspace\doc2.md"] = "# Getting Started\n\nWelcome to the guide!"
+        };
+
+        var audit = RecentFilesService.AuditWorkspaceCrossFileLinks(
+            explicitFiles: new[] { @"C:\workspace\doc1.md", @"C:\workspace\doc2.md" },
+            fileExistsProvider: path => inMemoryStorage.ContainsKey(path),
+            contentReader: path => inMemoryStorage[path]);
+
+        Assert.Equal(2, audit.TotalFilesScanned);
+        Assert.Equal(2, audit.TotalLinksEvaluated);
+        Assert.Equal(1, audit.ValidLocalLinks);
+        Assert.Equal(1, audit.BrokenTargetFiles);
+        Assert.Equal(0, audit.BrokenAnchorHeaders);
+        Assert.True(audit.HyperlinkCohesionScore < 90.0);
+
+        string formatted = RecentFilesService.FormatWorkspaceCrossFileLinkSummary(
+            audit.TotalFilesScanned, audit.TotalLinksEvaluated, audit.ValidLocalLinks,
+            audit.BrokenTargetFiles, audit.BrokenAnchorHeaders, audit.ExternalLinksCount,
+            audit.HyperlinkCohesionScore, audit.Category);
+        Assert.Equal(audit.Summary, formatted);
+    }
+
+    [Fact]
+    public void Run204_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // Surface 1: MainWindow - Markdown Horizontal Rule & Thematic Break Spacing Consistency Auditor
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("auditHorizontalRulesItem", mainCs);
+        Assert.Contains("AuditMarkdownHorizontalRules", mainCs);
+
+        // Surface 2: MindMapGalaxyWindow - Graph Diameter & Longest Geodesic Path Breadth Auditor
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditGraphDiameterAndGeodesicPathsItem", galaxyXaml);
+        Assert.Contains("OnAuditGraphDiameterAndGeodesicPathsClick", galaxyCs);
+        Assert.Contains("AuditGraphDiameterAndGeodesicPaths", galaxyCs);
+
+        // Surface 3: ShapeDesignStudioWindow - Diagram Radial & Concentric Ring Alignment Auditor
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditRadialAlignmentItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditRadialAlignmentClick", shapeCs);
+        Assert.Contains("AuditRadialAndConcentricAlignment", shapeCs);
+
+        // Surface 4: SmartArtDesignStudioWindow - SmartArt Venn Diagram & Overlapping Set Geometry Harmony Auditor
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineStatsAuditVennGeometryItem", smartArtXaml);
+        Assert.Contains("OnOutlineStatsAuditVennGeometryClick", smartArtCs);
+        Assert.Contains("AuditVennDiagramGeometry", smartArtCs);
+
+        // Surface 5: HistoryWindow - Semantic Diff String Interpolation & Boxing Hazards Analyzer
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditStringInterpolationBoxing", historyCs);
+        Assert.Contains("AuditStringAllocationsAndSpanSafety", historyCs);
+
+        // Surface 6: SuiteHubView - Workspace Markdown Link & Anchor Cross-File Reference Validator
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("AuditWorkspaceCrossFileLinksItem", suiteXaml);
+        Assert.Contains("OnAuditWorkspaceCrossFileLinksClick", suiteCs);
+        Assert.Contains("AuditWorkspaceCrossFileLinks", suiteCs);
+    }
+
+}

@@ -12753,6 +12753,171 @@ public static class TextSearch
         return $"Markdown blockquote audit ({details} · {category} · {score:0.#}% hierarchy score)";
     }
 
+
+    public static MarkdownHorizontalRuleAudit AuditMarkdownHorizontalRules(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            string emptySummary = FormatHorizontalRulesSummary(0, 0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new MarkdownHorizontalRuleAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<MarkdownHorizontalRuleItem>(),
+                "Clean Baseline", emptySummary);
+        }
+
+        var lines = markdownText.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        var items = new List<MarkdownHorizontalRuleItem>();
+
+        int totalBreaks = 0;
+        int dashBreaks = 0;
+        int asteriskBreaks = 0;
+        int underscoreBreaks = 0;
+        int missingBlankLines = 0;
+
+        // Track YAML frontmatter at document start
+        int frontmatterEndLine = -1;
+        if (lines.Length > 0 && lines[0].Trim() == "---")
+        {
+            for (int i = 1; i < lines.Length; i++)
+            {
+                if (lines[i].Trim() == "---")
+                {
+                    frontmatterEndLine = i;
+                    break;
+                }
+            }
+        }
+
+        // Horizontal rule regex: 3 or more *, -, or _ with optional spaces
+        var hrRegex = new Regex(@"^[ \t]*(?<marker>[*_\-])([ \t]*\k<marker>){2,}[ \t]*$");
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            // Skip frontmatter lines
+            if (i <= frontmatterEndLine)
+            {
+                continue;
+            }
+
+            string rawLine = lines[i];
+            string trimmed = rawLine.Trim();
+
+            // Must not be a table row or contain pipes
+            if (trimmed.Contains('|'))
+            {
+                continue;
+            }
+
+            var match = hrRegex.Match(rawLine);
+            if (!match.Success)
+            {
+                continue;
+            }
+
+            char markerChar = match.Groups["marker"].Value[0];
+
+            // In CommonMark, a line of '-' following a non-empty text line is a Setext H2 heading, NOT an HR.
+            bool hasPrecedingBlankLine = (i == 0 || string.IsNullOrWhiteSpace(lines[i - 1]));
+            bool isSetextAmbiguity = false;
+            if (!hasPrecedingBlankLine && markerChar == '-')
+            {
+                isSetextAmbiguity = true;
+                continue;
+            }
+
+            // Check following line
+            bool hasFollowingBlankLine = (i == lines.Length - 1 || string.IsNullOrWhiteSpace(lines[i + 1]));
+
+            totalBreaks++;
+            string canonicalType = markerChar switch
+            {
+                '-' => "Hyphen/Dash (---)",
+                '*' => "Asterisk (***)",
+                '_' => "Underscore (___)",
+                _ => "Other"
+            };
+
+            if (markerChar == '-') dashBreaks++;
+            else if (markerChar == '*') asteriskBreaks++;
+            else if (markerChar == '_') underscoreBreaks++;
+
+            bool missingBlank = !hasPrecedingBlankLine || !hasFollowingBlankLine;
+            if (missingBlank)
+            {
+                missingBlankLines++;
+            }
+
+            string recommendation = missingBlank
+                ? "Surround thematic break with blank lines on both sides to avoid parser ambiguities and maintain typographic pacing"
+                : "Thematic break is cleanly spaced";
+
+            items.Add(new MarkdownHorizontalRuleItem(
+                i + 1, trimmed, canonicalType, hasPrecedingBlankLine, hasFollowingBlankLine,
+                isSetextAmbiguity, recommendation));
+        }
+
+        int distinctStyles = 0;
+        if (dashBreaks > 0) distinctStyles++;
+        if (asteriskBreaks > 0) distinctStyles++;
+        if (underscoreBreaks > 0) distinctStyles++;
+
+        int mixedMarkerStyleCount = distinctStyles > 1 ? distinctStyles : 0;
+
+        double score = 100.0;
+        if (totalBreaks > 0)
+        {
+            score -= (missingBlankLines * 12.0);
+            if (mixedMarkerStyleCount > 1)
+            {
+                score -= ((mixedMarkerStyleCount - 1) * 15.0);
+            }
+        }
+        score = Math.Round(Math.Clamp(score, 0.0, 100.0), 1);
+
+        string category = score switch
+        {
+            >= 95.0 => "Pristine Spacing",
+            >= 80.0 => "Consistent Breaks",
+            >= 60.0 => "Moderate Spacing Defects",
+            >= 40.0 => "Ragged Whitespace Around Breaks",
+            _ => "Disordered Thematic Breaks"
+        };
+
+        string summary = FormatHorizontalRulesSummary(
+            totalBreaks, dashBreaks, asteriskBreaks, underscoreBreaks,
+            missingBlankLines, mixedMarkerStyleCount, score, category);
+
+        return new MarkdownHorizontalRuleAudit(
+            totalBreaks, dashBreaks, asteriskBreaks, underscoreBreaks,
+            missingBlankLines, mixedMarkerStyleCount, score, items, category, summary);
+    }
+
+    public static string FormatHorizontalRulesSummary(string? markdownText)
+        => AuditMarkdownHorizontalRules(markdownText).Summary;
+
+    public static string FormatHorizontalRulesSummary(
+        int totalBreaks, int dashBreaks, int asteriskBreaks, int underscoreBreaks,
+        int missingBlankLines, int mixedMarkerStyles, double score, string category)
+    {
+        if (totalBreaks == 0)
+            return "Markdown thematic break audit: Clean document · 0 horizontal rules detected";
+
+        var parts = new List<string>();
+        parts.Add($"{totalBreaks} thematic breaks");
+
+        var styles = new List<string>();
+        if (dashBreaks > 0) styles.Add($"{dashBreaks} '---'");
+        if (asteriskBreaks > 0) styles.Add($"{asteriskBreaks} '***'");
+        if (underscoreBreaks > 0) styles.Add($"{underscoreBreaks} '___'");
+        parts.Add(string.Join("/", styles));
+
+        if (missingBlankLines > 0) parts.Add($"⚠ {missingBlankLines} missing blank lines");
+        if (mixedMarkerStyles > 1) parts.Add($"⚠ {mixedMarkerStyles} mixed marker styles");
+
+        string details = string.Join(" · ", parts);
+        return $"Markdown thematic break audit ({details} · {category} · {score:0.#}% spacing score)";
+    }
+
 }
 
 
@@ -14247,6 +14412,34 @@ public sealed record MarkdownBlockquoteNestingAudit(
     int RaggedPrefixCount,
     double StructuralHierarchyScore,
     IReadOnlyList<MarkdownBlockquoteNestingItem> Items,
+    string Category,
+    string Summary);
+
+/// <summary>
+/// Represents evaluated metrics, line number, raw marker, style, surrounding blank line spacing, and recommendation for a markdown thematic break / horizontal rule.
+/// </summary>
+public sealed record MarkdownHorizontalRuleItem(
+    int LineNumber,
+    string RawMarker,
+    string CanonicalType,
+    bool HasPrecedingBlankLine,
+    bool HasFollowingBlankLine,
+    bool IsSetextOrTableAmbiguity,
+    string Recommendation);
+
+/// <summary>
+/// Represents the result of an audit of markdown horizontal rules (---, ***, ___), surrounding blank line whitespace hygiene,
+/// mixed marker styles, and thematic divider spacing consistency.
+/// </summary>
+public sealed record MarkdownHorizontalRuleAudit(
+    int TotalBreaks,
+    int DashBreakCount,
+    int AsteriskBreakCount,
+    int UnderscoreBreakCount,
+    int MissingBlankLineCount,
+    int MixedMarkerStyleCount,
+    double SpacingConsistencyScore,
+    IReadOnlyList<MarkdownHorizontalRuleItem> Items,
     string Category,
     string Summary);
 

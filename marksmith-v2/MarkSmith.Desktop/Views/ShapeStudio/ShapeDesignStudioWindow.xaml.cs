@@ -6711,6 +6711,14 @@ namespace MarkSmith.Views.ShapeStudio
         _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
         ViewModel.StatusMessage = $"\u2713 {result.Summary}";
     }
+
+    private void OnSelectionAuditRadialAlignmentClick(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel == null) return;
+        var result = ViewModel.AuditRadialAndConcentricAlignment();
+        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+        ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+    }
     }
 }
 

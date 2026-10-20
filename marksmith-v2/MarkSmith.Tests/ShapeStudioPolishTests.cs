@@ -3659,5 +3659,37 @@ public class ShapeStudioPolishTests
         Assert.Equal(snappedAudit.Summary, formatted);
     }
 
-}
 
+    [Fact]
+    public void Run204_AuditRadialAndConcentricAlignment_EvaluatesCentroidAndRings()
+    {
+        // 1. Clean baseline with < 3 shapes
+        var emptyAudit = ShapeDesignStudioViewModel.AuditRadialAndConcentricAlignment(null, null);
+        Assert.Equal(0, emptyAudit.TotalShapes);
+        Assert.Equal(100.0, emptyAudit.RotationalBalanceScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+
+        // 2. Symmetrical 4-shape cross around (100, 100) at radius 50
+        var sNorth = new ShapeCanvasItemViewModel { Id = "n", Name = "North", X = 90, Y = 40, Width = 20, Height = 20 };
+        var sSouth = new ShapeCanvasItemViewModel { Id = "s", Name = "South", X = 90, Y = 140, Width = 20, Height = 20 };
+        var sEast = new ShapeCanvasItemViewModel { Id = "e", Name = "East", X = 140, Y = 90, Width = 20, Height = 20 };
+        var sWest = new ShapeCanvasItemViewModel { Id = "w", Name = "West", X = 40, Y = 90, Width = 20, Height = 20 };
+
+        var symShapes = new[] { sNorth, sSouth, sEast, sWest };
+        var symAudit = ShapeDesignStudioViewModel.AuditRadialAndConcentricAlignment(symShapes, symShapes);
+
+        Assert.Equal(4, symAudit.TotalShapes);
+        Assert.Equal(1, symAudit.RingCount);
+        Assert.Equal(100.0, symAudit.CentroidX);
+        Assert.Equal(100.0, symAudit.CentroidY);
+        Assert.Equal(0.0, symAudit.RadiusVariance);
+        Assert.True(symAudit.RotationalBalanceScore >= 95.0);
+
+        string formatted = ShapeDesignStudioViewModel.FormatRadialAlignmentSummary(
+            symAudit.TotalShapes, symAudit.RingCount, symAudit.CentroidX, symAudit.CentroidY,
+            symAudit.RadiusVariance, symAudit.AngularEvennessScore, symAudit.RotationalBalanceScore,
+            symAudit.Category, false);
+        Assert.Equal(symAudit.Summary, formatted);
+    }
+
+}

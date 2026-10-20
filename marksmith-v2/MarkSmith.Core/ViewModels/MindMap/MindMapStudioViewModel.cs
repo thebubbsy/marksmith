@@ -12608,6 +12608,235 @@ namespace MarkSmith.ViewModels.MindMap
             return $"Mind map edge crossings audit ({scope}{details} · {category} · {score:0.#}% score)";
         }
 
+        public GraphDiameterGeodesicAudit AuditGraphDiameterAndGeodesicPaths(bool selectionOnly = false)
+        {
+            var selected = Nodes.Where(n => n.IsSelected).ToList();
+            var targetNodes = (selectionOnly && selected.Count > 0)
+                ? selected
+                : Nodes.ToList();
+
+            bool isSelection = selectionOnly && selected.Count > 0;
+            var nodeIds = new HashSet<string>(targetNodes.Select(n => n.Id));
+            var relevantLinks = Links.Where(l => nodeIds.Contains(l.SourceNodeId) && nodeIds.Contains(l.TargetNodeId)).ToList();
+
+            var audit = AuditGraphDiameterAndGeodesicPaths(targetNodes.Select(n => n.Model), relevantLinks.Select(l => l.Model), isSelection);
+            StatusMessage = audit.Summary;
+            return audit;
+        }
+
+        public static GraphDiameterGeodesicAudit AuditGraphDiameterAndGeodesicPaths(
+            IEnumerable<MindMapNode>? nodes,
+            IEnumerable<MindMapLink>? links,
+            bool isSelection = false)
+        {
+            var nodeList = nodes?.ToList() ?? new List<MindMapNode>();
+            var linkList = links?.ToList() ?? new List<MindMapLink>();
+            int totalNodes = nodeList.Count;
+            int totalEdges = linkList.Count;
+
+            if (totalNodes == 0)
+            {
+                string emptySummary = FormatGraphDiameterSummary(0, 0, 0, 0, 0.0, 0, 100.0, "Empty Galaxy", isSelection);
+                return new GraphDiameterGeodesicAudit(
+                    0, 0, 0, 0, 0.0, 0, 100.0,
+                    Array.Empty<GeodesicPathStep>(),
+                    "Empty Galaxy", isSelection, emptySummary);
+            }
+
+            var nodeMap = nodeList.ToDictionary(n => n.Id, n => n);
+            var adj = new Dictionary<string, List<string>>();
+            foreach (var node in nodeList)
+            {
+                adj[node.Id] = new List<string>();
+            }
+
+            foreach (var link in linkList)
+            {
+                if (adj.ContainsKey(link.SourceNodeId) && adj.ContainsKey(link.TargetNodeId))
+                {
+                    if (link.SourceNodeId != link.TargetNodeId)
+                    {
+                        if (!adj[link.SourceNodeId].Contains(link.TargetNodeId))
+                            adj[link.SourceNodeId].Add(link.TargetNodeId);
+                        if (!adj[link.TargetNodeId].Contains(link.SourceNodeId))
+                            adj[link.TargetNodeId].Add(link.SourceNodeId);
+                    }
+                }
+            }
+
+            var visited = new HashSet<string>();
+            var components = new List<List<string>>();
+
+            foreach (var node in nodeList)
+            {
+                if (!visited.Contains(node.Id))
+                {
+                    var comp = new List<string>();
+                    var q = new Queue<string>();
+                    q.Enqueue(node.Id);
+                    visited.Add(node.Id);
+
+                    while (q.Count > 0)
+                    {
+                        var curr = q.Dequeue();
+                        comp.Add(curr);
+                        foreach (var neighbor in adj[curr])
+                        {
+                            if (!visited.Contains(neighbor))
+                            {
+                                visited.Add(neighbor);
+                                q.Enqueue(neighbor);
+                            }
+                        }
+                    }
+                    components.Add(comp);
+                }
+            }
+
+            int componentCount = components.Count;
+            int globalDiameter = 0;
+            int globalRadius = totalNodes > 1 ? int.MaxValue : 0;
+            double totalDistSum = 0;
+            long totalPairCount = 0;
+            List<string> bestPathNodes = new List<string>();
+
+            foreach (var comp in components)
+            {
+                if (comp.Count == 1)
+                {
+                    if (components.Count == 1) globalRadius = 0;
+                    continue;
+                }
+
+                int compRadius = int.MaxValue;
+
+                foreach (var startNode in comp)
+                {
+                    var dist = new Dictionary<string, int>();
+                    var parent = new Dictionary<string, string?>();
+                    var q = new Queue<string>();
+
+                    dist[startNode] = 0;
+                    parent[startNode] = null;
+                    q.Enqueue(startNode);
+
+                    int eccentricity = 0;
+
+                    while (q.Count > 0)
+                    {
+                        var u = q.Dequeue();
+                        int d = dist[u];
+                        if (d > eccentricity) eccentricity = d;
+
+                        foreach (var v in adj[u])
+                        {
+                            if (!dist.ContainsKey(v))
+                            {
+                                dist[v] = d + 1;
+                                parent[v] = u;
+                                q.Enqueue(v);
+                            }
+                        }
+                    }
+
+                    if (eccentricity < compRadius) compRadius = eccentricity;
+
+                    foreach (var kvp in dist)
+                    {
+                        if (kvp.Value > 0)
+                        {
+                            totalDistSum += kvp.Value;
+                            totalPairCount++;
+
+                            if (kvp.Value > globalDiameter)
+                            {
+                                globalDiameter = kvp.Value;
+                                var path = new List<string>();
+                                string? curr = kvp.Key;
+                                while (curr != null)
+                                {
+                                    path.Add(curr);
+                                    curr = parent[curr];
+                                }
+                                path.Reverse();
+                                bestPathNodes = path;
+                            }
+                        }
+                    }
+                }
+
+                if (compRadius < globalRadius) globalRadius = compRadius;
+            }
+
+            if (globalRadius == int.MaxValue) globalRadius = 0;
+
+            double avgPathLength = totalPairCount > 0 ? Math.Round(totalDistSum / totalPairCount, 2) : 0.0;
+
+            var geodesicPathSteps = new List<GeodesicPathStep>();
+            for (int i = 0; i < bestPathNodes.Count - 1; i++)
+            {
+                string fromId = bestPathNodes[i];
+                string toId = bestPathNodes[i + 1];
+                string fromTitle = nodeMap.TryGetValue(fromId, out var fn) ? (fn.Title ?? fn.Id) : fromId;
+                string toTitle = nodeMap.TryGetValue(toId, out var tn) ? (tn.Title ?? tn.Id) : toId;
+                geodesicPathSteps.Add(new GeodesicPathStep(i + 1, fromId, fromTitle, toId, toTitle));
+            }
+
+            double score = 100.0;
+            if (componentCount > 1)
+            {
+                score -= ((componentCount - 1) * 8.0);
+            }
+            if (totalNodes > 5 && globalDiameter > (totalNodes * 0.75))
+            {
+                score -= 15.0;
+            }
+            score = Math.Round(Math.Clamp(score, 0.0, 100.0), 1);
+
+            string category = score switch
+            {
+                >= 95.0 => "Optimal Network Breadth (Unified & Compact)",
+                >= 80.0 => "Good Network Breadth",
+                >= 60.0 => "Moderate Network Span",
+                >= 40.0 => "Fragmented or High Aspect Ratio",
+                _ => "Severely Fragmented / Disconnected Graph"
+            };
+
+            string summary = FormatGraphDiameterSummary(
+                totalNodes, totalEdges, globalDiameter, globalRadius,
+                avgPathLength, componentCount, score, category, isSelection);
+
+            return new GraphDiameterGeodesicAudit(
+                totalNodes, totalEdges, globalDiameter, globalRadius,
+                avgPathLength, componentCount, score, geodesicPathSteps,
+                category, isSelection, summary);
+        }
+
+        public static string FormatGraphDiameterSummary(
+            int totalNodes, int totalEdges, int diameter, int radius,
+            double avgPathLength, int components, double score, string category, bool isSelection)
+        {
+            string scope = isSelection ? "Selection · " : "";
+            if (totalNodes == 0) return $"Mind map graph diameter audit ({scope}0 nodes): Empty galaxy";
+
+            var parts = new List<string>();
+            parts.Add($"{totalNodes} nodes, {totalEdges} edges");
+            parts.Add($"Diameter {diameter}");
+            parts.Add($"Radius {radius}");
+            parts.Add($"Avg path {avgPathLength:0.##}");
+            if (components > 1)
+            {
+                parts.Add($"⚠ {components} disconnected components");
+            }
+            else
+            {
+                parts.Add("1 connected component");
+            }
+
+            string details = string.Join(" · ", parts);
+            return $"Mind map graph diameter audit ({scope}{details} · {category} · {score:0.#}% breadth score)";
+        }
+
 
         public static string FormatBipartitenessSummary(
             int totalNodes, int totalEdges, bool isBipartite, int oddCycles, int conflicts,
@@ -14297,6 +14526,26 @@ namespace MarkSmith.ViewModels.MindMap
         bool IsPlanar,
         double PlanarityClarityScore,
         IReadOnlyList<GraphEdgeIntersectionItem> Crossings,
+        string Category,
+        bool IsSelectionScope,
+        string Summary);
+
+    public sealed record GeodesicPathStep(
+        int StepIndex,
+        string FromNodeId,
+        string FromTitle,
+        string ToNodeId,
+        string ToTitle);
+
+    public sealed record GraphDiameterGeodesicAudit(
+        int TotalNodes,
+        int TotalEdges,
+        int GraphDiameter,
+        int GraphRadius,
+        double AveragePathLength,
+        int ConnectedComponentsCount,
+        double NetworkBreadthScore,
+        IReadOnlyList<GeodesicPathStep> LongestGeodesicPath,
         string Category,
         bool IsSelectionScope,
         string Summary);

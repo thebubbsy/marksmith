@@ -357,6 +357,9 @@
                                     <MenuFlyoutItem x:Name="AuditGraphEdgeIntersectionPlanarityItem" Text="Audit graph edge crossings, 2D planarity &amp; visual link clutter" Click="OnAuditGraphEdgeIntersectionPlanarityClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditGraphDiameterAndGeodesicPathsItem" Text="Audit graph diameter, longest geodesic path &amp; network breadth" Click="OnAuditGraphDiameterAndGeodesicPathsClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem x:Name="AuditGraphDegreeDistributionItem" Text="Audit node degree distribution skewness, hub centrality &amp; scale-free network" Click="OnAuditGraphDegreeDistributionClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

@@ -2541,6 +2541,25 @@ private async void OnAuditWorkspaceMarkdownTableAutoAlignAndExportClick(object s
         }
     }
 
+    private async void OnAuditWorkspaceCrossFileLinksClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var files = App.RecentFiles?.Load() ?? new List<string>();
+            var result = RecentFilesService.AuditWorkspaceCrossFileLinks(explicitFiles: files);
+            await Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            SetNotification(result.Summary, success: true);
+            if (RecentDocsActionBtn != null)
+            {
+                Services.CopyFeedback.ApplyButtonTick(RecentDocsActionBtn, null, "\u2713 Links Audited");
+            }
+        }
+        catch (Exception ex)
+        {
+            SetNotification($"Link audit failed: {ex.Message}", success: false);
+        }
+    }
+
     private async void OnAuditWorkspaceMarkdownTableAutoAlignClick(object sender, RoutedEventArgs e)
     {
         try
