@@ -432,6 +432,10 @@
                                     <MenuFlyoutItem x:Name="AuditWorkspaceDocumentReadabilityDensityItem" Text="Audit workspace document reading time &amp; section density distribution" Click="OnAuditWorkspaceDocumentReadabilityDensityClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditWorkspaceWikilinksAndCrossReferencesItem" Text="Audit workspace relative file path &amp; cross-document wikilink integrity" Click="OnAuditWorkspaceWikilinksAndCrossReferencesClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+
                                     <MenuFlyoutItem x:Name="AuditWorkspaceCrossFileLinksItem" Text="Audit workspace markdown cross-file links &amp; anchor reference integrity" Click="OnAuditWorkspaceCrossFileLinksClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

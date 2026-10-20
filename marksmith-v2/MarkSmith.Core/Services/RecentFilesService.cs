@@ -6766,6 +6766,194 @@ public sealed class RecentFilesService
         return $"Workspace frontmatter & date hygiene audit ({details} · {category} · {score:0.#}% compliance score)";
     }
 
+    public static WorkspaceWikilinkAudit AuditWorkspaceWikilinksAndCrossReferences(
+        IReadOnlyList<string>? explicitFiles = null,
+        Func<string, bool>? fileExistsProvider = null,
+        Func<string, string>? contentReader = null)
+    {
+        var files = (explicitFiles ?? Array.Empty<string>())
+            .Where(f => !string.IsNullOrWhiteSpace(f) && !f.EndsWith(".bak.md", StringComparison.OrdinalIgnoreCase))
+            .Distinct()
+            .ToList();
+
+        if (files.Count == 0)
+        {
+            string emptySummary = FormatWorkspaceWikilinkSummary(0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new WorkspaceWikilinkAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<WorkspaceWikilinkItem>(), "Clean Baseline", emptySummary);
+        }
+
+        var exists = fileExistsProvider ?? (f => File.Exists(f));
+        var reader = contentReader ?? (f => File.Exists(f) ? File.ReadAllText(f) : string.Empty);
+
+        var items = new List<WorkspaceWikilinkItem>();
+        int totalLinks = 0;
+        int resolvedLinks = 0;
+        int brokenTargets = 0;
+        int brokenAnchors = 0;
+
+        foreach (var file in files)
+        {
+            string content;
+            try
+            {
+                content = reader(file);
+            }
+            catch
+            {
+                continue;
+            }
+
+            var lines = content.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+            string dir = Path.GetDirectoryName(file) ?? string.Empty;
+
+            for (int lineIdx = 0; lineIdx < lines.Length; lineIdx++)
+            {
+                var line = lines[lineIdx];
+
+                int wikiStart = 0;
+                while ((wikiStart = line.IndexOf("[[", wikiStart, StringComparison.Ordinal)) >= 0)
+                {
+                    int wikiEnd = line.IndexOf("]]", wikiStart + 2, StringComparison.Ordinal);
+                    if (wikiEnd < 0) break;
+
+                    string linkBody = line.Substring(wikiStart + 2, wikiEnd - (wikiStart + 2)).Trim();
+                    wikiStart = wikiEnd + 2;
+                    totalLinks++;
+
+                    string target = linkBody.Contains('|') ? linkBody.Split('|')[0].Trim() : linkBody;
+                    string anchor = "";
+                    if (target.Contains('#'))
+                    {
+                        var parts = target.Split('#');
+                        target = parts[0].Trim();
+                        anchor = parts[1].Trim();
+                    }
+
+                    string resolvedTarget = target.EndsWith(".md", StringComparison.OrdinalIgnoreCase) ? target : target + ".md";
+                    string targetFull = Path.Combine(dir, resolvedTarget);
+                    string? matchedFile = files.FirstOrDefault(f => Path.GetFileNameWithoutExtension(f).Equals(target, StringComparison.OrdinalIgnoreCase) || f.Equals(targetFull, StringComparison.OrdinalIgnoreCase));
+                    if (matchedFile != null)
+                    {
+                        targetFull = matchedFile;
+                    }
+
+                    bool targetExists = exists(targetFull) || matchedFile != null;
+                    bool brokenAnchor = false;
+                    if (targetExists && !string.IsNullOrEmpty(anchor))
+                    {
+                        string targetContent = reader(targetFull);
+                        if (string.IsNullOrEmpty(targetContent))
+                        {
+                            targetContent = reader(targetFull.Replace('\\', '/'));
+                        }
+                        if (string.IsNullOrEmpty(targetContent))
+                        {
+                            targetContent = reader(targetFull.Replace('/', '\\'));
+                        }
+                        brokenAnchor = !targetContent.Contains(anchor, StringComparison.OrdinalIgnoreCase);
+                        if (brokenAnchor) brokenAnchors++;
+                    }
+
+                    if (!targetExists) brokenTargets++;
+                    else resolvedLinks++;
+
+                    string recDesc = !targetExists ? $"Destination wikilink target '{target}' does not exist" :
+                                     brokenAnchor ? $"Anchor '#{anchor}' not found in target file" : "Wikilink resolved";
+
+                    items.Add(new WorkspaceWikilinkItem(
+                        file, lineIdx + 1, linkBody, target, true, targetExists, brokenAnchor, recDesc));
+                }
+
+                int mdStart = 0;
+                while ((mdStart = line.IndexOf("](", mdStart, StringComparison.Ordinal)) >= 0)
+                {
+                    int labelStart = line.LastIndexOf('[', mdStart);
+                    int mdEnd = line.IndexOf(')', mdStart + 2);
+                    if (labelStart < 0 || mdEnd < 0)
+                    {
+                        mdStart += 2;
+                        continue;
+                    }
+
+                    string linkPath = line.Substring(mdStart + 2, mdEnd - (mdStart + 2)).Trim();
+                    string label = line.Substring(labelStart + 1, mdStart - (labelStart + 1)).Trim();
+                    mdStart = mdEnd + 1;
+
+                    if (linkPath.StartsWith("http://") || linkPath.StartsWith("https://") || linkPath.StartsWith("mailto:"))
+                        continue;
+
+                    totalLinks++;
+                    string target = linkPath;
+                    string anchor = "";
+                    if (target.Contains('#'))
+                    {
+                        var parts = target.Split('#');
+                        target = parts[0].Trim();
+                        anchor = parts[1].Trim();
+                    }
+
+                    string targetFull = Path.IsPathRooted(target) ? target : Path.Combine(dir, target);
+                    bool targetExists = exists(targetFull);
+                    bool brokenAnchor = false;
+                    if (targetExists && !string.IsNullOrEmpty(anchor))
+                    {
+                        string targetContent = reader(targetFull);
+                        brokenAnchor = !targetContent.Contains(anchor, StringComparison.OrdinalIgnoreCase);
+                        if (brokenAnchor) brokenAnchors++;
+                    }
+
+                    if (!targetExists) brokenTargets++;
+                    else resolvedLinks++;
+
+                    string recDesc = !targetExists ? $"Target file '{linkPath}' not found" :
+                                     brokenAnchor ? $"Anchor '#{anchor}' not found in target" : "Relative link resolved";
+
+                    items.Add(new WorkspaceWikilinkItem(
+                        file, lineIdx + 1, label, linkPath, false, targetExists, brokenAnchor, recDesc));
+                }
+            }
+        }
+
+        double penalty = (brokenTargets * 20.0) + (brokenAnchors * 10.0);
+        double score = Math.Clamp(100.0 - penalty, 0.0, 100.0);
+
+        string category = score switch
+        {
+            >= 90.0 => "High Cross-Reference Integrity",
+            >= 70.0 => "Moderate Link Gaps",
+            _ => "Broken Workspace References"
+        };
+
+        string summary = FormatWorkspaceWikilinkSummary(
+            files.Count, totalLinks, resolvedLinks, brokenTargets, brokenAnchors, score, category);
+
+        return new WorkspaceWikilinkAudit(
+            files.Count, totalLinks, resolvedLinks, brokenTargets, brokenAnchors,
+            score, items, category, summary);
+    }
+
+    public static string FormatWorkspaceWikilinkSummary(
+        int totalFiles, int totalLinks, int resolved, int brokenTargets,
+        int brokenAnchors, double score, string category)
+    {
+        if (totalFiles == 0)
+            return "Workspace wikilink & cross-reference audit: Clean Baseline · 0 workspace documents detected";
+
+        var parts = new List<string>();
+        parts.Add($"{totalFiles} file{(totalFiles == 1 ? "" : "s")}");
+        parts.Add($"{totalLinks} link{(totalLinks == 1 ? "" : "s")}");
+        if (resolved > 0) parts.Add($"\u2713 {resolved} resolved");
+        if (brokenTargets > 0) parts.Add($"\ud83d\udea8 {brokenTargets} broken target{(brokenTargets == 1 ? "" : "s")}");
+        if (brokenAnchors > 0) parts.Add($"\u26a0 {brokenAnchors} missing anchor{(brokenAnchors == 1 ? "" : "s")}");
+
+        string details = string.Join(" · ", parts);
+        return $"Workspace wikilink & cross-reference audit ({details} · {category} · {score:0.#}% integrity score)";
+    }
+
+
+
     public static WorkspaceReadabilityAudit AuditWorkspaceDocumentReadabilityDensity(
         IReadOnlyList<string>? explicitFiles = null,
         Func<string, bool>? fileExistsProvider = null,
@@ -7014,7 +7202,6 @@ public sealed class RecentFilesService
                         continue;
                     }
 
-                    bool anchorValid = true;
                     if (!string.IsNullOrWhiteSpace(targetAnchor))
                     {
                         string targetDocContent = fileContents.TryGetValue(resolvedTargetFile, out var tc)
@@ -7039,7 +7226,6 @@ public sealed class RecentFilesService
 
                         if (!found)
                         {
-                            anchorValid = false;
                             brokenAnchorHeaders++;
                             items.Add(new WorkspaceCrossFileLinkItem(
                                 file, lineIdx + 1, linkText, targetUrl, false, true, false,
@@ -12742,7 +12928,8 @@ public sealed record WorkspaceMermaidDiagramHealthAudit(
     double MermaidHealthScore,
     IReadOnlyList<WorkspaceMermaidDiagramItem> Items,
     string Category,
-    string Summary);
+    string Summary);
+
 public sealed record WorkspaceFrontmatterItem(
     string FilePath,
     string FileName,
@@ -12767,7 +12954,8 @@ public sealed record WorkspaceFrontmatterComplianceAudit(
     double FrontmatterComplianceScore,
     IReadOnlyList<WorkspaceFrontmatterItem> Items,
     string Category,
-    string Summary);
+    string Summary);
+
 
 
 public sealed record WorkspaceDocumentReadabilityItem(
@@ -12792,3 +12980,27 @@ public sealed record WorkspaceReadabilityAudit(
     IReadOnlyList<WorkspaceDocumentReadabilityItem> Documents,
     string Category,
     string Summary);
+
+
+
+public sealed record WorkspaceWikilinkItem(
+    string SourceFilePath,
+    int LineNumber,
+    string LinkText,
+    string TargetPath,
+    bool IsWikilink,
+    bool IsTargetFound,
+    bool HasBrokenAnchor,
+    string Recommendation);
+
+public sealed record WorkspaceWikilinkAudit(
+    int TotalFilesScanned,
+    int TotalLinksFound,
+    int ResolvedLinksCount,
+    int BrokenTargetCount,
+    int BrokenAnchorCount,
+    double CrossReferenceIntegrityScore,
+    IReadOnlyList<WorkspaceWikilinkItem> Items,
+    string Category,
+    string Summary);
+

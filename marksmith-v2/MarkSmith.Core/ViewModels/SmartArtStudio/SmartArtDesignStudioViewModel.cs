@@ -4566,6 +4566,138 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         return $"SmartArt gear mechanism audit ({details} · {category} · {score:0.#}% harmony score)";
     }
 
+    public SmartArtMatrixCentroidBalanceAudit AuditMatrixAxisLabelAndCentroidBalance(string? markdown = null, string? layoutName = null)
+    {
+        string md = markdown ?? MarkdownText;
+        string layout = layoutName ?? SelectedLayout?.DisplayName ?? "Matrix";
+        return AuditMatrixAxisLabelAndCentroidBalance(md, layout, isStatic: false);
+    }
+
+    public static SmartArtMatrixCentroidBalanceAudit AuditMatrixAxisLabelAndCentroidBalance(
+        string? markdown,
+        string? layoutName = null,
+        bool isStatic = true)
+    {
+        string layout = layoutName ?? "Matrix";
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            string emptySummary = FormatMatrixCentroidBalanceSummary(0, 0, 0, 0, 0, 0, 100.0, "Empty Outline", layout);
+            return new SmartArtMatrixCentroidBalanceAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<SmartArtMatrixCentroidBalanceItem>(), "Empty Outline", layout, emptySummary);
+        }
+
+        var lines = markdown.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        var quadrants = new List<(string Header, List<string> Bullets)>();
+        (string Header, List<string> Bullets)? currentQ = null;
+
+        foreach (var rawLine in lines)
+        {
+            string line = rawLine.Trim();
+            if (string.IsNullOrWhiteSpace(line)) continue;
+
+            if (rawLine.StartsWith("- ") || rawLine.StartsWith("* "))
+            {
+                if (currentQ.HasValue) quadrants.Add(currentQ.Value);
+                currentQ = (line.Substring(2).Trim(), new List<string>());
+            }
+            else if (currentQ.HasValue && (line.StartsWith("- ") || line.StartsWith("* ")))
+            {
+                currentQ.Value.Bullets.Add(line.Substring(2).Trim());
+            }
+            else if (currentQ.HasValue)
+            {
+                currentQ.Value.Bullets.Add(line);
+            }
+        }
+        if (currentQ.HasValue) quadrants.Add(currentQ.Value);
+
+        string[] defaultQuadrantNames = { "Top-Left (Q1)", "Top-Right (Q2)", "Bottom-Left (Q3)", "Bottom-Right (Q4)" };
+        var quadrantItems = new List<SmartArtMatrixCentroidBalanceItem>();
+        int totalItems = 0;
+        int totalWords = 0;
+        int overcrowded = 0;
+        int starved = 0;
+        int labelOverflows = 0;
+
+        for (int i = 0; i < 4; i++)
+        {
+            string qName = defaultQuadrantNames[i];
+            if (i < quadrants.Count)
+            {
+                var q = quadrants[i];
+                int count = q.Bullets.Count;
+                int words = q.Header.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length +
+                            q.Bullets.Sum(b => b.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length);
+                totalItems += count;
+                totalWords += words;
+
+                bool isOverflow = q.Header.Length > 25;
+                if (isOverflow) labelOverflows++;
+
+                bool isOvercrowded = count > 5;
+                if (isOvercrowded) overcrowded++;
+
+                bool isStarved = count == 0;
+                if (isStarved) starved++;
+
+                string status = (isOverflow, isOvercrowded, isStarved) switch
+                {
+                    (true, _, _) => "Label length exceeds quadrant cell bounds (>25 chars)",
+                    (_, true, _) => $"Overcrowded quadrant ({count} items)",
+                    (_, _, true) => "Starved quadrant (0 items)",
+                    _ => "Balanced quadrant density"
+                };
+
+                quadrantItems.Add(new SmartArtMatrixCentroidBalanceItem(
+                    i + 1, qName, q.Header, count, words, isOverflow, isOvercrowded || isStarved, status));
+            }
+            else
+            {
+                starved++;
+                quadrantItems.Add(new SmartArtMatrixCentroidBalanceItem(
+                    i + 1, qName, "(Undefined)", 0, 0, false, true, "Missing 4-quadrant section"));
+            }
+        }
+
+        double penalty = (overcrowded * 15.0) + (starved * 15.0) + (labelOverflows * 10.0);
+        double score = Math.Clamp(100.0 - penalty, 0.0, 100.0);
+
+        string category = score switch
+        {
+            >= 90.0 => "Harmonious Quadrant Balance",
+            >= 70.0 => "Moderate Quadrant Variance",
+            _ => "Severe Quadrant Imbalance"
+        };
+
+        string summary = FormatMatrixCentroidBalanceSummary(
+            quadrants.Count, totalItems, totalWords, overcrowded, starved, labelOverflows,
+            score, category, layout);
+
+        return new SmartArtMatrixCentroidBalanceAudit(
+            quadrants.Count, totalItems, totalWords, overcrowded, starved, labelOverflows,
+            score, quadrantItems, category, layout, summary);
+    }
+
+    public static string FormatMatrixCentroidBalanceSummary(
+        int totalQuadrants, int totalItems, int totalWords, int overcrowded,
+        int starved, int labelOverflows, double score, string category, string layout)
+    {
+        if (totalQuadrants == 0)
+            return $"SmartArt {layout} quadrant balance audit: Clean Baseline · 0 quadrants detected";
+
+        var parts = new List<string>();
+        parts.Add($"{totalQuadrants}/4 quadrant{(totalQuadrants == 1 ? "" : "s")}");
+        parts.Add($"{totalItems} item{(totalItems == 1 ? "" : "s")}");
+        parts.Add($"{totalWords} word{(totalWords == 1 ? "" : "s")}");
+        if (overcrowded > 0) parts.Add($"\u26a0 {overcrowded} overcrowded");
+        if (starved > 0) parts.Add($"\u26a0 {starved} starved/empty");
+        if (labelOverflows > 0) parts.Add($"\ud83d\udea8 {labelOverflows} label overflow{(labelOverflows == 1 ? "" : "s")}");
+
+        string details = string.Join(" · ", parts);
+        return $"SmartArt {layout} quadrant balance audit ({details} · {category} · {score:0.#}% harmony score)";
+    }
+
     public SmartArtPyramidApexAudit AuditPyramidApexProportionality(string? markdown = null, string? layoutName = null)
     {
         string md = markdown ?? MarkdownText;
@@ -13553,7 +13685,8 @@ public sealed record SmartArtTargetBullseyeGeometryAudit(
     IReadOnlyList<TargetBullseyeRingItem> Rings,
     string Category,
     string LayoutName,
-    string Summary);
+    string Summary);
+
 public sealed record SmartArtGearItem(
     int GearIndex,
     string Name,
@@ -13575,7 +13708,8 @@ public sealed record SmartArtGearMechanismAudit(
     IReadOnlyList<SmartArtGearItem> Items,
     string Category,
     string LayoutName,
-    string Summary);
+    string Summary);
+
 
 
 public sealed record SmartArtPyramidTierItem(
@@ -13599,4 +13733,27 @@ public sealed record SmartArtPyramidApexAudit(
     IReadOnlyList<SmartArtPyramidTierItem> Tiers,
     string Category,
     string LayoutName,
-    string Summary);
+    string Summary);
+
+public sealed record SmartArtMatrixCentroidBalanceItem(
+    int QuadrantIndex,
+    string QuadrantName,
+    string Header,
+    int ItemCount,
+    int TotalWordCount,
+    bool HasLabelOverflow,
+    bool HasDensityImbalance,
+    string StatusDescription);
+
+public sealed record SmartArtMatrixCentroidBalanceAudit(
+    int TotalQuadrantsDefined,
+    int TotalItems,
+    int TotalWordCount,
+    int OvercrowdedQuadrants,
+    int StarvedQuadrants,
+    int LabelOverflowCount,
+    double MatrixCompositionHarmonyScore,
+    IReadOnlyList<SmartArtMatrixCentroidBalanceItem> Quadrants,
+    string Category,
+    string LayoutName,
+    string Summary);

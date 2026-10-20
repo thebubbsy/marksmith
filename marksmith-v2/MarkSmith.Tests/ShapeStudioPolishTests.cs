@@ -3868,4 +3868,35 @@ public class ShapeStudioPolishTests
         Assert.True(jitterAudit.NearMissJitterTotal >= 1);
         Assert.True(jitterAudit.MagneticAlignmentScore < 95.0);
     }
+
+    [Fact]
+    public void Run211_AuditBezierHandleSymmetry_EvaluatesTangentContinuityAndAesthetics()
+    {
+        var emptyAudit = ShapeDesignStudioViewModel.AuditBezierHandleSymmetry(null, null);
+        Assert.Equal(0, emptyAudit.TotalShapes);
+        Assert.Equal(100.0, emptyAudit.SmoothPathAestheticsScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+
+        var s1 = new ShapeCanvasItemViewModel { Id = "s1", Name = "Circle1", X = 100, Y = 100, Width = 100, Height = 100, Prst = "ellipse" };
+        var s2 = new ShapeCanvasItemViewModel { Id = "s2", Name = "Box1", X = 300, Y = 100, Width = 120, Height = 120, Prst = "roundRect" };
+        var smoothAudit = ShapeDesignStudioViewModel.AuditBezierHandleSymmetry(new[] { s1, s2 }, new[] { s1, s2 });
+        Assert.Equal(2, smoothAudit.TotalShapes);
+        Assert.Equal(2, smoothAudit.SmoothTangentKnots);
+        Assert.Equal(0, smoothAudit.DiscontinuousTangentJitter);
+        Assert.Equal(0, smoothAudit.AsymmetricHandleCount);
+        Assert.Equal(100.0, smoothAudit.SmoothPathAestheticsScore);
+        Assert.Equal("Harmonious Tangent Continuity", smoothAudit.Category);
+
+        string formatted = ShapeDesignStudioViewModel.FormatBezierSymmetrySummary(
+            smoothAudit.TotalShapes, smoothAudit.EvaluatedCurvesCount, smoothAudit.SmoothTangentKnots,
+            smoothAudit.DiscontinuousTangentJitter, smoothAudit.AsymmetricHandleCount,
+            smoothAudit.SmoothPathAestheticsScore, smoothAudit.Category, false);
+        Assert.Equal(smoothAudit.Summary, formatted);
+
+        var sJitter = new ShapeCanvasItemViewModel { Id = "s3", Name = "JitterCurve", X = 100, Y = 100, Width = 102, Height = 100 };
+        var jitterAudit = ShapeDesignStudioViewModel.AuditBezierHandleSymmetry(new[] { sJitter }, new[] { sJitter });
+        Assert.True(jitterAudit.DiscontinuousTangentJitter >= 1);
+        Assert.True(jitterAudit.SmoothPathAestheticsScore <= 90.0);
+    }
+
 }

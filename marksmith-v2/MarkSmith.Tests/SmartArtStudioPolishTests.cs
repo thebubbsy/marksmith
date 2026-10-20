@@ -3521,4 +3521,57 @@ public class SmartArtStudioPolishTests
         Assert.True(overflowAudit.InvertedTierHazards >= 1);
         Assert.True(overflowAudit.ProportionalHarmonyScore < 75.0);
     }
+
+    [Fact]
+    public void Run211_AuditMatrixQuadrantBalance_ValidatesQuadrantDensityAndHarmony()
+    {
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditMatrixAxisLabelAndCentroidBalance("", "Matrix");
+        Assert.Equal(0, emptyAudit.TotalQuadrantsDefined);
+        Assert.Equal(100.0, emptyAudit.MatrixCompositionHarmonyScore);
+        Assert.Equal("Empty Outline", emptyAudit.Category);
+
+        var balancedMd = string.Join("\n",
+            "- Strengths",
+            "  - Deep expertise",
+            "  - Scalable engine",
+            "- Weaknesses",
+            "  - New platform",
+            "- Opportunities",
+            "  - Market expansion",
+            "- Threats",
+            "  - Fast competitors"
+        );
+        var balancedAudit = SmartArtDesignStudioViewModel.AuditMatrixAxisLabelAndCentroidBalance(balancedMd, "Matrix");
+        Assert.Equal(4, balancedAudit.TotalQuadrantsDefined);
+        Assert.Equal(5, balancedAudit.TotalItems);
+        Assert.Equal(0, balancedAudit.OvercrowdedQuadrants);
+        Assert.Equal(0, balancedAudit.StarvedQuadrants);
+        Assert.Equal(0, balancedAudit.LabelOverflowCount);
+        Assert.Equal(100.0, balancedAudit.MatrixCompositionHarmonyScore);
+        Assert.Equal("Harmonious Quadrant Balance", balancedAudit.Category);
+
+        string formatted = SmartArtDesignStudioViewModel.FormatMatrixCentroidBalanceSummary(
+            balancedAudit.TotalQuadrantsDefined, balancedAudit.TotalItems, balancedAudit.TotalWordCount,
+            balancedAudit.OvercrowdedQuadrants, balancedAudit.StarvedQuadrants, balancedAudit.LabelOverflowCount,
+            balancedAudit.MatrixCompositionHarmonyScore, balancedAudit.Category, "Matrix");
+        Assert.Equal(balancedAudit.Summary, formatted);
+
+        var imbalancedMd = string.Join("\n",
+            "- Strengths Overly Verbose Exceeding Twenty-Five Characters Length",
+            "  - Item 1",
+            "  - Item 2",
+            "  - Item 3",
+            "  - Item 4",
+            "  - Item 5",
+            "  - Item 6",
+            "- Weaknesses"
+        );
+        var imbalancedAudit = SmartArtDesignStudioViewModel.AuditMatrixAxisLabelAndCentroidBalance(imbalancedMd, "Matrix");
+        Assert.True(imbalancedAudit.LabelOverflowCount >= 1);
+        Assert.True(imbalancedAudit.OvercrowdedQuadrants >= 1);
+        Assert.True(imbalancedAudit.StarvedQuadrants >= 1);
+        Assert.True(imbalancedAudit.MatrixCompositionHarmonyScore < 70.0);
+    }
+
+
 }

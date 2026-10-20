@@ -12179,7 +12179,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             _ = Services.ClipboardWriter.TrySetTextAsync(summary);
             AnnounceStatus(summary);
         };
-        menu.Items.Add(auditFootnoteBidirectionalLinksItem);
+        menu.Items.Add(auditFootnoteBidirectionalLinksItem);
+
         var auditInlineHtmlSanitizationItem = new MenuFlyoutItem
         {
             Text = "Audit Markdown Inline HTML Sanitization & Raw Angle Brackets",
@@ -12207,6 +12208,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             AnnounceStatus(summary);
         };
         menu.Items.Add(auditTaskListFormattingItem);
+
+var auditTablePipeAlignmentItem = new MenuFlyoutItem
+        {
+            Text = "Audit Markdown Table Pipe Delimiter Alignment & Header Structural Hygiene",
+            Icon = new FontIcon { Glyph = "\uE8B9" }
+        };
+        auditTablePipeAlignmentItem.Click += (_, _) =>
+        {
+            var docText = EditorDocument();
+            var summary = MarkSmith.Services.TextSearch.AuditMarkdownTablePipeAlignment(docText).Summary;
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditTablePipeAlignmentItem);
 
 
 

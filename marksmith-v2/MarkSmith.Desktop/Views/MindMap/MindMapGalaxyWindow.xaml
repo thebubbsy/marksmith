@@ -386,13 +386,18 @@
                                     </MenuFlyoutItem>
                                     <MenuFlyoutItem x:Name="AuditGraphRadialTreeSectorDistributionItem" Text="Audit graph radial tree spanning &amp; angular sector distribution" Click="OnAuditGraphRadialTreeSectorDistributionClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
+                                    </MenuFlyoutItem>
+
                                     <MenuFlyoutItem x:Name="AuditGraphNodeBoundingCollisionsItem" Text="Audit graph node bounding box collisions &amp; label overlaps" Click="OnAuditGraphNodeBoundingCollisionsClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
                                     <MenuFlyoutItem x:Name="AuditGraphSemanticClusterCentroidsItem" Text="Audit graph semantic cluster centroids &amp; group boundary convexity" Click="OnAuditGraphSemanticClusterCentroidsClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditGraphRadialDepthDistributionItem" Text="Audit graph node radial hierarchy depth &amp; branch density distribution" Click="OnAuditGraphRadialDepthDistributionClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+
 
                                     <MenuFlyoutItem x:Name="AuditGraphDegreeDistributionAndHubDominanceItem" Text="Audit graph node degree distribution &amp; hub dominance" Click="OnAuditGraphDegreeDistributionAndHubDominanceClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>

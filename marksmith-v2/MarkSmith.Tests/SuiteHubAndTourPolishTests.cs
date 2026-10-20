@@ -7112,4 +7112,97 @@ Some paragraph in between.
         Assert.Contains("OnAuditWorkspaceDocumentReadabilityDensityClick", suiteCs);
         Assert.Contains("AuditWorkspaceDocumentReadabilityDensity", suiteCs);
     }
+
+    [Fact]
+    public void Run211_AuditWorkspaceWikilinksAndCrossReferences_ResolvesTargetsAndBrokenLinks()
+    {
+        var emptyAudit = RecentFilesService.AuditWorkspaceWikilinksAndCrossReferences(Array.Empty<string>());
+        Assert.Equal(0, emptyAudit.TotalFilesScanned);
+        Assert.Equal(100.0, emptyAudit.CrossReferenceIntegrityScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+
+        var files = new[] { "C:/docs/Index.md", "C:/docs/Architecture.md", "C:/docs/Api.md" };
+        var contents = new Dictionary<string, string>
+        {
+            ["C:/docs/Index.md"] = "# Home\nSee [[Architecture]] and [[Api#endpoints|API Docs]] and [Relative](Architecture.md).",
+            ["C:/docs/Architecture.md"] = "# Architecture\nOverview details.",
+            ["C:/docs/Api.md"] = "# API\n## endpoints\nAll endpoints listed."
+        };
+
+        var audit = RecentFilesService.AuditWorkspaceWikilinksAndCrossReferences(
+            files,
+            fileExistsProvider: f => contents.ContainsKey(f) || contents.Keys.Any(k => Path.GetFileNameWithoutExtension(k).Equals(Path.GetFileNameWithoutExtension(f), StringComparison.OrdinalIgnoreCase)),
+            contentReader: f => contents.TryGetValue(f, out var c) ? c : "");
+
+        Assert.Equal(3, audit.TotalFilesScanned);
+        Assert.True(audit.TotalLinksFound >= 3);
+        Assert.True(audit.ResolvedLinksCount >= 3);
+        Assert.Equal(0, audit.BrokenTargetCount);
+        Assert.Equal(0, audit.BrokenAnchorCount);
+        Assert.Equal(100.0, audit.CrossReferenceIntegrityScore);
+        Assert.Equal("High Cross-Reference Integrity", audit.Category);
+
+        string formatted = RecentFilesService.FormatWorkspaceWikilinkSummary(
+            audit.TotalFilesScanned, audit.TotalLinksFound, audit.ResolvedLinksCount,
+            audit.BrokenTargetCount, audit.BrokenAnchorCount, audit.CrossReferenceIntegrityScore,
+            audit.Category);
+        Assert.Equal(audit.Summary, formatted);
+
+        var brokenContents = new Dictionary<string, string>
+        {
+            ["C:/docs/Broken.md"] = "# Broken\nSee [[NonExistentDoc]] and [[Api#MissingSection]]."
+        };
+        var brokenAudit = RecentFilesService.AuditWorkspaceWikilinksAndCrossReferences(
+            new[] { "C:/docs/Broken.md" },
+            fileExistsProvider: f => f.Contains("Api"),
+            contentReader: f => f.Contains("Api") ? "# API\nContent without section" : brokenContents.TryGetValue(f, out var c) ? c : "");
+
+        Assert.True(brokenAudit.BrokenTargetCount >= 1);
+        Assert.True(brokenAudit.BrokenAnchorCount >= 1);
+        Assert.True(brokenAudit.CrossReferenceIntegrityScore < 80.0);
+    }
+
+    [Fact]
+    public void Run211_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // Surface 1: MainWindow - Markdown Table Pipe Delimiter Alignment & Header Structural Hygiene
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("auditTablePipeAlignmentItem", mainCs);
+        Assert.Contains("AuditMarkdownTablePipeAlignment", mainCs);
+
+        // Surface 2: MindMapGalaxyWindow - Graph Node Radial Hierarchy Depth & Branch Density Distribution
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditGraphRadialDepthDistributionItem", galaxyXaml);
+        Assert.Contains("OnAuditGraphRadialDepthDistributionClick", galaxyCs);
+        Assert.Contains("AuditGraphRadialDepthDistribution", galaxyCs);
+
+        // Surface 3: ShapeDesignStudioWindow - Vector Path Tangent Continuity & Bezier Handle Symmetry
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditBezierHandleSymmetryItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditBezierHandleSymmetryClick", shapeCs);
+        Assert.Contains("AuditBezierHandleSymmetry", shapeCs);
+
+        // Surface 4: SmartArtDesignStudioWindow - Matrix / 2x2 Quadrant Axis Label Balance & Centroid Symmetry
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineStatsAuditMatrixCentroidBalanceItem", smartArtXaml);
+        Assert.Contains("OnOutlineStatsAuditMatrixCentroidBalanceClick", smartArtCs);
+        Assert.Contains("AuditMatrixAxisLabelAndCentroidBalance", smartArtCs);
+
+        // Surface 5: HistoryWindow - Semantic Diff Resource Disposal & IAsyncDisposable Leak Detection
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditResourceDisposalLeaksItem", historyCs);
+        Assert.Contains("AuditResourceDisposalAndAsyncDisposableLeaks", historyCs);
+
+        // Surface 6: SuiteHubView - Workspace Relative File Path & Cross-Document Wikilink Integrity
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("AuditWorkspaceWikilinksAndCrossReferencesItem", suiteXaml);
+        Assert.Contains("OnAuditWorkspaceWikilinksAndCrossReferencesClick", suiteCs);
+        Assert.Contains("AuditWorkspaceWikilinksAndCrossReferences", suiteCs);
+    }
+
+
 }

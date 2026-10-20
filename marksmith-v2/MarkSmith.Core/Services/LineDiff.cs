@@ -18992,6 +18992,130 @@ public static class LineDiff
         return $"Semantic diff Task.WhenAll & AggregateException audit ({details} · {category} · {score:0.#}% safety score)";
     }
 
+    public static DiffResourceDisposalAudit AuditResourceDisposalAndAsyncDisposableLeaks(string? beforeText, string? afterText)
+    {
+        var d = Diff(beforeText ?? string.Empty, afterText ?? string.Empty);
+        var unified = BuildUnified(d);
+        return AuditResourceDisposalAndAsyncDisposableLeaks(unified);
+    }
+
+    public static DiffResourceDisposalAudit AuditResourceDisposalAndAsyncDisposableLeaks(
+        IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows == null)
+        {
+            string emptySummary = FormatResourceDisposalSummary(0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new DiffResourceDisposalAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<DiffResourceDisposalHazardItem>(), "Clean Baseline", emptySummary);
+        }
+
+        var modifiedRows = unifiedRows
+            .Where(r => !r.IsGap && r.Kind == Kind.Added && !string.IsNullOrWhiteSpace(r.Text))
+            .ToList();
+
+        int totalModified = modifiedRows.Count;
+        if (totalModified == 0)
+        {
+            string emptySummary = FormatResourceDisposalSummary(0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new DiffResourceDisposalAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<DiffResourceDisposalHazardItem>(), "Clean Baseline", emptySummary);
+        }
+
+        var hazards = new List<DiffResourceDisposalHazardItem>();
+        int resourceInstantiations = 0;
+        int safeUsings = 0;
+        int unmanagedLeaks = 0;
+        int asyncDisposableMissingAwait = 0;
+
+        string[] disposableKeywords = {
+            "MemoryStream", "FileStream", "StreamReader", "StreamWriter", "BinaryReader",
+            "BinaryWriter", "HttpClient", "TcpClient", "Socket", "CancellationTokenSource",
+            "SemaphoreSlim", "Bitmap", "Graphics"
+        };
+
+        for (int i = 0; i < modifiedRows.Count; i++)
+        {
+            var row = modifiedRows[i];
+            var line = row.Text.Trim();
+            int lineNum = row.NewNumber ?? (i + 1);
+
+            foreach (var kw in disposableKeywords)
+            {
+                if (line.Contains($"new {kw}(") || line.Contains($"new {kw} ("))
+                {
+                    resourceInstantiations++;
+
+                    bool hasUsing = line.Contains("using var ") || line.Contains("using (") || line.Contains("using(");
+                    bool hasAwaitUsing = line.Contains("await using var ") || line.Contains("await using (") || line.Contains("await using(");
+
+                    if (hasAwaitUsing)
+                    {
+                        safeUsings++;
+                    }
+                    else if (hasUsing)
+                    {
+                        if (kw == "FileStream" || kw == "StreamWriter")
+                        {
+                            asyncDisposableMissingAwait++;
+                            hazards.Add(new DiffResourceDisposalHazardItem(
+                                lineNum, line, kw, "SynchronousUsingOnAsyncStream",
+                                "Consider 'await using' declaration for asynchronous stream disposal"));
+                        }
+                        else
+                        {
+                            safeUsings++;
+                        }
+                    }
+                    else
+                    {
+                        unmanagedLeaks++;
+                        hazards.Add(new DiffResourceDisposalHazardItem(
+                            lineNum, line, kw, "UnmanagedResourceLeak",
+                            $"Instantiation of disposable resource '{kw}' lacks using declaration or disposal"));
+                    }
+                    break;
+                }
+            }
+        }
+
+        double penalty = (unmanagedLeaks * 25.0) + (asyncDisposableMissingAwait * 10.0);
+        double score = Math.Clamp(100.0 - penalty, 0.0, 100.0);
+
+        string category = score switch
+        {
+            >= 90.0 => "Clean Baseline",
+            >= 70.0 => "Moderate Disposal Gaps",
+            _ => "Unmanaged Resource Leaks"
+        };
+
+        string summary = FormatResourceDisposalSummary(
+            totalModified, resourceInstantiations, safeUsings, unmanagedLeaks,
+            asyncDisposableMissingAwait, score, category);
+
+        return new DiffResourceDisposalAudit(
+            totalModified, resourceInstantiations, safeUsings, unmanagedLeaks,
+            asyncDisposableMissingAwait, score, hazards, category, summary);
+    }
+
+    public static string FormatResourceDisposalSummary(
+        int totalModified, int instantiations, int safeUsings, int leaks,
+        int missingAwait, double score, string category)
+    {
+        if (totalModified == 0)
+            return "Semantic diff resource disposal audit: Clean Baseline · 0 modified lines detected";
+
+        var parts = new List<string>();
+        parts.Add($"{totalModified} modified line{(totalModified == 1 ? "" : "s")}");
+        if (safeUsings > 0) parts.Add($"\u2713 {safeUsings} safe using{(safeUsings == 1 ? "" : "s")}");
+        if (leaks > 0) parts.Add($"\ud83d\udea8 {leaks} unmanaged leak{(leaks == 1 ? "" : "s")}");
+        if (missingAwait > 0) parts.Add($"\u26a0 {missingAwait} synchronous using{(missingAwait == 1 ? "" : "s")}");
+
+        string details = string.Join(" · ", parts);
+        return $"Semantic diff resource disposal audit ({details} · {category} · {score:0.#}% safety score)";
+    }
+
     public static DiffCancellationTokenAudit AuditCancellationTokenPropagation(string? beforeText, string? afterText)
     {
         var diff = Diff(beforeText ?? string.Empty, afterText ?? string.Empty);
@@ -21437,7 +21561,8 @@ public sealed record DiffThreadPoolStarvationAudit(
     double ThreadPoolSafetyScore,
     IReadOnlyList<ThreadPoolStarvationHazardItem> Hazards,
     string Category,
-    string Summary);
+    string Summary);
+
 public sealed record TaskWhenAllExceptionHazardItem(
     int LineNumber,
     string HazardType,
@@ -21455,7 +21580,8 @@ public sealed record DiffTaskWhenAllExceptionAudit(
     double ExceptionPropagationSafetyScore,
     IReadOnlyList<TaskWhenAllExceptionHazardItem> Hazards,
     string Category,
-    string Summary);
+    string Summary);
+
 
 
 public sealed record CancellationTokenHazardItem(
@@ -21475,4 +21601,22 @@ public sealed record DiffCancellationTokenAudit(
     double CancellationSafetyScore,
     IReadOnlyList<CancellationTokenHazardItem> Hazards,
     string Category,
-    string Summary);
+    string Summary);
+
+public sealed record DiffResourceDisposalHazardItem(
+    int LineNumber,
+    string CodeLine,
+    string ResourceType,
+    string HazardType,
+    string Recommendation);
+
+public sealed record DiffResourceDisposalAudit(
+    int TotalModifiedLines,
+    int ResourceInstantiationsCount,
+    int SafeUsingDeclarations,
+    int UnmanagedResourceLeaks,
+    int AsyncDisposableMissingAwaitCount,
+    double DisposalSafetyScore,
+    IReadOnlyList<DiffResourceDisposalHazardItem> Hazards,
+    string Category,
+    string Summary);

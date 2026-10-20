@@ -3962,4 +3962,50 @@ public class TextSearchTests
         Assert.True(malformedAudit.InconsistentIndentCount >= 1);
         Assert.True(malformedAudit.FormattingHygieneScore < 75.0);
     }
+
+    [Fact]
+    public void Run211_AuditMarkdownTablePipeAlignment_ValidatesParityAndDelimiters()
+    {
+        var emptyAudit = TextSearch.AuditMarkdownTablePipeAlignment("");
+        Assert.Equal(0, emptyAudit.TotalTables);
+        Assert.Equal(100.0, emptyAudit.TableAlignmentScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+
+        var alignedMd = string.Join("\n",
+            "# Aligned Table",
+            "| Header A | Header B | Header C |",
+            "| :--- | :---: | ---: |",
+            "| Val 1 | Val 2 | Val 3 |",
+            "| Val 4 | Val 5 | Val 6 |"
+        );
+        var alignedAudit = TextSearch.AuditMarkdownTablePipeAlignment(alignedMd);
+        Assert.Equal(1, alignedAudit.TotalTables);
+        Assert.Equal(4, alignedAudit.TotalRows);
+        Assert.Equal(1, alignedAudit.AlignedTables);
+        Assert.Equal(0, alignedAudit.MisalignedDelimiterRows);
+        Assert.Equal(0, alignedAudit.ColumnCountMismatchRows);
+        Assert.Equal(0, alignedAudit.MissingHeaderHyphenRows);
+        Assert.Equal(0, alignedAudit.UnescapedPipesInCodeCount);
+        Assert.Equal(100.0, alignedAudit.TableAlignmentScore);
+        Assert.Equal("High Alignment", alignedAudit.Category);
+
+        string formatted = TextSearch.FormatTablePipeAlignmentSummary(
+            alignedAudit.TotalTables, alignedAudit.TotalRows, alignedAudit.AlignedTables,
+            alignedAudit.MisalignedDelimiterRows, alignedAudit.ColumnCountMismatchRows,
+            alignedAudit.MissingHeaderHyphenRows, alignedAudit.UnescapedPipesInCodeCount,
+            alignedAudit.TableAlignmentScore, alignedAudit.Category);
+        Assert.Equal(alignedAudit.Summary, formatted);
+
+        var brokenMd = string.Join("\n",
+            "| Col A | Col B |",
+            "| --- |",
+            "| Only one |",
+            "| Col A | Col B with `code | unescaped` |"
+        );
+        var brokenAudit = TextSearch.AuditMarkdownTablePipeAlignment(brokenMd);
+        Assert.True(brokenAudit.MisalignedDelimiterRows >= 1);
+        Assert.True(brokenAudit.ColumnCountMismatchRows >= 1);
+        Assert.True(brokenAudit.TableAlignmentScore < 70.0);
+    }
+
 }

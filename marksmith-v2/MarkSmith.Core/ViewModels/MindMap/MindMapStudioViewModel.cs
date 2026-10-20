@@ -6707,6 +6707,139 @@ namespace MarkSmith.ViewModels.MindMap
 
 
 
+        public GraphRadialDepthAudit AuditGraphRadialDepthDistribution(bool selectionOnly = false)
+        {
+            var selected = Nodes.Where(n => n.IsSelected).ToList();
+            var targetNodes = (selectionOnly && selected.Count > 0)
+                ? selected
+                : Nodes.ToList();
+
+            bool isSelection = selectionOnly && selected.Count > 0;
+            var audit = AuditGraphRadialDepthDistribution(targetNodes.Select(n => n.Model), isSelection);
+            StatusMessage = audit.Summary;
+            return audit;
+        }
+
+        public static GraphRadialDepthAudit AuditGraphRadialDepthDistribution(
+            IEnumerable<MindMapNode>? nodes,
+            bool isSelection = false)
+        {
+            var nodeList = nodes?.ToList() ?? new List<MindMapNode>();
+            int totalNodes = nodeList.Count;
+
+            if (totalNodes <= 1)
+            {
+                string emptySummary = FormatRadialDepthSummary(totalNodes, 0, totalNodes == 1 ? (nodeList[0].Title ?? "Root") : "None", 0, 0, 100.0, "Clean Baseline", isSelection);
+                return new GraphRadialDepthAudit(
+                    totalNodes, 0, totalNodes == 1 ? nodeList[0].Id : "None",
+                    totalNodes == 1 ? (nodeList[0].Title ?? "Root") : "None",
+                    0, 0, 100.0, Array.Empty<RadialDepthHopItem>(), "Clean Baseline", isSelection, emptySummary);
+            }
+
+            var root = nodeList.FirstOrDefault(n => n.Title != null && (n.Title.Contains("Root", StringComparison.OrdinalIgnoreCase) || n.Title.Contains("Hub", StringComparison.OrdinalIgnoreCase)))
+                       ?? nodeList[0];
+
+            double rx = root.X;
+            double ry = root.Y;
+
+            var items = new List<RadialDepthHopItem>();
+            var shellGroups = new Dictionary<int, List<MindMapNode>>();
+            int maxHops = 0;
+
+            foreach (var node in nodeList)
+            {
+                if (node.Id == root.Id)
+                {
+                    items.Add(new RadialDepthHopItem(
+                        node.Id, node.Title ?? "Root", 0, 0.0, 0.0, false, false, "Central Root Hub", "Root origin"));
+                    continue;
+                }
+
+                double dx = node.X - rx;
+                double dy = node.Y - ry;
+                double dist = Math.Sqrt(dx * dx + dy * dy);
+                double angle = (Math.Atan2(dy, dx) * 180.0 / Math.PI + 360.0) % 360.0;
+
+                int shellHop = Math.Max(1, (int)Math.Round(dist / 200.0));
+                if (shellHop > maxHops) maxHops = shellHop;
+
+                if (!shellGroups.TryGetValue(shellHop, out var list))
+                {
+                    list = new List<MindMapNode>();
+                    shellGroups[shellHop] = list;
+                }
+                list.Add(node);
+            }
+
+            int overpopulatedShells = 0;
+            int orphanedBranches = 0;
+
+            foreach (var node in nodeList)
+            {
+                if (node.Id == root.Id) continue;
+
+                double dx = node.X - rx;
+                double dy = node.Y - ry;
+                double dist = Math.Sqrt(dx * dx + dy * dy);
+                double angle = (Math.Atan2(dy, dx) * 180.0 / Math.PI + 360.0) % 360.0;
+                int shellHop = Math.Max(1, (int)Math.Round(dist / 200.0));
+
+                bool isOverpopulated = shellGroups.TryGetValue(shellHop, out var list) && list.Count > 5;
+                bool isOrphaned = dist > 3000.0;
+
+                string shellTier = $"Radial Shell Tier {shellHop} ({dist:F0}px radius)";
+                string rec = isOverpopulated ? $"High node density in shell {shellHop} ({list?.Count} nodes); redistribute radially" :
+                             isOrphaned ? "Node drifted beyond normal radial canvas bounds" : "Balanced radial positioning";
+
+                items.Add(new RadialDepthHopItem(
+                    node.Id, node.Title ?? "Node", shellHop, dist, angle,
+                    isOverpopulated, isOrphaned, shellTier, rec));
+            }
+
+            foreach (var kv in shellGroups)
+            {
+                if (kv.Value.Count > 5) overpopulatedShells++;
+            }
+            orphanedBranches = items.Count(i => i.IsOrphanedBranch);
+
+            double penalty = (overpopulatedShells * 15.0) + (orphanedBranches * 10.0);
+            double score = Math.Clamp(100.0 - penalty, 0.0, 100.0);
+
+            string category = score switch
+            {
+                >= 90.0 => "Optimal Radial Hierarchy",
+                >= 70.0 => "Moderate Shell Crowding",
+                _ => "Severe Radial Distortion"
+            };
+
+            string summary = FormatRadialDepthSummary(
+                totalNodes, maxHops, root.Title ?? "Root",
+                overpopulatedShells, orphanedBranches, score, category, isSelection);
+
+            return new GraphRadialDepthAudit(
+                totalNodes, maxHops, root.Id, root.Title ?? "Root",
+                overpopulatedShells, orphanedBranches, score, items, category, isSelection, summary);
+        }
+
+        public static string FormatRadialDepthSummary(
+            int totalNodes, int maxDepth, string rootTitle,
+            int overpopulatedShells, int orphanedBranches, double score, string category, bool isSelection = false)
+        {
+            string scope = isSelection ? "Selection · " : "";
+            if (totalNodes <= 1)
+                return $"MindMap radial depth audit ({scope}0 peripheral nodes): Clean Baseline";
+
+            var parts = new List<string>();
+            parts.Add($"{totalNodes} node{(totalNodes == 1 ? "" : "s")}");
+            parts.Add($"Root '{rootTitle}'");
+            parts.Add($"max depth {maxDepth}");
+            if (overpopulatedShells > 0) parts.Add($"\u26a0 {overpopulatedShells} crowded shell{(overpopulatedShells == 1 ? "" : "s")}");
+            if (orphanedBranches > 0) parts.Add($"\ud83d\udea8 {orphanedBranches} distant branch{(orphanedBranches == 1 ? "" : "es")}");
+
+            string details = string.Join(" · ", parts);
+            return $"MindMap radial depth audit ({scope}{details} · {category} · {score:0.#}% distribution score)";
+        }
+
         public static string FormatClosenessCentralitySummary(
             int nodeCount, int linkCount, int components, double meanHarmonic, double graphEfficiency,
             IReadOnlyList<string> topHubs, int peripheralCount, string category, bool isSelection)
@@ -15773,5 +15906,29 @@ namespace MarkSmith.ViewModels.MindMap
         bool IsSelectionScope,
         string Summary);
 
-}
 
+    public sealed record RadialDepthHopItem(
+        string NodeId,
+        string Title,
+        int RadialDepthHop,
+        double DistanceFromRoot,
+        double AngleDegrees,
+        bool IsOverpopulatedShell,
+        bool IsOrphanedBranch,
+        string ShellTier,
+        string Recommendation);
+
+    public sealed record GraphRadialDepthAudit(
+        int TotalNodes,
+        int MaxDepthHops,
+        string RootNodeId,
+        string RootNodeTitle,
+        int OverpopulatedShellsCount,
+        int OrphanedBranchCount,
+        double RadialDistributionScore,
+        IReadOnlyList<RadialDepthHopItem> Items,
+        string Category,
+        bool IsSelectionScope,
+        string Summary);
+
+}

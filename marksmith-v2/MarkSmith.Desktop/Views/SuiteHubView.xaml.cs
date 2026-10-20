@@ -2616,6 +2616,25 @@ private async void OnAuditWorkspaceMarkdownTableAutoAlignAndExportClick(object s
         }
     }
 
+    private async void OnAuditWorkspaceWikilinksAndCrossReferencesClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var files = App.RecentFiles?.Load() ?? new List<string>();
+            var result = RecentFilesService.AuditWorkspaceWikilinksAndCrossReferences(explicitFiles: files);
+            await Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            SetNotification(result.Summary, success: true);
+            if (RecentDocsActionBtn != null)
+            {
+                Services.CopyFeedback.ApplyButtonTick(RecentDocsActionBtn, null, $"\u2713 CrossRefs {result.CrossReferenceIntegrityScore:F0}%");
+            }
+        }
+        catch (Exception ex)
+        {
+            SetNotification($"Cross-reference audit error: {ex.Message}", success: false);
+        }
+    }
+
     private async void OnAuditWorkspaceDocumentReadabilityDensityClick(object sender, RoutedEventArgs e)
     {
         try

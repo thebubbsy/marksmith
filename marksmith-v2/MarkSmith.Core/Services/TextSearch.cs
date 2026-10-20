@@ -14143,6 +14143,266 @@ public static class TextSearch
         return $"Markdown task list formatting audit ({details} \u00b7 {category} \u00b7 {score:0.#}% hygiene score)";
     }
 
+    public static MarkdownTablePipeAlignmentAudit AuditMarkdownTablePipeAlignment(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            string emptySummary = FormatTablePipeAlignmentSummary(0, 0, 0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new MarkdownTablePipeAlignmentAudit(
+                0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<MarkdownTablePipeAlignmentItem>(),
+                "Clean Baseline", emptySummary);
+        }
+
+        var lines = markdownText.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        var items = new List<MarkdownTablePipeAlignmentItem>();
+
+        int totalTables = 0;
+        int totalRows = 0;
+        int alignedTables = 0;
+        int misalignedDelimiterRows = 0;
+        int columnCountMismatchRows = 0;
+        int missingHeaderHyphenRows = 0;
+        int unescapedPipesInCodeCount = 0;
+
+        bool insideCodeFence = false;
+        var currentTableLines = new List<(int LineNumber, string Line)>();
+
+        void ProcessCurrentTable()
+        {
+            if (currentTableLines.Count < 2)
+            {
+                currentTableLines.Clear();
+                return;
+            }
+
+            totalTables++;
+            bool tableHasIssues = false;
+            int tableIndex = totalTables;
+
+            var parsedRows = new List<(int LineNumber, string RawLine, List<string> Cells, bool HasOuterPipes)>();
+            for (int r = 0; r < currentTableLines.Count; r++)
+            {
+                var tl = currentTableLines[r];
+                var (cells, hasOuter, unescapedPipes) = ParseTableCellsWithCodeGuard(tl.Line);
+                if (unescapedPipes > 0)
+                {
+                    unescapedPipesInCodeCount += unescapedPipes;
+                    tableHasIssues = true;
+                }
+                parsedRows.Add((tl.LineNumber, tl.Line, cells, hasOuter));
+            }
+
+            totalRows += parsedRows.Count;
+            int expectedCols = parsedRows[0].Cells.Count;
+
+            items.Add(new MarkdownTablePipeAlignmentItem(
+                parsedRows[0].LineNumber, tableIndex, "Header", expectedCols, expectedCols,
+                false, false, false,
+                parsedRows[0].RawLine.Trim(),
+                "Header row defines table column basis"));
+
+            var delimRow = parsedRows[1];
+            bool hasMissingHyphens = false;
+            bool isDelimiterMismatch = false;
+
+            if (delimRow.Cells.Count != expectedCols)
+            {
+                isDelimiterMismatch = true;
+                misalignedDelimiterRows++;
+                tableHasIssues = true;
+            }
+
+            foreach (var cell in delimRow.Cells)
+            {
+                string c = cell.Trim();
+                string stripped = c.Trim(':');
+                if (stripped.Length < 3 || !stripped.All(ch => ch == '-'))
+                {
+                    hasMissingHyphens = true;
+                    break;
+                }
+            }
+
+            if (hasMissingHyphens)
+            {
+                missingHeaderHyphenRows++;
+                tableHasIssues = true;
+            }
+
+            items.Add(new MarkdownTablePipeAlignmentItem(
+                delimRow.LineNumber, tableIndex, "Delimiter", delimRow.Cells.Count, expectedCols,
+                hasMissingHyphens, false, isDelimiterMismatch,
+                delimRow.RawLine.Trim(),
+                isDelimiterMismatch ? $"Delimiter row column count ({delimRow.Cells.Count}) does not match header ({expectedCols})" :
+                hasMissingHyphens ? "Delimiter row lacks required separator hyphens (---)" : "Delimiter row aligned"));
+
+            for (int r = 2; r < parsedRows.Count; r++)
+            {
+                var dataRow = parsedRows[r];
+                bool mismatch = dataRow.Cells.Count != expectedCols;
+                if (mismatch)
+                {
+                    columnCountMismatchRows++;
+                    tableHasIssues = true;
+                }
+
+                items.Add(new MarkdownTablePipeAlignmentItem(
+                    dataRow.LineNumber, tableIndex, "Data", dataRow.Cells.Count, expectedCols,
+                    false, false, mismatch,
+                    dataRow.RawLine.Trim(),
+                    mismatch ? $"Data row has {dataRow.Cells.Count} columns; expected {expectedCols}" : "Data row aligned"));
+            }
+
+            if (!tableHasIssues)
+            {
+                alignedTables++;
+            }
+
+            currentTableLines.Clear();
+        }
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i];
+            var trimmed = line.Trim();
+
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+            {
+                insideCodeFence = !insideCodeFence;
+                if (insideCodeFence && currentTableLines.Count > 0)
+                {
+                    ProcessCurrentTable();
+                }
+                continue;
+            }
+
+            if (insideCodeFence) continue;
+
+            if (trimmed.Contains("|"))
+            {
+                currentTableLines.Add((i + 1, line));
+            }
+            else
+            {
+                if (currentTableLines.Count > 0)
+                {
+                    ProcessCurrentTable();
+                }
+            }
+        }
+
+        if (currentTableLines.Count > 0)
+        {
+            ProcessCurrentTable();
+        }
+
+        if (totalTables == 0)
+        {
+            string emptySummary = FormatTablePipeAlignmentSummary(0, 0, 0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new MarkdownTablePipeAlignmentAudit(
+                0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<MarkdownTablePipeAlignmentItem>(),
+                "Clean Baseline", emptySummary);
+        }
+
+        double penalty = (columnCountMismatchRows * 15.0) +
+                         (misalignedDelimiterRows * 20.0) +
+                         (missingHeaderHyphenRows * 25.0) +
+                         (unescapedPipesInCodeCount * 5.0);
+        double score = Math.Clamp(100.0 - penalty, 0.0, 100.0);
+
+        string category = score switch
+        {
+            >= 90.0 => "High Alignment",
+            >= 70.0 => "Moderate Misalignment",
+            _ => "Severe Delimiter Inconsistency"
+        };
+
+        string summary = FormatTablePipeAlignmentSummary(
+            totalTables, totalRows, alignedTables, misalignedDelimiterRows,
+            columnCountMismatchRows, missingHeaderHyphenRows, unescapedPipesInCodeCount,
+            score, category);
+
+        return new MarkdownTablePipeAlignmentAudit(
+            totalTables, totalRows, alignedTables, misalignedDelimiterRows,
+            columnCountMismatchRows, missingHeaderHyphenRows, unescapedPipesInCodeCount,
+            score, items, category, summary);
+    }
+
+    private static (List<string> Cells, bool HasOuterPipes, int UnescapedPipes) ParseTableCellsWithCodeGuard(string line)
+    {
+        var cells = new List<string>();
+        string trimmed = line.Trim();
+        bool hasOuter = trimmed.StartsWith("|") && trimmed.EndsWith("|") && !trimmed.EndsWith(@"\|");
+
+        if (trimmed.StartsWith("|")) trimmed = trimmed.Substring(1);
+        if (trimmed.EndsWith("|") && !trimmed.EndsWith(@"\|")) trimmed = trimmed.Substring(0, trimmed.Length - 1);
+
+        var currentCell = new System.Text.StringBuilder();
+        bool insideInlineCode = false;
+        int unescapedPipesInCode = 0;
+
+        for (int i = 0; i < trimmed.Length; i++)
+        {
+            char ch = trimmed[i];
+            if (ch == '\\' && i + 1 < trimmed.Length && trimmed[i + 1] == '|')
+            {
+                currentCell.Append('|');
+                i++;
+                continue;
+            }
+
+            if (ch == '`')
+            {
+                insideInlineCode = !insideInlineCode;
+                currentCell.Append(ch);
+                continue;
+            }
+
+            if (ch == '|' && insideInlineCode)
+            {
+                unescapedPipesInCode++;
+                currentCell.Append(ch);
+                continue;
+            }
+
+            if (ch == '|' && !insideInlineCode)
+            {
+                cells.Add(currentCell.ToString().Trim());
+                currentCell.Clear();
+                continue;
+            }
+
+            currentCell.Append(ch);
+        }
+
+        cells.Add(currentCell.ToString().Trim());
+        return (cells, hasOuter, unescapedPipesInCode);
+    }
+
+    public static string FormatTablePipeAlignmentSummary(string? markdownText)
+        => AuditMarkdownTablePipeAlignment(markdownText).Summary;
+
+    public static string FormatTablePipeAlignmentSummary(
+        int totalTables, int totalRows, int alignedTables, int misalignedDelimiters,
+        int colMismatches, int missingHyphens, int unescapedPipes, double score, string category)
+    {
+        if (totalTables == 0)
+            return "Markdown table pipe alignment audit: Clean document · 0 tables detected";
+
+        var parts = new List<string>();
+        parts.Add($"{totalTables} table{(totalTables == 1 ? "" : "s")}");
+        if (alignedTables > 0) parts.Add($"\u2713 {alignedTables} aligned");
+        if (misalignedDelimiters > 0) parts.Add($"\ud83d\udea8 {misalignedDelimiters} misaligned delimiter row{(misalignedDelimiters == 1 ? "" : "s")}");
+        if (colMismatches > 0) parts.Add($"\u26a0 {colMismatches} column mismatch{(colMismatches == 1 ? "" : "es")}");
+        if (missingHyphens > 0) parts.Add($"\u26a0 {missingHyphens} missing header hyphen{(missingHyphens == 1 ? "" : "s")}");
+        if (unescapedPipes > 0) parts.Add($"\u26a0 {unescapedPipes} unescaped code pipe{(unescapedPipes == 1 ? "" : "s")}");
+
+        string details = string.Join(" · ", parts);
+        return $"Markdown table pipe alignment audit ({details} · {category} · {score:0.#}% alignment score)";
+    }
+
     public static string FormatDefinitionListsSummary(string? markdownText)
         => AuditMarkdownDefinitionLists(markdownText).Summary;
 
@@ -15825,4 +16085,29 @@ public sealed record MarkdownTaskFormattingAudit(
     double FormattingHygieneScore,
     IReadOnlyList<MarkdownTaskFormattingItem> Items,
     string Category,
-    string Summary);
+    string Summary);
+
+public sealed record MarkdownTablePipeAlignmentItem(
+    int LineNumber,
+    int TableIndex,
+    string RowType,
+    int ColumnCount,
+    int ExpectedColumns,
+    bool HasMissingHeaderHyphens,
+    bool HasUnescapedPipeInCode,
+    bool HasDelimiterMisalignment,
+    string Excerpt,
+    string Recommendation);
+
+public sealed record MarkdownTablePipeAlignmentAudit(
+    int TotalTables,
+    int TotalRows,
+    int AlignedTables,
+    int MisalignedDelimiterRows,
+    int ColumnCountMismatchRows,
+    int MissingHeaderHyphenRows,
+    int UnescapedPipesInCodeCount,
+    double TableAlignmentScore,
+    IReadOnlyList<MarkdownTablePipeAlignmentItem> Items,
+    string Category,
+    string Summary);

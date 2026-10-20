@@ -3668,4 +3668,47 @@ public class HistoryPolishTests : IDisposable
             hazardousAudit.CancellationSafetyScore, hazardousAudit.Category);
         Assert.Equal(hazardousAudit.Summary, formattedHazard);
     }
+
+    [Fact]
+    public void Run211_AuditResourceDisposalAndAsyncDisposableLeaks_DetectsUnmanagedLeaks()
+    {
+        var emptyAudit = LineDiff.AuditResourceDisposalAndAsyncDisposableLeaks("", "");
+        Assert.Equal(0, emptyAudit.TotalModifiedLines);
+        Assert.Equal(100.0, emptyAudit.DisposalSafetyScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+
+        var cleanCode = string.Join("\n",
+            "public void Process()",
+            "{",
+            "    using var ms = new MemoryStream();",
+            "    using (var cts = new CancellationTokenSource())",
+            "    {",
+            "        cts.Cancel();",
+            "    }",
+            "}"
+        );
+        var cleanAudit = LineDiff.AuditResourceDisposalAndAsyncDisposableLeaks("", cleanCode);
+        Assert.Equal(100.0, cleanAudit.DisposalSafetyScore);
+        Assert.True(cleanAudit.SafeUsingDeclarations >= 2);
+        Assert.Equal(0, cleanAudit.UnmanagedResourceLeaks);
+
+        string formatted = LineDiff.FormatResourceDisposalSummary(
+            cleanAudit.TotalModifiedLines, cleanAudit.ResourceInstantiationsCount,
+            cleanAudit.SafeUsingDeclarations, cleanAudit.UnmanagedResourceLeaks,
+            cleanAudit.AsyncDisposableMissingAwaitCount, cleanAudit.DisposalSafetyScore,
+            cleanAudit.Category);
+        Assert.Equal(cleanAudit.Summary, formatted);
+
+        var leakingCode = string.Join("\n",
+            "public void BadProcess()",
+            "{",
+            "    var stream = new FileStream(\"test.dat\", FileMode.Open);",
+            "    var client = new HttpClient();",
+            "}"
+        );
+        var leakingAudit = LineDiff.AuditResourceDisposalAndAsyncDisposableLeaks("", leakingCode);
+        Assert.True(leakingAudit.UnmanagedResourceLeaks >= 2);
+        Assert.True(leakingAudit.DisposalSafetyScore < 60.0);
+    }
+
 }

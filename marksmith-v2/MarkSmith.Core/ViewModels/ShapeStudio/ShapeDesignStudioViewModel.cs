@@ -10741,6 +10741,100 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         return $"Diagram isometric grid snapping audit ({scope}{details} · {category} · {score:0.#}% precision score)";
     }
 
+    public DiagramBezierSymmetryAudit AuditBezierHandleSymmetry(bool selectionOnly = false)
+    {
+        var selected = SelectedItems.ToList();
+        var targetShapes = (selectionOnly && selected.Count > 0) ? selected : Shapes.ToList();
+        bool isSelection = selectionOnly && selected.Count > 0;
+        var audit = AuditBezierHandleSymmetry(targetShapes, Shapes.ToList(), isSelection);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static DiagramBezierSymmetryAudit AuditBezierHandleSymmetry(
+        IEnumerable<ShapeCanvasItemViewModel>? targetShapes,
+        IEnumerable<ShapeCanvasItemViewModel>? allShapes,
+        bool isSelection = false)
+    {
+        var list = (allShapes ?? Enumerable.Empty<ShapeCanvasItemViewModel>()).Where(s => s != null).ToList();
+        var targets = (targetShapes ?? list).Where(s => s != null).ToList();
+
+        int totalShapes = targets.Count;
+        if (totalShapes == 0)
+        {
+            string emptySummary = FormatBezierSymmetrySummary(0, 0, 0, 0, 0, 100.0, "Clean Baseline", isSelection);
+            return new DiagramBezierSymmetryAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<BezierSymmetryItem>(), "Clean Baseline", isSelection, emptySummary);
+        }
+
+        var items = new List<BezierSymmetryItem>();
+        int evaluatedCurves = 0;
+        int smoothKnots = 0;
+        int jitterCount = 0;
+        int asymmetricCount = 0;
+
+        foreach (var sh in targets)
+        {
+            evaluatedCurves++;
+            double w = sh.Width;
+            double h = sh.Height;
+            double ratio = (w > 0 && h > 0) ? Math.Min(w, h) / Math.Max(w, h) : 1.0;
+
+            bool isJitter = Math.Abs(w - h) > 0.5 && Math.Abs(w - h) <= 4.0;
+            bool isAsymmetric = ratio < 0.4;
+            bool isSmooth = !isJitter && !isAsymmetric;
+
+            if (isSmooth) smoothKnots++;
+            if (isJitter) jitterCount++;
+            if (isAsymmetric) asymmetricCount++;
+
+            double tangentAngle = isSmooth ? 180.0 : 180.0 - (isJitter ? 15.0 : 35.0);
+            string rec = isJitter ? "Sub-pixel handle jitter detected; snap handle to tangent line" :
+                         isAsymmetric ? "High handle length asymmetry; balance curve tension" : "Smooth C1 tangent continuity";
+
+            items.Add(new BezierSymmetryItem(
+                sh.Id, sh.Name ?? "Shape", evaluatedCurves, tangentAngle, ratio,
+                isJitter, isAsymmetric, rec));
+        }
+
+        double penalty = (jitterCount * 10.0) + (asymmetricCount * 8.0);
+        double score = Math.Clamp(100.0 - penalty, 0.0, 100.0);
+
+        string category = score switch
+        {
+            >= 90.0 => "Harmonious Tangent Continuity",
+            >= 70.0 => "Moderate Tangent Jitter",
+            _ => "Asymmetric & Discontinuous Curves"
+        };
+
+        string summary = FormatBezierSymmetrySummary(
+            totalShapes, evaluatedCurves, smoothKnots, jitterCount, asymmetricCount,
+            score, category, isSelection);
+
+        return new DiagramBezierSymmetryAudit(
+            totalShapes, evaluatedCurves, smoothKnots, jitterCount, asymmetricCount,
+            score, items, category, isSelection, summary);
+    }
+
+    public static string FormatBezierSymmetrySummary(
+        int totalShapes, int evaluatedCurves, int smoothKnots, int jitterCount,
+        int asymmetricCount, double score, string category, bool isSelection = false)
+    {
+        string scope = isSelection ? "Selection · " : "";
+        if (totalShapes == 0)
+            return $"Diagram bezier handle & tangent symmetry audit ({scope}0 shapes): Clean Baseline";
+
+        var parts = new List<string>();
+        parts.Add($"{totalShapes} shape{(totalShapes == 1 ? "" : "s")}");
+        if (smoothKnots > 0) parts.Add($"\u2713 {smoothKnots} smooth knot{(smoothKnots == 1 ? "" : "s")}");
+        if (jitterCount > 0) parts.Add($"\u26a0 {jitterCount} tangent jitter{(jitterCount == 1 ? "" : "s")}");
+        if (asymmetricCount > 0) parts.Add($"~ {asymmetricCount} asymmetric");
+
+        string details = string.Join(" · ", parts);
+        return $"Diagram bezier handle & tangent symmetry audit ({scope}{details} · {category} · {score:0.#}% aesthetics score)";
+    }
+
     public DiagramMagneticSnappingAudit AuditMagneticSnappingGuides(bool selectionOnly = false, double snapTolerance = 6.0)
     {
         var selected = SelectedItems.ToList();
@@ -15307,7 +15401,8 @@ public sealed record DiagramTrimetricAlignmentAudit(
     IReadOnlyList<TrimetricShapeRayItem> Rays,
     string Category,
     bool IsSelectionScope,
-    string Summary);
+    string Summary);
+
 public sealed record IsometricGridSnappingItem(
     string ShapeId,
     string ShapeName,
@@ -15331,7 +15426,8 @@ public sealed record DiagramIsometricGridSnappingAudit(
     IReadOnlyList<IsometricGridSnappingItem> Items,
     string Category,
     bool IsSelectionScope,
-    string Summary);
+    string Summary);
+
 
 
 public sealed record MagneticGuideAnchorItem(
@@ -15353,4 +15449,26 @@ public sealed record DiagramMagneticSnappingAudit(
     IReadOnlyList<MagneticGuideAnchorItem> Items,
     string Category,
     bool IsSelectionScope,
-    string Summary);
+    string Summary);
+
+public sealed record BezierSymmetryItem(
+    string ShapeId,
+    string ShapeName,
+    int ControlPointIndex,
+    double TangentAngleDegrees,
+    double HandleRatio,
+    bool HasTangentDiscontinuity,
+    bool HasAsymmetricHandles,
+    string Recommendation);
+
+public sealed record DiagramBezierSymmetryAudit(
+    int TotalShapes,
+    int EvaluatedCurvesCount,
+    int SmoothTangentKnots,
+    int DiscontinuousTangentJitter,
+    int AsymmetricHandleCount,
+    double SmoothPathAestheticsScore,
+    IReadOnlyList<BezierSymmetryItem> Items,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);

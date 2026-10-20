@@ -4606,5 +4606,40 @@ namespace MarkSmith.Tests
         Assert.True(collidingAudit.DriftingOrCollidingClusters >= 1);
         Assert.True(collidingAudit.ClusterBalanceScore <= 85.0);
     }
+    
+    [Fact]
+    public void Run211_AuditGraphRadialDepthDistribution_CalculatesHopsAndShellDensity()
+    {
+        var emptyAudit = MindMapStudioViewModel.AuditGraphRadialDepthDistribution(null);
+        Assert.Equal(0, emptyAudit.TotalNodes);
+        Assert.Equal(100.0, emptyAudit.RadialDistributionScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+
+        var root = new MindMapNode { Id = "Root1", Title = "Central Hub", X = 500, Y = 500 };
+        var n1 = new MindMapNode { Id = "N1", Title = "Tier 1 Node A", X = 700, Y = 500 };
+        var n2 = new MindMapNode { Id = "N2", Title = "Tier 1 Node B", X = 500, Y = 700 };
+        var n3 = new MindMapNode { Id = "N3", Title = "Tier 2 Node C", X = 900, Y = 500 };
+
+        var balancedAudit = MindMapStudioViewModel.AuditGraphRadialDepthDistribution(new[] { root, n1, n2, n3 });
+        Assert.Equal(4, balancedAudit.TotalNodes);
+        Assert.Equal("Root1", balancedAudit.RootNodeId);
+        Assert.True(balancedAudit.MaxDepthHops >= 1);
+        Assert.Equal(0, balancedAudit.OverpopulatedShellsCount);
+        Assert.Equal(0, balancedAudit.OrphanedBranchCount);
+        Assert.Equal(100.0, balancedAudit.RadialDistributionScore);
+        Assert.Equal("Optimal Radial Hierarchy", balancedAudit.Category);
+
+        string formatted = MindMapStudioViewModel.FormatRadialDepthSummary(
+            balancedAudit.TotalNodes, balancedAudit.MaxDepthHops, balancedAudit.RootNodeTitle,
+            balancedAudit.OverpopulatedShellsCount, balancedAudit.OrphanedBranchCount,
+            balancedAudit.RadialDistributionScore, balancedAudit.Category, false);
+        Assert.Equal(balancedAudit.Summary, formatted);
+
+        var distantNode = new MindMapNode { Id = "D1", Title = "Orphaned Distant", X = 5000, Y = 5000 };
+        var distantAudit = MindMapStudioViewModel.AuditGraphRadialDepthDistribution(new[] { root, distantNode });
+        Assert.True(distantAudit.OrphanedBranchCount >= 1);
+        Assert.True(distantAudit.RadialDistributionScore <= 90.0);
     }
+
+    }
 }

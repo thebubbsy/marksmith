@@ -13545,3 +13545,57 @@ Reviewed: Run #210 Blueprint — executed the 3-block cycle covering all 6 MarkS
 6. **SuiteHubView (SuiteHubView.xaml, SuiteHubView.xaml.cs, RecentFilesService.cs) [Carried Forward from Run #210 Block 3 Idea 6]**:
    - **Refinement Target**: Workspace Relative File Path & Cross-Document Markdown Wikilink Integrity Auditor.
    - **Deliverable**: Extend RecentFilesService.AuditWorkspaceDocumentReadabilityDensity to scan workspace documents for [[wikilink]] and relative file path targets, verifying destination existence, detecting broken relative targets, and scoring workspace cross-reference integrity ($0-100\%). Wire to RecentDocsFlyout.
+
+---
+
+### 2026-10-21 (scheduled routine run #211)
+
+Reviewed: Run #211 Blueprint — executed the 3-block cycle covering all 6 MarkSmith WinUI 3 surfaces with 100% full implementation, zero placeholders, empirical verification (0 errors, 7 passing unit tests), and desktop smoke launch verification.
+
+**Shipped** (commit follows this entry):
+- **Block 1**:
+  - **Surface 1 (MainWindow)**: Implemented `TextSearch.AuditMarkdownTablePipeAlignment(markdownText)`, `FormatTablePipeAlignmentSummary(...)`, `MarkdownTablePipeAlignmentItem`, and `MarkdownTablePipeAlignmentAudit` in `TextSearch.cs`. Scans markdown documents for table column count parity, leading/trailing pipe delimiter alignment, unescaped pipes inside code spans, and missing header separator hyphens, scoring table syntax structural hygiene ($0-100\%$). Wired to `ShowLintIssueContextMenu` in `MainWindow.xaml.cs` via `auditTablePipeAlignmentItem` (`\uE8B9`).
+  - **Surface 2 (MindMapGalaxyWindow)**: Implemented `MindMapStudioViewModel.AuditGraphRadialDepthDistribution()`, `FormatRadialDepthSummary(...)`, `GraphRadialDepthDistributionItem`, and `GraphRadialDepthDistributionAudit` in `MindMapStudioViewModel.cs`. Calculates radial distance and hierarchy depth from root/hub nodes, flagging over-concentrated depth layers, orphaned peripheral branches, and scoring graph radial distribution balance ($0-100\%$). Wired to `ArrangeDropDownButton.Flyout` in `MindMapGalaxyWindow.xaml` and `MindMapGalaxyWindow.xaml.cs` via `AuditGraphRadialDepthDistributionItem` (`\uE8B9`) and `OnAuditGraphRadialDepthDistributionClick`.
+- **Block 2**:
+  - **Surface 3 (ShapeDesignStudioWindow)**: Implemented `ShapeDesignStudioViewModel.AuditBezierHandleSymmetry(shapes)`, `FormatBezierSymmetrySummary(...)`, `BezierHandleSymmetryItem`, and `DiagramBezierHandleSymmetryAudit` in `ShapeDesignStudioViewModel.cs`. Analyzes curve control points for $C^1$ tangent smoothness and mirror symmetry across inflection points, identifying discontinuous control handles and non-tangent junctions, scoring smooth path aesthetics ($0-100\%$). Wired to `SelectionBoundsBorder.ContextFlyout` in `ShapeDesignStudioWindow.xaml` and `ShapeDesignStudioWindow.xaml.cs` via `SelectionAuditBezierHandleSymmetryItem` (`\uE8B9`) and `OnSelectionAuditBezierHandleSymmetryClick`.
+  - **Surface 4 (SmartArtDesignStudioWindow)**: Implemented `SmartArtDesignStudioViewModel.AuditMatrixAxisLabelAndCentroidBalance(markdown, layoutName)`, `FormatMatrixCentroidBalanceSummary(...)`, `SmartArtMatrixCentroidBalanceItem`, and `SmartArtMatrixCentroidBalanceAudit` in `SmartArtDesignStudioViewModel.cs`. Evaluates 4-quadrant layout items for balanced bullet density, quadrant label overflows ($> 25\text{ chars}$), starved quadrants ($0\text{ items}$), and axis label centroid symmetry, scoring matrix composition harmony ($0-100\%$). Wired to `OutlineStatsFlyout` in `SmartArtDesignStudioWindow.xaml` and `SmartArtDesignStudioWindow.xaml.cs` via `OutlineStatsAuditMatrixCentroidBalanceItem` (`\uE8B9`) and `OnOutlineStatsAuditMatrixCentroidBalanceClick`.
+- **Block 3**:
+  - **Surface 5 (HistoryWindow)**: Implemented `LineDiff.AuditResourceDisposalAndAsyncDisposableLeaks(unifiedRows)`, `FormatResourceDisposalSummary(...)`, `DiffResourceDisposalItem`, and `DiffResourceDisposalAudit` in `LineDiff.cs`. Evaluates `IDisposable` and `IAsyncDisposable` resource instantiations in diff additions, flagging unmanaged resource leaks, missing `using` declarations, and un-awaited `DisposeAsync` invocations, scoring resource lifecycle safety ($0-100\%$). Wired to `DiffContextMenu` in `HistoryWindow.xaml.cs` via `auditResourceDisposalLeaksItem` (`\uE8B9`).
+  - **Surface 6 (SuiteHubView)**: Implemented `RecentFilesService.AuditWorkspaceWikilinksAndCrossReferences(explicitFiles, ...)`, `FormatWorkspaceWikilinkSummary(...)`, `WorkspaceWikilinkItem`, and `WorkspaceWikilinkAudit` in `RecentFilesService.cs`. Scans workspace documents for `[[wikilink]]` and relative document hyperlinks, resolving target file existence across slash normalizations, verifying `#anchor` heading targets, and scoring workspace cross-reference integrity ($0-100\%$). Wired to `RecentDocsFlyout` in `SuiteHubView.xaml` and `SuiteHubView.xaml.cs` via `AuditWorkspaceWikilinksAndCrossReferencesItem` (`\uE8B9`) and `OnAuditWorkspaceWikilinksAndCrossReferencesClick`.
+- **Execution Phase Refinements**:
+  - Implemented comprehensive unit tests across all 6 surfaces:
+    - `TextSearchTests.Run211_AuditMarkdownTablePipeAlignment_ValidatesColumnParityAndDelimiters`
+    - `MindMapGalaxyPolishTests.Run211_AuditGraphRadialDepthDistribution_CalculatesLayersAndDispersion`
+    - `ShapeStudioPolishTests.Run211_AuditBezierHandleSymmetry_DetectsSharpAnglesAndTangentDrift`
+    - `SmartArtStudioPolishTests.Run211_AuditMatrixQuadrantBalance_ValidatesQuadrantDensityAndHarmony`
+    - `HistoryPolishTests.Run211_AuditResourceDisposalAndAsyncDisposableLeaks_DetectsUnmanagedLeaks`
+    - `SuiteHubAndTourPolishTests.Run211_AuditWorkspaceWikilinksAndCrossReferences_ResolvesTargetsAndBrokenLinks`
+    - `SuiteHubAndTourPolishTests.Run211_AllSixSurfacesXamlAndCodeBehindWiring`
+
+**Verified:**
+- `dotnet build` (`marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj` - Debug/x64): 0 errors, 23 warnings.
+- `dotnet build` (`marksmith-v2/MarkSmith.Tests/MarkSmith.Tests.csproj` - Debug): 0 errors, 102 warnings.
+- `dotnet test` (Run211 filter): 7/7 tests passed (100% pass rate).
+- Smoke-launched `Marksmith.exe` (PID=31380, running cleanly for 4 seconds, gracefully terminated with zero crashes).
+
+---
+
+### Run #212 Blueprint — Carried-Forward Refinements & Next Cycle Targets
+1. **MainWindow (`MainWindow.xaml.cs`, `TextSearch.cs`)**:
+   - **Feature**: Markdown Footnote Definition Parity & Inline Anchor Reference Auditor.
+   - **Deliverable**: Add `TextSearch.AuditMarkdownFootnoteDefinitions(markdownText)` and `FormatFootnoteDefinitionSummary(...)`, checking for referenced footnotes `[^label]` without definitions `[^label]: ...`, orphaned footnote definitions never referenced in body, duplicate footnote tags, and scoring footnote reference integrity ($0-100\%$). Wire to `ShowLintIssueContextMenu`.
+2. **MindMapGalaxyWindow (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
+   - **Feature**: Graph Node Degree Centrality & Critical Bridge Bottleneck Auditor.
+   - **Deliverable**: Add `MindMapStudioViewModel.AuditGraphDegreeCentralityAndBridges()` and `FormatDegreeCentralitySummary(...)`, computing node in/out degree distribution, detecting single-point-of-failure bridge edges whose removal partitions the mind map, and scoring network structural resilience ($0-100\%$). Wire to `ArrangeDropDownButton.Flyout`.
+3. **ShapeDesignStudioWindow (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**:
+   - **Feature**: Vector Diagram Canvas Viewport Margins & Bleed Edge Safety Auditor.
+   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditDiagramViewportBleedSafety(shapes)` and `FormatViewportBleedSummary(...)`, detecting shapes clipping or placed within $< 12\text{px}$ boundary bleed zones of the artboard, identifying shapes overflowing maximum canvas extents, and scoring print/export boundary safety ($0-100\%$). Wire to `SelectionBoundsBorder.ContextFlyout`.
+4. **SmartArtDesignStudioWindow (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
+   - **Feature**: Cycle / Radial Process Flow Closed-Loop Directionality & Arrow Parity Auditor.
+   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditCycleProcessDirectionality(markdown, layoutName)` and `FormatCycleProcessSummary(...)`, checking circular / cycle layouts for clockwise vs counter-clockwise flow consistency, closed-loop return transitions, missing loop-back return arrows, and scoring cycle layout dynamic flow ($0-100\%$). Wire to `OutlineStatsFlyout`.
+5. **HistoryWindow (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #211 Block 3 Idea 5]**:
+   - **Refinement Target**: Semantic Diff Task Parallelism & Concurrent Collection Thread Safety Auditor.
+   - **Deliverable**: Add `LineDiff.AuditConcurrentCollectionThreadSafety(unifiedRows)` and `FormatConcurrentCollectionSummary(...)`, inspecting diff additions for unsynchronized `List<T>` / `Dictionary<TKey, TValue>` mutations in multithreaded contexts (`Parallel.ForEach`, `Task.Run`), flagging missing `ConcurrentDictionary` or locking mechanisms, scoring concurrency safety ($0-100\%$). Wire to `DiffContextMenu`.
+6. **SuiteHubView (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #211 Block 3 Idea 6]**:
+   - **Refinement Target**: Workspace Image & Binary Asset Size / Aspect Ratio Optimization Auditor.
+   - **Deliverable**: Add `RecentFilesService.AuditWorkspaceMediaAssetOptimization(explicitFiles, ...)` and `FormatWorkspaceMediaOptimizationSummary(...)`, scanning markdown embedded media files (`.png`, `.jpg`, `.svg`, `.webp`), checking dimensions, compression status, bloated raw assets ($> 5\text{MB}$), and missing alt text descriptions, scoring workspace media asset health ($0-100\%$). Wire to `RecentDocsFlyout`.
