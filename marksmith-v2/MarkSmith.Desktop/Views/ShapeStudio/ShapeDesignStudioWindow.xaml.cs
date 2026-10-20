@@ -6733,8 +6733,18 @@ namespace MarkSmith.Views.ShapeStudio
         var result = ViewModel.AuditBezierHandleSymmetry();
         _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
         ViewModel.StatusMessage = $"\u2713 {result.Summary}";
-    }
-
+    }
+
+    private void OnSelectionAuditDiagramViewportBleedClick(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel == null) return;
+        var result = ViewModel.AuditDiagramViewportBleedSafety();
+        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+        ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+    }
+
+
+
     private void OnSelectionAuditMagneticSnappingGuidesClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel == null) return;

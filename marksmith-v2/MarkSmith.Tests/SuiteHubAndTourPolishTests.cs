@@ -7205,4 +7205,105 @@ Some paragraph in between.
     }
 
 
+
+    [Fact]
+    public void Run212_AuditWorkspaceMediaAssetOptimization_ValidatesSizesAndAltText()
+    {
+        var emptyAudit = RecentFilesService.AuditWorkspaceMediaAssetOptimization(Array.Empty<string>());
+        Assert.Equal(0, emptyAudit.TotalMediaReferences);
+        Assert.Equal(100.0, emptyAudit.MediaOptimizationScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+
+        var doc1 = @"C:\Workspace\doc1.md";
+        var doc1Content = string.Join("\n",
+            "# Media Document",
+            "Here is an image: ![Diagram](assets/diagram.png)",
+            "Here is another: ![Workflow](assets/workflow.webp)"
+        );
+
+        var files = new[] { doc1 };
+        var audit = RecentFilesService.AuditWorkspaceMediaAssetOptimization(
+            explicitFiles: files,
+            fileExistsProvider: path => true,
+            contentReader: path => doc1Content,
+            fileLengthProvider: path => 200 * 1024
+        );
+
+        Assert.Equal(2, audit.TotalMediaReferences);
+        Assert.Equal(2, audit.OptimizedCount);
+        Assert.Equal(0, audit.BloatedAssetCount);
+        Assert.Equal(0, audit.MissingAltTextCount);
+        Assert.Equal(0, audit.MissingFileCount);
+        Assert.Equal(100.0, audit.MediaOptimizationScore);
+        Assert.Equal("Optimal Media Hygiene", audit.Category);
+
+        string formatted = RecentFilesService.FormatWorkspaceMediaOptimizationSummary(
+            audit.TotalMediaReferences, audit.OptimizedCount, audit.BloatedAssetCount,
+            audit.MissingAltTextCount, audit.MissingFileCount, audit.MediaOptimizationScore,
+            audit.Category);
+        Assert.Equal(audit.Summary, formatted);
+
+        var docBad = @"C:\Workspace\bad.md";
+        var docBadContent = string.Join("\n",
+            "# Bad Media",
+            "Missing file: ![Missing](assets/nonexistent.png)",
+            "Bloated file: ![Bloated](assets/huge.png)",
+            "Missing alt: ![](assets/noalt.png)"
+        );
+
+        var badAudit = RecentFilesService.AuditWorkspaceMediaAssetOptimization(
+            explicitFiles: new[] { docBad },
+            fileExistsProvider: path => !path.Contains("nonexistent"),
+            contentReader: path => docBadContent,
+            fileLengthProvider: path => path.Contains("huge") ? 10 * 1024 * 1024 : 100 * 1024
+        );
+
+        Assert.True(badAudit.MissingFileCount >= 1);
+        Assert.True(badAudit.BloatedAssetCount >= 1);
+        Assert.True(badAudit.MissingAltTextCount >= 1);
+        Assert.True(badAudit.MediaOptimizationScore < 60.0);
+    }
+
+    [Fact]
+    public void Run212_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // Surface 1: MainWindow - Markdown Footnote Definition Parity & Inline Anchor Reference
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("auditFootnoteDefinitionParityItem", mainCs);
+        Assert.Contains("AuditMarkdownFootnoteDefinitionParity", mainCs);
+
+        // Surface 2: MindMapGalaxyWindow - Graph Node Degree Centrality & Critical Bridge Bottleneck
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditGraphDegreeCentralityAndBridgesItem", galaxyXaml);
+        Assert.Contains("OnAuditGraphDegreeCentralityAndBridgesClick", galaxyCs);
+        Assert.Contains("AuditGraphDegreeCentralityAndBridges", galaxyCs);
+
+        // Surface 3: ShapeDesignStudioWindow - Vector Diagram Canvas Viewport Margins & Bleed Edge Safety
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditDiagramViewportBleedItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditDiagramViewportBleedClick", shapeCs);
+        Assert.Contains("AuditDiagramViewportBleedSafety", shapeCs);
+
+        // Surface 4: SmartArtDesignStudioWindow - Cycle / Radial Process Flow Closed-Loop Directionality & Arrow Parity
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineStatsAuditCycleProcessDirectionalityItem", smartArtXaml);
+        Assert.Contains("OnOutlineStatsAuditCycleProcessDirectionalityClick", smartArtCs);
+        Assert.Contains("AuditCycleProcessDirectionality", smartArtCs);
+
+        // Surface 5: HistoryWindow - Semantic Diff Task Parallelism & Concurrent Collection Thread Safety
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditConcurrentCollectionItem", historyCs);
+        Assert.Contains("AuditConcurrentCollectionThreadSafety", historyCs);
+
+        // Surface 6: SuiteHubView - Workspace Image & Binary Asset Size / Aspect Ratio Optimization
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("AuditWorkspaceMediaAssetOptimizationItem", suiteXaml);
+        Assert.Contains("OnAuditWorkspaceMediaAssetOptimizationClick", suiteCs);
+        Assert.Contains("AuditWorkspaceMediaAssetOptimization", suiteCs);
+    }
+
 }

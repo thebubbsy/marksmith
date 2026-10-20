@@ -4640,6 +4640,39 @@ namespace MarkSmith.Tests
         Assert.True(distantAudit.OrphanedBranchCount >= 1);
         Assert.True(distantAudit.RadialDistributionScore <= 90.0);
     }
-
-    }
+
+    [Fact]
+    public void Run212_AuditGraphDegreeCentralityAndBridges_DetectsHubsAndBridges()
+    {
+        var emptyAudit = MindMapStudioViewModel.AuditGraphDegreeCentralityAndBridges(null, null);
+        Assert.Equal(0, emptyAudit.TotalNodes);
+        Assert.Equal(100.0, emptyAudit.NetworkResilienceScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+
+        var n1 = new MindMapNode { Id = "N1", Title = "Hub 1" };
+        var n2 = new MindMapNode { Id = "N2", Title = "Node 2" };
+        var n3 = new MindMapNode { Id = "N3", Title = "Node 3" };
+        var n4 = new MindMapNode { Id = "N4", Title = "Hub 2" };
+        var n5 = new MindMapNode { Id = "N5", Title = "Node 5" };
+
+        var l1 = new MindMapLink { SourceNodeId = "N1", TargetNodeId = "N2" };
+        var l2 = new MindMapLink { SourceNodeId = "N1", TargetNodeId = "N3" };
+        var l3 = new MindMapLink { SourceNodeId = "N2", TargetNodeId = "N3" };
+        var l4 = new MindMapLink { SourceNodeId = "N1", TargetNodeId = "N4" };
+        var l5 = new MindMapLink { SourceNodeId = "N4", TargetNodeId = "N5" };
+
+        var audit = MindMapStudioViewModel.AuditGraphDegreeCentralityAndBridges(new[] { n1, n2, n3, n4, n5 }, new[] { l1, l2, l3, l4, l5 });
+        Assert.Equal(5, audit.TotalNodes);
+        Assert.Equal(5, audit.TotalEdges);
+        Assert.True(audit.BridgeCount >= 1);
+        Assert.True(audit.BottleneckNodeCount >= 1);
+        Assert.Equal(1, audit.ConnectedComponentsCount);
+
+        string formatted = MindMapStudioViewModel.FormatDegreeCentralitySummary(
+            audit.TotalNodes, audit.TotalEdges, audit.BridgeCount, audit.BottleneckNodeCount,
+            audit.ConnectedComponentsCount, audit.AverageDegree, audit.MaxDegree,
+            audit.NetworkResilienceScore, audit.Category, false);
+        Assert.Equal(audit.Summary, formatted);
+    }
+    }
 }

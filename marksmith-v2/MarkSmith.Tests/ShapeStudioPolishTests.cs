@@ -3898,5 +3898,39 @@ public class ShapeStudioPolishTests
         Assert.True(jitterAudit.DiscontinuousTangentJitter >= 1);
         Assert.True(jitterAudit.SmoothPathAestheticsScore <= 90.0);
     }
-
+
+
+
+    [Fact]
+    public void Run212_AuditDiagramViewportBleedSafety_DetectsClippingAndBleedZones()
+    {
+        var emptyAudit = ShapeDesignStudioViewModel.AuditDiagramViewportBleedSafety(null, null);
+        Assert.Equal(0, emptyAudit.TotalShapes);
+        Assert.Equal(100.0, emptyAudit.BleedSafetyScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+
+        var sSafe = new ShapeCanvasItemViewModel { Id = "s1", Name = "SafeShape", X = 200, Y = 200, Width = 100, Height = 100 };
+        var safeAudit = ShapeDesignStudioViewModel.AuditDiagramViewportBleedSafety(new[] { sSafe }, new[] { sSafe }, canvasWidth: 1920, canvasHeight: 1080, bleedMargin: 12.0);
+        Assert.Equal(1, safeAudit.TotalShapes);
+        Assert.Equal(1, safeAudit.SafeCount);
+        Assert.Equal(0, safeAudit.ClippingCount);
+        Assert.Equal(0, safeAudit.BleedWarningCount);
+        Assert.Equal(100.0, safeAudit.BleedSafetyScore);
+        Assert.Equal("Safe Bleed Margins", safeAudit.Category);
+
+        string formatted = ShapeDesignStudioViewModel.FormatViewportBleedSummary(
+            safeAudit.TotalShapes, safeAudit.ClippingCount, safeAudit.BleedWarningCount,
+            safeAudit.SafeCount, safeAudit.MinObservedMargin, safeAudit.BleedSafetyScore,
+            safeAudit.Category, false);
+        Assert.Equal(safeAudit.Summary, formatted);
+
+        var sBleed = new ShapeCanvasItemViewModel { Id = "s2", Name = "BleedShape", X = 5, Y = 100, Width = 100, Height = 100 };
+        var sClip = new ShapeCanvasItemViewModel { Id = "s3", Name = "ClipShape", X = -20, Y = 100, Width = 100, Height = 100 };
+
+        var hazardAudit = ShapeDesignStudioViewModel.AuditDiagramViewportBleedSafety(new[] { sBleed, sClip }, new[] { sBleed, sClip }, canvasWidth: 1920, canvasHeight: 1080, bleedMargin: 12.0);
+        Assert.True(hazardAudit.BleedWarningCount >= 1);
+        Assert.True(hazardAudit.ClippingCount >= 1);
+        Assert.True(hazardAudit.BleedSafetyScore < 80.0);
+    }
+
 }

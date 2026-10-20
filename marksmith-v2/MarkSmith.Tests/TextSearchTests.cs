@@ -4007,5 +4007,50 @@ public class TextSearchTests
         Assert.True(brokenAudit.ColumnCountMismatchRows >= 1);
         Assert.True(brokenAudit.TableAlignmentScore < 70.0);
     }
-
+
+
+
+    [Fact]
+    public void Run212_AuditMarkdownFootnoteDefinitionParity_ValidatesParityAndLabels()
+    {
+        var balancedMd = string.Join("\n",
+            "# Clean Footnote Document",
+            "This is a paragraph with a valid reference[^1] and a second[^note].",
+            "",
+            "[^1]: This is the first definition.",
+            "[^note]: This is the second definition."
+        );
+        var audit = TextSearch.AuditMarkdownFootnoteDefinitionParity(balancedMd);
+        Assert.Equal(2, audit.TotalReferences);
+        Assert.Equal(2, audit.TotalDefinitions);
+        Assert.Equal(2, audit.BalancedPairs);
+        Assert.Equal(0, audit.MissingDefinitionCount);
+        Assert.Equal(0, audit.OrphanDefinitionCount);
+        Assert.Equal(0, audit.DuplicateDefinitionCount);
+        Assert.Equal(0, audit.NonSequentialNumericCount);
+        Assert.Equal(100.0, audit.FootnoteParityScore);
+        Assert.Equal("High Parity", audit.Category);
+
+        string formatted = TextSearch.FormatFootnoteDefinitionParitySummary(
+            audit.TotalReferences, audit.TotalDefinitions, audit.BalancedPairs,
+            audit.MissingDefinitionCount, audit.OrphanDefinitionCount,
+            audit.DuplicateDefinitionCount, audit.NonSequentialNumericCount,
+            audit.FootnoteParityScore, audit.Category);
+        Assert.Equal(audit.Summary, formatted);
+
+        var brokenMd = string.Join("\n",
+            "# Broken Footnotes",
+            "Referencing missing[^missing] and duplicate[^dup].",
+            "",
+            "[^orphan]: Never referenced in text.",
+            "[^dup]: First definition.",
+            "[^dup]: Second duplicate definition."
+        );
+        var brokenAudit = TextSearch.AuditMarkdownFootnoteDefinitionParity(brokenMd);
+        Assert.True(brokenAudit.MissingDefinitionCount >= 1);
+        Assert.True(brokenAudit.OrphanDefinitionCount >= 1);
+        Assert.True(brokenAudit.DuplicateDefinitionCount >= 1);
+        Assert.True(brokenAudit.FootnoteParityScore < 70.0);
+    }
+
 }

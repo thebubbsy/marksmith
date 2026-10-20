@@ -10833,8 +10833,10 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
 
         string details = string.Join(" · ", parts);
         return $"Diagram bezier handle & tangent symmetry audit ({scope}{details} · {category} · {score:0.#}% aesthetics score)";
-    }
-
+    }
+
+
+
     public DiagramMagneticSnappingAudit AuditMagneticSnappingGuides(bool selectionOnly = false, double snapTolerance = 6.0)
     {
         var selected = SelectedItems.ToList();
@@ -13735,6 +13737,128 @@ public static string FormatGroupNestingSummary(
         return $"Diagram shape aspect ratio & golden ratio audit ({scope}{shapeStr} · {details} · {category} · {score:0.#}% aesthetic score)";
     }
 
+
+    public DiagramViewportBleedAudit AuditDiagramViewportBleedSafety(bool selectionOnly = false)
+    {
+        var selected = SelectedItems.ToList();
+        var targetShapes = (selectionOnly && selected.Count > 0) ? selected : Shapes.ToList();
+        bool isSelection = selectionOnly && selected.Count > 0;
+        var audit = AuditDiagramViewportBleedSafety(targetShapes, Shapes.ToList(), 1920.0, 1080.0, 12.0, isSelection);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static DiagramViewportBleedAudit AuditDiagramViewportBleedSafety(
+        IEnumerable<ShapeCanvasItemViewModel>? targetShapes,
+        IEnumerable<ShapeCanvasItemViewModel>? allShapes = null,
+        double canvasWidth = 1920.0,
+        double canvasHeight = 1080.0,
+        double bleedMargin = 12.0,
+        bool isSelection = false)
+    {
+        var list = (allShapes ?? Enumerable.Empty<ShapeCanvasItemViewModel>()).Where(s => s != null).ToList();
+        var targets = (targetShapes ?? list).Where(s => s != null).ToList();
+
+        int totalShapes = targets.Count;
+        if (totalShapes == 0)
+        {
+            string emptySummary = FormatViewportBleedSummary(0, 0, 0, 0, 0.0, 100.0, "Clean Baseline", isSelection);
+            return new DiagramViewportBleedAudit(
+                0, 0, 0, 0, 0.0, 100.0,
+                Array.Empty<DiagramViewportBleedItem>(), "Clean Baseline", isSelection, emptySummary);
+        }
+
+        var items = new List<DiagramViewportBleedItem>();
+        int clippingCount = 0;
+        int bleedWarningCount = 0;
+        int safeCount = 0;
+        double minObservedMargin = double.MaxValue;
+
+        foreach (var sh in targets)
+        {
+            double left = sh.X;
+            double top = sh.Y;
+            double right = canvasWidth - (sh.X + sh.Width);
+            double bottom = canvasHeight - (sh.Y + sh.Height);
+
+            double shapeMinMargin = Math.Min(Math.Min(left, top), Math.Min(right, bottom));
+            if (shapeMinMargin < minObservedMargin) minObservedMargin = shapeMinMargin;
+
+            bool isClipping = left < 0 || top < 0 || (sh.X + sh.Width) > canvasWidth || (sh.Y + sh.Height) > canvasHeight;
+            bool isInBleed = !isClipping && shapeMinMargin < bleedMargin;
+
+            string direction;
+            if (isClipping)
+            {
+                var clips = new List<string>();
+                if (left < 0) clips.Add("Left");
+                if (top < 0) clips.Add("Top");
+                if ((sh.X + sh.Width) > canvasWidth) clips.Add("Right");
+                if ((sh.Y + sh.Height) > canvasHeight) clips.Add("Bottom");
+                direction = string.Join("-", clips);
+                clippingCount++;
+            }
+            else if (isInBleed)
+            {
+                if (shapeMinMargin == left) direction = "Left";
+                else if (shapeMinMargin == top) direction = "Top";
+                else if (shapeMinMargin == right) direction = "Right";
+                else direction = "Bottom";
+                bleedWarningCount++;
+            }
+            else
+            {
+                direction = "Safe";
+                safeCount++;
+            }
+
+            string status = isClipping ? "Clipping Outside Viewport" : (isInBleed ? "Inside Bleed Zone (<12px)" : "Safe Placement");
+
+            items.Add(new DiagramViewportBleedItem(
+                sh.Id, sh.Name, sh.X, sh.Y, sh.Width, sh.Height,
+                Math.Round(shapeMinMargin, 1), isClipping, isInBleed, direction, status));
+        }
+
+        if (minObservedMargin == double.MaxValue) minObservedMargin = 0.0;
+
+        double penalty = (clippingCount * 25.0) + (bleedWarningCount * 10.0);
+        double score = Math.Clamp(100.0 - penalty, 0.0, 100.0);
+
+        string category = score switch
+        {
+            >= 90.0 => "Safe Bleed Margins",
+            >= 70.0 => "Moderate Perimeter Risk",
+            _ => "Severe Viewport Clipping"
+        };
+
+        string summary = FormatViewportBleedSummary(
+            totalShapes, clippingCount, bleedWarningCount, safeCount,
+            minObservedMargin, score, category, isSelection);
+
+        return new DiagramViewportBleedAudit(
+            totalShapes, clippingCount, bleedWarningCount, safeCount,
+            Math.Round(minObservedMargin, 1), score, items, category, isSelection, summary);
+    }
+
+    public static string FormatViewportBleedSummary(
+        int totalShapes, int clippingCount, int bleedWarningCount, int safeCount,
+        double minMargin, double score, string category, bool isSelection = false)
+    {
+        string scope = isSelection ? "Selection · " : "";
+        if (totalShapes == 0)
+            return $"Diagram viewport bleed safety audit ({scope}0 shapes): Clean Baseline";
+
+        var parts = new List<string>();
+        parts.Add($"{totalShapes} shape{(totalShapes == 1 ? "" : "s")}");
+        if (safeCount > 0) parts.Add($"\u2713 {safeCount} safe");
+        if (clippingCount > 0) parts.Add($"\ud83d\udea8 {clippingCount} clipping");
+        if (bleedWarningCount > 0) parts.Add($"\u26a0 {bleedWarningCount} in bleed zone (<12px)");
+        parts.Add($"min margin {minMargin:0.#}px");
+
+        string details = string.Join(" · ", parts);
+        return $"Diagram viewport bleed safety audit ({scope}{details} · {category} · {score:0.#}% safety score)";
+    }
+
 }
 
 /// <summary>
@@ -15449,8 +15573,10 @@ public sealed record DiagramMagneticSnappingAudit(
     IReadOnlyList<MagneticGuideAnchorItem> Items,
     string Category,
     bool IsSelectionScope,
-    string Summary);
-
+    string Summary);
+
+
+
 public sealed record BezierSymmetryItem(
     string ShapeId,
     string ShapeName,
@@ -15471,4 +15597,32 @@ public sealed record DiagramBezierSymmetryAudit(
     IReadOnlyList<BezierSymmetryItem> Items,
     string Category,
     bool IsSelectionScope,
-    string Summary);
+    string Summary);
+
+
+
+public sealed record DiagramViewportBleedItem(
+    string ShapeId,
+    string ShapeName,
+    double X,
+    double Y,
+    double Width,
+    double Height,
+    double MinDistanceToEdge,
+    bool IsClippingOutsideCanvas,
+    bool IsInBleedZone,
+    string EdgeDirection,
+    string Status);
+
+public sealed record DiagramViewportBleedAudit(
+    int TotalShapes,
+    int ClippingCount,
+    int BleedWarningCount,
+    int SafeCount,
+    double MinObservedMargin,
+    double BleedSafetyScore,
+    IReadOnlyList<DiagramViewportBleedItem> Items,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);
+

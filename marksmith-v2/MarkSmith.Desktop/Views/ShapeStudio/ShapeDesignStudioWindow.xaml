@@ -844,6 +844,9 @@
                                     <MenuFlyoutItem x:Name="SelectionAuditBezierHandleSymmetryItem" Text="Audit vector path tangent continuity &amp; bezier handle symmetry" Click="OnSelectionAuditBezierHandleSymmetryClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="SelectionAuditDiagramViewportBleedItem" Text="Audit vector diagram canvas viewport margins &amp; bleed edge safety" Click="OnSelectionAuditDiagramViewportBleedClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
 
                     <MenuFlyoutItem x:Name="SelectionAuditRadialAlignmentItem" Text="Audit diagram radial &amp; concentric ring alignment" Click="OnSelectionAuditRadialAlignmentClick">
                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>

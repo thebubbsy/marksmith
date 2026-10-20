@@ -3710,5 +3710,48 @@ public class HistoryPolishTests : IDisposable
         Assert.True(leakingAudit.UnmanagedResourceLeaks >= 2);
         Assert.True(leakingAudit.DisposalSafetyScore < 60.0);
     }
-
+
+
+
+    [Fact]
+    public void Run212_AuditConcurrentCollectionThreadSafety_DetectsUnsafeMutations()
+    {
+        var emptyAudit = LineDiff.AuditConcurrentCollectionThreadSafety("", "");
+        Assert.Equal(0, emptyAudit.TotalCollectionOperations);
+        Assert.Equal(100.0, emptyAudit.ConcurrencySafetyScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+
+        var safeCode = string.Join("\n",
+            "public void SafeProcess()",
+            "{",
+            "    var map = new ConcurrentDictionary<string, int>();",
+            "    map.TryAdd(\"key\", 42);",
+            "}"
+        );
+        var safeAudit = LineDiff.AuditConcurrentCollectionThreadSafety("", safeCode);
+        Assert.Equal(100.0, safeAudit.ConcurrencySafetyScore);
+        Assert.True(safeAudit.SafeConcurrentCollectionCount >= 1);
+        Assert.Equal(0, safeAudit.ConcurrencyHazardCount);
+
+        string formatted = LineDiff.FormatConcurrentCollectionSummary(
+            safeAudit.TotalCollectionOperations, safeAudit.ConcurrencyHazardCount,
+            safeAudit.SafeConcurrentCollectionCount, safeAudit.LockedSectionCount,
+            safeAudit.ConcurrencySafetyScore, safeAudit.Category);
+        Assert.Equal(safeAudit.Summary, formatted);
+
+        var hazardCode = string.Join("\n",
+            "public void UnsafeParallel()",
+            "{",
+            "    var list = new List<int>();",
+            "    Parallel.ForEach(items, item =>",
+            "    {",
+            "        list.Add(item);",
+            "    });",
+            "}"
+        );
+        var hazardAudit = LineDiff.AuditConcurrentCollectionThreadSafety("", hazardCode);
+        Assert.True(hazardAudit.ConcurrencyHazardCount >= 1);
+        Assert.True(hazardAudit.ConcurrencySafetyScore < 80.0);
+    }
+
 }

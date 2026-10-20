@@ -3574,4 +3574,44 @@ public class SmartArtStudioPolishTests
     }
 
 
+
+    [Fact]
+    public void Run212_AuditCycleProcessDirectionality_ValidatesClosedLoopAndArrows()
+    {
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditCycleProcessDirectionality(null, "Cycle");
+        Assert.Equal(0, emptyAudit.TotalSteps);
+        Assert.Equal(100.0, emptyAudit.CycleFlowScore);
+        Assert.Equal("Empty Outline", emptyAudit.Category);
+
+        var cycleMd = string.Join("\n",
+            "1. Plan",
+            "2. Develop",
+            "3. Test",
+            "4. Deploy and return to step 1"
+        );
+        var audit = SmartArtDesignStudioViewModel.AuditCycleProcessDirectionality(cycleMd, "Cycle");
+        Assert.Equal(4, audit.TotalSteps);
+        Assert.True(audit.HasClosedLoopReturn);
+        Assert.True(audit.HasDirectionalConsistency);
+        Assert.Equal(0, audit.StepCountHazard);
+        Assert.Equal(0, audit.ArrowInconsistencyCount);
+        Assert.Equal(100.0, audit.CycleFlowScore);
+        Assert.Equal("Harmonious Closed-Loop Cycle", audit.Category);
+
+        string formatted = SmartArtDesignStudioViewModel.FormatCycleProcessSummary(
+            audit.TotalSteps, audit.HasClosedLoopReturn, audit.HasDirectionalConsistency,
+            audit.StepCountHazard, audit.ArrowInconsistencyCount, audit.CycleFlowScore,
+            audit.Category, "Cycle");
+        Assert.Equal(audit.Summary, formatted);
+
+        var brokenCycleMd = string.Join("\n",
+            "1. Step A -> forward",
+            "2. Step B <- backward mixed arrow"
+        );
+        var brokenAudit = SmartArtDesignStudioViewModel.AuditCycleProcessDirectionality(brokenCycleMd, "Linear");
+        Assert.True(brokenAudit.StepCountHazard >= 1);
+        Assert.True(brokenAudit.ArrowInconsistencyCount >= 1);
+        Assert.True(brokenAudit.CycleFlowScore < 70.0);
+    }
+
 }

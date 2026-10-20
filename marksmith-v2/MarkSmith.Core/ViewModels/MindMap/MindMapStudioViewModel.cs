@@ -6838,8 +6838,10 @@ namespace MarkSmith.ViewModels.MindMap
 
             string details = string.Join(" · ", parts);
             return $"MindMap radial depth audit ({scope}{details} · {category} · {score:0.#}% distribution score)";
-        }
-
+        }
+
+
+
         public static string FormatClosenessCentralitySummary(
             int nodeCount, int linkCount, int components, double meanHarmonic, double graphEfficiency,
             IReadOnlyList<string> topHubs, int peripheralCount, string category, bool isSelection)
@@ -14313,6 +14315,198 @@ namespace MarkSmith.ViewModels.MindMap
             return $"Graph minimum spanning tree & backbone audit ({scope}{nodeStr} · {details} · {category} · {score:0.#}% efficiency score)";
         }
 
+
+        public GraphDegreeCentralityAndBridgesAudit AuditGraphDegreeCentralityAndBridges(bool selectionOnly = false)
+        {
+            var selected = Nodes.Where(n => n.IsSelected).ToList();
+            var targetNodes = (selectionOnly && selected.Count > 0)
+                ? selected
+                : Nodes.ToList();
+
+            bool isSelection = selectionOnly && selected.Count > 0;
+            var nodeIds = targetNodes.Select(n => n.Id).ToHashSet();
+            var relevantLinks = Links.Where(l => nodeIds.Contains(l.SourceNodeId) && nodeIds.Contains(l.TargetNodeId)).ToList();
+
+            var audit = AuditGraphDegreeCentralityAndBridges(targetNodes.Select(n => n.Model), relevantLinks.Select(l => l.Model), isSelection);
+            StatusMessage = audit.Summary;
+            return audit;
+        }
+
+        public static GraphDegreeCentralityAndBridgesAudit AuditGraphDegreeCentralityAndBridges(
+            IEnumerable<MindMapNode>? nodes,
+            IEnumerable<MindMapLink>? links,
+            bool isSelection = false)
+        {
+            var nodeList = nodes?.ToList() ?? new List<MindMapNode>();
+            var linkList = links?.ToList() ?? new List<MindMapLink>();
+
+            int totalNodes = nodeList.Count;
+            int totalLinks = linkList.Count;
+
+            if (totalNodes <= 1)
+            {
+                string emptySummary = FormatDegreeCentralitySummary(totalNodes, 0, 0, 0, totalNodes, 0.0, 0, 100.0, "Clean Baseline", isSelection);
+                return new GraphDegreeCentralityAndBridgesAudit(
+                    totalNodes, totalLinks, 0, 0, totalNodes, 0.0, 0, 100.0,
+                    Array.Empty<GraphDegreeCentralityBridgeItem>(), "Clean Baseline", isSelection, emptySummary);
+            }
+
+            var validNodeIds = nodeList.Select(n => n.Id).ToHashSet();
+            var inDegree = new Dictionary<string, int>(StringComparer.Ordinal);
+            var outDegree = new Dictionary<string, int>(StringComparer.Ordinal);
+            var adj = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+
+            foreach (var n in nodeList)
+            {
+                inDegree[n.Id] = 0;
+                outDegree[n.Id] = 0;
+                adj[n.Id] = new List<string>();
+            }
+
+            var edgePairs = new List<(string Source, string Target)>();
+            foreach (var link in linkList)
+            {
+                if (validNodeIds.Contains(link.SourceNodeId) && validNodeIds.Contains(link.TargetNodeId))
+                {
+                    outDegree[link.SourceNodeId]++;
+                    inDegree[link.TargetNodeId]++;
+                    adj[link.SourceNodeId].Add(link.TargetNodeId);
+                    adj[link.TargetNodeId].Add(link.SourceNodeId);
+                    edgePairs.Add((link.SourceNodeId, link.TargetNodeId));
+                }
+            }
+
+            int CountComponents(HashSet<(string, string)>? excludedEdges = null)
+            {
+                var visited = new HashSet<string>();
+                int comps = 0;
+
+                foreach (var n in nodeList)
+                {
+                    if (visited.Contains(n.Id)) continue;
+                    comps++;
+                    var queue = new Queue<string>();
+                    queue.Enqueue(n.Id);
+                    visited.Add(n.Id);
+
+                    while (queue.Count > 0)
+                    {
+                        var curr = queue.Dequeue();
+                        foreach (var neighbor in adj[curr])
+                        {
+                            if (excludedEdges != null &&
+                                (excludedEdges.Contains((curr, neighbor)) || excludedEdges.Contains((neighbor, curr))))
+                            {
+                                continue;
+                            }
+
+                            if (!visited.Contains(neighbor))
+                            {
+                                visited.Add(neighbor);
+                                queue.Enqueue(neighbor);
+                            }
+                        }
+                    }
+                }
+                return comps;
+            }
+
+            int baseComponents = CountComponents();
+            var bridgeEdges = new HashSet<(string, string)>();
+            var incidentBridgeCount = new Dictionary<string, int>();
+            foreach (var n in nodeList) incidentBridgeCount[n.Id] = 0;
+
+            foreach (var edge in edgePairs)
+            {
+                var testExcluded = new HashSet<(string, string)> { edge };
+                int newComps = CountComponents(testExcluded);
+                if (newComps > baseComponents)
+                {
+                    bridgeEdges.Add(edge);
+                    incidentBridgeCount[edge.Source]++;
+                    incidentBridgeCount[edge.Target]++;
+                }
+            }
+
+            double totalDegSum = 0;
+            int maxDegree = 0;
+            foreach (var n in nodeList)
+            {
+                int deg = inDegree[n.Id] + outDegree[n.Id];
+                totalDegSum += deg;
+                if (deg > maxDegree) maxDegree = deg;
+            }
+            double avgDegree = totalNodes > 0 ? totalDegSum / totalNodes : 0.0;
+
+            int bottleneckCount = 0;
+            int hubCount = 0;
+            var items = new List<GraphDegreeCentralityBridgeItem>();
+
+            foreach (var n in nodeList)
+            {
+                int inDeg = inDegree[n.Id];
+                int outDeg = outDegree[n.Id];
+                int totDeg = inDeg + outDeg;
+                int bCount = incidentBridgeCount[n.Id];
+                bool isHub = totDeg >= 4 || (totDeg >= 2 && totDeg >= avgDegree * 1.5);
+                bool isBottleneck = bCount > 0 && totDeg >= 2;
+
+                if (isHub) hubCount++;
+                if (isBottleneck) bottleneckCount++;
+
+                string status = isBottleneck ? "Critical Bridge Bottleneck" : (isHub ? "Central Hub" : "Standard Node");
+                string recommendation = isBottleneck
+                    ? "Add redundant cross-links to prevent graph partitioning upon node disconnect."
+                    : (isHub ? "Well-connected distribution hub." : "Normal peripheral node.");
+
+                items.Add(new GraphDegreeCentralityBridgeItem(
+                    n.Id, n.Title ?? "Untitled", inDeg, outDeg, totDeg, isHub, isBottleneck, bCount, status, recommendation));
+            }
+
+            int bridgeCount = bridgeEdges.Count;
+            double penalty = (bridgeCount * 12.0) +
+                             (bottleneckCount * 10.0) +
+                             Math.Max(0, maxDegree - 8) * 3.0 +
+                             ((baseComponents - 1) * 8.0);
+            double score = Math.Clamp(100.0 - penalty, 0.0, 100.0);
+
+            string category = score switch
+            {
+                >= 90.0 => "High Resilience",
+                >= 70.0 => "Moderate Bottlenecks",
+                _ => "Severe Single-Point Failures"
+            };
+
+            string summary = FormatDegreeCentralitySummary(
+                totalNodes, totalLinks, bridgeCount, bottleneckCount, baseComponents,
+                avgDegree, maxDegree, score, category, isSelection);
+
+            return new GraphDegreeCentralityAndBridgesAudit(
+                totalNodes, totalLinks, bridgeCount, bottleneckCount, baseComponents,
+                avgDegree, maxDegree, score, items, category, isSelection, summary);
+        }
+
+        public static string FormatDegreeCentralitySummary(
+            int totalNodes, int totalLinks, int bridgeCount, int bottleneckCount, int components,
+            double avgDegree, int maxDegree, double score, string category, bool isSelection = false)
+        {
+            string scope = isSelection ? "Selection · " : "";
+            if (totalNodes <= 1)
+                return $"MindMap degree centrality & bridge audit ({scope}0 peripheral links): Clean Baseline";
+
+            var parts = new List<string>();
+            parts.Add($"{totalNodes} node{(totalNodes == 1 ? "" : "s")}");
+            parts.Add($"{totalLinks} link{(totalLinks == 1 ? "" : "s")}");
+            parts.Add($"avg degree {avgDegree:F1}");
+            parts.Add($"max degree {maxDegree}");
+            if (bridgeCount > 0) parts.Add($"\u26a0 {bridgeCount} bridge link{(bridgeCount == 1 ? "" : "s")}");
+            if (bottleneckCount > 0) parts.Add($"\ud83d\udea8 {bottleneckCount} bottleneck{(bottleneckCount == 1 ? "" : "s")}");
+            if (components > 1) parts.Add($"\u2139 {components} components");
+
+            string details = string.Join(" · ", parts);
+            return $"MindMap degree centrality & bridge audit ({scope}{details} · {category} · {score:0.#}% resilience score)";
+        }
+
     }
 
 
@@ -15930,5 +16124,34 @@ namespace MarkSmith.ViewModels.MindMap
         string Category,
         bool IsSelectionScope,
         string Summary);
-
+
+
+
+
+    public sealed record GraphDegreeCentralityBridgeItem(
+        string NodeId,
+        string NodeTitle,
+        int InDegree,
+        int OutDegree,
+        int TotalDegree,
+        bool IsHub,
+        bool IsBottleneck,
+        int IncidentBridgeCount,
+        string Status,
+        string Recommendation);
+
+    public sealed record GraphDegreeCentralityAndBridgesAudit(
+        int TotalNodes,
+        int TotalEdges,
+        int BridgeCount,
+        int BottleneckNodeCount,
+        int ConnectedComponentsCount,
+        double AverageDegree,
+        int MaxDegree,
+        double NetworkResilienceScore,
+        IReadOnlyList<GraphDegreeCentralityBridgeItem> Items,
+        string Category,
+        bool IsSelectionScope,
+        string Summary);
+
 }

@@ -471,6 +471,9 @@
                                     <MenuFlyoutItem x:Name="OutlineStatsAuditMatrixCentroidBalanceItem" Text="Audit matrix 4-quadrant centroid balance &amp; axis symmetry" Click="OnOutlineStatsAuditMatrixCentroidBalanceClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="OutlineStatsAuditCycleProcessDirectionalityItem" Text="Audit cycle process flow closed-loop directionality &amp; arrow parity" Click="OnOutlineStatsAuditCycleProcessDirectionalityClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
 
                                     <MenuFlyoutItem x:Name="OutlineStatsAuditVennGeometryItem" Text="Audit Venn diagram &amp; overlapping set geometry harmony" Click="OnOutlineStatsAuditVennGeometryClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>

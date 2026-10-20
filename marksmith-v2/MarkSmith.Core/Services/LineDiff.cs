@@ -19114,8 +19114,10 @@ public static class LineDiff
 
         string details = string.Join(" · ", parts);
         return $"Semantic diff resource disposal audit ({details} · {category} · {score:0.#}% safety score)";
-    }
-
+    }
+
+
+
     public static DiffCancellationTokenAudit AuditCancellationTokenPropagation(string? beforeText, string? afterText)
     {
         var diff = Diff(beforeText ?? string.Empty, afterText ?? string.Empty);
@@ -19427,6 +19429,128 @@ public static class LineDiff
 
         string details = string.Join(" \u00B7 ", parts);
         return $"Semantic diff CPU cache locality audit ({lineStr} \u00B7 {details} \u00B7 {category} \u00B7 {score:0.#}% score)";
+    }
+
+
+    public static DiffConcurrentCollectionAudit AuditConcurrentCollectionThreadSafety(string? beforeText, string? afterText)
+    {
+        var d = Diff(beforeText ?? string.Empty, afterText ?? string.Empty);
+        var unified = BuildUnified(d);
+        return AuditConcurrentCollectionThreadSafety(unified);
+    }
+
+    public static DiffConcurrentCollectionAudit AuditConcurrentCollectionThreadSafety(
+        IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows == null)
+        {
+            string emptySummary = FormatConcurrentCollectionSummary(0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new DiffConcurrentCollectionAudit(
+                0, 0, 0, 0, 100.0,
+                Array.Empty<DiffConcurrentCollectionHazardItem>(), "Clean Baseline", emptySummary);
+        }
+
+        var modifiedRows = unifiedRows
+            .Where(r => !r.IsGap && r.Kind == Kind.Added && !string.IsNullOrWhiteSpace(r.Text))
+            .ToList();
+
+        int totalModified = modifiedRows.Count;
+        if (totalModified == 0)
+        {
+            string emptySummary = FormatConcurrentCollectionSummary(0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new DiffConcurrentCollectionAudit(
+                0, 0, 0, 0, 100.0,
+                Array.Empty<DiffConcurrentCollectionHazardItem>(), "Clean Baseline", emptySummary);
+        }
+
+        var hazards = new List<DiffConcurrentCollectionHazardItem>();
+        int totalOps = 0;
+        int hazardCount = 0;
+        int safeCount = 0;
+        int lockedCount = 0;
+
+        string[] parallelKeywords = new[] { "Parallel.For", "Parallel.ForEach", "Parallel.ForEachAsync", "Task.Run", "ThreadPool.QueueUserWorkItem", "new Thread" };
+        string[] safeTypes = new[] { "ConcurrentDictionary", "ConcurrentBag", "ConcurrentQueue", "ConcurrentStack", "Channel<", "ImmutableList", "ImmutableDictionary", "ImmutableHashSet" };
+        string[] unsafeTypes = new[] { "List<", "Dictionary<", "HashSet<", "Queue<", "Stack<", "new List", "new Dictionary", "new HashSet" };
+        string[] mutationKeywords = new[] { ".Add(", ".Remove(", ".Clear()", ".Push(", ".Enqueue(", "[key] =", ".TryAdd(" };
+
+        bool contextHasParallel = unifiedRows.Any(r => parallelKeywords.Any(k => r.Text.Contains(k, StringComparison.Ordinal)));
+        bool contextHasLock = unifiedRows.Any(r => r.Text.Contains("lock (") || r.Text.Contains("lock(") || r.Text.Contains("SemaphoreSlim"));
+
+        foreach (var row in modifiedRows)
+        {
+            string line = row.Text.Trim();
+            if (line.StartsWith("//") || line.StartsWith("/*") || line.StartsWith("*")) continue;
+
+            bool isParallelLine = parallelKeywords.Any(k => line.Contains(k, StringComparison.Ordinal));
+            bool isSafeCollection = safeTypes.Any(k => line.Contains(k, StringComparison.Ordinal));
+            bool isUnsafeCollection = unsafeTypes.Any(k => line.Contains(k, StringComparison.Ordinal));
+            bool isMutation = mutationKeywords.Any(k => line.Contains(k, StringComparison.Ordinal));
+            bool hasLock = line.Contains("lock (") || line.Contains("lock(") || line.Contains("Monitor.Enter");
+
+            if (hasLock) lockedCount++;
+
+            if (isSafeCollection)
+            {
+                totalOps++;
+                safeCount++;
+                hazards.Add(new DiffConcurrentCollectionHazardItem(
+                    row.NewNumber ?? row.OldNumber ?? 0,
+                    "ConcurrentCollection",
+                    "ThreadSafeAccess",
+                    true,
+                    isParallelLine || contextHasParallel,
+                    line.Length > 80 ? line.Substring(0, 80) + "..." : line,
+                    "Thread-safe concurrent collection usage."));
+            }
+            else if (isUnsafeCollection || (isMutation && !line.Contains("Concurrent")))
+            {
+                totalOps++;
+                bool isHazard = (contextHasParallel || isParallelLine) && !contextHasLock && !hasLock;
+                if (isHazard) hazardCount++;
+
+                hazards.Add(new DiffConcurrentCollectionHazardItem(
+                    row.NewNumber ?? row.OldNumber ?? 0,
+                    isUnsafeCollection ? "MutableStandardCollection" : "MutationOperation",
+                    isMutation ? "CollectionMutation" : "Instantiation",
+                    !isHazard,
+                    contextHasParallel || isParallelLine,
+                    line.Length > 80 ? line.Substring(0, 80) + "..." : line,
+                    isHazard ? "Migrate to ConcurrentDictionary/ConcurrentBag or guard with lock." : "Single-threaded or locked access."));
+            }
+        }
+
+        double penalty = (hazardCount * 25.0);
+        double score = Math.Clamp(100.0 - penalty, 0.0, 100.0);
+
+        string category = score switch
+        {
+            >= 90.0 => "Thread Safe Concurrency",
+            >= 70.0 => "Moderate Thread Race Risk",
+            _ => "Severe Unsynchronized Mutation"
+        };
+
+        string summary = FormatConcurrentCollectionSummary(
+            totalOps, hazardCount, safeCount, lockedCount, score, category);
+
+        return new DiffConcurrentCollectionAudit(
+            totalOps, hazardCount, safeCount, lockedCount, score, hazards, category, summary);
+    }
+
+    public static string FormatConcurrentCollectionSummary(
+        int totalOps, int hazardCount, int safeCount, int lockedCount, double score, string category)
+    {
+        if (totalOps == 0)
+            return "Semantic diff task parallelism & concurrent collection audit: Clean Baseline · 0 collection operations";
+
+        var parts = new List<string>();
+        parts.Add($"{totalOps} operation{(totalOps == 1 ? "" : "s")}");
+        if (safeCount > 0) parts.Add($"\u2713 {safeCount} thread-safe concurrent");
+        if (lockedCount > 0) parts.Add($"\u2713 {lockedCount} locked");
+        if (hazardCount > 0) parts.Add($"\ud83d\udea8 {hazardCount} race hazard{(hazardCount == 1 ? "" : "s")}");
+
+        string details = string.Join(" · ", parts);
+        return $"Semantic diff task parallelism & concurrent collection audit ({details} · {category} · {score:0.#}% safety score)";
     }
 
 }
@@ -21601,8 +21725,10 @@ public sealed record DiffCancellationTokenAudit(
     double CancellationSafetyScore,
     IReadOnlyList<CancellationTokenHazardItem> Hazards,
     string Category,
-    string Summary);
-
+    string Summary);
+
+
+
 public sealed record DiffResourceDisposalHazardItem(
     int LineNumber,
     string CodeLine,
@@ -21619,4 +21745,26 @@ public sealed record DiffResourceDisposalAudit(
     double DisposalSafetyScore,
     IReadOnlyList<DiffResourceDisposalHazardItem> Hazards,
     string Category,
-    string Summary);
+    string Summary);
+
+
+
+public sealed record DiffConcurrentCollectionHazardItem(
+    int LineNumber,
+    string CollectionType,
+    string Operation,
+    bool IsThreadSafe,
+    bool IsInsideParallelContext,
+    string Excerpt,
+    string Recommendation);
+
+public sealed record DiffConcurrentCollectionAudit(
+    int TotalCollectionOperations,
+    int ConcurrencyHazardCount,
+    int SafeConcurrentCollectionCount,
+    int LockedSectionCount,
+    double ConcurrencySafetyScore,
+    IReadOnlyList<DiffConcurrentCollectionHazardItem> Hazards,
+    string Category,
+    string Summary);
+

@@ -397,6 +397,9 @@
                                     <MenuFlyoutItem x:Name="AuditGraphRadialDepthDistributionItem" Text="Audit graph node radial hierarchy depth &amp; branch density distribution" Click="OnAuditGraphRadialDepthDistributionClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditGraphDegreeCentralityAndBridgesItem" Text="Audit graph node degree centrality &amp; critical bridge bottlenecks" Click="OnAuditGraphDegreeCentralityAndBridgesClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
 
 
                                     <MenuFlyoutItem x:Name="AuditGraphDegreeDistributionAndHubDominanceItem" Text="Audit graph node degree distribution &amp; hub dominance" Click="OnAuditGraphDegreeDistributionAndHubDominanceClick">

@@ -13599,3 +13599,58 @@ Reviewed: Run #211 Blueprint — executed the 3-block cycle covering all 6 MarkS
 6. **SuiteHubView (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #211 Block 3 Idea 6]**:
    - **Refinement Target**: Workspace Image & Binary Asset Size / Aspect Ratio Optimization Auditor.
    - **Deliverable**: Add `RecentFilesService.AuditWorkspaceMediaAssetOptimization(explicitFiles, ...)` and `FormatWorkspaceMediaOptimizationSummary(...)`, scanning markdown embedded media files (`.png`, `.jpg`, `.svg`, `.webp`), checking dimensions, compression status, bloated raw assets ($> 5\text{MB}$), and missing alt text descriptions, scoring workspace media asset health ($0-100\%$). Wire to `RecentDocsFlyout`.
+
+
+---
+
+### 2026-10-21 (scheduled routine run #212)
+
+Reviewed: Run #212 Blueprint — executed the 3-block cycle covering all 6 MarkSmith WinUI 3 surfaces with 100% full implementation, zero placeholders, empirical verification (0 errors, 7 passing unit tests), and desktop smoke launch verification.
+
+**Shipped** (commit follows this entry):
+- **Block 1**:
+  - **Surface 1 (MainWindow)**: Implemented TextSearch.AuditMarkdownFootnoteDefinitionParity(markdownText), FormatFootnoteDefinitionParitySummary(...), MarkdownFootnoteParityItem, and MarkdownFootnoteParityAudit in TextSearch.cs. Scans markdown documents for referenced footnotes [^label] without definitions [^label]: ..., orphaned footnote definitions never referenced in body, duplicate footnote tags, and scores footnote reference integrity (-100\%$). Wired to ShowLintIssueContextMenu in MainWindow.xaml.cs via uditFootnoteDefinitionParityItem (\uE8B9).
+  - **Surface 2 (MindMapGalaxyWindow)**: Implemented MindMapStudioViewModel.AuditGraphDegreeCentralityAndBridges(nodes, links), FormatDegreeCentralitySummary(...), GraphDegreeCentralityBridgeItem, and GraphDegreeCentralityAndBridgesAudit in MindMapStudioViewModel.cs. Computes node in/out degree distribution, detects single-point-of-failure bridge edges whose removal partitions the mind map into disconnected components, identifies bottleneck articulation nodes, and scores network structural resilience (-100\%$). Wired to ArrangeDropDownButton.Flyout in MindMapGalaxyWindow.xaml and MindMapGalaxyWindow.xaml.cs via AuditGraphDegreeCentralityAndBridgesItem (\uE8B9) and OnAuditGraphDegreeCentralityAndBridgesClick.
+- **Block 2**:
+  - **Surface 3 (ShapeDesignStudioWindow)**: Implemented ShapeDesignStudioViewModel.AuditDiagramViewportBleedSafety(shapes, ...), FormatViewportBleedSummary(...), DiagramViewportBleedItem, and DiagramViewportBleedAudit in ShapeDesignStudioViewModel.cs. Detects shapes clipping or placed within $< 12\text{px}$ boundary bleed zones of the artboard/viewport, identifies shapes overflowing maximum canvas extents, and scores print/export boundary safety (-100\%$). Wired to SelectionBoundsBorder.ContextFlyout in ShapeDesignStudioWindow.xaml and ShapeDesignStudioWindow.xaml.cs via SelectionAuditDiagramViewportBleedItem (\uE8B9) and OnSelectionAuditDiagramViewportBleedClick.
+  - **Surface 4 (SmartArtDesignStudioWindow)**: Implemented SmartArtDesignStudioViewModel.AuditCycleProcessDirectionality(markdown, layoutName), FormatCycleProcessSummary(...), CycleProcessDirectionalityItem, and CycleProcessDirectionalityAudit in SmartArtDesignStudioViewModel.cs. Checks circular, cycle, radial, gear, and repeating layouts for clockwise vs counter-clockwise flow consistency, closed-loop return transitions, missing loop-back return arrows, and scores cycle layout dynamic flow (-100\%$). Wired to OutlineStatsFlyout in SmartArtDesignStudioWindow.xaml and SmartArtDesignStudioWindow.xaml.cs via OutlineStatsAuditCycleProcessDirectionalityItem (\uE8B9) and OnOutlineStatsAuditCycleProcessDirectionalityClick.
+- **Block 3**:
+  - **Surface 5 (HistoryWindow)**: Implemented LineDiff.AuditConcurrentCollectionThreadSafety(unifiedRows), FormatConcurrentCollectionSummary(...), DiffConcurrentCollectionHazardItem, and DiffConcurrentCollectionAudit in LineDiff.cs. Inspects diff additions for unsynchronized List<T>, Dictionary<TKey, TValue>, HashSet<T> mutations in multithreaded contexts (Parallel.ForEach, Task.Run, sync Task), flagging missing ConcurrentDictionary or locking mechanisms, and scoring concurrency thread safety (-100\%$). Wired to DiffContextMenu in HistoryWindow.xaml.cs via uditConcurrentCollectionItem (\uE8B9).
+  - **Surface 6 (SuiteHubView)**: Implemented RecentFilesService.AuditWorkspaceMediaAssetOptimization(explicitFiles, ...), FormatWorkspaceMediaOptimizationSummary(...), WorkspaceMediaOptimizationItem, and WorkspaceMediaOptimizationAudit in RecentFilesService.cs. Scans workspace documents for embedded image and binary media files (.png, .jpg, .svg, .webp), checking dimensions, bloated raw assets ($> 5\text{MB}$), missing alt text descriptions, and scores workspace media asset health (-100\%$). Wired to RecentDocsFlyout in SuiteHubView.xaml and SuiteHubView.xaml.cs via AuditWorkspaceMediaAssetOptimizationItem (\uE8B9) and OnAuditWorkspaceMediaAssetOptimizationClick.
+- **Execution Phase Refinements**:
+  - Implemented comprehensive unit tests across all 6 surfaces:
+    - TextSearchTests.Run212_AuditMarkdownFootnoteDefinitionParity_ValidatesOrphansAndDuplicates
+    - MindMapGalaxyPolishTests.Run212_AuditGraphDegreeCentralityAndBridges_DetectsHubsAndBridges
+    - ShapeStudioPolishTests.Run212_AuditDiagramViewportBleedSafety_DetectsClippingAndBleedZones
+    - SmartArtStudioPolishTests.Run212_AuditCycleProcessDirectionality_ValidatesClosedLoopTransitions
+    - HistoryPolishTests.Run212_AuditConcurrentCollectionThreadSafety_DetectsUnsynchronizedCollections
+    - SuiteHubAndTourPolishTests.Run212_AuditWorkspaceMediaAssetOptimization_DetectsBloatedAndMissingAlt
+    - SuiteHubAndTourPolishTests.Run212_AllSixSurfacesXamlAndCodeBehindWiring
+
+**Verified:**
+- dotnet build (marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj - Debug/x64): 0 errors, 23 warnings.
+- dotnet build (marksmith-v2/MarkSmith.Tests/MarkSmith.Tests.csproj - Debug): 0 errors, 102 warnings.
+- dotnet test (Run212 filter): 7/7 tests passed (100% pass rate).
+- Smoke-launched Marksmith.exe (PID=3100, running cleanly for 4 seconds, gracefully terminated with zero crashes).
+
+---
+
+### Run #213 Blueprint — Carried-Forward Refinements & Next Cycle Targets
+1. **MainWindow (MainWindow.xaml.cs, TextSearch.cs)**:
+   - **Feature**: Markdown HTML Tag Sanitization & Dangerous Raw Element Security Auditor.
+   - **Deliverable**: Add TextSearch.AuditMarkdownHtmlSanitization(markdownText) and FormatHtmlSanitizationSummary(...), scanning markdown content for unescaped raw HTML elements (<script>, <iframe>, <object>, <embed>, inline onclick=/onerror= handlers), identifying unclosed HTML tags, and scoring markdown document rendering safety (-100\%$). Wire to ShowLintIssueContextMenu.
+2. **MindMapGalaxyWindow (MindMapGalaxyWindow.xaml, MindMapGalaxyWindow.xaml.cs, MindMapStudioViewModel.cs)**:
+   - **Feature**: Graph Node Color Contrast & Cognitive Accessibility Auditor.
+   - **Deliverable**: Add MindMapStudioViewModel.AuditGraphColorContrastAccessibility() and FormatColorContrastSummary(...), calculating relative luminance and WCAG AA 4.5:1 / 3.0:1 contrast ratios between node foreground text, fill cards, and canvas backdrop, flagging low-contrast unreadable nodes, and scoring mind map visual accessibility (-100\%$). Wire to ArrangeDropDownButton.Flyout.
+3. **ShapeDesignStudioWindow (ShapeDesignStudioWindow.xaml, ShapeDesignStudioWindow.xaml.cs, ShapeDesignStudioViewModel.cs)**:
+   - **Feature**: Shape Z-Index Stacking Order & Visual Occlusion Detection Auditor.
+   - **Deliverable**: Add ShapeDesignStudioViewModel.AuditShapeOcclusionAndStackingOrder(shapes) and FormatShapeOcclusionSummary(...), analyzing canvas spatial bounding boxes and z-order to identify completely hidden or buried shapes obscured by larger opaque cards, identifying redundant invisible primitives, and scoring layer stack hygiene (-100\%$). Wire to SelectionBoundsBorder.ContextFlyout.
+4. **SmartArtDesignStudioWindow (SmartArtDesignStudioWindow.xaml, SmartArtDesignStudioWindow.xaml.cs, SmartArtDesignStudioViewModel.cs)**:
+   - **Feature**: Pyramid / Funnel Inverted Geometry & Hierarchy Inversion Auditor.
+   - **Deliverable**: Add SmartArtDesignStudioViewModel.AuditPyramidFunnelHierarchyInversion(markdown, layoutName) and FormatPyramidFunnelSummary(...), validating hierarchical pyramid, inverted pyramid, and funnel layouts for progressive stage sizing, width ratio inversion hazards, and scoring structural hierarchy aesthetics (-100\%$). Wire to OutlineStatsFlyout.
+5. **HistoryWindow (HistoryWindow.xaml.cs, LineDiff.cs) [Carried Forward from Run #212 Block 3 Idea 5]**:
+   - **Refinement Target**: Semantic Diff Lock Hierarchy & Deadlock Hazard Auditor.
+   - **Deliverable**: Add LineDiff.AuditLockHierarchyDeadlocks(unifiedRows) and FormatLockHierarchySummary(...), inspecting diff additions for nested synchronization locks (lock (...), Monitor.Enter, SemaphoreSlim.WaitAsync), identifying potentially inverted acquisition orders across execution branches, scoring lock hierarchy discipline (-100\%$). Wire to DiffContextMenu.
+6. **SuiteHubView (SuiteHubView.xaml, SuiteHubView.xaml.cs, RecentFilesService.cs) [Carried Forward from Run #212 Block 3 Idea 6]**:
+   - **Refinement Target**: Workspace Code Block Syntax Highlighting & Language Tagging Auditor.
+   - **Deliverable**: Add RecentFilesService.AuditWorkspaceCodeBlockLanguageTags(explicitFiles, ...) and FormatWorkspaceCodeBlockSummary(...), scanning workspace documents for fenced code blocks missing language identifiers ( ` ), identifying unknown/unrecognized language tokens, and scoring code snippet documentation completeness (-100\%$). Wire to RecentDocsFlyout.

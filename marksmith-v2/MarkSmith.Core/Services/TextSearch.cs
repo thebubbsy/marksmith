@@ -14401,8 +14401,10 @@ public static class TextSearch
 
         string details = string.Join(" · ", parts);
         return $"Markdown table pipe alignment audit ({details} · {category} · {score:0.#}% alignment score)";
-    }
-
+    }
+
+
+
     public static string FormatDefinitionListsSummary(string? markdownText)
         => AuditMarkdownDefinitionLists(markdownText).Summary;
 
@@ -14422,6 +14424,235 @@ public static class TextSearch
 
         string details = string.Join(" Â· ", parts);
         return $"Markdown definition list audit ({details} Â· {category} Â· {score:0.#}% hygiene score)";
+    }
+
+
+    public static MarkdownFootnoteParityAudit AuditMarkdownFootnoteDefinitionParity(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            string emptySummary = FormatFootnoteDefinitionParitySummary(0, 0, 0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new MarkdownFootnoteParityAudit(
+                0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<MarkdownFootnoteParityItem>(),
+                "Clean Baseline", emptySummary);
+        }
+
+        var lines = markdownText.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        var items = new List<MarkdownFootnoteParityItem>();
+
+        var defs = new Dictionary<string, List<(int LineNumber, string Excerpt)>>(StringComparer.OrdinalIgnoreCase);
+        var refs = new List<(string Label, int LineNumber, string Excerpt)>();
+        var defLabelsInOrder = new List<string>();
+        var refLabelsInOrder = new List<string>();
+
+        bool insideCodeFence = false;
+        var defRegex = new System.Text.RegularExpressions.Regex(@"^[ ]{0,3}\[\^([^\]]+)\]:\s*(.*)$", System.Text.RegularExpressions.RegexOptions.Compiled);
+        var refRegex = new System.Text.RegularExpressions.Regex(@"(?<!\[\^)\[\^([^\]]+)\](?!:)", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i];
+            var trimmed = line.Trim();
+
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+            {
+                insideCodeFence = !insideCodeFence;
+                continue;
+            }
+
+            if (insideCodeFence) continue;
+
+            var defMatch = defRegex.Match(line);
+            if (defMatch.Success)
+            {
+                string label = defMatch.Groups[1].Value.Trim();
+                string excerpt = line.Length > 80 ? line.Substring(0, 80) + "..." : line;
+
+                if (!defs.ContainsKey(label))
+                {
+                    defs[label] = new List<(int, string)>();
+                    defLabelsInOrder.Add(label);
+                }
+                defs[label].Add((i + 1, excerpt));
+            }
+            else
+            {
+                var matches = refRegex.Matches(line);
+                foreach (System.Text.RegularExpressions.Match m in matches)
+                {
+                    string label = m.Groups[1].Value.Trim();
+                    string excerpt = line.Length > 80 ? line.Substring(0, 80) + "..." : line;
+                    refs.Add((label, i + 1, excerpt));
+                    refLabelsInOrder.Add(label);
+                }
+            }
+        }
+
+        int totalRefs = refs.Count;
+        int totalDefs = defs.Values.Sum(list => list.Count);
+
+        if (totalRefs == 0 && totalDefs == 0)
+        {
+            string emptySummary = FormatFootnoteDefinitionParitySummary(0, 0, 0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new MarkdownFootnoteParityAudit(
+                0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<MarkdownFootnoteParityItem>(),
+                "Clean Baseline", emptySummary);
+        }
+
+        int missingDefCount = 0;
+        int orphanDefCount = 0;
+        int duplicateDefCount = 0;
+        int nonSequentialNumericCount = 0;
+
+        var refSet = new HashSet<string>(refs.Select(r => r.Label), StringComparer.OrdinalIgnoreCase);
+
+        foreach (var r in refs)
+        {
+            bool hasDef = defs.ContainsKey(r.Label);
+            if (!hasDef)
+            {
+                missingDefCount++;
+                items.Add(new MarkdownFootnoteParityItem(
+                    r.Label, r.LineNumber,
+                    IsDefinition: false,
+                    IsMissingDefinition: true,
+                    IsOrphanDefinition: false,
+                    IsDuplicateDefinition: false,
+                    IsNonSequentialNumeric: false,
+                    r.Excerpt,
+                    $"Define missing footnote [^{r.Label}]: at bottom of document."));
+            }
+            else
+            {
+                items.Add(new MarkdownFootnoteParityItem(
+                    r.Label, r.LineNumber,
+                    IsDefinition: false,
+                    IsMissingDefinition: false,
+                    IsOrphanDefinition: false,
+                    IsDuplicateDefinition: false,
+                    IsNonSequentialNumeric: false,
+                    r.Excerpt,
+                    "Reference linked to definition."));
+            }
+        }
+
+        foreach (var kvp in defs)
+        {
+            string label = kvp.Key;
+            var defOccurrences = kvp.Value;
+            bool isReferenced = refSet.Contains(label);
+
+            if (!isReferenced)
+            {
+                orphanDefCount += defOccurrences.Count;
+                foreach (var occ in defOccurrences)
+                {
+                    items.Add(new MarkdownFootnoteParityItem(
+                        label, occ.LineNumber,
+                        IsDefinition: true,
+                        IsMissingDefinition: false,
+                        IsOrphanDefinition: true,
+                        IsDuplicateDefinition: defOccurrences.Count > 1,
+                        IsNonSequentialNumeric: false,
+                        occ.Excerpt,
+                        $"Footnote [^{label}] is defined but never referenced in document body."));
+                }
+            }
+            else
+            {
+                if (defOccurrences.Count > 1)
+                {
+                    duplicateDefCount += (defOccurrences.Count - 1);
+                    for (int d = 0; d < defOccurrences.Count; d++)
+                    {
+                        var occ = defOccurrences[d];
+                        items.Add(new MarkdownFootnoteParityItem(
+                            label, occ.LineNumber,
+                            IsDefinition: true,
+                            IsMissingDefinition: false,
+                            IsOrphanDefinition: false,
+                            IsDuplicateDefinition: d > 0,
+                            IsNonSequentialNumeric: false,
+                            occ.Excerpt,
+                            d > 0 ? $"Duplicate definition for footnote [^{label}]." : "Primary definition."));
+                    }
+                }
+                else
+                {
+                    var occ = defOccurrences[0];
+                    items.Add(new MarkdownFootnoteParityItem(
+                        label, occ.LineNumber,
+                        IsDefinition: true,
+                        IsMissingDefinition: false,
+                        IsOrphanDefinition: false,
+                        IsDuplicateDefinition: false,
+                        IsNonSequentialNumeric: false,
+                        occ.Excerpt,
+                        "Valid footnote definition."));
+                }
+            }
+        }
+
+        int expectedNumber = 1;
+        foreach (var label in refLabelsInOrder)
+        {
+            if (int.TryParse(label, out int num))
+            {
+                if (num != expectedNumber)
+                {
+                    nonSequentialNumericCount++;
+                }
+                expectedNumber = Math.Max(expectedNumber, num) + 1;
+            }
+        }
+
+        int balancedPairs = defs.Keys.Count(k => refSet.Contains(k) && defs[k].Count == 1);
+
+        double penalty = (missingDefCount * 25.0) +
+                         (orphanDefCount * 15.0) +
+                         (duplicateDefCount * 20.0) +
+                         (nonSequentialNumericCount * 5.0);
+        double score = Math.Clamp(100.0 - penalty, 0.0, 100.0);
+
+        string category = score switch
+        {
+            >= 90.0 => "High Parity",
+            >= 70.0 => "Moderate Discrepancy",
+            _ => "Severe Reference Fracture"
+        };
+
+        string summary = FormatFootnoteDefinitionParitySummary(
+            totalRefs, totalDefs, balancedPairs, missingDefCount, orphanDefCount,
+            duplicateDefCount, nonSequentialNumericCount, score, category);
+
+        return new MarkdownFootnoteParityAudit(
+            totalRefs, totalDefs, balancedPairs, missingDefCount, orphanDefCount,
+            duplicateDefCount, nonSequentialNumericCount, score, items, category, summary);
+    }
+
+    public static string FormatFootnoteDefinitionParitySummary(string? markdownText)
+        => AuditMarkdownFootnoteDefinitionParity(markdownText).Summary;
+
+    public static string FormatFootnoteDefinitionParitySummary(
+        int totalRefs, int totalDefs, int balancedPairs, int missingDefs,
+        int orphanDefs, int duplicateDefs, int nonSequential, double score, string category)
+    {
+        if (totalRefs == 0 && totalDefs == 0)
+            return "Markdown footnote definition parity audit: Clean document · 0 footnotes detected";
+
+        var parts = new List<string>();
+        parts.Add($"{totalRefs} ref{(totalRefs == 1 ? "" : "s")}");
+        parts.Add($"{totalDefs} def{(totalDefs == 1 ? "" : "s")}");
+        if (balancedPairs > 0) parts.Add($"\u2713 {balancedPairs} balanced");
+        if (missingDefs > 0) parts.Add($"\ud83d\udea8 {missingDefs} missing def{(missingDefs == 1 ? "" : "s")}");
+        if (orphanDefs > 0) parts.Add($"\u26a0 {orphanDefs} orphan def{(orphanDefs == 1 ? "" : "s")}");
+        if (duplicateDefs > 0) parts.Add($"\u26a0 {duplicateDefs} duplicate def{(duplicateDefs == 1 ? "" : "s")}");
+        if (nonSequential > 0) parts.Add($"\u2139 {nonSequential} non-sequential");
+
+        string details = string.Join(" · ", parts);
+        return $"Markdown footnote definition parity audit ({details} · {category} · {score:0.#}% parity score)";
     }
 
 }
@@ -16085,8 +16316,10 @@ public sealed record MarkdownTaskFormattingAudit(
     double FormattingHygieneScore,
     IReadOnlyList<MarkdownTaskFormattingItem> Items,
     string Category,
-    string Summary);
-
+    string Summary);
+
+
+
 public sealed record MarkdownTablePipeAlignmentItem(
     int LineNumber,
     int TableIndex,
@@ -16110,4 +16343,31 @@ public sealed record MarkdownTablePipeAlignmentAudit(
     double TableAlignmentScore,
     IReadOnlyList<MarkdownTablePipeAlignmentItem> Items,
     string Category,
-    string Summary);
+    string Summary);
+
+
+
+public sealed record MarkdownFootnoteParityItem(
+    string Label,
+    int LineNumber,
+    bool IsDefinition,
+    bool IsMissingDefinition,
+    bool IsOrphanDefinition,
+    bool IsDuplicateDefinition,
+    bool IsNonSequentialNumeric,
+    string Excerpt,
+    string Recommendation);
+
+public sealed record MarkdownFootnoteParityAudit(
+    int TotalReferences,
+    int TotalDefinitions,
+    int BalancedPairs,
+    int MissingDefinitionCount,
+    int OrphanDefinitionCount,
+    int DuplicateDefinitionCount,
+    int NonSequentialNumericCount,
+    double FootnoteParityScore,
+    IReadOnlyList<MarkdownFootnoteParityItem> Items,
+    string Category,
+    string Summary);
+

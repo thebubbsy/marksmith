@@ -11481,6 +11481,142 @@ public sealed class RecentFilesService
         return $"Workspace heading slug & TOC audit ({details} · {category} · {score:0.#}% consistency score)";
     }
 
+
+    public static WorkspaceMediaOptimizationAudit AuditWorkspaceMediaAssetOptimization(
+        IReadOnlyList<string>? explicitFiles = null,
+        Func<string, bool>? fileExistsProvider = null,
+        Func<string, string>? contentReader = null,
+        Func<string, long>? fileLengthProvider = null)
+    {
+        var files = (explicitFiles ?? Array.Empty<string>())
+            .Where(f => !string.IsNullOrWhiteSpace(f) && !f.EndsWith(".bak.md", StringComparison.OrdinalIgnoreCase))
+            .Distinct()
+            .ToList();
+
+        if (files.Count == 0)
+        {
+            string emptySummary = FormatWorkspaceMediaOptimizationSummary(0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new WorkspaceMediaOptimizationAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<WorkspaceMediaOptimizationItem>(), "Clean Baseline", emptySummary);
+        }
+
+        var exists = fileExistsProvider ?? (f => File.Exists(f));
+        var reader = contentReader ?? (f => File.Exists(f) ? File.ReadAllText(f) : string.Empty);
+        var getLength = fileLengthProvider ?? (f => File.Exists(f) ? new FileInfo(f).Length : 0);
+
+        var items = new List<WorkspaceMediaOptimizationItem>();
+        int totalMedia = 0;
+        int optimizedCount = 0;
+        int bloatedCount = 0;
+        int missingAltTextCount = 0;
+        int missingFileCount = 0;
+
+        var imgRegex = new System.Text.RegularExpressions.Regex(@"!\[(?<alt>.*?)\]\((?<path>[^\)]+)\)", System.Text.RegularExpressions.RegexOptions.Compiled);
+        string[] genericAlts = new[] { "image", "img", "screenshot", "untitled", "photo", "picture" };
+
+        const long BloatedThreshold = 5 * 1024 * 1024; // 5 MB
+
+        foreach (var file in files)
+        {
+            string text = reader(file);
+            if (string.IsNullOrWhiteSpace(text)) continue;
+
+            string docDir = Path.GetDirectoryName(file) ?? string.Empty;
+            var lines = text.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+
+            for (int i = 0; i < lines.Length; i++)
+            {
+                var matches = imgRegex.Matches(lines[i]);
+                foreach (System.Text.RegularExpressions.Match m in matches)
+                {
+                    totalMedia++;
+                    string alt = m.Groups["alt"].Value.Trim();
+                    string path = m.Groups["path"].Value.Trim();
+
+                    if (path.StartsWith("<") && path.EndsWith(">"))
+                        path = path.Substring(1, path.Length - 2).Trim();
+
+                    string resolvedPath = path;
+                    if (!Path.IsPathRooted(resolvedPath) && !string.IsNullOrWhiteSpace(docDir) && !resolvedPath.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                    {
+                        resolvedPath = Path.Combine(docDir, resolvedPath);
+                    }
+
+                    bool isRemote = path.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || path.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
+                    bool fileFound = isRemote || exists(resolvedPath);
+                    long fileBytes = (!isRemote && fileFound) ? getLength(resolvedPath) : 0;
+
+                    bool isBloated = fileBytes > BloatedThreshold;
+                    bool hasMissingAlt = string.IsNullOrWhiteSpace(alt) || genericAlts.Contains(alt.ToLowerInvariant());
+                    bool hasSpaces = path.Contains(' ');
+
+                    if (!fileFound) missingFileCount++;
+                    if (isBloated) bloatedCount++;
+                    if (hasMissingAlt) missingAltTextCount++;
+
+                    bool isOptimized = fileFound && !isBloated && !hasMissingAlt && !hasSpaces;
+                    if (isOptimized) optimizedCount++;
+
+                    string status = !fileFound
+                        ? "Missing Media Asset"
+                        : (isBloated ? "Bloated Asset (>5MB)" : (hasMissingAlt ? "Missing Alt Text" : "Optimized Media"));
+
+                    string rec = !fileFound
+                        ? $"Asset not found at {path}."
+                        : (isBloated ? $"Compress image ({fileBytes / (1024 * 1024):0.#} MB) to WebP/optimized PNG." : "Media meets optimization standards.");
+
+                    items.Add(new WorkspaceMediaOptimizationItem(
+                        file, i + 1, path, alt, fileBytes, fileFound, isBloated, hasMissingAlt, hasSpaces, status, rec));
+                }
+            }
+        }
+
+        if (totalMedia == 0)
+        {
+            string emptySummary = FormatWorkspaceMediaOptimizationSummary(0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new WorkspaceMediaOptimizationAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<WorkspaceMediaOptimizationItem>(), "Clean Baseline", emptySummary);
+        }
+
+        double penalty = (missingFileCount * 25.0) +
+                         (bloatedCount * 20.0) +
+                         (missingAltTextCount * 10.0);
+        double score = Math.Clamp(100.0 - penalty, 0.0, 100.0);
+
+        string category = score switch
+        {
+            >= 90.0 => "Optimal Media Hygiene",
+            >= 70.0 => "Moderate Media Bloat",
+            _ => "Severe Media Debt"
+        };
+
+        string summary = FormatWorkspaceMediaOptimizationSummary(
+            totalMedia, optimizedCount, bloatedCount, missingAltTextCount, missingFileCount, score, category);
+
+        return new WorkspaceMediaOptimizationAudit(
+            totalMedia, optimizedCount, bloatedCount, missingAltTextCount, missingFileCount, score, items, category, summary);
+    }
+
+    public static string FormatWorkspaceMediaOptimizationSummary(
+        int totalMedia, int optimizedCount, int bloatedCount, int missingAltCount,
+        int missingFileCount, double score, string category)
+    {
+        if (totalMedia == 0)
+            return "Workspace media asset optimization audit: Clean workspace · 0 embedded media assets detected";
+
+        var parts = new List<string>();
+        parts.Add($"{totalMedia} asset{(totalMedia == 1 ? "" : "s")}");
+        if (optimizedCount > 0) parts.Add($"\u2713 {optimizedCount} optimized");
+        if (bloatedCount > 0) parts.Add($"\ud83d\udea8 {bloatedCount} bloated (>5MB)");
+        if (missingAltCount > 0) parts.Add($"\u26a0 {missingAltCount} missing alt");
+        if (missingFileCount > 0) parts.Add($"\ud83d\udea8 {missingFileCount} missing file{(missingFileCount == 1 ? "" : "s")}");
+
+        string details = string.Join(" · ", parts);
+        return $"Workspace media asset optimization audit ({details} · {category} · {score:0.#}% health score)";
+    }
+
 }
 
 /// <summary>
@@ -13001,6 +13137,32 @@ public sealed record WorkspaceWikilinkAudit(
     int BrokenAnchorCount,
     double CrossReferenceIntegrityScore,
     IReadOnlyList<WorkspaceWikilinkItem> Items,
+    string Category,
+    string Summary);
+
+
+
+public sealed record WorkspaceMediaOptimizationItem(
+    string DocumentPath,
+    int LineNumber,
+    string MediaPath,
+    string AltText,
+    long FileSizeBytes,
+    bool FileExists,
+    bool IsBloated,
+    bool HasMissingAltText,
+    bool HasUnescapedSpaces,
+    string Status,
+    string Recommendation);
+
+public sealed record WorkspaceMediaOptimizationAudit(
+    int TotalMediaReferences,
+    int OptimizedCount,
+    int BloatedAssetCount,
+    int MissingAltTextCount,
+    int MissingFileCount,
+    double MediaOptimizationScore,
+    IReadOnlyList<WorkspaceMediaOptimizationItem> Items,
     string Category,
     string Summary);
 

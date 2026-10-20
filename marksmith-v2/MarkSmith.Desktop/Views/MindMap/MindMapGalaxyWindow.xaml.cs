@@ -4197,8 +4197,18 @@ namespace MarkSmith.Views.MindMap
             var result = ViewModel.AuditGraphRadialDepthDistribution();
             _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
             ViewModel.StatusMessage = $"\u2713 {result.Summary}";
-        }
-
+        }
+
+        private void OnAuditGraphDegreeCentralityAndBridgesClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditGraphDegreeCentralityAndBridges();
+            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+        }
+
+
+
         private void OnAuditGraphSemanticClusterCentroidsClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;

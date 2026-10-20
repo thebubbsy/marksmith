@@ -4696,8 +4696,10 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
         string details = string.Join(" · ", parts);
         return $"SmartArt {layout} quadrant balance audit ({details} · {category} · {score:0.#}% harmony score)";
-    }
-
+    }
+
+
+
     public SmartArtPyramidApexAudit AuditPyramidApexProportionality(string? markdown = null, string? layoutName = null)
     {
         string md = markdown ?? MarkdownText;
@@ -12187,6 +12189,148 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
         string details = string.Join(" · ", parts);
         return $"SmartArt Venn diagram overlap & cardinality audit ({details} · {category} · {score:0.#}% clarity score)";
+
+    }
+
+    public CycleProcessDirectionalityAudit AuditCycleProcessDirectionality(string? markdown = null, string? layoutName = null)
+    {
+        string md = markdown ?? MarkdownText;
+        string layout = layoutName ?? SelectedLayout?.DisplayName ?? "Cycle";
+        return AuditCycleProcessDirectionality(md, layout, isStatic: false);
+    }
+
+    public static CycleProcessDirectionalityAudit AuditCycleProcessDirectionality(
+        string? markdown,
+        string? layoutName = null,
+        bool isStatic = true)
+    {
+        string layout = layoutName ?? "Cycle";
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            string emptySummary = FormatCycleProcessSummary(0, false, true, 0, 0, 100.0, "Empty Outline", layout);
+            return new CycleProcessDirectionalityAudit(
+                0, false, true, 0, 0, 100.0,
+                Array.Empty<CycleProcessDirectionalityItem>(), layout, "Empty Outline", emptySummary);
+        }
+
+        var lines = markdown.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        var stepLines = new List<string>();
+
+        foreach (var rawLine in lines)
+        {
+            string trimmed = rawLine.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed)) continue;
+            if (trimmed.StartsWith("#") || trimmed.StartsWith("```") || trimmed.StartsWith("~~~")) continue;
+
+            string cleaned = trimmed;
+            if (System.Text.RegularExpressions.Regex.IsMatch(cleaned, @"^\d+[.)]\s*"))
+                cleaned = System.Text.RegularExpressions.Regex.Replace(cleaned, @"^\d+[.)]\s*", "");
+            else if (cleaned.StartsWith("- ") || cleaned.StartsWith("* ") || cleaned.StartsWith("+ "))
+                cleaned = cleaned.Substring(2).Trim();
+
+            if (!string.IsNullOrWhiteSpace(cleaned))
+                stepLines.Add(cleaned);
+        }
+
+        int totalSteps = stepLines.Count;
+        if (totalSteps == 0)
+        {
+            string emptySummary = FormatCycleProcessSummary(0, false, true, 0, 0, 100.0, "Empty Outline", layout);
+            return new CycleProcessDirectionalityAudit(
+                0, false, true, 0, 0, 100.0,
+                Array.Empty<CycleProcessDirectionalityItem>(), layout, "Empty Outline", emptySummary);
+        }
+
+        var items = new List<CycleProcessDirectionalityItem>();
+        int forwardArrowCount = 0;
+        int backwardArrowCount = 0;
+        bool hasClosedLoop = false;
+
+        string[] loopKeywords = new[] { "loop", "repeat", "return", "cycle", "start again", "restart", "feedback", "continuous", "step 1", "first step" };
+
+        for (int i = 0; i < totalSteps; i++)
+        {
+            string step = stepLines[i];
+            bool hasForward = step.Contains("->") || step.Contains("-->") || step.Contains("=>") || step.Contains("\u2192");
+            bool hasBackward = step.Contains("<-") || step.Contains("<--") || step.Contains("<=") || step.Contains("\u2190");
+            bool hasLoop = loopKeywords.Any(k => step.Contains(k, StringComparison.OrdinalIgnoreCase));
+
+            if (hasForward) forwardArrowCount++;
+            if (hasBackward) backwardArrowCount++;
+            if (i == totalSteps - 1 && hasLoop) hasClosedLoop = true;
+
+            string status = (i == totalSteps - 1 && hasLoop)
+                ? "Closed-Loop Return Transition"
+                : (hasForward ? "Forward Directed Transition" : "Sequential Step");
+
+            string rec = (i == totalSteps - 1 && !hasLoop)
+                ? "Add explicit return transition reference to close process loop."
+                : "Step aligned in sequence.";
+
+            items.Add(new CycleProcessDirectionalityItem(i + 1, step, hasForward, hasBackward, hasLoop, status, rec));
+        }
+
+        if (!hasClosedLoop && layout.Contains("Cycle", StringComparison.OrdinalIgnoreCase) && totalSteps >= 3)
+        {
+            hasClosedLoop = true;
+        }
+
+        int arrowInconsistencies = (forwardArrowCount > 0 && backwardArrowCount > 0)
+            ? Math.Min(forwardArrowCount, backwardArrowCount)
+            : 0;
+
+        int stepCountHazard = 0;
+        if (totalSteps < 3) stepCountHazard = 3 - totalSteps;
+        else if (totalSteps > 8) stepCountHazard = totalSteps - 8;
+
+        bool isDirectionalConsistent = arrowInconsistencies == 0;
+
+        double penalty = (stepCountHazard * 15.0) +
+                         (arrowInconsistencies * 15.0) +
+                         (!hasClosedLoop ? 20.0 : 0.0);
+        double score = Math.Clamp(100.0 - penalty, 0.0, 100.0);
+
+        string category = score switch
+        {
+            >= 90.0 => "Harmonious Closed-Loop Cycle",
+            >= 70.0 => "Moderate Directional Friction",
+            _ => "Fragmented Cycle Process"
+        };
+
+        string summary = FormatCycleProcessSummary(
+            totalSteps, hasClosedLoop, isDirectionalConsistent, stepCountHazard,
+            arrowInconsistencies, score, category, layout);
+
+        return new CycleProcessDirectionalityAudit(
+            totalSteps, hasClosedLoop, isDirectionalConsistent, stepCountHazard,
+            arrowInconsistencies, score, items, layout, category, summary);
+    }
+
+    public static string FormatCycleProcessSummary(
+        int totalSteps, bool hasClosedLoop, bool directionalConsistency, int stepHazard,
+        int arrowInconsistencies, double score, string category, string layout)
+    {
+        if (totalSteps == 0)
+            return $"SmartArt cycle process flow audit ({layout}): Empty Outline · 0 steps";
+
+        var parts = new List<string>();
+        parts.Add($"{totalSteps} step{(totalSteps == 1 ? "" : "s")}");
+        if (hasClosedLoop) parts.Add("\u2713 closed loop");
+        else parts.Add("\u26a0 open cycle");
+
+        if (directionalConsistency) parts.Add("\u2713 arrow parity");
+        else parts.Add($"\ud83d\udea8 {arrowInconsistencies} mixed arrow{(arrowInconsistencies == 1 ? "" : "s")}");
+
+        if (stepHazard > 0)
+        {
+            if (totalSteps < 3) parts.Add($"\u26a0 {stepHazard} step underflow (<3)");
+            else parts.Add($"\u26a0 {stepHazard} step overflow (>8)");
+        }
+
+        string details = string.Join(" · ", parts);
+        return $"SmartArt cycle process flow audit ({layout} · {details} · {category} · {score:0.#}% flow score)";
+    }
+
     }
 
 
@@ -12211,7 +12355,6 @@ public sealed record SmartArtChevronProcessStrideAudit(
     string Category,
     string LayoutName,
     string Summary);
-}
 
 /// <summary>
 /// Represents the result of an outline hierarchy branching and tree balance audit.
@@ -13733,8 +13876,10 @@ public sealed record SmartArtPyramidApexAudit(
     IReadOnlyList<SmartArtPyramidTierItem> Tiers,
     string Category,
     string LayoutName,
-    string Summary);
-
+    string Summary);
+
+
+
 public sealed record SmartArtMatrixCentroidBalanceItem(
     int QuadrantIndex,
     string QuadrantName,
@@ -13756,4 +13901,28 @@ public sealed record SmartArtMatrixCentroidBalanceAudit(
     IReadOnlyList<SmartArtMatrixCentroidBalanceItem> Quadrants,
     string Category,
     string LayoutName,
-    string Summary);
+    string Summary);
+
+
+
+public sealed record CycleProcessDirectionalityItem(
+    int StepIndex,
+    string StepTitle,
+    bool HasForwardArrow,
+    bool HasBackwardArrow,
+    bool HasLoopBackTerm,
+    string Status,
+    string Recommendation);
+
+public sealed record CycleProcessDirectionalityAudit(
+    int TotalSteps,
+    bool HasClosedLoopReturn,
+    bool HasDirectionalConsistency,
+    int StepCountHazard,
+    int ArrowInconsistencyCount,
+    double CycleFlowScore,
+    IReadOnlyList<CycleProcessDirectionalityItem> Items,
+    string LayoutName,
+    string Category,
+    string Summary);
+

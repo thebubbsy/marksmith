@@ -12223,6 +12223,20 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         };
         menu.Items.Add(auditTablePipeAlignmentItem);
 
+        var auditFootnoteDefinitionParityItem = new MenuFlyoutItem
+        {
+            Text = "Audit Markdown Footnote Definition Parity & Inline Anchor Reference",
+            Icon = new FontIcon { Glyph = "\uE8B9" }
+        };
+        auditFootnoteDefinitionParityItem.Click += (_, _) =>
+        {
+            var docText = EditorDocument();
+            var summary = MarkSmith.Services.TextSearch.AuditMarkdownFootnoteDefinitionParity(docText).Summary;
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditFootnoteDefinitionParityItem);
+
 
 
         menu.ShowAt(anchor);
