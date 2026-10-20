@@ -399,6 +399,9 @@
                                     <MenuFlyoutItem x:Name="AuditWorkspaceImageAssetsItem" Text="Audit workspace markdown image asset paths, local file existence &amp; broken media anchors" Click="OnAuditWorkspaceImageAssetsClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditWorkspaceMarkdownTableAutoAlignItem" Text="Audit &amp; auto-align workspace markdown table pipe delimiter formatting &amp; column widths" Click="OnAuditWorkspaceMarkdownTableAutoAlignClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem x:Name="AuditWorkspaceMarkdownTablesItem" Text="Audit workspace markdown table formatting, column alignment &amp; pipe syntax" Click="OnAuditWorkspaceMarkdownTablesClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

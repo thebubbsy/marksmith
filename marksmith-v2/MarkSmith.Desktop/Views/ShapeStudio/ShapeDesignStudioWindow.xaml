@@ -808,6 +808,9 @@
                                     <MenuFlyoutItem x:Name="SelectionAuditConnectorArrowheadsItem" Text="Audit diagram connector arrowhead alignment, endpoint orthogonality &amp; port attachments" Click="OnSelectionAuditConnectorArrowheadsClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="SelectionAuditShapeStrokeDashItem" Text="Audit diagram shape stroke dash pattern, border weight &amp; cap uniformity" Click="OnSelectionAuditShapeStrokeDashClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

@@ -4146,5 +4146,42 @@ namespace MarkSmith.Tests
                 audit.LeafCount, audit.IsolatedCount, audit.ScaleFreeFitScore, audit.Category, audit.IsSelectionScope);
             Assert.Equal(audit.Summary, formatted);
         }
+
+        [Fact]
+        public void Run200_AuditGraphDiameterAndSmallWorldProperties_ComputesDiameterAndPathLengths()
+        {
+            // 1. Empty graph
+            var emptyAudit = MindMapStudioViewModel.AuditGraphDiameterAndSmallWorldProperties(null, null);
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.Equal(100.0, emptyAudit.SmallWorldIndexScore);
+            Assert.Equal("Empty Map", emptyAudit.Category);
+
+            // 2. Linear chain graph: 1 - 2 - 3 - 4
+            var n1 = new MindMapNode { Id = "1", Title = "Start" };
+            var n2 = new MindMapNode { Id = "2", Title = "Middle A" };
+            var n3 = new MindMapNode { Id = "3", Title = "Middle B" };
+            var n4 = new MindMapNode { Id = "4", Title = "End" };
+
+            var links = new List<MindMapLink>
+            {
+                new MindMapLink { Id = "e1", SourceNodeId = "1", TargetNodeId = "2" },
+                new MindMapLink { Id = "e2", SourceNodeId = "2", TargetNodeId = "3" },
+                new MindMapLink { Id = "e3", SourceNodeId = "3", TargetNodeId = "4" }
+            };
+
+            var audit = MindMapStudioViewModel.AuditGraphDiameterAndSmallWorldProperties(
+                new[] { n1, n2, n3, n4 }, links);
+            Assert.Equal(4, audit.TotalNodes);
+            Assert.Equal(3, audit.TotalEdges);
+            Assert.Equal(3, audit.Diameter);
+            Assert.True(audit.CharacteristicPathLength > 1.0);
+            Assert.True(audit.ConnectedPairs > 0);
+
+            string formatted = MindMapStudioViewModel.FormatSmallWorldSummary(
+                audit.TotalNodes, audit.TotalEdges, audit.ConnectedPairs, audit.Diameter,
+                audit.CharacteristicPathLength, audit.GlobalEfficiency, audit.ComponentCount,
+                audit.SmallWorldIndexScore, audit.Category, audit.IsSelectionScope);
+            Assert.Equal(audit.Summary, formatted);
+        }
     }
 }

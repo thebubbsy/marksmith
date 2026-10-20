@@ -11927,6 +11927,220 @@ public static class TextSearch
         return $"Markdown math delimiter audit ({details} · {category} · {score:0.#}% fidelity score)";
     }
 
+    /// <summary>
+    /// Audits markdown text for GFM strikethrough (~~deleted~~), pseudo-HTML underline/del tags (&lt;u&gt;, &lt;ins&gt;, &lt;del&gt;, &lt;s&gt;),
+    /// unclosed or dangling tildes, whitespace padding violations (e.g. ~~ text ~~), and typographic styling consistency.
+    /// </summary>
+    public static MarkdownStrikethroughAudit AuditMarkdownStrikethroughAndUnderline(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            string emptySummary = "Markdown strikethrough & underline audit: Clean document · 0 strikethrough or underline spans detected";
+            return new MarkdownStrikethroughAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<MarkdownStrikethroughItem>(),
+                "Clean Baseline",
+                emptySummary);
+        }
+
+        var lines = markdownText.Replace("\r\n", "\n").Split('\n');
+        var items = new List<MarkdownStrikethroughItem>();
+        bool inFencedBlock = false;
+        string? activeFence = null;
+
+        int gfmCount = 0;
+        int pseudoHtmlCount = 0;
+        int validCount = 0;
+        int unclosedCount = 0;
+        int invalidWhitespaceCount = 0;
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string line = lines[i];
+            string trimmed = line.Trim();
+
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+            {
+                string fenceMarker = trimmed.Substring(0, 3);
+                if (!inFencedBlock)
+                {
+                    inFencedBlock = true;
+                    activeFence = fenceMarker;
+                    continue;
+                }
+                else if (activeFence == fenceMarker)
+                {
+                    inFencedBlock = false;
+                    activeFence = null;
+                    continue;
+                }
+            }
+
+            if (inFencedBlock) continue;
+
+            // Mask out inline code backticks: `code`
+            var processedLine = Regex.Replace(line, @"`+[^`\n]+`+", m => new string(' ', m.Length));
+
+            // 1. Detect GFM Strikethrough ~~...~~
+            var gfmMatches = Regex.Matches(processedLine, @"(?<!~)(~~)(?!~)(.*?)(?<!~)(~~)(?!~)");
+            var coveredSpans = new List<(int Start, int End)>();
+
+            foreach (Match m in gfmMatches)
+            {
+                gfmCount++;
+                string inner = m.Groups[2].Value;
+                bool hasLeadingSpace = inner.StartsWith(" ") || inner.StartsWith("\t");
+                bool hasTrailingSpace = inner.EndsWith(" ") || inner.EndsWith("\t");
+                bool isWhitespaceViolation = hasLeadingSpace || hasTrailingSpace;
+
+                if (isWhitespaceViolation)
+                {
+                    invalidWhitespaceCount++;
+                    items.Add(new MarkdownStrikethroughItem(
+                        i + 1, m.Index + 1, "GFM Strikethrough", m.Value,
+                        true, true, false,
+                        "Invalid Delimiter Whitespace",
+                        "Remove leading or trailing space inside '~~' delimiters (GFM requires '~~text~~' without inner space)"));
+                }
+                else
+                {
+                    validCount++;
+                    items.Add(new MarkdownStrikethroughItem(
+                        i + 1, m.Index + 1, "GFM Strikethrough", m.Value,
+                        true, false, false,
+                        "Valid GFM Strikethrough",
+                        "Standard GFM strikethrough notation"));
+                }
+
+                coveredSpans.Add((m.Index, m.Index + m.Length));
+            }
+
+            // Check for unclosed / dangling ~~ on this line
+            int idx = 0;
+            while (idx < processedLine.Length)
+            {
+                int tildeIdx = processedLine.IndexOf("~~", idx, StringComparison.Ordinal);
+                if (tildeIdx < 0) break;
+
+                bool insideMatched = coveredSpans.Any(s => tildeIdx >= s.Start && tildeIdx < s.End);
+                if (!insideMatched)
+                {
+                    if (tildeIdx > 0 && processedLine[tildeIdx - 1] == '\\')
+                    {
+                        idx = tildeIdx + 2;
+                        continue;
+                    }
+                    unclosedCount++;
+                    items.Add(new MarkdownStrikethroughItem(
+                        i + 1, tildeIdx + 1, "Broken Delimiter", "~~",
+                        false, false, false,
+                        "Unclosed Strikethrough Delimiter",
+                        "Ensure '~~' strikethrough markers are properly opened and closed in pairs"));
+                    idx = tildeIdx + 2;
+                }
+                else
+                {
+                    idx = tildeIdx + 2;
+                }
+            }
+
+            // 2. Detect Pseudo-HTML tags: <u>, <ins>, <del>, <s>
+            var htmlMatches = Regex.Matches(processedLine, @"<(/)?(u|ins|del|s)\b[^>]*>", RegexOptions.IgnoreCase);
+            var tagStack = new Stack<(string Tag, int Col)>();
+
+            foreach (Match m in htmlMatches)
+            {
+                pseudoHtmlCount++;
+                string full = m.Value;
+                bool isClosing = full.StartsWith("</", StringComparison.Ordinal);
+                string tag = m.Groups[2].Value.ToLowerInvariant();
+
+                if (!isClosing)
+                {
+                    tagStack.Push((tag, m.Index + 1));
+                }
+                else
+                {
+                    if (tagStack.Count > 0 && tagStack.Peek().Tag == tag)
+                    {
+                        var opened = tagStack.Pop();
+                        validCount++;
+                        items.Add(new MarkdownStrikethroughItem(
+                            i + 1, opened.Col, $"HTML <{tag}>", $"<{tag}>...</{tag}>",
+                            true, false, true,
+                            $"Valid HTML <{tag}> Tag",
+                            tag == "u" || tag == "ins"
+                                ? "Underline tag detected (compatible with preview & OpenXML w:u)"
+                                : "HTML strikethrough tag detected; prefer GFM '~~text~~' for maximum portability"));
+                    }
+                    else
+                    {
+                        unclosedCount++;
+                        items.Add(new MarkdownStrikethroughItem(
+                            i + 1, m.Index + 1, $"HTML </{tag}>", full,
+                            false, false, true,
+                            $"Orphan Closing </{tag}> Tag",
+                            $"Remove unmatched closing tag </{tag}> or provide matching opening <{tag}>"));
+                    }
+                }
+            }
+
+            while (tagStack.Count > 0)
+            {
+                var unclosed = tagStack.Pop();
+                unclosedCount++;
+                items.Add(new MarkdownStrikethroughItem(
+                    i + 1, unclosed.Col, $"HTML <{unclosed.Tag}>", $"<{unclosed.Tag}>",
+                    false, false, true,
+                    $"Unclosed <{unclosed.Tag}> Tag",
+                    $"Add closing tag </{unclosed.Tag}> to terminate styling span"));
+            }
+        }
+
+        int totalSpans = gfmCount + pseudoHtmlCount;
+        double score = 100.0;
+        score -= (unclosedCount * 15.0);
+        score -= (invalidWhitespaceCount * 10.0);
+        score = Math.Round(Math.Clamp(score, 0.0, 100.0), 1);
+
+        string category = score switch
+        {
+            >= 95.0 => (totalSpans == 0 ? "Clean Baseline" : "Consistent Strikethrough & Typography"),
+            >= 75.0 => "Minor Delimiter Inconsistencies",
+            >= 50.0 => "Malformed Strikethrough Markers",
+            _ => "Severe Delimiter Malformations"
+        };
+
+        string summary = FormatStrikethroughSummary(
+            totalSpans, gfmCount, pseudoHtmlCount, validCount, unclosedCount,
+            invalidWhitespaceCount, score, category);
+
+        return new MarkdownStrikethroughAudit(
+            totalSpans, gfmCount, pseudoHtmlCount, validCount, unclosedCount,
+            invalidWhitespaceCount, score, items, category, summary);
+    }
+
+    public static string FormatStrikethroughSummary(string? markdownText)
+        => AuditMarkdownStrikethroughAndUnderline(markdownText).Summary;
+
+    public static string FormatStrikethroughSummary(
+        int totalSpans, int gfmCount, int pseudoHtmlCount, int validCount,
+        int unclosedCount, int invalidWhitespaceCount, double score, string category)
+    {
+        if (totalSpans == 0 && unclosedCount == 0 && invalidWhitespaceCount == 0)
+            return "Markdown strikethrough & underline audit: Clean document · 0 strikethrough or underline spans detected";
+
+        var parts = new List<string>();
+        if (gfmCount > 0) parts.Add($"{gfmCount} GFM ~~strike~~");
+        if (pseudoHtmlCount > 0) parts.Add($"ℹ {pseudoHtmlCount} HTML tags (<del>/<u>)");
+        if (unclosedCount > 0) parts.Add($"⚠ {unclosedCount} unclosed");
+        if (invalidWhitespaceCount > 0) parts.Add($"⚠ {invalidWhitespaceCount} invalid whitespace padding");
+        if (validCount > 0) parts.Add($"✓ {validCount} valid");
+
+        string details = string.Join(" · ", parts);
+        return $"Markdown strikethrough & underline audit ({details} · {category} · {score:0.#}% consistency score)";
+    }
+
 }
 
 /// <summary>
@@ -13296,5 +13510,36 @@ public sealed record MarkdownMathDelimiterAudit(
     int UnbalancedBraceCount,
     double MathRenderingFidelityScore,
     IReadOnlyList<MarkdownMathDelimiterItem> Items,
+    string Category,
+    string Summary);
+
+
+/// <summary>
+/// Represents evaluated metrics, line number, column, delimiter type, and closure status for an individual markdown strikethrough or underline span.
+/// </summary>
+public sealed record MarkdownStrikethroughItem(
+    int LineNumber,
+    int Column,
+    string SpanType,
+    string RawText,
+    bool IsClosed,
+    bool HasLeadingTrailingSpace,
+    bool IsPseudoHtml,
+    string Status,
+    string Recommendation);
+
+/// <summary>
+/// Represents the result of an audit of markdown strikethrough (~~text~~), pseudo-HTML underline/del tags (&lt;u&gt;, &lt;del&gt;, &lt;s&gt;, &lt;ins&gt;),
+/// unclosed delimiters, whitespace padding violations, and typographical consistency.
+/// </summary>
+public sealed record MarkdownStrikethroughAudit(
+    int TotalSpans,
+    int GfmStrikethroughCount,
+    int PseudoHtmlCount,
+    int ValidSpansCount,
+    int UnclosedCount,
+    int InvalidWhitespaceCount,
+    double ConsistencyScore,
+    IReadOnlyList<MarkdownStrikethroughItem> Items,
     string Category,
     string Summary);

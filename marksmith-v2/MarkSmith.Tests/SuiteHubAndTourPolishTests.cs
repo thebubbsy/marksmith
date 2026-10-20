@@ -6315,5 +6315,70 @@ Some paragraph in between.
         Assert.Contains("OnAuditWorkspaceMarkdownTablesClick", suiteCs);
         Assert.Contains("AuditWorkspaceMarkdownTableFormatting", suiteCs);
     }
+[Fact]
+    public void Run200_AuditWorkspaceMarkdownTableAutoAlign_ValidatesColumnsAndAlignment()
+    {
+        // 1. Test table column alignment formatting helper
+        var unalignedTable = string.Join("\n",
+            "| Name | Age | Department |",
+            "| --- | --- | --- |",
+            "| Alice | 30 | Engineering |",
+            "| Bob | 25 | Design |"
+        );
 
+        var aligned = RecentFilesService.AlignMarkdownTableColumns(unalignedTable);
+        Assert.Contains("| Name", aligned);
+        Assert.Contains("| Alice", aligned);
+        Assert.Contains("Engineering", aligned);
+
+        // 2. Audit empty workspace
+        var emptyAudit = RecentFilesService.AuditWorkspaceMarkdownTableAutoAlign(
+            explicitFiles: Array.Empty<string>(),
+            fileExistsProvider: _ => false,
+            contentReader: _ => string.Empty);
+        Assert.Equal(0, emptyAudit.TotalDocumentsEvaluated);
+        Assert.Equal(100.0, emptyAudit.TabularIntegrityScore);
+    }
+
+    [Fact]
+    public void Run200_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // Surface 1: MainWindow - Markdown Strikethrough & Underline Consistency Auditor
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("auditStrikethroughItem", mainCs);
+        Assert.Contains("AuditMarkdownStrikethroughAndUnderline", mainCs);
+
+        // Surface 2: MindMapGalaxyWindow - Graph Diameter, Average Path Length & Small-World Clustering Auditor
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditGraphDiameterSmallWorldItem", galaxyXaml);
+        Assert.Contains("OnAuditGraphDiameterAndSmallWorldClick", galaxyCs);
+        Assert.Contains("AuditGraphDiameterAndSmallWorldProperties", galaxyCs);
+
+        // Surface 3: ShapeDesignStudioWindow - Diagram Shape Stroke Dash Pattern & Border Weight Uniformity Auditor
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditShapeStrokeDashItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditShapeStrokeDashClick", shapeCs);
+        Assert.Contains("AuditShapeStrokeDashUniformity", shapeCs);
+
+        // Surface 4: SmartArtDesignStudioWindow - SmartArt Concentric Target / Bullseye Ring Radius Progression Auditor
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineStatsAuditTargetBullseyeProgressionItem", smartArtXaml);
+        Assert.Contains("OnOutlineStatsAuditTargetBullseyeProgressionClick", smartArtCs);
+        Assert.Contains("AuditTargetBullseyeRadiusProgression", smartArtCs);
+
+        // Surface 5: HistoryWindow - Semantic Diff Deep Structural Switch & Positional Pattern Matching Analyzer
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditPatternMatching", historyCs);
+        Assert.Contains("AuditPatternMatchingAndEnumBranchExhaustiveness", historyCs);
+
+        // Surface 6: SuiteHubView - Workspace Markdown Table Auto-Alignment Auditor
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("AuditWorkspaceMarkdownTableAutoAlignItem", suiteXaml);
+        Assert.Contains("OnAuditWorkspaceMarkdownTableAutoAlignClick", suiteCs);
+        Assert.Contains("AuditWorkspaceMarkdownTableAutoAlign", suiteCs);
+    }
 }

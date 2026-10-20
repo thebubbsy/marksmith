@@ -3304,5 +3304,27 @@ public class HistoryPolishTests : IDisposable
         Assert.True(badAudit.TotalHazards >= 1);
         Assert.True(badAudit.ExhaustivenessSafetyScore < 90.0);
     }
+[Fact]
+    public void Run200_AuditPatternMatchingAndEnumBranchExhaustiveness_DetectsTupleAndPositionalTraps()
+    {
+        // Tuple switch with discard trap (_, _) => null
+        var tupleTrapCode = string.Join("\n",
+            "public class TupleMatcher",
+            "{",
+            "    public string Match(State a, State b)",
+            "    {",
+            "        return (a, b) switch",
+            "        {",
+            "            (State.On, State.Off) => \"Transitioning\",",
+            "            (_, _) => null",
+            "        };",
+            "    }",
+            "}"
+        );
 
+        var audit = LineDiff.AuditPatternMatchingAndEnumBranchExhaustiveness("", tupleTrapCode);
+        Assert.True(audit.WildcardDiscardTrapCount >= 1);
+        Assert.True(audit.TotalHazards >= 1);
+        Assert.True(audit.ExhaustivenessSafetyScore < 95.0);
+    }
 }

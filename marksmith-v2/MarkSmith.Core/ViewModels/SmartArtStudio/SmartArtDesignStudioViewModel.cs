@@ -3323,6 +3323,135 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
             items, category, summary);
     }
 
+    
+    public SmartArtTargetBullseyeAudit AuditTargetBullseyeRadiusProgression(string? markdown = null, string? layoutName = null)
+    {
+        string md = markdown ?? MarkdownText;
+        string layout = layoutName ?? SelectedLayout?.DisplayName ?? "Target Diagram";
+        return AuditTargetBullseyeRadiusProgression(md, layout, isStatic: false);
+    }
+
+    public static SmartArtTargetBullseyeAudit AuditTargetBullseyeRadiusProgression(string? markdown, string? layoutName = null, bool isStatic = true)
+    {
+        string layout = layoutName ?? "Target Diagram";
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            string emptySummary = FormatTargetBullseyeSummary(0, 0, false, true, 0, 100.0, "Empty Target", layout);
+            return new SmartArtTargetBullseyeAudit(
+                0, 0, false, true, 0, 100.0,
+                Array.Empty<TargetRingInfo>(),
+                "Empty Target", emptySummary);
+        }
+
+        var lines = markdown.Replace("\r\n", "\n").Split('\n');
+        var rings = new List<(string Label, int LineNumber, List<string> SubItems)>();
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string raw = lines[i];
+            string trimmed = raw.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed)) continue;
+
+            int indent = raw.Length - raw.TrimStart().Length;
+            string clean = trimmed.TrimStart('-', '*', '+', '1', '2', '3', '4', '5', '6', '7', '8', '9', '.', ' ');
+
+            if (indent <= 1)
+            {
+                rings.Add((clean, i + 1, new List<string>()));
+            }
+            else if (rings.Count > 0)
+            {
+                rings[^1].SubItems.Add(clean);
+            }
+        }
+
+        int totalRings = rings.Count;
+        if (totalRings == 0)
+        {
+            string emptySummary = FormatTargetBullseyeSummary(0, 0, false, true, 0, 100.0, "No Rings Found", layout);
+            return new SmartArtTargetBullseyeAudit(
+                0, 0, false, true, 0, 100.0,
+                Array.Empty<TargetRingInfo>(),
+                "No Rings Found", emptySummary);
+        }
+
+        int totalWords = rings.Sum(r => r.Label.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries).Length);
+        bool hasCenterCore = totalRings >= 1;
+        bool isMonotonic = true;
+        int crowdedRings = 0;
+
+        var items = new List<TargetRingInfo>();
+        double prevRadius = 0.0;
+
+        for (int i = 0; i < totalRings; i++)
+        {
+            var r = rings[i];
+            bool isCenter = (i == 0);
+            double relRadius = (i + 1) * 1.0;
+            double radialInc = relRadius - prevRadius;
+            double area = Math.PI * ((relRadius * relRadius) - (prevRadius * prevRadius));
+
+            bool monotonic = i == 0 || (relRadius > prevRadius);
+            if (!monotonic) isMonotonic = false;
+
+            int textLength = r.Label.Length;
+            bool isCrowded = isCenter ? (textLength > 30) : (textLength > 50);
+            if (isCrowded) crowdedRings++;
+
+            string status = isCenter
+                ? (isCrowded ? "Crowded Bullseye Core" : "Prominent Center Core")
+                : (isCrowded ? "Crowded Concentric Ring" : "Balanced Concentric Ring");
+
+            string recommendation = isCrowded
+                ? "Condense ring label text to maintain circular perimeter clarity"
+                : (isCenter ? "High-contrast center bullseye target" : "Uniform radial increment progression");
+
+            items.Add(new TargetRingInfo(
+                i + 1, r.Label, r.SubItems.Count, relRadius, radialInc,
+                Math.Round(area, 2), isCenter, monotonic, isCrowded,
+                status, recommendation));
+
+            prevRadius = relRadius;
+        }
+
+        double score = 100.0;
+        if (totalRings > 6) score -= ((totalRings - 6) * 12.0);
+        score -= (crowdedRings * 10.0);
+        if (!isMonotonic) score -= 25.0;
+        score = Math.Round(Math.Clamp(score, 10.0, 100.0), 1);
+
+        string category = score switch
+        {
+            >= 90.0 => "Harmonious Bullseye Progression",
+            >= 75.0 => "Consistent Concentric Rings",
+            >= 60.0 => "Moderate Radial Crowding",
+            >= 40.0 => "Dense Concentric Layering",
+            _ => "Overcrowded Bullseye Topology"
+        };
+
+        string summary = FormatTargetBullseyeSummary(
+            totalRings, totalWords, hasCenterCore, isMonotonic, crowdedRings, score, category, layout);
+
+        return new SmartArtTargetBullseyeAudit(
+            totalRings, totalWords, hasCenterCore, isMonotonic, crowdedRings, score, items, category, summary);
+    }
+
+    public static string FormatTargetBullseyeSummary(
+        int totalRings, int totalWords, bool hasCenterCore, bool isMonotonic,
+        int crowdedRings, double score, string category, string layoutName)
+    {
+        if (totalRings == 0) return $"SmartArt concentric bullseye audit ({layoutName}): 0 rings · Empty diagram";
+
+        string ringStr = totalRings == 1 ? "1 ring (core only)" : $"{totalRings} concentric rings";
+        var alerts = new List<string>();
+        if (crowdedRings > 0) alerts.Add($"⚠ {crowdedRings} crowded");
+        if (totalRings > 6) alerts.Add($"⚠ {totalRings} rings (>6 dense)");
+        if (!isMonotonic) alerts.Add("🚨 non-monotonic radius");
+
+        string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · 100% radial balance";
+        return $"SmartArt concentric bullseye audit ({layoutName} · {ringStr} · {category} · {score:0.#}% score){details}";
+    }
+
     public static string FormatChevronUniformitySummary(
         int totalSteps, int totalWords, double avgLength, int minLength, int maxLength,
         double varianceRatio, int outlierCount, bool isCrowded, double score, string category)
@@ -11738,5 +11867,37 @@ public sealed record SmartArtProcessFlowChevronAudit(
     bool IsCrowdedFlow,
     double ProcessCadenceScore,
     IReadOnlyList<ProcessFlowStepItem> Items,
+    string Category,
+    string Summary);
+
+
+/// <summary>
+/// Represents evaluated metrics, concentric radius, area, and label text fit for an individual target bullseye ring.
+/// </summary>
+public sealed record TargetRingInfo(
+    int RingIndex,
+    string Label,
+    int SubItemCount,
+    double RelativeRadius,
+    double RadialIncrement,
+    double RingArea,
+    bool IsCenterCore,
+    bool IsRadiusMonotonic,
+    bool IsTextCrowded,
+    string Status,
+    string Recommendation);
+
+/// <summary>
+/// Represents the result of an audit of SmartArt concentric target / bullseye ring radius progression,
+/// center core prominence, radial increments, area proportion, and perimeter label crowding.
+/// </summary>
+public sealed record SmartArtTargetBullseyeAudit(
+    int TotalRings,
+    int TotalWords,
+    bool HasCenterCore,
+    bool IsMonotonicProgression,
+    int CrowdedRingCount,
+    double RadialBalanceScore,
+    IReadOnlyList<TargetRingInfo> Items,
     string Category,
     string Summary);

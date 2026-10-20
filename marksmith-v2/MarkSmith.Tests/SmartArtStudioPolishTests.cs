@@ -3101,4 +3101,31 @@ public class SmartArtStudioPolishTests
             audit.SymmetryBalanceScore, audit.SymmetryCategory);
         Assert.Equal(audit.Summary, formatted);
     }
+[Fact]
+    public void Run200_AuditTargetBullseyeRadiusProgression_ValidatesConcentricRingsAndPerimeterFit()
+    {
+        // 1. Empty outline
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditTargetBullseyeRadiusProgression("");
+        Assert.Equal(0, emptyAudit.TotalRings);
+        Assert.Equal(100.0, emptyAudit.RadialBalanceScore);
+        Assert.Equal("Empty Target", emptyAudit.Category);
+
+        // 2. 3 balanced concentric rings
+        var targetMd = string.Join("\n",
+            "- Core Vision",
+            "- Strategic Objectives",
+            "- Tactical Initiatives"
+        );
+        var audit = SmartArtDesignStudioViewModel.AuditTargetBullseyeRadiusProgression(targetMd);
+        Assert.Equal(3, audit.TotalRings);
+        Assert.True(audit.HasCenterCore);
+        Assert.True(audit.IsMonotonicProgression);
+        Assert.Equal(0, audit.CrowdedRingCount);
+        Assert.True(audit.RadialBalanceScore >= 90.0);
+
+        string formatted = SmartArtDesignStudioViewModel.FormatTargetBullseyeSummary(
+            audit.TotalRings, audit.TotalWords, audit.HasCenterCore, audit.IsMonotonicProgression,
+            audit.CrowdedRingCount, audit.RadialBalanceScore, audit.Category, "Target Diagram");
+        Assert.Equal(audit.Summary, formatted);
+    }
 }

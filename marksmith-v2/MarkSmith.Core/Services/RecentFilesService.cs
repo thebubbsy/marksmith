@@ -5587,6 +5587,70 @@ public sealed class RecentFilesService
         Func<string, string>? contentReader = null)
         => AuditWorkspaceTableFormatting(explicitFiles, fileExistsProvider, contentReader);
 
+    public static WorkspaceTableFormattingAudit AuditWorkspaceMarkdownTableAutoAlign(
+        IReadOnlyList<string>? explicitFiles = null,
+        Func<string, bool>? fileExistsProvider = null,
+        Func<string, string>? contentReader = null)
+        => AuditWorkspaceTableFormatting(explicitFiles, fileExistsProvider, contentReader);
+
+    public static string AlignMarkdownTableColumns(string tableMarkdown)
+    {
+        if (string.IsNullOrWhiteSpace(tableMarkdown)) return tableMarkdown ?? string.Empty;
+        var lines = tableMarkdown.Replace("\r\n", "\n").Split('\n');
+        var rows = new List<List<string>>();
+        foreach (var line in lines)
+        {
+            if (!line.Contains('|')) continue;
+            var cells = line.Trim().Trim('|').Split('|').Select(c => c.Trim()).ToList();
+            rows.Add(cells);
+        }
+        if (rows.Count < 2) return tableMarkdown;
+
+        int maxCols = rows.Max(r => r.Count);
+        var colWidths = new int[maxCols];
+        for (int c = 0; c < maxCols; c++)
+        {
+            int maxLen = 3;
+            for (int r = 0; r < rows.Count; r++)
+            {
+                if (r == 1) continue;
+                if (c < rows[r].Count) maxLen = Math.Max(maxLen, rows[r][c].Length);
+            }
+            colWidths[c] = maxLen;
+        }
+
+        var sb = new System.Text.StringBuilder();
+        for (int r = 0; r < rows.Count; r++)
+        {
+            var row = rows[r];
+            sb.Append("|");
+            for (int c = 0; c < maxCols; c++)
+            {
+                string cell = c < row.Count ? row[c] : string.Empty;
+                int width = colWidths[c];
+                if (r == 1)
+                {
+                    bool alignLeft = cell.StartsWith(":");
+                    bool alignRight = cell.EndsWith(":");
+                    if (alignLeft && alignRight)
+                        sb.Append(" :" + new string('-', Math.Max(1, width - 2)) + ": |");
+                    else if (alignRight)
+                        sb.Append(" " + new string('-', Math.Max(1, width - 1)) + ": |");
+                    else if (alignLeft)
+                        sb.Append(" :" + new string('-', Math.Max(1, width - 1)) + " |");
+                    else
+                        sb.Append(" " + new string('-', width) + " |");
+                }
+                else
+                {
+                    sb.Append(" " + cell.PadRight(width) + " |");
+                }
+            }
+            sb.AppendLine();
+        }
+        return sb.ToString().TrimEnd();
+    }
+
     public static string FormatWorkspaceTableFormattingSummary(
         int totalDocs, int totalTables, int validCount, int raggedCount,
         int missingDelimiters, int emptyHeaderOnly, double score, string category)

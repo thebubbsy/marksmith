@@ -12058,6 +12058,19 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(auditMathDelimiterBalanceItem);
 
+        var auditStrikethroughItem = new MenuFlyoutItem
+        {
+            Text = "Audit Markdown Strikethrough, Underline & Typographic Span Consistency",
+            Icon = new FontIcon { Glyph = "\uE8B9" }
+        };
+        auditStrikethroughItem.Click += (_, _) =>
+        {
+            var text = EditorDocument();
+            var summary = MarkSmith.Services.TextSearch.AuditMarkdownStrikethroughAndUnderline(text).Summary;
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditStrikethroughItem);
 
         menu.ShowAt(anchor);
     }

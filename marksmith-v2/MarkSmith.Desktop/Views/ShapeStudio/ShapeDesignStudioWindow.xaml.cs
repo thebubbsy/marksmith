@@ -6671,6 +6671,14 @@ namespace MarkSmith.Views.ShapeStudio
         ViewModel.StatusMessage = $"✓ {result.Summary}";
     }
 
+    private void OnSelectionAuditShapeStrokeDashClick(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel == null) return;
+        var result = ViewModel.AuditShapeStrokeDashUniformity(selectionOnly: ViewModel.Shapes.Any(s => s.IsSelected));
+        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+        ViewModel.StatusMessage = $"✓ {result.Summary}";
+    }
+
     }
 }
 

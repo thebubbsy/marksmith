@@ -9509,6 +9509,18 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
             isSelection, summary);
     }
 
+    public DiagramStrokeWeightAndDashAudit AuditShapeStrokeDashUniformity(
+        IEnumerable<ShapeCanvasItemViewModel>? shapes = null, bool selectionOnly = false)
+        => AuditStrokeWeightAndDashUniformity(shapes ?? Shapes, selectionOnly);
+
+    public static string FormatStrokeDashSummary(
+        int totalShapes, int solidCount, int dashedCount, int dottedCount, int heavyCount,
+        int standardCount, int hairlineCount, double avgWeight, double stdDev, double harmonyScore,
+        string category, bool isSelection = false)
+        => FormatStrokeWeightUniformitySummary(
+            totalShapes, solidCount, dashedCount, dottedCount, heavyCount,
+            standardCount, hairlineCount, avgWeight, stdDev, harmonyScore, category, isSelection);
+
     public static string FormatStrokeWeightUniformitySummary(
         int totalShapes, int solidCount, int dashedCount, int dottedCount, int heavyCount,
         int standardCount, int hairlineCount, double avgWeight, double stdDev, double harmonyScore,

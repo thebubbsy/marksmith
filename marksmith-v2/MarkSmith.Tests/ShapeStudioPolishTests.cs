@@ -3427,5 +3427,55 @@ public class ShapeStudioPolishTests
         Assert.True(overflowAudit.OverflowCount >= 1);
         Assert.True(overflowAudit.EnclosureCleanlinessScore < 90.0);
     }
+[Fact]
+    public void Run200_AuditShapeStrokeDashUniformity_EvaluatesWeightsAndDashPatterns()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+        vm.Shapes.Clear();
 
+        // 1. Empty canvas
+        var emptyAudit = vm.AuditShapeStrokeDashUniformity();
+        Assert.Equal(0, emptyAudit.TotalShapesEvaluated);
+        Assert.Equal(100.0, emptyAudit.OutlineHarmonyScore);
+        Assert.Equal("Empty Canvas", emptyAudit.Category);
+
+        // 2. Uniform solid strokes
+        var s1 = new ShapeCanvasItemViewModel
+        {
+            Id = "s1",
+            Name = "Box A",
+            X = 50,
+            Y = 50,
+            Width = 120,
+            Height = 60,
+            StrokeWidthPt = 1.5,
+            DashStyle = "Solid"
+        };
+        var s2 = new ShapeCanvasItemViewModel
+        {
+            Id = "s2",
+            Name = "Box B",
+            X = 200,
+            Y = 50,
+            Width = 120,
+            Height = 60,
+            StrokeWidthPt = 1.5,
+            DashStyle = "Solid"
+        };
+        vm.Shapes.Add(s1);
+        vm.Shapes.Add(s2);
+
+        var uniformAudit = vm.AuditShapeStrokeDashUniformity();
+        Assert.Equal(2, uniformAudit.TotalShapesEvaluated);
+        Assert.Equal(2, uniformAudit.SolidStrokeCount);
+        Assert.Equal(0, uniformAudit.DashedStrokeCount);
+        Assert.True(uniformAudit.OutlineHarmonyScore >= 95.0);
+
+        string formatted = ShapeDesignStudioViewModel.FormatStrokeDashSummary(
+            uniformAudit.TotalShapesEvaluated, uniformAudit.SolidStrokeCount, uniformAudit.DashedStrokeCount,
+            uniformAudit.DottedStrokeCount, uniformAudit.HeavyStrokeCount, uniformAudit.StandardStrokeCount,
+            uniformAudit.HairlineStrokeCount, uniformAudit.AverageStrokeThickness, uniformAudit.StrokeThicknessStdDev,
+            uniformAudit.OutlineHarmonyScore, uniformAudit.Category, uniformAudit.IsSelectionScope);
+        Assert.Equal(uniformAudit.Summary, formatted);
+    }
 }

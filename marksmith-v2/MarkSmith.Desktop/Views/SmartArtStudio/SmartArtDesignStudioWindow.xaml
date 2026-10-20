@@ -435,6 +435,9 @@
                                         <MenuFlyoutItem x:Name="OutlineStatsAuditChevronUniformityItem" Text="Audit SmartArt chevron &amp; horizontal process flow monotonic sizing &amp; chevron notch uniformity" Click="OnOutlineStatsAuditChevronUniformityClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="OutlineStatsAuditTargetBullseyeProgressionItem" Text="Audit SmartArt concentric target / bullseye ring radius progression &amp; area balance" Click="OnOutlineStatsAuditTargetBullseyeProgressionClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

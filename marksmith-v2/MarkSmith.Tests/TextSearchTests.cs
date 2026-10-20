@@ -3473,4 +3473,40 @@ public class TextSearchTests
         Assert.True(brokenAudit.BrokenEntityCount > 0 || brokenAudit.UnescapedBracketCount > 0);
         Assert.True(brokenAudit.HygieneScore < 95.0);
     }
+[Fact]
+    public void Run200_AuditMarkdownStrikethroughAndUnderline_ValidatesGfmAndPseudoHtmlSpans()
+    {
+        // 1. Empty markdown
+        var emptyAudit = TextSearch.AuditMarkdownStrikethroughAndUnderline("");
+        Assert.Equal(0, emptyAudit.TotalSpans);
+        Assert.Equal(100.0, emptyAudit.ConsistencyScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+
+        // 2. Clean doc with valid GFM strikethrough and pseudo-HTML underline
+        var cleanDoc = string.Join("\n",
+            "# Heading",
+            "This is ~~deleted text~~ and <u>underlined text</u>.",
+            "Another <del>removed item</del> and <ins>inserted item</ins>."
+        );
+        var cleanAudit = TextSearch.AuditMarkdownStrikethroughAndUnderline(cleanDoc);
+        Assert.True(cleanAudit.TotalSpans >= 2);
+        Assert.Equal(0, cleanAudit.UnclosedCount);
+        Assert.Equal(0, cleanAudit.InvalidWhitespaceCount);
+        Assert.True(cleanAudit.ConsistencyScore >= 95.0);
+
+        string formatted = TextSearch.FormatStrikethroughSummary(
+            cleanAudit.TotalSpans, cleanAudit.GfmStrikethroughCount, cleanAudit.PseudoHtmlCount,
+            cleanAudit.ValidSpansCount, cleanAudit.UnclosedCount, cleanAudit.InvalidWhitespaceCount,
+            cleanAudit.ConsistencyScore, cleanAudit.Category);
+        Assert.Equal(cleanAudit.Summary, formatted);
+
+        // 3. Broken doc with unclosed tildes and whitespace violation
+        var brokenDoc = string.Join("\n",
+            "Invalid ~~ space padded ~~ strikethrough.",
+            "Dangling ~~unclosed delimiter here."
+        );
+        var brokenAudit = TextSearch.AuditMarkdownStrikethroughAndUnderline(brokenDoc);
+        Assert.True(brokenAudit.UnclosedCount > 0 || brokenAudit.InvalidWhitespaceCount > 0);
+        Assert.True(brokenAudit.ConsistencyScore < 95.0);
+    }
 }

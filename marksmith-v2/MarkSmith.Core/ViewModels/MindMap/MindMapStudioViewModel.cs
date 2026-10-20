@@ -8405,6 +8405,13 @@ namespace MarkSmith.ViewModels.MindMap
             return vm.AuditGraphDiameterAndSmallWorld();
         }
 
+        public GraphDiameterAndSmallWorldAudit AuditGraphDiameterAndSmallWorldProperties(bool selectionOnly = false)
+            => AuditGraphDiameterAndSmallWorld(selectionOnly);
+
+        public static GraphDiameterAndSmallWorldAudit AuditGraphDiameterAndSmallWorldProperties(
+            IEnumerable<MindMapNode>? nodes, IEnumerable<MindMapLink>? links)
+            => AuditGraphDiameterAndSmallWorld(nodes, links);
+
         public static string FormatSmallWorldSummary(
             int totalNodes, int totalEdges, int connectedPairs, int diameter, double avgPathLength,
             double globalEfficiency, int componentCount, double score, string category, bool isSelection = false)

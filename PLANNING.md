@@ -12949,3 +12949,58 @@ Executed full 3-Block Cycle + Execution Phase across all 6 WinUI 3 surfaces:
 6. **SuiteHubView (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #199 Block 3 Idea 6]**:
    - **Refinement Target**: Workspace Markdown Table Pipe Alignment & Column Uniformity Auditor.
    - **Deliverable**: Extend `RecentFilesService.AuditWorkspaceMarkdownTableFormatting` with workspace-wide table auto-formatting fixes (space padding columns to align delimiters vertically, normalising alignment colon placements).
+
+
+---
+
+### Run #200 Shipped — AI-Executable 3-Block Polish Cycle
+
+#### Focus: Comprehensive 6-Surface Polish & Diagnostic Fidelity
+Executed full 3-Block Cycle + Execution Phase across all 6 WinUI 3 surfaces:
+- **Block 1**:
+  - **Surface 1 (MainWindow)**: Implemented `TextSearch.AuditMarkdownStrikethroughAndUnderline(markdownText)`, `FormatStrikethroughSummary(...)`, `StrikethroughSpanItem`, and `MarkdownStrikethroughAudit` in `TextSearch.cs`. Scans document markdown for GFM strikethrough (`~~text~~`), pseudo-HTML underline/del/ins (`<u>`, `<del>`, `<ins>`), detects unclosed delimiters and invalid space padding, and scores text styling consistency ($0-100\%$). Wired to `ShowLintIssueContextMenu` in `MainWindow.xaml.cs` via `auditStrikethroughItem` (``).
+  - **Surface 2 (MindMapGalaxyWindow)**: Implemented `MindMapStudioViewModel.AuditGraphDiameterAndSmallWorldProperties()`, `FormatSmallWorldSummary(...)`, and `GraphSmallWorldAudit` in `MindMapStudioViewModel.cs`. Computes all-pairs shortest paths via BFS, graph diameter, characteristic path length, global efficiency, connected components, and scores small-world navigational efficiency ($0-100\%$). Wired to `ArrangeDropDownButton.Flyout` in `MindMapGalaxyWindow.xaml` and `MindMapGalaxyWindow.xaml.cs` via `AuditGraphDiameterSmallWorldItem` (``) and `OnAuditGraphDiameterAndSmallWorldClick`.
+- **Block 2**:
+  - **Surface 3 (ShapeDesignStudioWindow)**: Implemented `ShapeDesignStudioViewModel.AuditShapeStrokeDashUniformity(shapes)`, `FormatStrokeDashSummary(...)`, `ShapeStrokeDashItem`, and `DiagramShapeStrokeDashAudit` in `ShapeDesignStudioViewModel.cs`. Evaluates stroke thickness, dash patterns (solid, dashed, dotted), border weights across shape categories, detects jarring stroke weight mismatches, and scores border styling harmony ($0-100\%$). Wired to `SelectionBoundsBorder.ContextFlyout` in `ShapeDesignStudioWindow.xaml` and `ShapeDesignStudioWindow.xaml.cs` via `SelectionAuditShapeStrokeDashItem` (``) and `OnSelectionAuditShapeStrokeDashClick`.
+  - **Surface 4 (SmartArtDesignStudioWindow)**: Implemented `SmartArtDesignStudioViewModel.AuditTargetBullseyeRadiusProgression(markdown, layoutName)`, `FormatTargetBullseyeSummary(...)`, `TargetRingInfo`, and `SmartArtTargetBullseyeAudit` in `SmartArtDesignStudioViewModel.cs`. Validates target/bullseye and concentric ring diagrams for monotonic radius increments, center node prominence, ring label legibility, and scores concentric layout aesthetics ($0-100\%$). Wired to `OutlineStatsFlyout` in `SmartArtDesignStudioWindow.xaml` and `SmartArtDesignStudioWindow.xaml.cs` via `OutlineStatsAuditTargetBullseyeProgressionItem` (``) and `OnOutlineStatsAuditTargetBullseyeProgressionClick`.
+- **Block 3**:
+  - **Surface 5 (HistoryWindow)**: Extended `LineDiff.AuditPatternMatchingAndEnumBranchExhaustiveness(...)` in `LineDiff.cs` with deep structural recognition of tuple switch patterns (`(a, b) switch`), positional deconstruct patterns, type test patterns with filters (`when`), and slice expressions.
+  - **Surface 6 (SuiteHubView)**: Implemented `RecentFilesService.AuditWorkspaceMarkdownTableAutoAlign(...)`, `FormatWorkspaceTableAutoAlignSummary(...)`, and `WorkspaceTableAutoAlignAudit` in `RecentFilesService.cs`. Scans workspace markdown files for misaligned tables and provides vertical pipe delimiter auto-alignment and spacing normalization. Wired to `RecentDocsFlyout` in `SuiteHubView.xaml` and `SuiteHubView.xaml.cs` via `AuditWorkspaceMarkdownTableAutoAlignItem` (``) and `OnAuditWorkspaceMarkdownTableAutoAlignClick`.
+- **Execution Phase Refinements**:
+  - Implemented comprehensive unit tests across all 6 surfaces:
+    - `TextSearchTests.Run200_AuditMarkdownStrikethroughAndUnderline_ValidatesGfmAndPseudoHtmlSpans`
+    - `MindMapGalaxyPolishTests.Run200_AuditGraphDiameterAndSmallWorldProperties_ComputesDiameterAndPathLengths`
+    - `ShapeStudioPolishTests.Run200_AuditShapeStrokeDashUniformity_EvaluatesDashPatternsAndWeights`
+    - `SmartArtStudioPolishTests.Run200_AuditTargetBullseyeRadiusProgression_EvaluatesRingsAndMonotonicity`
+    - `HistoryPolishTests.Run200_AuditPatternMatchingAndEnumBranchExhaustiveness_DetectsTupleAndPositionalTraps`
+    - `SuiteHubAndTourPolishTests.Run200_AuditWorkspaceMarkdownTableAutoAlign_AlignsColumnsAndPipes`
+    - `SuiteHubAndTourPolishTests.Run200_AllSixSurfacesXamlAndCodeBehindWiring`
+
+**Verified:**
+- `dotnet build` (`marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj` - Debug/x64): 0 errors, 23 warnings (all existing).
+- `dotnet build` (`marksmith-v2/MarkSmith.Tests/MarkSmith.Tests.csproj` - Debug): 0 errors.
+- `dotnet test` (`Run200` filter): 7/7 tests passed (`100%` pass rate).
+- `dotnet test` (`PolishTests` filter): 909/909 tests passed (`100%` pass rate).
+- Smoke-launched `Marksmith.exe` (`PID=23584`, `Responding=True`, ran for 4 seconds and cleanly terminated with zero crashes).
+
+---
+
+### Run #201 Blueprint — Carried-Forward Refinements & Next Cycle Targets
+1. **MainWindow (`MainWindow.xaml.cs`, `TextSearch.cs`)**:
+   - **Feature**: Markdown Task List & Checkbox Syntax Completeness Auditor.
+   - **Deliverable**: Add `TextSearch.AuditMarkdownTaskLists(markdownText)` and `FormatTaskListsSummary(...)`, scanning document markdown for valid GFM task lists (`- [ ]`, `- [x]`, `* [X]`), detecting non-standard bracket spacings, orphaned checklist items outside list blocks, and scoring task list syntax compliance ($0-100\%$). Wire to `ShowLintIssueContextMenu`.
+2. **MindMapGalaxyWindow (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
+   - **Feature**: Graph Cycle Detection & Feedback Arc Set Minimization Auditor.
+   - **Deliverable**: Add `MindMapStudioViewModel.AuditGraphCyclesAndFeedbackArcSet()` and `FormatCycleDetectionSummary(...)`, running Tarjan's/Johnson's strongly connected components and cycle detection on directed mind map links, identifying back-edges, and scoring DAG structural hierarchy ($0-100\%$). Wire to `ArrangeDropDownButton.Flyout`.
+3. **ShapeDesignStudioWindow (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**:
+   - **Feature**: Diagram Shape Shadow & Visual Elevation Layering Harmony Auditor.
+   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditShapeElevationAndShadowHarmony(shapes)` and `FormatElevationShadowSummary(...)`, checking shape drop shadow blurs, offsets, opacities, and z-index ordering across overlapping shapes, detecting conflicting shadow directions, and scoring 2.5D visual depth consistency ($0-100\%$). Wire to `SelectionBoundsBorder.ContextFlyout`.
+4. **SmartArtDesignStudioWindow (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
+   - **Feature**: SmartArt Segmented Pyramid / Layer Hierarchy Proportionality Auditor.
+   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditPyramidLayerProportionality(markdown, layoutName)` and `FormatPyramidProportionalitySummary(...)`, validating inverted and standard pyramid diagrams for trapezoidal layer area taper, tier label truncation, and scoring pyramid geometric hierarchy ($0-100\%$). Wire to `OutlineStatsFlyout`.
+5. **HistoryWindow (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #200 Block 3 Idea 5]**:
+   - **Refinement Target**: Semantic Diff Exhaustive Pattern Matching & Tuple Deconstruction Analyzer.
+   - **Deliverable**: Extend `LineDiff.AuditPatternMatchingAndEnumBranchExhaustiveness` with recursive subpattern evaluation, positional pattern arity checking, and property pattern guard clause verification.
+6. **SuiteHubView (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #200 Block 3 Idea 6]**:
+   - **Refinement Target**: Workspace Markdown Table Delimiter Auto-Fixer & Alignment Exporter.
+   - **Deliverable**: Extend `RecentFilesService.AuditWorkspaceMarkdownTableAutoAlign` with batch table normalization options across multi-document workspaces and automated report export.
