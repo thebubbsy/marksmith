@@ -3891,6 +3891,18 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"\u2713 {audit.Summary}");
                 };
                 menu.Items.Add(auditValueTaskHazards);
+                var auditThreadPoolStarvationItem = new MenuFlyoutItem
+                {
+                    Text = "Audit Semantic Diff ThreadPool Starvation & Sync-Over-Async Patterns",
+                    Icon = new FontIcon { Glyph = "\uE8B9" }
+                };
+                auditThreadPoolStarvationItem.Click += (_, _) =>
+                {
+                    var audit = MarkSmith.Services.LineDiff.AuditThreadPoolStarvationAndSyncOverAsync(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+                    _vm.ShowNotice($"\u2713 {audit.Summary}");
+                };
+                menu.Items.Add(auditThreadPoolStarvationItem);
 
 
 

@@ -459,6 +459,9 @@
                                     <MenuFlyoutItem x:Name="OutlineStatsAuditChevronProcessStrideGeometryItem" Text="Audit chevron &amp; arrow process flow stride proportionality &amp; phase length" Click="OnOutlineStatsAuditChevronProcessStrideGeometryClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="OutlineStatsAuditTargetBullseyeRingGeometryItem" Text="Audit concentric target &amp; bullseye ring radial symmetry &amp; label alignment" Click="OnOutlineStatsAuditTargetBullseyeRingGeometryClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem x:Name="OutlineStatsAuditVennGeometryItem" Text="Audit Venn diagram &amp; overlapping set geometry harmony" Click="OnOutlineStatsAuditVennGeometryClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

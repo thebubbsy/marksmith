@@ -12167,6 +12167,19 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             AnnounceStatus(summary);
         };
         menu.Items.Add(auditTableCellWrappingConsistencyItem);
+        var auditFootnoteBidirectionalLinksItem = new MenuFlyoutItem
+        {
+            Text = "Audit Markdown Footnote Backlink & Bidirectional Anchor Consistency",
+            Icon = new FontIcon { Glyph = "\uE8B9" }
+        };
+        auditFootnoteBidirectionalLinksItem.Click += (_, _) =>
+        {
+            var docText = EditorDocument();
+            var summary = MarkSmith.Services.TextSearch.AuditMarkdownFootnoteBidirectionalLinks(docText).Summary;
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditFootnoteBidirectionalLinksItem);
 
 
         menu.ShowAt(anchor);

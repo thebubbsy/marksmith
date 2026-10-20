@@ -6297,6 +6297,144 @@ namespace MarkSmith.ViewModels.MindMap
             return $"Mind map betweenness centrality audit ({scope}{details} · {category} · {score:0.#}% resilience score)";
         }
 
+        public GraphRadialTreeSectorAudit AuditGraphRadialTreeSectorDistribution(bool selectionOnly = false)
+        {
+            var selected = Nodes.Where(n => n.IsSelected).ToList();
+            var targetNodes = (selectionOnly && selected.Count > 0)
+                ? selected
+                : Nodes.ToList();
+
+            bool isSelection = selectionOnly && selected.Count > 0;
+            var nodeIds = new HashSet<string>(targetNodes.Select(n => n.Id));
+            var relevantLinks = Links.Where(l => nodeIds.Contains(l.SourceNodeId) && nodeIds.Contains(l.TargetNodeId)).ToList();
+
+            var audit = AuditGraphRadialTreeSectorDistribution(targetNodes.Select(n => n.Model), relevantLinks.Select(l => l.Model), isSelection);
+            StatusMessage = audit.Summary;
+            return audit;
+        }
+
+        public static GraphRadialTreeSectorAudit AuditGraphRadialTreeSectorDistribution(
+            IEnumerable<MindMapNode>? nodes,
+            IEnumerable<MindMapLink>? links,
+            bool isSelection = false)
+        {
+            var nodeList = nodes?.ToList() ?? new List<MindMapNode>();
+            var linkList = links?.ToList() ?? new List<MindMapLink>();
+            int totalNodes = nodeList.Count;
+
+            if (totalNodes <= 1)
+            {
+                string emptySummary = FormatRadialTreeSectorSummary(totalNodes, 0, "", "", 0.0, 0.0, 0, 100.0, "Clean Baseline", isSelection);
+                return new GraphRadialTreeSectorAudit(
+                    totalNodes, 0, "", "", 0.0, 0.0, 0, 100.0,
+                    Array.Empty<RadialAngularSectorItem>(), "Clean Baseline", isSelection, emptySummary);
+            }
+
+            var degrees = new Dictionary<string, int>();
+            foreach (var n in nodeList) degrees[n.Id] = 0;
+            foreach (var l in linkList)
+            {
+                if (degrees.ContainsKey(l.SourceNodeId)) degrees[l.SourceNodeId]++;
+                if (degrees.ContainsKey(l.TargetNodeId)) degrees[l.TargetNodeId]++;
+            }
+
+            var root = nodeList.OrderByDescending(n => degrees[n.Id]).First();
+            var branchNodes = nodeList.Where(n => n.Id != root.Id).ToList();
+            int branchCount = branchNodes.Count;
+
+            var angleList = new List<(MindMapNode Node, double Angle)>();
+            foreach (var b in branchNodes)
+            {
+                double dx = b.X - root.X;
+                double dy = b.Y - root.Y;
+                double rad = Math.Atan2(dy, dx);
+                double deg = rad * 180.0 / Math.PI;
+                if (deg < 0) deg += 360.0;
+                angleList.Add((b, deg));
+            }
+
+            angleList.Sort((a, b) => a.Angle.CompareTo(b.Angle));
+
+            double idealSpan = (branchCount > 0) ? (360.0 / branchCount) : 360.0;
+            double minSpan = double.MaxValue;
+            double maxSpan = double.MinValue;
+            int crowdedCount = 0;
+            var sectorItems = new List<RadialAngularSectorItem>();
+
+            for (int i = 0; i < angleList.Count; i++)
+            {
+                var curr = angleList[i];
+                var next = angleList[(i + 1) % angleList.Count];
+                double span = next.Angle - curr.Angle;
+                if (span <= 0) span += 360.0;
+
+                if (span < minSpan) minSpan = span;
+                if (span > maxSpan) maxSpan = span;
+
+                bool isCrowded = branchCount >= 3 && (span < 15.0 || span < (idealSpan * 0.35));
+                bool isIsolated = branchCount >= 3 && (span > (idealSpan * 2.5) && span > 60.0);
+
+                if (isCrowded) crowdedCount++;
+
+                string status = isCrowded ? "Crowded Sector" : (isIsolated ? "Sparse Wedge" : "Balanced Sector");
+                string rec = isCrowded
+                    ? "Angular spacing < 15° or compressed wedge; redistribute subtree outward to prevent label collisions."
+                    : (isIsolated ? "Wide angular void; space out adjacent branches into unused radial corridor." : "Optimal radial angular distribution.");
+
+                sectorItems.Add(new RadialAngularSectorItem(
+                    curr.Node.Id,
+                    curr.Node.Title,
+                    Math.Round(curr.Angle, 1),
+                    Math.Round(span, 1),
+                    isCrowded,
+                    isIsolated,
+                    status,
+                    rec));
+            }
+
+            if (minSpan == double.MaxValue) minSpan = 0.0;
+            if (maxSpan == double.MinValue) maxSpan = 0.0;
+
+            double score = 100.0;
+            if (crowdedCount > 0) score -= crowdedCount * 15.0;
+            if (branchCount >= 3 && minSpan < 10.0) score -= 15.0;
+            if (branchCount >= 4 && maxSpan > 220.0) score -= 10.0;
+            score = Math.Clamp(score, 0.0, 100.0);
+
+            string category = score switch
+            {
+                >= 90.0 => "Uniform Radial Spanning",
+                >= 75.0 => "Balanced Angular Distribution",
+                >= 55.0 => "Moderate Angular Crowding",
+                _ => "Severe Radial Wedge Asymmetry"
+            };
+
+            string summary = FormatRadialTreeSectorSummary(
+                totalNodes, branchCount, root.Id, root.Title, minSpan, maxSpan, crowdedCount, score, category, isSelection);
+
+            return new GraphRadialTreeSectorAudit(
+                totalNodes, branchCount, root.Id, root.Title, minSpan, maxSpan, crowdedCount, score, sectorItems, category, isSelection, summary);
+        }
+
+        public static string FormatRadialTreeSectorSummary(
+            int totalNodes, int branchNodesCount, string rootNodeId, string rootNodeTitle,
+            double minAngularSeparation, double maxAngularSeparation, int crowdedCount,
+            double score, string category, bool isSelection)
+        {
+            string scope = isSelection ? "Selection · " : "";
+            if (totalNodes <= 1) return $"Mind map radial sector audit ({scope}{totalNodes} nodes): Clean baseline";
+
+            var parts = new List<string>();
+            parts.Add($"{totalNodes} nodes ({branchNodesCount} branches around '{rootNodeTitle}')");
+            parts.Add($"Separation {minAngularSeparation:0.#}°–{maxAngularSeparation:0.#}°");
+            if (crowdedCount > 0) parts.Add($"⚠ {crowdedCount} crowded sector{(crowdedCount == 1 ? "" : "s")}");
+            else parts.Add("0 crowded sectors");
+
+            string details = string.Join(" · ", parts);
+            return $"Mind map radial sector audit ({scope}{details} · {category} · {score:0.#}% balance score)";
+        }
+
+
         public static string FormatClosenessCentralitySummary(
             int nodeCount, int linkCount, int components, double meanHarmonic, double graphEfficiency,
             IReadOnlyList<string> topHubs, int peripheralCount, string category, bool isSelection)
@@ -15288,4 +15426,29 @@ namespace MarkSmith.ViewModels.MindMap
         string Category,
         bool IsSelectionScope,
         string Summary);
+
+    public sealed record RadialAngularSectorItem(
+        string NodeId,
+        string Title,
+        double AngleDegrees,
+        double AngularSpanToNextDegrees,
+        bool IsCrowdedSector,
+        bool IsIsolatedSector,
+        string SectorStatus,
+        string Recommendation);
+
+    public sealed record GraphRadialTreeSectorAudit(
+        int TotalNodes,
+        int BranchNodesCount,
+        string RootNodeId,
+        string RootNodeTitle,
+        double MinAngularSeparationDegrees,
+        double MaxAngularSeparationDegrees,
+        int CrowdedSectorCount,
+        double AngularDistributionScore,
+        IReadOnlyList<RadialAngularSectorItem> Sectors,
+        string Category,
+        bool IsSelectionScope,
+        string Summary);
+
 }

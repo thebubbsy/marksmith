@@ -4502,5 +4502,47 @@ namespace MarkSmith.Tests
             lineAudit.ResilienceScore, lineAudit.Category, false);
         Assert.Equal(lineAudit.Summary, formatted);
     }
+    
+    [Fact]
+    public void Run208_AuditGraphRadialTreeSectorDistribution_ValidatesRadialAngles()
+    {
+        var emptyAudit = MindMapStudioViewModel.AuditGraphRadialTreeSectorDistribution(null, null);
+        Assert.Equal(0, emptyAudit.TotalNodes);
+        Assert.Equal(100.0, emptyAudit.AngularDistributionScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+
+        var root = new MindMapNode { Id = "R", Title = "Root", X = 200, Y = 200 };
+        var b1 = new MindMapNode { Id = "B1", Title = "East Branch", X = 300, Y = 200 };
+        var b2 = new MindMapNode { Id = "B2", Title = "North Branch", X = 200, Y = 300 };
+        var b3 = new MindMapNode { Id = "B3", Title = "West Branch", X = 100, Y = 200 };
+        var b4 = new MindMapNode { Id = "B4", Title = "South Branch", X = 200, Y = 100 };
+
+        var links = new List<MindMapLink>
+        {
+            new MindMapLink { Id = "l1", SourceNodeId = "R", TargetNodeId = "B1" },
+            new MindMapLink { Id = "l2", SourceNodeId = "R", TargetNodeId = "B2" },
+            new MindMapLink { Id = "l3", SourceNodeId = "R", TargetNodeId = "B3" },
+            new MindMapLink { Id = "l4", SourceNodeId = "R", TargetNodeId = "B4" }
+        };
+
+        var balancedAudit = MindMapStudioViewModel.AuditGraphRadialTreeSectorDistribution(new[] { root, b1, b2, b3, b4 }, links);
+        Assert.Equal(5, balancedAudit.TotalNodes);
+        Assert.Equal(4, balancedAudit.BranchNodesCount);
+        Assert.Equal(0, balancedAudit.CrowdedSectorCount);
+        Assert.True(balancedAudit.AngularDistributionScore >= 90.0);
+
+        string formatted = MindMapStudioViewModel.FormatRadialTreeSectorSummary(
+            balancedAudit.TotalNodes, balancedAudit.BranchNodesCount, balancedAudit.RootNodeId, balancedAudit.RootNodeTitle,
+            balancedAudit.MinAngularSeparationDegrees, balancedAudit.MaxAngularSeparationDegrees, balancedAudit.CrowdedSectorCount,
+            balancedAudit.AngularDistributionScore, balancedAudit.Category, false);
+        Assert.Equal(balancedAudit.Summary, formatted);
+
+        var c1 = new MindMapNode { Id = "C1", Title = "Ray 1", X = 300, Y = 200 };
+        var c2 = new MindMapNode { Id = "C2", Title = "Ray 2", X = 300, Y = 205 };
+        var c3 = new MindMapNode { Id = "C3", Title = "Ray 3", X = 300, Y = 210 };
+        var crowdedAudit = MindMapStudioViewModel.AuditGraphRadialTreeSectorDistribution(new[] { root, c1, c2, c3 }, links);
+        Assert.True(crowdedAudit.CrowdedSectorCount >= 1);
+        Assert.True(crowdedAudit.AngularDistributionScore < 85.0);
+    }
     }
 }

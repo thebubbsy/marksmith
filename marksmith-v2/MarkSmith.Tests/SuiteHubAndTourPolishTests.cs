@@ -6869,4 +6869,91 @@ Some paragraph in between.
         Assert.Contains("AuditWorkspaceMathFormulasAndDelimiters", suiteCs);
     }
 
+
+
+    [Fact]
+    public void Run208_AuditWorkspaceMermaidDiagrams_ValidatesSyntaxAndEntities()
+    {
+        var inMemoryDocs = new Dictionary<string, string>
+        {
+            [@"C:\workspace\mermaid.md"] = string.Join("\n",
+                "# Diagrams",
+                "",
+                "```mermaid",
+                "graph TD",
+                "    A[\"Start\"] --> B{\"Decide\"}",
+                "    B -->|Yes| C[\"Valid\"]",
+                "```",
+                "",
+                "```mermaid",
+                "flowchart LR",
+                "    D[Unquoted (Parentheses)] --> E[<b>HTML Tag</b>]",
+                "```"
+            )
+        };
+
+        var audit = RecentFilesService.AuditWorkspaceMermaidDiagrams(
+            explicitFiles: new[] { @"C:\workspace\mermaid.md" },
+            fileExistsProvider: p => inMemoryDocs.ContainsKey(p),
+            contentReader: p => inMemoryDocs[p]);
+
+        Assert.Equal(1, audit.TotalFilesScanned);
+        Assert.Equal(1, audit.FilesWithMermaid);
+        Assert.Equal(2, audit.TotalMermaidDiagrams);
+        Assert.Equal(1, audit.ValidDiagramCount);
+        Assert.Equal(1, audit.SyntaxHazardDiagramCount);
+        Assert.Equal(1, audit.UnescapedLabelCount);
+        Assert.Equal(1, audit.HtmlTagInjectionCount);
+        Assert.True(audit.MermaidHealthScore < 85.0);
+
+        string formatted = RecentFilesService.FormatWorkspaceMermaidDiagramsSummary(
+            audit.TotalFilesScanned, audit.FilesWithMermaid, audit.TotalMermaidDiagrams,
+            audit.ValidDiagramCount, audit.SyntaxHazardDiagramCount,
+            audit.UnescapedLabelCount, audit.HtmlTagInjectionCount,
+            audit.MermaidHealthScore, audit.Category);
+        Assert.Equal(audit.Summary, formatted);
+    }
+
+    [Fact]
+    public void Run208_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // Surface 1: MainWindow - Footnote Backlink & Bidirectional Anchor Consistency Auditor
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("auditFootnoteBidirectionalLinksItem", mainCs);
+        Assert.Contains("AuditMarkdownFootnoteBidirectionalLinks", mainCs);
+
+        // Surface 2: MindMapGalaxyWindow - Graph Radial Tree Spanning & Angular Sector Distribution Auditor
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditGraphRadialTreeSectorDistributionItem", galaxyXaml);
+        Assert.Contains("OnAuditGraphRadialTreeSectorDistributionClick", galaxyCs);
+        Assert.Contains("AuditGraphRadialTreeSectorDistribution", galaxyCs);
+
+        // Surface 3: ShapeDesignStudioWindow - Diagram Trimetric Projection & Tri-Axial Angle Auditor
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditTrimetricAlignmentItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditTrimetricAlignmentClick", shapeCs);
+        Assert.Contains("AuditTrimetricProjectionAlignment", shapeCs);
+
+        // Surface 4: SmartArtDesignStudioWindow - SmartArt Concentric Target / Bullseye Ring Radial Symmetry & Label Alignment Auditor
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineStatsAuditTargetBullseyeRingGeometryItem", smartArtXaml);
+        Assert.Contains("OnOutlineStatsAuditTargetBullseyeRingGeometryClick", smartArtCs);
+        Assert.Contains("AuditTargetBullseyeRingGeometry", smartArtCs);
+
+        // Surface 5: HistoryWindow - Semantic Diff ThreadPool Starvation & Sync-Over-Async Pattern Analyzer
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditThreadPoolStarvationItem", historyCs);
+        Assert.Contains("AuditThreadPoolStarvationAndSyncOverAsync", historyCs);
+
+        // Surface 6: SuiteHubView - Workspace Markdown Mermaid Diagram Syntax & Entity Encoding Auditor
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("AuditWorkspaceMermaidDiagramsItem", suiteXaml);
+        Assert.Contains("OnAuditWorkspaceMermaidDiagramsClick", suiteCs);
+        Assert.Contains("AuditWorkspaceMermaidDiagrams", suiteCs);
+    }
+
 }

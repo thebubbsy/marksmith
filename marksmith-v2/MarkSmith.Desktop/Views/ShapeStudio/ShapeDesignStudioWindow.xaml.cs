@@ -6719,6 +6719,14 @@ namespace MarkSmith.Views.ShapeStudio
         ViewModel.StatusMessage = $"\u2713 {result.Summary}";
     }
 
+    private void OnSelectionAuditTrimetricAlignmentClick(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel == null) return;
+        var result = ViewModel.AuditTrimetricProjectionAlignment();
+        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+        ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+    }
+
 
     private void OnSelectionAuditConnectorRoutingAlignmentClick(object sender, RoutedEventArgs e)
     {

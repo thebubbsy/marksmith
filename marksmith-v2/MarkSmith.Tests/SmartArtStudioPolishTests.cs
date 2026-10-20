@@ -3396,4 +3396,39 @@ public class SmartArtStudioPolishTests
         Assert.True(riskAudit.StrideSymmetryScore < 90.0);
     }
 
+
+
+    [Fact]
+    public void Run208_AuditTargetBullseyeRingGeometry_ValidatesRadialSymmetryAndLabels()
+    {
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditTargetBullseyeRingGeometry("");
+        Assert.Equal(0, emptyAudit.RingCount);
+        Assert.Equal(100.0, emptyAudit.RadialSymmetryScore);
+        Assert.Equal("Empty Outline", emptyAudit.Category);
+
+        var targetMd = string.Join("\n",
+            "- Core Goal",
+            "- Tactical Execution",
+            "- Strategic Vision"
+        );
+        var goodAudit = SmartArtDesignStudioViewModel.AuditTargetBullseyeRingGeometry(targetMd, "Concentric Target");
+        Assert.Equal(3, goodAudit.RingCount);
+        Assert.Equal(0, goodAudit.OverflowRiskCount);
+        Assert.True(goodAudit.RadialSymmetryScore >= 90.0);
+
+        string formatted = SmartArtDesignStudioViewModel.FormatTargetBullseyeGeometrySummary(
+            goodAudit.RingCount, goodAudit.TotalWordCount, goodAudit.AverageWordCount,
+            goodAudit.CenterBullseyeWords, goodAudit.OverflowRiskCount, goodAudit.RadialSymmetryScore,
+            goodAudit.Category, "Concentric Target");
+        Assert.Equal(goodAudit.Summary, formatted);
+
+        var riskMd = string.Join("\n",
+            "- This center bullseye core has an extraordinarily verbose description that overfills the inner circle",
+            "- Outer Ring Context"
+        );
+        var riskAudit = SmartArtDesignStudioViewModel.AuditTargetBullseyeRingGeometry(riskMd, "Concentric Target");
+        Assert.True(riskAudit.OverflowRiskCount >= 1);
+        Assert.True(riskAudit.RadialSymmetryScore < 90.0);
+    }
+
 }

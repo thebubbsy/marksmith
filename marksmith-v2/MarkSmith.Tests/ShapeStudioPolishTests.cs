@@ -3778,4 +3778,33 @@ public class ShapeStudioPolishTests
         Assert.Equal(dimAudit.Summary, formatted);
     }
 
+
+
+    [Fact]
+    public void Run208_AuditTrimetricProjectionAlignment_EvaluatesTriAxialAxes()
+    {
+        var singleAudit = ShapeDesignStudioViewModel.AuditTrimetricProjectionAlignment(
+            new[] { new ShapeCanvasItemViewModel { Id = "s0", Name = "Lone", X = 100, Y = 100, Width = 50, Height = 50 } }, null);
+        Assert.Equal(1, singleAudit.TotalShapes);
+        Assert.Equal(100.0, singleAudit.ConsistencyScore);
+        Assert.Equal("Clean Baseline", singleAudit.Category);
+
+        var s1 = new ShapeCanvasItemViewModel { Id = "s1", Name = "Base", X = 0, Y = 0, Width = 40, Height = 40 };
+        var s2 = new ShapeCanvasItemViewModel { Id = "s2", Name = "TrimetricRay", X = 98.5, Y = 17.4, Width = 40, Height = 40 };
+        var shapes = new[] { s1, s2 };
+
+        var trimAudit = ShapeDesignStudioViewModel.AuditTrimetricProjectionAlignment(shapes, shapes);
+        Assert.Equal(2, trimAudit.TotalShapes);
+        Assert.Equal(1, trimAudit.TotalRays);
+        Assert.Equal(1, trimAudit.AlignedRays);
+        Assert.Equal(1, trimAudit.Axis1Rays);
+        Assert.True(trimAudit.ConsistencyScore >= 95.0);
+
+        string formatted = ShapeDesignStudioViewModel.FormatTrimetricAlignmentSummary(
+            trimAudit.TotalShapes, trimAudit.TotalRays, trimAudit.AlignedRays, trimAudit.Axis1Rays,
+            trimAudit.Axis2Rays, trimAudit.Axis3Rays, trimAudit.DriftRays, trimAudit.OffAxisRays,
+            trimAudit.ConsistencyScore, trimAudit.Category, false);
+        Assert.Equal(trimAudit.Summary, formatted);
+    }
+
 }

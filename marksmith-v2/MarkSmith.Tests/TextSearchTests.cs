@@ -3825,4 +3825,52 @@ public class TextSearchTests
         Assert.True(brokenAudit.TableHygieneScore < 75.0);
     }
 
+
+
+    [Fact]
+    public void Run208_AuditMarkdownFootnoteBidirectionalLinks_ValidatesAnchorsAndBacklinks()
+    {
+        var emptyAudit = TextSearch.AuditMarkdownFootnoteBidirectionalLinks("");
+        Assert.Equal(0, emptyAudit.TotalReferences);
+        Assert.Equal(0, emptyAudit.TotalDefinitions);
+        Assert.Equal(100.0, emptyAudit.BidirectionalHealthScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+
+        var cleanMd = string.Join("\n",
+            "This is a paragraph citing a primary source[^1] and a secondary study[^note2].",
+            "",
+            "[^1]: Primary empirical experiment details.",
+            "[^note2]: Secondary literature analysis review."
+        );
+        var cleanAudit = TextSearch.AuditMarkdownFootnoteBidirectionalLinks(cleanMd);
+        Assert.Equal(2, cleanAudit.TotalReferences);
+        Assert.Equal(2, cleanAudit.TotalDefinitions);
+        Assert.Equal(2, cleanAudit.ResolvedPairs);
+        Assert.Equal(0, cleanAudit.MissingDefinitionCount);
+        Assert.Equal(0, cleanAudit.UnreferencedDefinitionCount);
+        Assert.Equal(100.0, cleanAudit.BidirectionalHealthScore);
+
+        string formatted = TextSearch.FormatFootnoteLinksSummary(
+            cleanAudit.TotalReferences, cleanAudit.TotalDefinitions, cleanAudit.ResolvedPairs,
+            cleanAudit.MissingDefinitionCount, cleanAudit.UnreferencedDefinitionCount,
+            cleanAudit.DuplicateDefinitionCount, cleanAudit.CircularReferenceCount,
+            cleanAudit.BidirectionalHealthScore, cleanAudit.Category);
+        Assert.Equal(cleanAudit.Summary, formatted);
+
+        var brokenMd = string.Join("\n",
+            "This has a missing reference[^missing] and circular reference[^loop].",
+            "",
+            "[^orphan]: Never referenced in text.",
+            "[^dup]: First definition.",
+            "[^dup]: Duplicate second definition.",
+            "[^loop]: This footnote refers to itself [^loop]."
+        );
+        var brokenAudit = TextSearch.AuditMarkdownFootnoteBidirectionalLinks(brokenMd);
+        Assert.True(brokenAudit.MissingDefinitionCount >= 1);
+        Assert.True(brokenAudit.UnreferencedDefinitionCount >= 1);
+        Assert.True(brokenAudit.DuplicateDefinitionCount >= 1);
+        Assert.True(brokenAudit.CircularReferenceCount >= 1);
+        Assert.True(brokenAudit.BidirectionalHealthScore < 70.0);
+    }
+
 }

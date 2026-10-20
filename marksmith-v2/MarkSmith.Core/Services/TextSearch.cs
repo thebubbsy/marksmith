@@ -13570,6 +13570,186 @@ public static class TextSearch
         return $"Markdown table cell audit ({details} · {category} · {score:0.#}% hygiene score)";
     }
 
+    public static MarkdownFootnoteBidirectionalAudit AuditMarkdownFootnoteBidirectionalLinks(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            string emptySummary = FormatFootnoteLinksSummary(0, 0, 0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new MarkdownFootnoteBidirectionalAudit(
+                0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<MarkdownFootnoteBidirectionalItem>(),
+                "Clean Baseline", emptySummary);
+        }
+
+        var lines = markdownText.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        var items = new List<MarkdownFootnoteBidirectionalItem>();
+
+        var defRegex = new Regex(@"^[ ]{0,3}\[\^([a-zA-Z0-9_\-.:]+)\]:\s*(.*)$", RegexOptions.Compiled);
+        var refRegex = new Regex(@"\[\^([a-zA-Z0-9_\-.:]+)\](?!\:)", RegexOptions.Compiled);
+
+        var defs = new Dictionary<string, List<(int LineNumber, string Text)>>(StringComparer.OrdinalIgnoreCase);
+        var refs = new Dictionary<string, List<int>>(StringComparer.OrdinalIgnoreCase);
+
+        bool inCodeBlock = false;
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i];
+            var trimmed = line.Trim();
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+            {
+                inCodeBlock = !inCodeBlock;
+                continue;
+            }
+            if (inCodeBlock) continue;
+
+            var defMatch = defRegex.Match(line);
+            if (defMatch.Success)
+            {
+                var id = defMatch.Groups[1].Value;
+                var content = defMatch.Groups[2].Value;
+                if (!defs.TryGetValue(id, out var defInstances))
+                {
+                    defInstances = new List<(int, string)>();
+                    defs[id] = defInstances;
+                }
+                defInstances.Add((i + 1, content));
+                continue;
+            }
+
+            var refMatches = refRegex.Matches(line);
+            foreach (Match rm in refMatches)
+            {
+                var id = rm.Groups[1].Value;
+                if (!refs.TryGetValue(id, out var refInstances))
+                {
+                    refInstances = new List<int>();
+                    refs[id] = refInstances;
+                }
+                refInstances.Add(i + 1);
+            }
+        }
+
+        int totalDefs = defs.Values.Sum(v => v.Count);
+        int totalRefs = refs.Values.Sum(v => v.Count);
+        int resolvedPairs = 0;
+        int missingDefs = 0;
+        int unreferencedDefs = 0;
+        int duplicateDefs = 0;
+        int circularRefs = 0;
+
+        foreach (var kvp in defs)
+        {
+            var id = kvp.Key;
+            var instances = kvp.Value;
+            bool isDup = instances.Count > 1;
+            if (isDup) duplicateDefs += (instances.Count - 1);
+
+            bool isReferenced = refs.ContainsKey(id);
+            if (!isReferenced) unreferencedDefs += instances.Count;
+
+            foreach (var inst in instances)
+            {
+                bool isCircular = refRegex.Matches(inst.Text).Cast<Match>().Any(m => string.Equals(m.Groups[1].Value, id, StringComparison.OrdinalIgnoreCase));
+                if (isCircular) circularRefs++;
+
+                string rec = "Valid footnote definition.";
+                if (isCircular) rec = $"Eliminate recursive self-reference [^{id}] inside definition.";
+                else if (isDup) rec = $"Deduplicate definition [^{id}]:, ensure single unique anchor.";
+                else if (!isReferenced) rec = $"Reference [^{id}] in body text or remove orphan definition.";
+
+                items.Add(new MarkdownFootnoteBidirectionalItem(
+                    inst.LineNumber,
+                    id,
+                    "Definition",
+                    isReferenced && !isCircular && !isDup,
+                    false,
+                    !isReferenced,
+                    isDup,
+                    isCircular,
+                    inst.Text.Length > 60 ? inst.Text.Substring(0, 57) + "..." : inst.Text,
+                    rec));
+            }
+        }
+
+        foreach (var kvp in refs)
+        {
+            var id = kvp.Key;
+            var lineNumbers = kvp.Value;
+            bool hasDef = defs.ContainsKey(id);
+            if (!hasDef) missingDefs += lineNumbers.Count;
+            else if (!defs[id].Any(d => refRegex.Matches(d.Text).Cast<Match>().Any(m => string.Equals(m.Groups[1].Value, id, StringComparison.OrdinalIgnoreCase))))
+            {
+                resolvedPairs += lineNumbers.Count;
+            }
+
+            foreach (var lineNum in lineNumbers)
+            {
+                string rec = hasDef ? "Footnote link resolved." : $"Define missing footnote [^{id}]: at document bottom.";
+                items.Add(new MarkdownFootnoteBidirectionalItem(
+                    lineNum,
+                    id,
+                    "Reference",
+                    hasDef,
+                    !hasDef,
+                    false,
+                    false,
+                    false,
+                    $"[^{id}]",
+                    rec));
+            }
+        }
+
+        items.Sort((a, b) => a.LineNumber.CompareTo(b.LineNumber));
+
+        double score = 100.0;
+        score -= missingDefs * 20.0;
+        score -= duplicateDefs * 15.0;
+        score -= circularRefs * 25.0;
+        score -= unreferencedDefs * 5.0;
+        score = Math.Clamp(score, 0.0, 100.0);
+
+        string category = score switch
+        {
+            >= 95.0 => "Impeccable Bidirectional Footnotes",
+            >= 80.0 => "Sound Footnote Anchors",
+            >= 60.0 => "Minor Footnote Discrepancies",
+            _ => "Fragmented Footnote References"
+        };
+
+        string summary = FormatFootnoteLinksSummary(
+            totalRefs, totalDefs, resolvedPairs, missingDefs,
+            unreferencedDefs, duplicateDefs, circularRefs, score, category);
+
+        return new MarkdownFootnoteBidirectionalAudit(
+            totalRefs, totalDefs, resolvedPairs, missingDefs,
+            unreferencedDefs, duplicateDefs, circularRefs, score,
+            items, category, summary);
+    }
+
+    public static string FormatFootnoteLinksSummary(string? markdownText)
+        => AuditMarkdownFootnoteBidirectionalLinks(markdownText).Summary;
+
+    public static string FormatFootnoteLinksSummary(
+        int totalRefs, int totalDefs, int resolvedPairs, int missingDefs,
+        int unreferencedDefs, int duplicateDefs, int circularRefs, double score, string category)
+    {
+        if (totalRefs == 0 && totalDefs == 0)
+            return "Markdown footnote bidirectional link audit: Clean document · 0 footnote references detected";
+
+        var parts = new List<string>();
+        parts.Add($"{totalRefs} reference{(totalRefs == 1 ? "" : "s")}, {totalDefs} definition{(totalDefs == 1 ? "" : "s")}");
+        if (resolvedPairs > 0) parts.Add($"✓ {resolvedPairs} resolved");
+        if (missingDefs > 0) parts.Add($"🚨 {missingDefs} missing definition{(missingDefs == 1 ? "" : "s")}");
+        if (duplicateDefs > 0) parts.Add($"⚠ {duplicateDefs} duplicate definition{(duplicateDefs == 1 ? "" : "s")}");
+        if (circularRefs > 0) parts.Add($"🚨 {circularRefs} circular reference{(circularRefs == 1 ? "" : "s")}");
+        if (unreferencedDefs > 0) parts.Add($"ℹ {unreferencedDefs} unreferenced orphan{(unreferencedDefs == 1 ? "" : "s")}");
+
+        string details = string.Join(" · ", parts);
+        return $"Markdown footnote bidirectional link audit ({details} · {category} · {score:0.#}% consistency score)";
+    }
+
+
     public static string FormatDefinitionListsSummary(string? markdownText)
         => AuditMarkdownDefinitionLists(markdownText).Summary;
 
@@ -15180,6 +15360,31 @@ public sealed record MarkdownHorizontalRuleAudit(
     int MixedMarkerStyleCount,
     double SpacingConsistencyScore,
     IReadOnlyList<MarkdownHorizontalRuleItem> Items,
+    string Category,
+    string Summary);
+
+public sealed record MarkdownFootnoteBidirectionalItem(
+    int LineNumber,
+    string Identifier,
+    string ItemType,
+    bool IsResolved,
+    bool IsMissingDefinition,
+    bool IsUnreferencedDefinition,
+    bool IsDuplicate,
+    bool IsCircularReference,
+    string Excerpt,
+    string Recommendation);
+
+public sealed record MarkdownFootnoteBidirectionalAudit(
+    int TotalReferences,
+    int TotalDefinitions,
+    int ResolvedPairs,
+    int MissingDefinitionCount,
+    int UnreferencedDefinitionCount,
+    int DuplicateDefinitionCount,
+    int CircularReferenceCount,
+    double BidirectionalHealthScore,
+    IReadOnlyList<MarkdownFootnoteBidirectionalItem> Items,
     string Category,
     string Summary);
 

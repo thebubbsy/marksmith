@@ -18707,6 +18707,166 @@ public static class LineDiff
         return $"Semantic diff ValueTask safety ({details} · {category} · {score:0.#}% safety score)";
     }
 
+    public static DiffThreadPoolStarvationAudit AuditThreadPoolStarvationAndSyncOverAsync(string? beforeText, string? afterText)
+    {
+        var diff = Diff(beforeText ?? string.Empty, afterText ?? string.Empty);
+        var unified = BuildUnified(diff);
+        return AuditThreadPoolStarvationAndSyncOverAsync(unified);
+    }
+
+    public static DiffThreadPoolStarvationAudit AuditThreadPoolStarvationAndSyncOverAsync(
+        IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows == null)
+        {
+            string emptySummary = FormatThreadPoolStarvationSummary(0, 0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new DiffThreadPoolStarvationAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<ThreadPoolStarvationHazardItem>(), "Clean Baseline", emptySummary);
+        }
+
+        var modifiedRows = unifiedRows
+            .Where(r => !r.IsGap && r.Kind == Kind.Added && !string.IsNullOrWhiteSpace(r.Text))
+            .ToList();
+
+        int totalModified = modifiedRows.Count;
+        if (totalModified == 0)
+        {
+            string emptySummary = FormatThreadPoolStarvationSummary(0, 0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new DiffThreadPoolStarvationAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<ThreadPoolStarvationHazardItem>(), "Clean Baseline", emptySummary);
+        }
+
+        var hazards = new List<ThreadPoolStarvationHazardItem>();
+        int syncOverAsyncCount = 0;
+        int getAwaiterCount = 0;
+        int waitCallCount = 0;
+        int waitAllCount = 0;
+        int nestedTaskRunCount = 0;
+
+        var getAwaiterRegex = new Regex(@"\b(?<caller>[A-Za-z0-9_]+(\(.*?\))?)\.GetAwaiter\(\)\.GetResult\(\)", RegexOptions.Compiled);
+        var resultPropRegex = new Regex(@"\b(?<caller>[A-Za-z0-9_]+(Task|Async|\(.*?\)))\.Result\b", RegexOptions.Compiled);
+        var waitCallRegex = new Regex(@"\b(?<caller>[A-Za-z0-9_]+(Task|Async|\(.*?\)))\.Wait\(\s*(?<arg>[^)]*)\)", RegexOptions.Compiled);
+        var waitAllRegex = new Regex(@"\bTask\.(WaitAll|WaitAny)\s*\(", RegexOptions.Compiled);
+        var nestedTaskRunRegex = new Regex(@"\bawait\s+Task\.Run\s*\(", RegexOptions.Compiled);
+
+        for (int i = 0; i < modifiedRows.Count; i++)
+        {
+            var row = modifiedRows[i];
+            string text = row.Text.Trim();
+            int lineNum = row.NewNumber ?? (i + 1);
+
+            if (text.StartsWith("//") || text.StartsWith("/*") || text.StartsWith("*"))
+                continue;
+
+            if (getAwaiterRegex.IsMatch(text))
+            {
+                getAwaiterCount++;
+                syncOverAsyncCount++;
+                hazards.Add(new ThreadPoolStarvationHazardItem(
+                    lineNum,
+                    text,
+                    ".GetAwaiter().GetResult() Blocking Sync-Over-Async",
+                    "Critical",
+                    text,
+                    "Calling .GetAwaiter().GetResult() blocks the current thread until task completes; causes threadpool starvation and deadlocks. Use 'await' instead."));
+            }
+
+            if (resultPropRegex.IsMatch(text) && !text.Contains("DialogResult") && !text.Contains("RegexResult") && !text.Contains("MatchResult"))
+            {
+                syncOverAsyncCount++;
+                hazards.Add(new ThreadPoolStarvationHazardItem(
+                    lineNum,
+                    text,
+                    ".Result Property Blocking Sync-Over-Async",
+                    "Critical",
+                    text,
+                    "Calling .Result synchronously blocks threadpool worker; replace with 'await' to yield thread."));
+            }
+
+            if (waitCallRegex.IsMatch(text))
+            {
+                waitCallCount++;
+                syncOverAsyncCount++;
+                hazards.Add(new ThreadPoolStarvationHazardItem(
+                    lineNum,
+                    text,
+                    ".Wait() Synchronous Blocking Call",
+                    "Critical",
+                    text,
+                    "Synchronous .Wait() on Task causes thread starvation under load; replace with 'await'."));
+            }
+
+            if (waitAllRegex.IsMatch(text))
+            {
+                waitAllCount++;
+                hazards.Add(new ThreadPoolStarvationHazardItem(
+                    lineNum,
+                    text,
+                    "Task.WaitAll / Task.WaitAny Synchronous Blocking",
+                    "Warning",
+                    text,
+                    "Task.WaitAll blocks the thread; use 'await Task.WhenAll(...)' or 'await Task.WhenAny(...)'."));
+            }
+
+            if (nestedTaskRunRegex.IsMatch(text))
+            {
+                nestedTaskRunCount++;
+                hazards.Add(new ThreadPoolStarvationHazardItem(
+                    lineNum,
+                    text,
+                    "await Task.Run Inside Async Method",
+                    "Informational",
+                    text,
+                    "Offloading work via Task.Run inside library/service async method consumes threadpool workers unnecessarily; consider direct async execution."));
+            }
+        }
+
+        double score = 100.0;
+        score -= getAwaiterCount * 25.0;
+        score -= (syncOverAsyncCount - getAwaiterCount - waitCallCount) * 20.0;
+        score -= waitCallCount * 20.0;
+        score -= waitAllCount * 15.0;
+        score -= nestedTaskRunCount * 10.0;
+        score = Math.Clamp(score, 0.0, 100.0);
+
+        string category = score switch
+        {
+            >= 95.0 => "Zero Blocking Sync-Over-Async",
+            >= 80.0 => "Sound ThreadPool Utilization",
+            >= 60.0 => "Moderate ThreadPool Starvation Risk",
+            _ => "High Deadlock / Starvation Hazard"
+        };
+
+        string summary = FormatThreadPoolStarvationSummary(
+            totalModified, syncOverAsyncCount, getAwaiterCount, waitCallCount, waitAllCount, nestedTaskRunCount, score, category);
+
+        return new DiffThreadPoolStarvationAudit(
+            totalModified, syncOverAsyncCount, getAwaiterCount, waitCallCount, waitAllCount, nestedTaskRunCount, score, hazards, category, summary);
+    }
+
+    public static string FormatThreadPoolStarvationSummary(
+        int totalModified, int syncOverAsyncCount, int getAwaiterCount, int waitCallCount, int waitAllCount, int nestedTaskRunCount,
+        double score, string category)
+    {
+        if (totalModified == 0)
+            return "Semantic diff threadpool starvation safety: Clean diff · 0 modified lines";
+
+        var parts = new List<string>();
+        parts.Add($"{totalModified} modified line{(totalModified == 1 ? "" : "s")}");
+        if (getAwaiterCount > 0) parts.Add($"🚨 {getAwaiterCount} .GetAwaiter().GetResult()");
+        if (waitCallCount > 0) parts.Add($"🚨 {waitCallCount} .Wait()");
+        if (waitAllCount > 0) parts.Add($"⚠ {waitAllCount} Task.WaitAll");
+        if (nestedTaskRunCount > 0) parts.Add($"ℹ {nestedTaskRunCount} nested Task.Run");
+        if (syncOverAsyncCount == 0 && waitAllCount == 0 && nestedTaskRunCount == 0)
+            parts.Add("0 sync-over-async blocking calls");
+
+        string details = string.Join(" · ", parts);
+        return $"Semantic diff threadpool starvation & sync-over-async safety ({details} · {category} · {score:0.#}% safety score)";
+    }
+
+
     public static string FormatMemorySpanSafetySummary(
         int totalModified, int asyncSpan, int closureSpan, int memoryEscape, int loopClosure, double score, string category)
     {
@@ -21010,6 +21170,26 @@ public sealed record DiffValueTaskAllocationAudit(
     int DiscardedValueTaskCount,
     double ValueTaskSafetyScore,
     IReadOnlyList<ValueTaskHazardItem> Hazards,
+    string Category,
+    string Summary);
+
+public sealed record ThreadPoolStarvationHazardItem(
+    int LineNumber,
+    string LineText,
+    string HazardType,
+    string RiskLevel,
+    string CodeSnippet,
+    string Recommendation);
+
+public sealed record DiffThreadPoolStarvationAudit(
+    int TotalModifiedLines,
+    int SyncOverAsyncBlockingCount,
+    int GetAwaiterGetResultCount,
+    int WaitCallCount,
+    int TaskWaitAllCount,
+    int NestedTaskRunCount,
+    double ThreadPoolSafetyScore,
+    IReadOnlyList<ThreadPoolStarvationHazardItem> Hazards,
     string Category,
     string Summary);
 

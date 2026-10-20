@@ -3539,4 +3539,43 @@ public class HistoryPolishTests : IDisposable
         Assert.Equal(riskyAudit.Summary, formatted);
     }
 
+
+
+    [Fact]
+    public void Run208_AuditThreadPoolStarvationAndSyncOverAsync_DetectsBlockingSyncOverAsync()
+    {
+        var cleanCode = string.Join("\n",
+            "public async Task<int> FetchDataAsync()",
+            "{",
+            "    int res = await Service.GetCountAsync();",
+            "    return res;",
+            "}"
+        );
+        var cleanAudit = LineDiff.AuditThreadPoolStarvationAndSyncOverAsync("", cleanCode);
+        Assert.Equal(100.0, cleanAudit.ThreadPoolSafetyScore);
+        Assert.Equal(0, cleanAudit.SyncOverAsyncBlockingCount);
+
+        var riskyCode = string.Join("\n",
+            "public void BadMethod()",
+            "{",
+            "    int val = Service.GetCountAsync().GetAwaiter().GetResult();",
+            "    string text = Service.GetTextAsync().Result;",
+            "    Service.FlushAsync().Wait();",
+            "    Task.WaitAll(taskA, taskB);",
+            "}"
+        );
+        var riskyAudit = LineDiff.AuditThreadPoolStarvationAndSyncOverAsync("", riskyCode);
+        Assert.True(riskyAudit.GetAwaiterGetResultCount >= 1);
+        Assert.True(riskyAudit.WaitCallCount >= 1);
+        Assert.True(riskyAudit.TaskWaitAllCount >= 1);
+        Assert.True(riskyAudit.ThreadPoolSafetyScore < 60.0);
+
+        string formatted = LineDiff.FormatThreadPoolStarvationSummary(
+            riskyAudit.TotalModifiedLines, riskyAudit.SyncOverAsyncBlockingCount,
+            riskyAudit.GetAwaiterGetResultCount, riskyAudit.WaitCallCount,
+            riskyAudit.TaskWaitAllCount, riskyAudit.NestedTaskRunCount,
+            riskyAudit.ThreadPoolSafetyScore, riskyAudit.Category);
+        Assert.Equal(riskyAudit.Summary, formatted);
+    }
+
 }

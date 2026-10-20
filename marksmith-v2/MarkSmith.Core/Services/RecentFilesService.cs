@@ -6435,6 +6435,181 @@ public sealed class RecentFilesService
         return $"Workspace math formula audit ({details} · {category} · {healthScore:0.#}% health score)";
     }
 
+    public static WorkspaceMermaidDiagramHealthAudit AuditWorkspaceMermaidDiagrams(
+        IReadOnlyList<string>? explicitFiles = null,
+        Func<string, bool>? fileExistsProvider = null,
+        Func<string, string>? contentReader = null)
+    {
+        var files = (explicitFiles ?? Array.Empty<string>())
+            .Where(f => !string.IsNullOrWhiteSpace(f) && !f.EndsWith(".bak.md", StringComparison.OrdinalIgnoreCase))
+            .Distinct()
+            .ToList();
+
+        if (files.Count == 0)
+        {
+            string emptySummary = FormatWorkspaceMermaidDiagramsSummary(0, 0, 0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new WorkspaceMermaidDiagramHealthAudit(
+                0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<WorkspaceMermaidDiagramItem>(),
+                "Clean Baseline", emptySummary);
+        }
+
+        var items = new List<WorkspaceMermaidDiagramItem>();
+        int filesScanned = 0;
+        int filesWithMermaid = 0;
+        int totalDiagrams = 0;
+        int validDiagramCount = 0;
+        int syntaxHazardCount = 0;
+        int unescapedLabelCount = 0;
+        int htmlTagInjectionCount = 0;
+
+        var unquotedParensRegex = new Regex(@"[A-Za-z0-9_]+\s*\[(?!"")[^\]\r\n]*[\(\)][^\]\r\n]*\]", RegexOptions.Compiled);
+        var htmlTagRegex = new Regex(@"<[a-zA-Z/][^>]*>", RegexOptions.Compiled);
+
+        foreach (var file in files)
+        {
+            bool exists = fileExistsProvider?.Invoke(file) ?? System.IO.File.Exists(file);
+            if (!exists) continue;
+
+            string contentStr;
+            try
+            {
+                contentStr = contentReader?.Invoke(file) ?? System.IO.File.ReadAllText(file);
+            }
+            catch
+            {
+                continue;
+            }
+
+            filesScanned++;
+            var lines = contentStr.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+            bool fileHasMermaid = false;
+
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string line = lines[i].Trim();
+                if (line.StartsWith("```mermaid", StringComparison.OrdinalIgnoreCase))
+                {
+                    fileHasMermaid = true;
+                    totalDiagrams++;
+                    int startLine = i + 1;
+                    var diagramLines = new List<string>();
+                    i++;
+
+                    while (i < lines.Length && !lines[i].Trim().StartsWith("```"))
+                    {
+                        diagramLines.Add(lines[i]);
+                        i++;
+                    }
+
+                    string diagramBody = string.Join("\n", diagramLines).Trim();
+                    string firstLine = diagramLines.FirstOrDefault(l => !string.IsNullOrWhiteSpace(l))?.Trim() ?? "";
+                    string diagType = "unknown";
+
+                    if (firstLine.StartsWith("flowchart", StringComparison.OrdinalIgnoreCase) || firstLine.StartsWith("graph", StringComparison.OrdinalIgnoreCase))
+                        diagType = "flowchart";
+                    else if (firstLine.StartsWith("sequenceDiagram", StringComparison.OrdinalIgnoreCase))
+                        diagType = "sequenceDiagram";
+                    else if (firstLine.StartsWith("classDiagram", StringComparison.OrdinalIgnoreCase))
+                        diagType = "classDiagram";
+                    else if (firstLine.StartsWith("stateDiagram", StringComparison.OrdinalIgnoreCase))
+                        diagType = "stateDiagram";
+                    else if (firstLine.StartsWith("erDiagram", StringComparison.OrdinalIgnoreCase))
+                        diagType = "erDiagram";
+                    else if (firstLine.StartsWith("pie", StringComparison.OrdinalIgnoreCase))
+                        diagType = "pie";
+                    else if (firstLine.StartsWith("gantt", StringComparison.OrdinalIgnoreCase))
+                        diagType = "gantt";
+                    else if (!string.IsNullOrEmpty(firstLine))
+                        diagType = firstLine.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0];
+
+                    int nodeCount = diagramLines.Count(l => !string.IsNullOrWhiteSpace(l) && !l.Trim().StartsWith("%%"));
+                    bool hasUnescapedLabels = unquotedParensRegex.IsMatch(diagramBody);
+                    bool hasHtmlTags = htmlTagRegex.IsMatch(diagramBody);
+                    bool hasUnclosedBrackets = false;
+
+                    int squareCount = diagramBody.Count(c => c == '[') - diagramBody.Count(c => c == ']');
+                    int curlyCount = diagramBody.Count(c => c == '{') - diagramBody.Count(c => c == '}');
+                    if (squareCount != 0 || curlyCount != 0)
+                    {
+                        hasUnclosedBrackets = true;
+                    }
+
+                    bool isHazard = hasUnescapedLabels || hasHtmlTags || hasUnclosedBrackets || string.IsNullOrWhiteSpace(diagramBody);
+                    if (isHazard) syntaxHazardCount++;
+                    else validDiagramCount++;
+
+                    if (hasUnescapedLabels) unescapedLabelCount++;
+                    if (hasHtmlTags) htmlTagInjectionCount++;
+
+                    string issue = isHazard ? "Mermaid Syntax / Encoding Hazard" : "Valid Mermaid Syntax";
+                    string rec = hasUnescapedLabels
+                        ? "Quote node labels containing parentheses: use [\"Label (details)\"] instead of [Label (details)]."
+                        : (hasHtmlTags
+                            ? "Strip raw HTML tags in labels to prevent DOM parsing errors and XSS."
+                            : (hasUnclosedBrackets ? "Mismatched brackets in diagram node definitions." : "Diagram syntax conforms to Mermaid AST specification."));
+
+                    items.Add(new WorkspaceMermaidDiagramItem(
+                        file,
+                        startLine,
+                        diagType,
+                        nodeCount,
+                        hasUnescapedLabels,
+                        hasHtmlTags,
+                        hasUnclosedBrackets,
+                        issue,
+                        rec));
+                }
+            }
+
+            if (fileHasMermaid) filesWithMermaid++;
+        }
+
+        double score = 100.0;
+        if (syntaxHazardCount > 0) score -= syntaxHazardCount * 20.0;
+        if (unescapedLabelCount > 0) score -= unescapedLabelCount * 15.0;
+        if (htmlTagInjectionCount > 0) score -= htmlTagInjectionCount * 15.0;
+        score = Math.Clamp(score, 0.0, 100.0);
+
+        string category = score switch
+        {
+            >= 95.0 => "All Mermaid Diagrams Valid & Clean",
+            >= 80.0 => "Sound Mermaid Diagram Syntax",
+            >= 55.0 => "Unescaped Labels / Tag Hazards",
+            _ => "Corrupted Mermaid Diagram Definitions"
+        };
+
+        string summary = FormatWorkspaceMermaidDiagramsSummary(
+            filesScanned, filesWithMermaid, totalDiagrams, validDiagramCount,
+            syntaxHazardCount, unescapedLabelCount, htmlTagInjectionCount, score, category);
+
+        return new WorkspaceMermaidDiagramHealthAudit(
+            filesScanned, filesWithMermaid, totalDiagrams, validDiagramCount,
+            syntaxHazardCount, unescapedLabelCount, htmlTagInjectionCount, score,
+            items, category, summary);
+    }
+
+    public static string FormatWorkspaceMermaidDiagramsSummary(
+        int filesScanned, int filesWithMermaid, int totalDiagrams, int validDiagrams,
+        int syntaxHazards, int unescapedLabels, int htmlTagInjections,
+        double healthScore, string category)
+    {
+        if (filesScanned == 0 || totalDiagrams == 0)
+            return "Workspace mermaid diagram audit: Clean baseline · 0 mermaid diagrams detected";
+
+        var parts = new List<string>();
+        parts.Add($"{filesScanned} file{(filesScanned == 1 ? "" : "s")} ({filesWithMermaid} with mermaid)");
+        parts.Add($"{totalDiagrams} diagram{(totalDiagrams == 1 ? "" : "s")}");
+        if (validDiagrams > 0) parts.Add($"✓ {validDiagrams} valid");
+        if (syntaxHazards > 0) parts.Add($"🚨 {syntaxHazards} syntax hazard{(syntaxHazards == 1 ? "" : "s")}");
+        if (unescapedLabels > 0) parts.Add($"⚠ {unescapedLabels} unquoted label{(unescapedLabels == 1 ? "" : "s")}");
+        if (htmlTagInjections > 0) parts.Add($"⚠ {htmlTagInjections} HTML tag injection{(htmlTagInjections == 1 ? "" : "s")}");
+
+        string details = string.Join(" · ", parts);
+        return $"Workspace mermaid diagram audit ({details} · {category} · {healthScore:0.#}% health score)";
+    }
+
+
     public static string FormatWorkspaceBacklinksSummary(
         int filesScanned, int totalHeadings, int referencedHeadings, int unreferencedHeadings,
         int totalBacklinks, double cohesionScore, string category)
@@ -12257,6 +12432,30 @@ public sealed record WorkspaceMathDelimiterHealthAudit(
     int EnvironmentMismatchesCount,
     double FormulaHealthScore,
     IReadOnlyList<WorkspaceMathDelimiterHealthItem> Items,
+    string Category,
+    string Summary);
+
+public sealed record WorkspaceMermaidDiagramItem(
+    string SourceFilePath,
+    int LineNumber,
+    string DiagramType,
+    int NodeCount,
+    bool HasUnescapedLabels,
+    bool HasHtmlTags,
+    bool HasUnclosedBrackets,
+    string Issue,
+    string Recommendation);
+
+public sealed record WorkspaceMermaidDiagramHealthAudit(
+    int TotalFilesScanned,
+    int FilesWithMermaid,
+    int TotalMermaidDiagrams,
+    int ValidDiagramCount,
+    int SyntaxHazardDiagramCount,
+    int UnescapedLabelCount,
+    int HtmlTagInjectionCount,
+    double MermaidHealthScore,
+    IReadOnlyList<WorkspaceMermaidDiagramItem> Items,
     string Category,
     string Summary);
 

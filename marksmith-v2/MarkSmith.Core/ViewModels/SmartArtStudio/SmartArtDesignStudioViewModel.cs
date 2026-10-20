@@ -4290,6 +4290,148 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         return $"SmartArt chevron stride audit ({details} · {category} · {score:0.#}% stride score)";
     }
 
+    public SmartArtTargetBullseyeGeometryAudit AuditTargetBullseyeRingGeometry(string? markdown = null, string? layoutName = null)
+    {
+        string md = markdown ?? MarkdownText;
+        string layout = layoutName ?? SelectedLayout?.DisplayName ?? "Concentric Target";
+        return AuditTargetBullseyeRingGeometry(md, layout, isStatic: false);
+    }
+
+    public static SmartArtTargetBullseyeGeometryAudit AuditTargetBullseyeRingGeometry(string? markdown, string? layoutName = null, bool isStatic = true)
+    {
+        string layout = layoutName ?? "Concentric Target";
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            string emptySummary = FormatTargetBullseyeGeometrySummary(0, 0, 0.0, 0, 0, 100.0, "Empty Outline", layout);
+            return new SmartArtTargetBullseyeGeometryAudit(
+                0, 0, 0.0, 0, 0, 100.0,
+                Array.Empty<TargetBullseyeRingItem>(), "Empty Outline", layout, emptySummary);
+        }
+
+        var lines = markdown.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        var rings = new List<(string Label, List<string> SubItems)>();
+
+        foreach (var rawLine in lines)
+        {
+            var line = rawLine.Trim();
+            if (string.IsNullOrWhiteSpace(line)) continue;
+
+            if (line.StartsWith("#") || line.StartsWith("- ") || line.StartsWith("* "))
+            {
+                string text = line.TrimStart('#', '-', '*', ' ');
+                if (!rawLine.StartsWith("  ") && !rawLine.StartsWith("\t"))
+                {
+                    rings.Add((text, new List<string>()));
+                }
+                else if (rings.Count > 0)
+                {
+                    rings[^1].SubItems.Add(text);
+                }
+            }
+            else if (rings.Count > 0)
+            {
+                rings[^1].SubItems.Add(line);
+            }
+        }
+
+        int ringCount = rings.Count;
+        var items = new List<TargetBullseyeRingItem>();
+        int totalWords = 0;
+        int centerBullseyeWords = 0;
+        int overflowRiskCount = 0;
+
+        double ringThicknessFraction = ringCount > 0 ? Math.Round(1.0 / ringCount, 3) : 1.0;
+
+        for (int i = 0; i < ringCount; i++)
+        {
+            var r = rings[i];
+            string fullContent = r.Label + " " + string.Join(" ", r.SubItems);
+            var words = fullContent.Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            int wordCount = words.Length;
+            int charCount = fullContent.Length;
+
+            totalWords += wordCount;
+            if (i == 0) centerBullseyeWords = wordCount;
+
+            double radiusFraction = Math.Round((double)(i + 1) / Math.Max(ringCount, 1), 3);
+
+            bool isCenter = (i == 0);
+            bool isOverflowRisk = isCenter ? (wordCount > 6 || charCount > 28) : (wordCount > 12 || charCount > 50);
+            if (isOverflowRisk) overflowRiskCount++;
+
+            string ringRole = isCenter ? "Center Bullseye Core" : (i == ringCount - 1) ? "Outermost Context Ring" : $"Concentric Ring {i + 1}";
+
+            string rec = "";
+            if (wordCount == 0)
+            {
+                rec = "Empty ring label; define concise target objective.";
+            }
+            else if (isCenter && isOverflowRisk)
+            {
+                rec = $"Center bullseye has limited circular area ({wordCount} words); condense to <= 4 words to prevent clipping.";
+            }
+            else if (isOverflowRisk)
+            {
+                rec = $"Outer ring text ({wordCount} words) risks radial crowding; balance across bulleted sub-clauses.";
+            }
+            else
+            {
+                rec = "Uniform concentric ring width and balanced radial label.";
+            }
+
+            items.Add(new TargetBullseyeRingItem(
+                i + 1,
+                ringRole,
+                r.Label,
+                wordCount,
+                charCount,
+                radiusFraction,
+                ringThicknessFraction,
+                isOverflowRisk,
+                rec));
+        }
+
+        double avgWords = ringCount > 0 ? (double)totalWords / ringCount : 0.0;
+        double score = 100.0;
+
+        if (ringCount < 2) score -= 30.0;
+        else if (ringCount > 6) score -= (ringCount - 6) * 10.0;
+
+        if (overflowRiskCount > 0) score -= overflowRiskCount * 12.0;
+        score = Math.Clamp(score, 0.0, 100.0);
+
+        string category = score switch
+        {
+            >= 90.0 => "Concentric Radial Harmony",
+            >= 75.0 => "Balanced Target Geometry",
+            >= 55.0 => "Ring Label Congestion",
+            _ => "Asymmetric Concentric Bullseye"
+        };
+
+        string summary = FormatTargetBullseyeGeometrySummary(
+            ringCount, totalWords, avgWords, centerBullseyeWords, overflowRiskCount, score, category, layout);
+
+        return new SmartArtTargetBullseyeGeometryAudit(
+            ringCount, totalWords, avgWords, centerBullseyeWords, overflowRiskCount, score, items, category, layout, summary);
+    }
+
+    public static string FormatTargetBullseyeGeometrySummary(
+        int ringCount, int totalWords, double avgWordsPerRing, int centerBullseyeWords, int overflowRisks,
+        double score, string category, string layout)
+    {
+        if (ringCount == 0) return $"SmartArt target bullseye audit: Empty outline · {layout}";
+
+        var parts = new List<string>();
+        parts.Add($"{ringCount} concentric ring{(ringCount == 1 ? "" : "s")}");
+        parts.Add($"{totalWords} words (center bullseye: {centerBullseyeWords} words)");
+        if (overflowRisks > 0) parts.Add($"⚠ {overflowRisks} radial clipping risk{(overflowRisks == 1 ? "" : "s")}");
+        else parts.Add("0 radial clipping risks");
+
+        string details = string.Join(" · ", parts);
+        return $"SmartArt target & bullseye radial geometry audit ({details} · {category} · {score:0.#}% symmetry score)";
+    }
+
+
     public static string FormatMatrixQuadrantGeometrySummary(
         int quadrantCount, bool is2x2, int totalWords, double avgWords, double cv,
         double score, string category, string layout)
@@ -13088,6 +13230,29 @@ public sealed record SmartArtVennGeometryAudit(
     bool IsRadiusBalanced,
     double SetHarmonyScore,
     IReadOnlyList<VennSetItem> Sets,
+    string Category,
+    string LayoutName,
+    string Summary);
+
+public sealed record TargetBullseyeRingItem(
+    int RingIndex,
+    string RingRole,
+    string Label,
+    int WordCount,
+    int CharacterCount,
+    double RadiusFraction,
+    double RingThicknessFraction,
+    bool IsOverflowRisk,
+    string Recommendation);
+
+public sealed record SmartArtTargetBullseyeGeometryAudit(
+    int RingCount,
+    int TotalWordCount,
+    double AverageWordCount,
+    int CenterBullseyeWords,
+    int OverflowRiskCount,
+    double RadialSymmetryScore,
+    IReadOnlyList<TargetBullseyeRingItem> Rings,
     string Category,
     string LayoutName,
     string Summary);

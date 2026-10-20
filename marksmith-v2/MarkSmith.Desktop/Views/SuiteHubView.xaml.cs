@@ -2597,6 +2597,25 @@ private async void OnAuditWorkspaceMarkdownTableAutoAlignAndExportClick(object s
         }
     }
 
+    private async void OnAuditWorkspaceMermaidDiagramsClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var files = App.RecentFiles?.Load() ?? new List<string>();
+            var result = RecentFilesService.AuditWorkspaceMermaidDiagrams(explicitFiles: files);
+            await Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            SetNotification(result.Summary, success: true);
+            if (RecentDocsActionBtn != null)
+            {
+                Services.CopyFeedback.ApplyButtonTick(RecentDocsActionBtn, null, "\u2713 Diagrams Audited");
+            }
+        }
+        catch (Exception ex)
+        {
+            SetNotification($"Mermaid diagram audit error: {ex.Message}", success: false);
+        }
+    }
+
 
     private async void OnAuditWorkspaceCrossFileLinksClick(object sender, RoutedEventArgs e)
     {

@@ -10461,6 +10461,177 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         return $"Dimetric projection audit ({scope}{details} · {category} · {score:0.#}% consistency score)";
     }
 
+    public DiagramTrimetricAlignmentAudit AuditTrimetricProjectionAlignment(bool selectionOnly = false)
+    {
+        var selected = SelectedItems.ToList();
+        var targetShapes = (selectionOnly && selected.Count > 0) ? selected : Shapes.ToList();
+        bool isSelection = selectionOnly && selected.Count > 0;
+        var audit = AuditTrimetricProjectionAlignment(targetShapes, Shapes.ToList(), isSelection);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static DiagramTrimetricAlignmentAudit AuditTrimetricProjectionAlignment(
+        IEnumerable<ShapeCanvasItemViewModel>? targetShapes,
+        IEnumerable<ShapeCanvasItemViewModel>? allShapes,
+        bool isSelection = false)
+    {
+        var list = (allShapes ?? Enumerable.Empty<ShapeCanvasItemViewModel>()).Where(s => s != null).ToList();
+        var targets = (targetShapes ?? list).Where(s => s != null && !s.IsLine).ToList();
+
+        int totalShapes = targets.Count;
+        if (totalShapes < 2)
+        {
+            string emptySummary = FormatTrimetricAlignmentSummary(totalShapes, 0, 0, 0, 0, 0, 0, 0, 100.0, "Clean Baseline", isSelection);
+            return new DiagramTrimetricAlignmentAudit(
+                totalShapes, 0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<TrimetricShapeRayItem>(), "Clean Baseline", isSelection, emptySummary);
+        }
+
+        double[] trimetricAxes = new double[]
+        {
+            10.0, 35.0, 90.0, 145.0, 170.0, 190.0, 215.0, 270.0, 325.0, 350.0,
+            15.0, 40.0, 140.0, 165.0, 195.0, 220.0, 320.0, 345.0
+        };
+
+        var rays = new List<TrimetricShapeRayItem>();
+        int alignedRays = 0;
+        int axis1Rays = 0;
+        int axis2Rays = 0;
+        int axis3Rays = 0;
+        int driftRays = 0;
+        int offAxisRays = 0;
+
+        for (int i = 0; i < targets.Count; i++)
+        {
+            var s1 = targets[i];
+            double c1X = s1.X + s1.Width / 2.0;
+            double c1Y = s1.Y + s1.Height / 2.0;
+
+            for (int j = i + 1; j < targets.Count; j++)
+            {
+                var s2 = targets[j];
+                double c2X = s2.X + s2.Width / 2.0;
+                double c2Y = s2.Y + s2.Height / 2.0;
+
+                double dx = c2X - c1X;
+                double dy = c2Y - c1Y;
+                double dist = Math.Sqrt(dx * dx + dy * dy);
+
+                if (dist < 5.0) continue;
+
+                double angleRad = Math.Atan2(dy, dx);
+                double angleDeg = (angleRad * 180.0 / Math.PI);
+                if (angleDeg < 0) angleDeg += 360.0;
+
+                double minDev = double.MaxValue;
+                double nearestAxis = 10.0;
+
+                foreach (var axis in trimetricAxes)
+                {
+                    double diff = Math.Abs(angleDeg - axis);
+                    if (diff > 180.0) diff = 360.0 - diff;
+                    if (diff < minDev)
+                    {
+                        minDev = diff;
+                        nearestAxis = axis;
+                    }
+                }
+
+                bool isAligned = minDev <= 5.5;
+                bool isDrift = !isAligned && minDev <= 15.0;
+
+                string axisClass = "Off-Axis / Planar";
+                if (isAligned || isDrift)
+                {
+                    if (Math.Abs(nearestAxis - 10.0) < 1.0 || Math.Abs(nearestAxis - 170.0) < 1.0 ||
+                        Math.Abs(nearestAxis - 190.0) < 1.0 || Math.Abs(nearestAxis - 350.0) < 1.0 ||
+                        Math.Abs(nearestAxis - 15.0) < 1.0 || Math.Abs(nearestAxis - 165.0) < 1.0 ||
+                        Math.Abs(nearestAxis - 195.0) < 1.0 || Math.Abs(nearestAxis - 345.0) < 1.0)
+                    {
+                        axisClass = "Trimetric Axis 1 (10°/15°)";
+                        if (isAligned) axis1Rays++;
+                    }
+                    else if (Math.Abs(nearestAxis - 35.0) < 1.0 || Math.Abs(nearestAxis - 145.0) < 1.0 ||
+                             Math.Abs(nearestAxis - 215.0) < 1.0 || Math.Abs(nearestAxis - 325.0) < 1.0 ||
+                             Math.Abs(nearestAxis - 40.0) < 1.0 || Math.Abs(nearestAxis - 140.0) < 1.0 ||
+                             Math.Abs(nearestAxis - 220.0) < 1.0 || Math.Abs(nearestAxis - 320.0) < 1.0)
+                    {
+                        axisClass = "Trimetric Axis 2 (35°/40°)";
+                        if (isAligned) axis2Rays++;
+                    }
+                    else
+                    {
+                        axisClass = "Trimetric Axis 3 (90° Vertical)";
+                        if (isAligned) axis3Rays++;
+                    }
+                }
+
+                if (isAligned) alignedRays++;
+                else if (isDrift) driftRays++;
+                else offAxisRays++;
+
+                string rec = isAligned
+                    ? $"Aligned with {axisClass} ({nearestAxis:0.#}°)."
+                    : isDrift
+                        ? $"Snap angular vector by {minDev:0.#}° to reach {nearestAxis:0.#}° trimetric axis."
+                        : $"Freeform vector ({angleDeg:0.#}°).";
+
+                rays.Add(new TrimetricShapeRayItem(
+                    s1.Id ?? $"shape_{i}",
+                    s1.Name ?? $"Shape {i + 1}",
+                    s2.Id ?? $"shape_{j}",
+                    s2.Name ?? $"Shape {j + 1}",
+                    Math.Round(angleDeg, 1),
+                    nearestAxis,
+                    Math.Round(minDev, 1),
+                    axisClass,
+                    isAligned,
+                    rec));
+            }
+        }
+
+        int totalRays = rays.Count;
+        double score = totalRays > 0
+            ? Math.Clamp((alignedRays * 1.0 + driftRays * 0.4) / totalRays * 100.0, 0.0, 100.0)
+            : 100.0;
+
+        string category = score switch
+        {
+            >= 90.0 => "Precision Trimetric Projection",
+            >= 70.0 => "Cohesive Tri-Axial Axonometry",
+            >= 45.0 => "Moderate Trimetric Drift",
+            _ => "Freeform / Planar Alignment"
+        };
+
+        string summary = FormatTrimetricAlignmentSummary(
+            totalShapes, totalRays, alignedRays, axis1Rays, axis2Rays, axis3Rays, driftRays, offAxisRays, score, category, isSelection);
+
+        return new DiagramTrimetricAlignmentAudit(
+            totalShapes, totalRays, alignedRays, axis1Rays, axis2Rays, axis3Rays, driftRays, offAxisRays, score, rays, category, isSelection, summary);
+    }
+
+    public static string FormatTrimetricAlignmentSummary(
+        int totalShapes, int totalRays, int alignedRays, int axis1Rays, int axis2Rays, int axis3Rays, int driftRays, int offAxisRays,
+        double score, string category, bool isSelection)
+    {
+        string scope = isSelection ? "Selection · " : "";
+        if (totalShapes < 2) return $"Trimetric projection audit ({scope}{totalShapes} shapes): Clean Baseline";
+
+        var parts = new List<string>();
+        parts.Add($"{totalShapes} shapes, {totalRays} vectors");
+        parts.Add($"{alignedRays} trimetric ({(totalRays > 0 ? (alignedRays * 100.0 / totalRays) : 100.0):0.#}%)");
+        if (axis1Rays > 0) parts.Add($"{axis1Rays} axis-1 (10°/15°)");
+        if (axis2Rays > 0) parts.Add($"{axis2Rays} axis-2 (35°/40°)");
+        if (axis3Rays > 0) parts.Add($"{axis3Rays} axis-3 (90°)");
+        if (driftRays > 0) parts.Add($"⚠ {driftRays} drift");
+        if (offAxisRays > 0) parts.Add($"{offAxisRays} off-axis");
+
+        string details = string.Join(" · ", parts);
+        return $"Trimetric projection audit ({scope}{details} · {category} · {score:0.#}% consistency score)";
+    }
+
+
     public static string FormatIsometricAlignmentSummary(
         int totalShapes, int totalRays, int alignedRays, int driftRays, int offAxisRays,
         double score, string category, bool isSelection)
@@ -14858,6 +15029,33 @@ public sealed record DiagramDimetricAlignmentAudit(
     int OffAxisRays,
     double ConsistencyScore,
     IReadOnlyList<DimetricShapeRayItem> Rays,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);
+
+public sealed record TrimetricShapeRayItem(
+    string FromShapeId,
+    string FromShapeName,
+    string ToShapeId,
+    string ToShapeName,
+    double AngleDegrees,
+    double NearestTrimetricAxis,
+    double AngularDeviation,
+    string AxisClassification,
+    bool IsAligned,
+    string Recommendation);
+
+public sealed record DiagramTrimetricAlignmentAudit(
+    int TotalShapes,
+    int TotalRays,
+    int AlignedRays,
+    int Axis1Rays,
+    int Axis2Rays,
+    int Axis3Rays,
+    int DriftRays,
+    int OffAxisRays,
+    double ConsistencyScore,
+    IReadOnlyList<TrimetricShapeRayItem> Rays,
     string Category,
     bool IsSelectionScope,
     string Summary);

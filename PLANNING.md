@@ -13383,3 +13383,56 @@ Reviewed: Run #207 Blueprint — executed the 3-block cycle covering all 6 MarkS
 6. **SuiteHubView (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #207 Block 3 Idea 6]**:
    - **Refinement Target**: Workspace Markdown Mermaid Diagram Syntax & Entity Encoding Auditor.
    - **Deliverable**: Extend `RecentFilesService.AuditWorkspaceMathFormulasAndDelimiters` to scan workspace documents for mermaid code fences (` ```mermaid `), parse diagram direction/nodes/links, detect unescaped labels and entity corruptions, and compute workspace diagram health ($0-100\%$).
+---
+
+### 2026-10-21 (scheduled routine run #208)
+
+Reviewed: Run #208 Blueprint — executed the 3-block cycle covering all 6 MarkSmith WinUI 3 surfaces with 100% full implementation, zero placeholders, empirical verification (0 errors, 7 passing unit tests), and desktop smoke launch verification.
+
+**Shipped** (commit follows this entry):
+- **Block 1**:
+  - **Surface 1 (MainWindow)**: Implemented `TextSearch.AuditMarkdownFootnoteBidirectionalLinks(markdownText)`, `FormatFootnoteLinksSummary(...)`, `MarkdownFootnoteBidirectionalItem`, and `MarkdownFootnoteBidirectionalAudit` in `TextSearch.cs`. Verifies body references `[^label]` against matching definitions `[^label]: ...`, checks for unresolved references, orphan definitions, duplicate anchors, and recursive self-referential loops, scoring footnote bidirectional consistency ($0-100\%$). Wired to `ShowLintIssueContextMenu` in `MainWindow.xaml.cs` via `auditFootnoteBidirectionalLinksItem` (`\uE8B9`).
+  - **Surface 2 (MindMapGalaxyWindow)**: Implemented `MindMapStudioViewModel.AuditGraphRadialTreeSectorDistribution()`, `FormatRadialTreeSectorSummary(...)`, `RadialAngularSectorItem`, and `GraphRadialTreeSectorAudit` in `MindMapStudioViewModel.cs`. Analyzes radial tree spanning and polar angle distribution around root/central hubs, identifying crowded sectors ($< 15^\circ$), wide angular voids, and scoring radial sector distribution balance ($0-100\%$). Wired to `ArrangeDropDownButton.Flyout` in `MindMapGalaxyWindow.xaml` and `MindMapGalaxyWindow.xaml.cs` via `AuditGraphRadialTreeSectorDistributionItem` (`\uE8B9`) and `OnAuditGraphRadialTreeSectorDistributionClick`.
+- **Block 2**:
+  - **Surface 3 (ShapeDesignStudioWindow)**: Implemented `ShapeDesignStudioViewModel.AuditTrimetricProjectionAlignment(shapes)`, `FormatTrimetricAlignmentSummary(...)`, `TrimetricShapeRayItem`, and `DiagramTrimetricAlignmentAudit` in `ShapeDesignStudioViewModel.cs`. Evaluates diagram shapes for alignment along trimetric projection axes ($10^\circ/15^\circ$ shallow, $35^\circ/40^\circ$ intermediate, $90^\circ$ vertical), identifying angular drift, off-axis placement, and scoring tri-axial 3D consistency ($0-100\%$). Wired to `SelectionBoundsBorder.ContextFlyout` in `ShapeDesignStudioWindow.xaml` and `ShapeDesignStudioWindow.xaml.cs` via `SelectionAuditTrimetricAlignmentItem` (`\uE8B9`) and `OnSelectionAuditTrimetricAlignmentClick`.
+  - **Surface 4 (SmartArtDesignStudioWindow)**: Implemented `SmartArtDesignStudioViewModel.AuditTargetBullseyeRingGeometry(markdown, layoutName)`, `FormatTargetBullseyeGeometrySummary(...)`, `TargetBullseyeRingItem`, and `SmartArtTargetBullseyeGeometryAudit` in `SmartArtDesignStudioViewModel.cs`. Validates target and bullseye concentric ring diagrams for uniform radial width progression, center bullseye text capacity, outer ring label distribution, and scores concentric bullseye radial symmetry ($0-100\%$). Wired to `OutlineStatsFlyout` in `SmartArtDesignStudioWindow.xaml` and `SmartArtDesignStudioWindow.xaml.cs` via `OutlineStatsAuditTargetBullseyeRingGeometryItem` (`\uE8B9`) and `OnOutlineStatsAuditTargetBullseyeRingGeometryClick`.
+- **Block 3**:
+  - **Surface 5 (HistoryWindow)**: Implemented `LineDiff.AuditThreadPoolStarvationAndSyncOverAsync(diff)`, `FormatThreadPoolStarvationSummary(...)`, `ThreadPoolStarvationHazardItem`, and `DiffThreadPoolStarvationAudit` in `LineDiff.cs`. Evaluates diff additions for synchronous blocking calls on asynchronous tasks (`.GetAwaiter().GetResult()`, `.Result`, `.Wait()`, `Task.WaitAll`, nested `Task.Run`), computing threadpool starvation safety ($0-100\%$). Wired to `TimelineHeaderBorder.ContextFlyout` in `HistoryWindow.xaml.cs` via `auditThreadPoolStarvationItem` (`\uE8B9`).
+  - **Surface 6 (SuiteHubView)**: Implemented `RecentFilesService.AuditWorkspaceMermaidDiagrams(...)`, `FormatWorkspaceMermaidDiagramsSummary(...)`, `WorkspaceMermaidDiagramItem`, and `WorkspaceMermaidDiagramHealthAudit` in `RecentFilesService.cs`. Scans workspace documents for mermaid diagrams (` ```mermaid `), validates diagram header types, flags unquoted special characters in node labels, detects raw HTML tag injection, verifies delimiter pairing, and scores workspace diagram syntax health ($0-100\%$). Wired to `RecentDocsFlyout` in `SuiteHubView.xaml` and `SuiteHubView.xaml.cs` via `AuditWorkspaceMermaidDiagramsItem` (`\uE8B9`) and `OnAuditWorkspaceMermaidDiagramsClick`.
+- **Execution Phase Refinements**:
+  - Implemented comprehensive unit tests across all 6 surfaces:
+    - `TextSearchTests.Run208_AuditMarkdownFootnoteBidirectionalLinks_ValidatesAnchorsAndBacklinks`
+    - `MindMapGalaxyPolishTests.Run208_AuditGraphRadialTreeSectorDistribution_ValidatesRadialAngles`
+    - `ShapeStudioPolishTests.Run208_AuditTrimetricProjectionAlignment_EvaluatesTriAxialAxes`
+    - `SmartArtStudioPolishTests.Run208_AuditTargetBullseyeRingGeometry_ValidatesRadialSymmetryAndLabels`
+    - `HistoryPolishTests.Run208_AuditThreadPoolStarvationAndSyncOverAsync_DetectsBlockingSyncOverAsync`
+    - `SuiteHubAndTourPolishTests.Run208_AuditWorkspaceMermaidDiagrams_ValidatesSyntaxAndEntities`
+    - `SuiteHubAndTourPolishTests.Run208_AllSixSurfacesXamlAndCodeBehindWiring`
+
+**Verified:**
+- `dotnet build` (`marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj` - Debug/x64): 0 errors, 24 warnings.
+- `dotnet build` (`marksmith-v2/MarkSmith.Tests/MarkSmith.Tests.csproj` - Debug): 0 errors.
+- `dotnet test` (Run208 filter): 7/7 tests passed (100% pass rate).
+- Smoke-launched `Marksmith.exe` (PID=30140, running cleanly for 3 seconds, gracefully terminated with zero crashes).
+
+---
+
+### Run #209 Blueprint — Carried-Forward Refinements & Next Cycle Targets
+1. **MainWindow (`MainWindow.xaml.cs`, `TextSearch.cs`)**:
+   - **Feature**: Markdown Inline HTML Tag Sanitization & Raw Angle Bracket Escaping Auditor.
+   - **Deliverable**: Add `TextSearch.AuditMarkdownInlineHtmlSanitization(markdownText)` and `FormatInlineHtmlSanitizationSummary(...)`, scanning markdown content for unescaped raw angle brackets (`<` and `>`), unsupported or dangerous inline HTML tags, unclosed inline tags, and scoring HTML tag hygiene ($0-100\%$). Wire to `ShowLintIssueContextMenu`.
+2. **MindMapGalaxyWindow (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
+   - **Feature**: Graph Node Bounding Box Collision & Text Label Overlap Prevention Auditor.
+   - **Deliverable**: Add `MindMapStudioViewModel.AuditGraphNodeBoundingCollisions()` and `FormatNodeBoundingCollisionsSummary(...)`, computing AABB bounding box overlap intersections across all realized nodes and edges, identifying crowded collision zones, and scoring visual breathing room ($0-100\%$). Wire to `ArrangeDropDownButton.Flyout`.
+3. **ShapeDesignStudioWindow (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**:
+   - **Feature**: Diagram Isometric Grid Snapping & Node Offset Quantum Auditor.
+   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditIsometricGridSnapping(shapes)` and `FormatIsometricGridSnappingSummary(...)`, evaluating shape coordinates and dimension multiples for exact modular snapping against standard $8\text{px}/16\text{px}/24\text{px}$ isometric grid increments ($0-100\%$). Wire to `SelectionBoundsBorder.ContextFlyout`.
+4. **SmartArtDesignStudioWindow (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
+   - **Feature**: SmartArt Gear / Cogwheel Intermeshing Teeth & Pitch Circle Radius Auditor.
+   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditGearMechanismGeometry(markdown, layoutName)` and `FormatGearMechanismSummary(...)`, validating multi-gear interconnected process layouts for pitch circle diameter matching, rotational gear sequence parity, and teeth count balance ($0-100\%$). Wire to `OutlineStatsFlyout`.
+5. **HistoryWindow (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #208 Block 3 Idea 5]**:
+   - **Refinement Target**: Semantic Diff Task.WhenAll Exception Propagation & AggregateException Analyzer.
+   - **Deliverable**: Extend `LineDiff.AuditThreadPoolStarvationAndSyncOverAsync` to evaluate `Task.WhenAll` vs `Task.WaitAll` exception observation, missing `try/catch` wrappers around awaited parallel fan-out tasks, and unobserved task faulting ($0-100\%$).
+6. **SuiteHubView (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #208 Block 3 Idea 6]**:
+   - **Refinement Target**: Workspace Markdown Frontmatter / YAML Metadata & ISO-8601 Date Hygiene Auditor.
+   - **Deliverable**: Extend `RecentFilesService.AuditWorkspaceMermaidDiagrams` to scan workspace documents for YAML frontmatter blocks (`--- ... ---`), validating required metadata keys (`title`, `date`, `tags`), validating ISO-8601 timestamps, and computing workspace metadata compliance ($0-100\%$).
