@@ -12072,6 +12072,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(auditStrikethroughItem);
 
+        var auditTaskListsItem = new MenuFlyoutItem
+        {
+            Text = "Audit Markdown Task List & Checkbox Syntax Completeness",
+            Icon = new FontIcon { Glyph = "\uE73E" }
+        };
+        auditTaskListsItem.Click += (_, _) =>
+        {
+            var text = EditorDocument();
+            var summary = MarkSmith.Services.TextSearch.AuditMarkdownTaskLists(text).Summary;
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditTaskListsItem);
+
         menu.ShowAt(anchor);
     }
 

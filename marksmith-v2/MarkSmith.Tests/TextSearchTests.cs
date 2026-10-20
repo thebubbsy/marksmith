@@ -3508,5 +3508,49 @@ public class TextSearchTests
         var brokenAudit = TextSearch.AuditMarkdownStrikethroughAndUnderline(brokenDoc);
         Assert.True(brokenAudit.UnclosedCount > 0 || brokenAudit.InvalidWhitespaceCount > 0);
         Assert.True(brokenAudit.ConsistencyScore < 95.0);
-    }
-}
+    }
+[Fact]
+    public void Run201_AuditMarkdownTaskLists_ValidatesGfmCheckboxesAndCompletionMetrics()
+    {
+        // 1. Empty markdown
+        var emptyAudit = TextSearch.AuditMarkdownTaskLists("");
+        Assert.Equal(0, emptyAudit.TotalTasks);
+        Assert.Equal(100.0, emptyAudit.ComplianceScore);
+        Assert.Equal("Clean Baseline", emptyAudit.Category);
+
+        // 2. Clean doc with completed and pending tasks
+        var cleanDoc = string.Join("\n",
+            "# Sprint Tasks",
+            "- [x] Setup repository",
+            "- [x] Write baseline tests",
+            "- [ ] Implement feature A",
+            "- [ ] Implement feature B",
+            "* [x] Verify CI pipeline"
+        );
+        var cleanAudit = TextSearch.AuditMarkdownTaskLists(cleanDoc);
+        Assert.Equal(5, cleanAudit.TotalTasks);
+        Assert.Equal(3, cleanAudit.CompletedCount);
+        Assert.Equal(2, cleanAudit.PendingCount);
+        Assert.Equal(0, cleanAudit.MalformedCount);
+        Assert.Equal(0, cleanAudit.OrphanedCount);
+        Assert.Equal(60.0, cleanAudit.CompletionPercentage);
+        Assert.True(cleanAudit.ComplianceScore >= 95.0);
+
+        string formatted = TextSearch.FormatTaskListsSummary(
+            cleanAudit.TotalTasks, cleanAudit.CompletedCount, cleanAudit.PendingCount,
+            cleanAudit.MalformedCount, cleanAudit.OrphanedCount,
+            cleanAudit.CompletionPercentage, cleanAudit.ComplianceScore, cleanAudit.Category);
+        Assert.Equal(cleanAudit.Summary, formatted);
+
+        // 3. Broken doc with malformed and orphaned checkboxes
+        var brokenDoc = string.Join("\n",
+            "- [] Malformed missing space",
+            "- [  ] Redundant space",
+            "[ ] Orphaned checkbox without list bullet"
+        );
+        var brokenAudit = TextSearch.AuditMarkdownTaskLists(brokenDoc);
+        Assert.True(brokenAudit.MalformedCount >= 2);
+        Assert.True(brokenAudit.OrphanedCount >= 1);
+        Assert.True(brokenAudit.ComplianceScore < 75.0);
+    }
+}

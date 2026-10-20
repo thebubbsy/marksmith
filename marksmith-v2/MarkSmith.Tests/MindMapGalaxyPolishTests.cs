@@ -4183,5 +4183,58 @@ namespace MarkSmith.Tests
                 audit.SmallWorldIndexScore, audit.Category, audit.IsSelectionScope);
             Assert.Equal(audit.Summary, formatted);
         }
+
+        [Fact]
+        public void Run201_AuditGraphCyclesAndFeedbackArcSet_DetectsCyclesAndBackEdges()
+        {
+            // 1. Empty graph
+            var emptyAudit = MindMapStudioViewModel.AuditGraphCyclesAndFeedbackArcSet(null, null);
+            Assert.Equal(0, emptyAudit.TotalNodes);
+            Assert.Equal(100.0, emptyAudit.AcyclicComplianceScore);
+            Assert.Equal("Empty Galaxy", emptyAudit.Category);
+
+            // 2. DAG tree graph (no cycles): 1 -> 2, 1 -> 3, 2 -> 4
+            var n1 = new MindMapNode { Id = "1", Title = "Root" };
+            var n2 = new MindMapNode { Id = "2", Title = "Branch A" };
+            var n3 = new MindMapNode { Id = "3", Title = "Branch B" };
+            var n4 = new MindMapNode { Id = "4", Title = "Leaf A" };
+
+            var dagLinks = new List<MindMapLink>
+            {
+                new MindMapLink { Id = "e1", SourceNodeId = "1", TargetNodeId = "2" },
+                new MindMapLink { Id = "e2", SourceNodeId = "1", TargetNodeId = "3" },
+                new MindMapLink { Id = "e3", SourceNodeId = "2", TargetNodeId = "4" }
+            };
+
+            var dagAudit = MindMapStudioViewModel.AuditGraphCyclesAndFeedbackArcSet(
+                new[] { n1, n2, n3, n4 }, dagLinks);
+            Assert.Equal(4, dagAudit.TotalNodes);
+            Assert.Equal(3, dagAudit.TotalEdges);
+            Assert.Equal(0, dagAudit.CycleCount);
+            Assert.Equal(0, dagAudit.FeedbackArcSetCount);
+            Assert.True(dagAudit.IsAcyclicDag);
+            Assert.Equal(100.0, dagAudit.AcyclicComplianceScore);
+
+            string formatted = MindMapStudioViewModel.FormatCycleFeedbackSummary(
+                dagAudit.TotalNodes, dagAudit.TotalEdges, dagAudit.CycleCount,
+                dagAudit.FeedbackArcSetCount, dagAudit.IsAcyclicDag,
+                dagAudit.AcyclicComplianceScore, dagAudit.Category, dagAudit.IsSelectionScope);
+            Assert.Equal(dagAudit.Summary, formatted);
+
+            // 3. Cyclic graph with back-edge: 4 -> 1
+            var cyclicLinks = new List<MindMapLink>
+            {
+                new MindMapLink { Id = "e1", SourceNodeId = "1", TargetNodeId = "2" },
+                new MindMapLink { Id = "e2", SourceNodeId = "2", TargetNodeId = "4" },
+                new MindMapLink { Id = "e3", SourceNodeId = "4", TargetNodeId = "1" }
+            };
+
+            var cyclicAudit = MindMapStudioViewModel.AuditGraphCyclesAndFeedbackArcSet(
+                new[] { n1, n2, n3, n4 }, cyclicLinks);
+            Assert.True(cyclicAudit.CycleCount >= 1);
+            Assert.True(cyclicAudit.FeedbackArcSetCount >= 1);
+            Assert.False(cyclicAudit.IsAcyclicDag);
+            Assert.True(cyclicAudit.AcyclicComplianceScore < 85.0);
+        }
     }
-}
+}

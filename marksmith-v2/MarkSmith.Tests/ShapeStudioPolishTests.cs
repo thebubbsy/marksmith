@@ -3477,5 +3477,67 @@ public class ShapeStudioPolishTests
             uniformAudit.HairlineStrokeCount, uniformAudit.AverageStrokeThickness, uniformAudit.StrokeThicknessStdDev,
             uniformAudit.OutlineHarmonyScore, uniformAudit.Category, uniformAudit.IsSelectionScope);
         Assert.Equal(uniformAudit.Summary, formatted);
-    }
-}
+    }
+[Fact]
+    public void Run201_AuditShapeElevationAndShadowHarmony_EvaluatesElevationAndStacking()
+    {
+        var vm = new ShapeDesignStudioViewModel();
+        vm.Shapes.Clear();
+
+        // 1. Empty canvas
+        var emptyAudit = vm.AuditShapeElevationAndShadowHarmony();
+        Assert.Equal(0, emptyAudit.TotalShapesEvaluated);
+        Assert.Equal(100.0, emptyAudit.ElevationHarmonyScore);
+        Assert.Equal("Pristine Elevation Harmony", emptyAudit.Category);
+
+        // 2. Harmonious elevated card and background container
+        var bg = new ShapeCanvasItemViewModel
+        {
+            Id = "bg",
+            Name = "Background Container",
+            X = 20,
+            Y = 20,
+            Width = 400,
+            Height = 300,
+            StrokeWidthPt = 1.0,
+            CornerRadius = 0.0,
+            Fill = "#F0F0F0"
+        };
+        var card = new ShapeCanvasItemViewModel
+        {
+            Id = "card",
+            Name = "Content Card",
+            X = 50,
+            Y = 50,
+            Width = 150,
+            Height = 100,
+            StrokeWidthPt = 2.5,
+            CornerRadius = 8.0,
+            Fill = "#FFFFFF"
+        };
+        vm.Shapes.Add(bg);
+        vm.Shapes.Add(card);
+
+        var goodAudit = vm.AuditShapeElevationAndShadowHarmony();
+        Assert.Equal(2, goodAudit.TotalShapesEvaluated);
+        Assert.Equal(0, goodAudit.InvertedLayeringCount);
+        Assert.Equal(0, goodAudit.AmbiguousBoundaryCount);
+        Assert.True(goodAudit.ElevationHarmonyScore >= 95.0);
+
+        string formatted = ShapeDesignStudioViewModel.FormatElevationShadowSummary(
+            goodAudit.TotalShapesEvaluated, goodAudit.FlatShapesCount, goodAudit.ElevatedShapesCount,
+            goodAudit.InvertedLayeringCount, goodAudit.AmbiguousBoundaryCount,
+            goodAudit.ElevationHarmonyScore, goodAudit.Category, goodAudit.IsSelectionScope);
+        Assert.Equal(goodAudit.Summary, formatted);
+
+        // 3. Stacking inversion: small elevated card placed lower in Z-order beneath massive container
+        var invertedVm = new ShapeDesignStudioViewModel();
+        invertedVm.Shapes.Clear();
+        invertedVm.Shapes.Add(card);
+        invertedVm.Shapes.Add(bg);
+
+        var badAudit = invertedVm.AuditShapeElevationAndShadowHarmony();
+        Assert.True(badAudit.InvertedLayeringCount >= 1);
+        Assert.True(badAudit.ElevationHarmonyScore < 90.0);
+    }
+}

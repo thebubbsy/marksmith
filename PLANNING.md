@@ -13004,3 +13004,57 @@ Executed full 3-Block Cycle + Execution Phase across all 6 WinUI 3 surfaces:
 6. **SuiteHubView (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #200 Block 3 Idea 6]**:
    - **Refinement Target**: Workspace Markdown Table Delimiter Auto-Fixer & Alignment Exporter.
    - **Deliverable**: Extend `RecentFilesService.AuditWorkspaceMarkdownTableAutoAlign` with batch table normalization options across multi-document workspaces and automated report export.
+
+---
+
+### Run #201 Shipped — AI-Executable 3-Block Polish Cycle
+
+#### Focus: Comprehensive 6-Surface Polish & Diagnostic Fidelity
+Executed full 3-Block Cycle + Execution Phase across all 6 WinUI 3 surfaces:
+- **Block 1**:
+  - **Surface 1 (MainWindow)**: Implemented TextSearch.AuditMarkdownTaskLists(markdownText), FormatTaskListsSummary(...), MarkdownTaskListItem, and MarkdownTaskListsAudit in TextSearch.cs. Scans document markdown for GFM checkboxes (- [ ], - [x], * [X]), non-standard bracket spacing ([  ]), orphaned checkbox markers, completion metrics, and scores task list syntax and completion hygiene (-100\%$). Wired to ShowLintIssueContextMenu in MainWindow.xaml.cs via uditTaskListsItem (\uE73E).
+  - **Surface 2 (MindMapGalaxyWindow)**: Implemented MindMapStudioViewModel.AuditGraphCyclesAndFeedbackArcSet(...), FormatCycleFeedbackSummary(...), CyclePathInfo, FeedbackArcInfo, and GraphCycleFeedbackAudit in MindMapStudioViewModel.cs. Performs cycle traversal and back-edge detection for directed mind map trees and graphs, identifies feedback arc sets, computes acyclic DAG compliance score (-100\%$), and categorizes graph hierarchy (e.g. Pure DAG, Complex Tangled Graph). Wired to ArrangeDropDownButton.Flyout in MindMapGalaxyWindow.xaml and MindMapGalaxyWindow.xaml.cs via AuditGraphCyclesFeedbackArcSetItem (\uE73E) and OnAuditGraphCyclesAndFeedbackArcSetClick.
+- **Block 2**:
+  - **Surface 3 (ShapeDesignStudioWindow)**: Implemented ShapeDesignStudioViewModel.AuditShapeElevationAndShadowHarmony(...), FormatElevationShadowSummary(...), DiagramShapeElevationShadowItem, and DiagramShapeElevationShadowAudit in ShapeDesignStudioViewModel.cs. Analyzes shape shadow blurs, elevation depths, offsets, opacities, and z-index ordering across canvas diagram shapes, flags conflicting shadow angles, and scores 2.5D visual elevation harmony (-100\%$). Wired to SelectionBoundsBorder.ContextFlyout in ShapeDesignStudioWindow.xaml and ShapeDesignStudioWindow.xaml.cs via SelectionAuditShapeElevationShadowItem (\uE73E) and OnSelectionAuditShapeElevationShadowClick.
+  - **Surface 4 (SmartArtDesignStudioWindow)**: Implemented SmartArtDesignStudioViewModel.AuditPyramidLayerProportionality(...), FormatPyramidProportionalitySummary(...), PyramidLayerTierItem, and SmartArtPyramidHierarchyAudit in SmartArtDesignStudioViewModel.cs. Evaluates pyramid layouts (standard and inverted), measuring layer height monotonicity, trapezoid area tapering, apex/base aspect ratio, label truncation risk, and scores pyramid geometric proportionality (-100\%$). Wired to OutlineStatsFlyout in SmartArtDesignStudioWindow.xaml and SmartArtDesignStudioWindow.xaml.cs via OutlineStatsAuditPyramidProportionalityItem (\uE73E) and OnOutlineStatsAuditPyramidProportionalityClick.
+- **Block 3**:
+  - **Surface 5 (HistoryWindow)**: Extended LineDiff.AuditPatternMatchingAndEnumBranchExhaustiveness and FormatPatternMatchingSummary in LineDiff.cs with support for recursive subpatterns, positional patterns (Point(_, _)), slice expressions ([.. _]), and property discard patterns ({ Status: _ }), detecting unhandled branches and wildcard discard traps. Wired to TimelineHeaderBorder context flyout in HistoryWindow.xaml.cs.
+  - **Surface 6 (SuiteHubView)**: Implemented RecentFilesService.ExportWorkspaceTableAutoAlignmentReport(...) in RecentFilesService.cs using WorkspaceTableFormattingAudit. Generates an exportable markdown table formatting report with tabular integrity score, ragged column breakdown, delimiter status, and fix suggestions across workspace markdown files. Wired to RecentDocsFlyout in SuiteHubView.xaml and SuiteHubView.xaml.cs via AuditWorkspaceMarkdownTableAutoAlignAndExportItem (\uE73E) and OnAuditWorkspaceMarkdownTableAutoAlignAndExportClick.
+- **Execution Phase Refinements**:
+  - Implemented comprehensive unit tests across all 6 surfaces:
+    - TextSearchTests.Run201_AuditMarkdownTaskLists_ValidatesGfmCheckboxesAndCompletionMetrics
+    - MindMapGalaxyPolishTests.Run201_AuditGraphCyclesAndFeedbackArcSet_DetectsCyclesAndBackEdges
+    - ShapeStudioPolishTests.Run201_AuditShapeElevationAndShadowHarmony_EvaluatesElevationAndStacking
+    - SmartArtStudioPolishTests.Run201_AuditPyramidLayerProportionality_ValidatesTiersAndApexFit
+    - HistoryPolishTests.Run201_AuditPatternMatchingAndEnumBranchExhaustiveness_DetectsRecursiveAndPositionalSubpatterns
+    - SuiteHubAndTourPolishTests.Run201_ExportWorkspaceTableAutoAlignmentReport_GeneratesMarkdownSummaryReport
+    - SuiteHubAndTourPolishTests.Run201_AllSixSurfacesXamlAndCodeBehindWiring
+
+**Verified:**
+- dotnet build (marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj - Debug/x64): 0 errors, 23 warnings (all existing).
+- dotnet build (marksmith-v2/MarkSmith.Tests/MarkSmith.Tests.csproj - Debug): 0 errors.
+- dotnet test (Run201 filter): 7/7 tests passed (100% pass rate).
+- dotnet test (PolishTests filter): 915/915 tests passed (100% pass rate).
+- Smoke-launched Marksmith.exe (PID=13236, Responding=True, ran for 4 seconds and cleanly terminated with zero crashes).
+
+---
+
+### Run #202 Blueprint — Carried-Forward Refinements & Next Cycle Targets
+1. **MainWindow (MainWindow.xaml.cs, TextSearch.cs)**:
+   - **Feature**: Markdown Footnote Reference & Definition Integrity Auditor.
+   - **Deliverable**: Add TextSearch.AuditMarkdownFootnotes(markdownText) and FormatFootnotesSummary(...), scanning document markdown for valid footnote references ([^1], [^note]), unreferenced footnote definitions, orphan references without definitions, duplicate identifiers, and scoring footnote structural integrity (-100\%$). Wire to ShowLintIssueContextMenu.
+2. **MindMapGalaxyWindow (MindMapGalaxyWindow.xaml, MindMapGalaxyWindow.xaml.cs, MindMapStudioViewModel.cs)**:
+   - **Feature**: Graph Bipartiteness & 2-Colorability Conflict Auditor.
+   - **Deliverable**: Add MindMapStudioViewModel.AuditGraphBipartitenessAndOddCycles() and FormatBipartitenessSummary(...), running breadth-first 2-coloring on mind map nodes, identifying odd-length cycles that prevent bipartite clustering, and scoring bipartite partitionability (-100\%$). Wire to ArrangeDropDownButton.Flyout.
+3. **ShapeDesignStudioWindow (ShapeDesignStudioWindow.xaml, ShapeDesignStudioWindow.xaml.cs, ShapeDesignStudioViewModel.cs)**:
+   - **Feature**: Shape Group Nesting Depth & Hierarchy Complexity Auditor.
+   - **Deliverable**: Add ShapeDesignStudioViewModel.AuditShapeGroupNestingHierarchy(shapes) and FormatGroupNestingSummary(...), analyzing nested shape containers/groups, maximum grouping depth, leaf node density, and scoring grouping complexity and ungrouping safety (-100\%$). Wire to SelectionBoundsBorder.ContextFlyout.
+4. **SmartArtDesignStudioWindow (SmartArtDesignStudioWindow.xaml, SmartArtDesignStudioWindow.xaml.cs, SmartArtDesignStudioViewModel.cs)**:
+   - **Feature**: SmartArt Funnel / Pipeline Stage Conversion Rate Proportionality Auditor.
+   - **Deliverable**: Add SmartArtDesignStudioViewModel.AuditFunnelStageProportionality(markdown, layoutName) and FormatFunnelProportionalitySummary(...), validating linear/pipeline funnel diagrams for decreasing width monotonicity, stage transition slopes, label text fit, and scoring funnel geometric fidelity (-100\%$). Wire to OutlineStatsFlyout.
+5. **HistoryWindow (HistoryWindow.xaml.cs, LineDiff.cs) [Carried Forward from Run #201 Block 3 Idea 5]**:
+   - **Refinement Target**: Semantic Diff Exhaustive Pattern Matching & Active Pattern / Type Test Analyzer.
+   - **Deliverable**: Extend LineDiff.AuditPatternMatchingAndEnumBranchExhaustiveness to detect missing type-test patterns (is string s), active pattern cases, and relational patterns (> 0 and <= 100).
+6. **SuiteHubView (SuiteHubView.xaml, SuiteHubView.xaml.cs, RecentFilesService.cs) [Carried Forward from Run #201 Block 3 Idea 6]**:
+   - **Refinement Target**: Workspace Markdown Table Auto-Alignment Batch Applicator & File Fixer.
+   - **Deliverable**: Extend RecentFilesService.ExportWorkspaceTableAutoAlignmentReport with an in-place batch rewrite option that applies vertical column padding and delimiter normalization directly to modified workspace files with backup safety.

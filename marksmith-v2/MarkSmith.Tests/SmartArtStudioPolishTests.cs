@@ -3127,5 +3127,44 @@ public class SmartArtStudioPolishTests
             audit.TotalRings, audit.TotalWords, audit.HasCenterCore, audit.IsMonotonicProgression,
             audit.CrowdedRingCount, audit.RadialBalanceScore, audit.Category, "Target Diagram");
         Assert.Equal(audit.Summary, formatted);
-    }
-}
+    }
+[Fact]
+    public void Run201_AuditPyramidLayerProportionality_ValidatesTiersAndApexFit()
+    {
+        // 1. Empty outline
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditPyramidLayerProportionality("");
+        Assert.Equal(0, emptyAudit.TotalTiers);
+        Assert.Equal(100.0, emptyAudit.ProportionalityScore);
+        Assert.Equal("Empty Pyramid", emptyAudit.Category);
+
+        // 2. 4 balanced pyramid tiers
+        var pyramidMd = string.Join("\n",
+            "- Vision",
+            "- Strategy",
+            "- Execution",
+            "- Governance"
+        );
+        var goodAudit = SmartArtDesignStudioViewModel.AuditPyramidLayerProportionality(pyramidMd, "Pyramid List");
+        Assert.Equal(4, goodAudit.TotalTiers);
+        Assert.False(goodAudit.IsInverted);
+        Assert.True(goodAudit.IsMonotonicProgression);
+        Assert.Equal(0, goodAudit.TruncationRiskCount);
+        Assert.True(goodAudit.ProportionalityScore >= 90.0);
+
+        string formatted = SmartArtDesignStudioViewModel.FormatPyramidProportionalitySummary(
+            goodAudit.TotalTiers, goodAudit.TotalWords, goodAudit.IsInverted,
+            goodAudit.IsMonotonicProgression, goodAudit.TruncationRiskCount,
+            goodAudit.ProportionalityScore, goodAudit.Category, "Pyramid List");
+        Assert.Equal(goodAudit.Summary, formatted);
+
+        // 3. Truncation risk at apex
+        var longApexMd = string.Join("\n",
+            "- Very Extremely Overly Verbose Apex Vision Statement That Exceeds Geometry",
+            "- Strategy",
+            "- Execution"
+        );
+        var riskAudit = SmartArtDesignStudioViewModel.AuditPyramidLayerProportionality(longApexMd, "Pyramid List");
+        Assert.True(riskAudit.TruncationRiskCount >= 1);
+        Assert.True(riskAudit.ProportionalityScore < 95.0);
+    }
+}

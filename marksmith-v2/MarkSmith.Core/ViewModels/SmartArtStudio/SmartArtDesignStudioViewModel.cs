@@ -3450,7 +3450,148 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
         string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · 100% radial balance";
         return $"SmartArt concentric bullseye audit ({layoutName} · {ringStr} · {category} · {score:0.#}% score){details}";
+    }
+
+    public SmartArtPyramidHierarchyAudit AuditPyramidLayerProportionality(string? markdown = null, string? layoutName = null)
+    {
+        string md = markdown ?? MarkdownText;
+        string layout = layoutName ?? SelectedLayout?.DisplayName ?? "Pyramid List";
+        return AuditPyramidLayerProportionality(md, layout, isStatic: false);
     }
+
+    public static SmartArtPyramidHierarchyAudit AuditPyramidLayerProportionality(string? markdown, string? layoutName = null, bool isStatic = true)
+    {
+        string layout = layoutName ?? "Pyramid List";
+        bool isInverted = layout.Contains("inverted", StringComparison.OrdinalIgnoreCase);
+
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            string emptySummary = FormatPyramidProportionalitySummary(0, 0, isInverted, true, 0, 100.0, "Empty Pyramid", layout);
+            return new SmartArtPyramidHierarchyAudit(
+                0, 0, isInverted, true, 0, 100.0,
+                Array.Empty<PyramidLayerTierItem>(),
+                "Empty Pyramid", layout, emptySummary);
+        }
+
+        var lines = markdown.Replace("\r\n", "\n").Split('\n');
+        var tiers = new List<(string Label, int LineNumber, List<string> SubItems)>();
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string raw = lines[i];
+            string trimmed = raw.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed)) continue;
+
+            int indent = raw.Length - raw.TrimStart().Length;
+            string clean = trimmed.TrimStart('-', '*', '+', '1', '2', '3', '4', '5', '6', '7', '8', '9', '.', ' ');
+
+            if (indent <= 1)
+            {
+                tiers.Add((clean, i + 1, new List<string>()));
+            }
+            else if (tiers.Count > 0)
+            {
+                tiers[^1].SubItems.Add(clean);
+            }
+        }
+
+        int totalTiers = tiers.Count;
+        if (totalTiers == 0)
+        {
+            string emptySummary = FormatPyramidProportionalitySummary(0, 0, isInverted, true, 0, 100.0, "Empty Pyramid", layout);
+            return new SmartArtPyramidHierarchyAudit(
+                0, 0, isInverted, true, 0, 100.0,
+                Array.Empty<PyramidLayerTierItem>(),
+                "Empty Pyramid", layout, emptySummary);
+        }
+
+        int totalWords = 0;
+        int truncationRisks = 0;
+        var items = new List<PyramidLayerTierItem>();
+        bool isMonotonic = true;
+        double prevWidth = isInverted ? 1.05 : 0.0;
+
+        for (int i = 0; i < totalTiers; i++)
+        {
+            var t = tiers[i];
+            int wordsInTier = t.Label.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length;
+            foreach (var sub in t.SubItems)
+                wordsInTier += sub.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length;
+            totalWords += wordsInTier;
+
+            bool isApex = isInverted ? (i == totalTiers - 1) : (i == 0);
+
+            double widthRatio = isInverted
+                ? Math.Round(1.0 - (0.7 * i / Math.Max(1, totalTiers - 1)), 2)
+                : Math.Round(0.3 + (0.7 * i / Math.Max(1, totalTiers - 1)), 2);
+
+            if (isInverted)
+            {
+                if (widthRatio > prevWidth) isMonotonic = false;
+            }
+            else
+            {
+                if (widthRatio < prevWidth) isMonotonic = false;
+            }
+            prevWidth = widthRatio;
+
+            bool hasTruncationRisk = (isApex && (t.Label.Length > 20 || t.SubItems.Count > 2)) ||
+                                     (!isApex && widthRatio < 0.6 && t.Label.Length > 35);
+            if (hasTruncationRisk) truncationRisks++;
+
+            string status = hasTruncationRisk
+                ? "Truncation Risk"
+                : (isApex ? "Apex Peak" : "Proportional Tier");
+
+            string recommendation = hasTruncationRisk
+                ? "Shorten apex tier label or reduce sub-bullets to fit narrow pyramid geometry"
+                : "Tier geometric area and label length are well proportioned";
+
+            items.Add(new PyramidLayerTierItem(
+                i + 1, t.Label, t.Label.Length, t.SubItems.Count, widthRatio,
+                isApex, hasTruncationRisk, status, recommendation));
+        }
+
+        double score = 100.0;
+        if (totalTiers < 3) score -= 25.0;
+        if (totalTiers > 6) score -= ((totalTiers - 6) * 12.0);
+        score -= (truncationRisks * 14.0);
+        if (!isMonotonic) score -= 20.0;
+        score = Math.Round(Math.Clamp(score, 10.0, 100.0), 1);
+
+        string category = score switch
+        {
+            >= 90.0 => "Optimal Pyramid Geometric Hierarchy",
+            >= 75.0 => "Good Tier Balance with Minor Apex Squeeze",
+            >= 60.0 => "Moderate Tier Area & Label Imbalance",
+            >= 40.0 => "High Tier Truncation & Crowding Risk",
+            _ => "Severe Pyramid Hierarchy Distortion"
+        };
+
+        string summary = FormatPyramidProportionalitySummary(
+            totalTiers, totalWords, isInverted, isMonotonic, truncationRisks, score, category, layout);
+
+        return new SmartArtPyramidHierarchyAudit(
+            totalTiers, totalWords, isInverted, isMonotonic, truncationRisks, score, items, category, layout, summary);
+    }
+
+    public static string FormatPyramidProportionalitySummary(
+        int totalTiers, int totalWords, bool isInverted, bool isMonotonic,
+        int truncationRisks, double score, string category, string layoutName)
+    {
+        if (totalTiers == 0) return $"SmartArt pyramid proportionality audit ({layoutName}): 0 tiers · Empty diagram";
+
+        string tierStr = totalTiers == 1 ? "1 tier" : $"{totalTiers} tiers";
+        var alerts = new List<string>();
+        if (truncationRisks > 0) alerts.Add($"⚠ {truncationRisks} truncation risk{(truncationRisks == 1 ? "" : "s")}");
+        if (totalTiers > 6) alerts.Add($"⚠ {totalTiers} tiers (>6 overcrowded)");
+        if (totalTiers < 3) alerts.Add("⚠ <3 tiers (shallow hierarchy)");
+
+        string orient = isInverted ? "Inverted Pyramid" : "Standard Pyramid";
+        string issues = alerts.Count > 0 ? " · " + string.Join(" · ", alerts) : " · Proportional apex & base geometry";
+        return $"SmartArt pyramid proportionality audit ({orient} · {tierStr}, {totalWords} words{issues} · {category} · {score:0.#}% score)";
+    }
+
 
     public static string FormatChevronUniformitySummary(
         int totalSteps, int totalWords, double avgLength, int minLength, int maxLength,
@@ -11900,4 +12041,33 @@ public sealed record SmartArtTargetBullseyeAudit(
     double RadialBalanceScore,
     IReadOnlyList<TargetRingInfo> Items,
     string Category,
-    string Summary);
+    string Summary);
+/// <summary>
+/// Represents evaluated metrics, relative width ratio, truncation risk, and apex status for an individual SmartArt pyramid tier.
+/// </summary>
+public sealed record PyramidLayerTierItem(
+    int TierIndex,
+    string Label,
+    int CharCount,
+    int SubItemCount,
+    double RelativeWidthRatio,
+    bool IsApex,
+    bool HasTruncationRisk,
+    string Status,
+    string Recommendation);
+
+/// <summary>
+/// Represents the result of an audit of SmartArt segmented pyramid / layer hierarchy proportionality,
+/// trapezoidal taper, tier truncation risks, and geometric balance.
+/// </summary>
+public sealed record SmartArtPyramidHierarchyAudit(
+    int TotalTiers,
+    int TotalWords,
+    bool IsInverted,
+    bool IsMonotonicProgression,
+    int TruncationRiskCount,
+    double ProportionalityScore,
+    IReadOnlyList<PyramidLayerTierItem> Tiers,
+    string Category,
+    string LayoutName,
+    string Summary);

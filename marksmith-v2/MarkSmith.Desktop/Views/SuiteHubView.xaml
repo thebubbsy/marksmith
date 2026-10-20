@@ -401,6 +401,9 @@
                                     </MenuFlyoutItem>
                                     <MenuFlyoutItem x:Name="AuditWorkspaceMarkdownTableAutoAlignItem" Text="Audit &amp; auto-align workspace markdown table pipe delimiter formatting &amp; column widths" Click="OnAuditWorkspaceMarkdownTableAutoAlignClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditWorkspaceMarkdownTableAutoAlignAndExportItem" Text="Audit, auto-align &amp; export workspace markdown table formatting report" Click="OnAuditWorkspaceMarkdownTableAutoAlignAndExportClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
                                     <MenuFlyoutItem x:Name="AuditWorkspaceMarkdownTablesItem" Text="Audit workspace markdown table formatting, column alignment &amp; pipe syntax" Click="OnAuditWorkspaceMarkdownTablesClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>

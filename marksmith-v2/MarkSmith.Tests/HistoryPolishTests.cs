@@ -3326,5 +3326,29 @@ public class HistoryPolishTests : IDisposable
         Assert.True(audit.WildcardDiscardTrapCount >= 1);
         Assert.True(audit.TotalHazards >= 1);
         Assert.True(audit.ExhaustivenessSafetyScore < 95.0);
-    }
-}
+    }
+[Fact]
+    public void Run201_AuditPatternMatchingAndEnumBranchExhaustiveness_DetectsRecursiveAndPositionalSubpatterns()
+    {
+        var subpatternTrapCode = string.Join("\n",
+            "public class SubpatternMatcher",
+            "{",
+            "    public string Match(object obj)",
+            "    {",
+            "        return obj switch",
+            "        {",
+            "            Point(var x, var y) => $\"Point({x},{y})\",",
+            "            Point(_, _) => null,",
+            "            [.. _] => null,",
+            "            { Status: _ } => null",
+            "        };",
+            "    }",
+            "}"
+        );
+
+        var audit = LineDiff.AuditPatternMatchingAndEnumBranchExhaustiveness("", subpatternTrapCode);
+        Assert.True(audit.WildcardDiscardTrapCount >= 2);
+        Assert.True(audit.TotalHazards >= 2);
+        Assert.True(audit.ExhaustivenessSafetyScore < 90.0);
+    }
+}

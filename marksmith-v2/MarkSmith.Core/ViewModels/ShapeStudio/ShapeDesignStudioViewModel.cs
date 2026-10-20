@@ -9544,7 +9544,138 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
 
         string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · 100% uniform solid stroke";
         return $"Stroke weight & dash uniformity audit ({scopeStr}{shapeStr} · {category} · {harmonyScore:0.#}% harmony): avg {avgWeight:0.##}pt (±{stdDev:0.##}pt){details}";
+    }
+
+    public DiagramShapeElevationShadowAudit AuditShapeElevationAndShadowHarmony(bool selectionOnly = false)
+        => AuditShapeElevationAndShadowHarmony(selectionOnly && Shapes.Any(s => s.IsSelected) ? Shapes.Where(s => s.IsSelected) : Shapes, selectionOnly);
+
+    public static DiagramShapeElevationShadowAudit AuditShapeElevationAndShadowHarmony(
+        IEnumerable<ShapeCanvasItemViewModel>? shapes, bool isSelection = false)
+    {
+        var list = (shapes ?? Enumerable.Empty<ShapeCanvasItemViewModel>()).ToList();
+        string scopeStr = isSelection ? "Selection · " : "";
+
+        var validShapes = list.Where(s =>
+            s.Width >= 4.0 && s.Height >= 4.0 &&
+            !(s.ShapeType != null && s.ShapeType.Contains("line", StringComparison.OrdinalIgnoreCase))).ToList();
+
+        if (validShapes.Count <= 1)
+        {
+            return new DiagramShapeElevationShadowAudit(
+                validShapes.Count, validShapes.Count, 0, 0, 0, 100.0,
+                Array.Empty<DiagramShapeElevationShadowItem>(),
+                "Pristine Elevation Harmony",
+                isSelection,
+                $"Diagram shape visual elevation & shadow harmony audit ({scopeStr}{validShapes.Count} {(validShapes.Count == 1 ? "shape" : "shapes")}): No overlapping pairs to evaluate");
+        }
+
+        var items = new List<DiagramShapeElevationShadowItem>();
+        int flatCount = 0;
+        int elevatedCount = 0;
+        int invertedLayeringCount = 0;
+        int ambiguousBoundaryCount = 0;
+
+        var tiers = new double[validShapes.Count];
+        for (int i = 0; i < validShapes.Count; i++)
+        {
+            var s = validShapes[i];
+            double tier = 0.0;
+            if (s.StrokeWidthPt >= 4.0) tier = 2.0;
+            else if (s.StrokeWidthPt >= 2.0 || s.CornerRadius > 4.0) tier = 1.0;
+            tiers[i] = tier;
+
+            if (tier > 0) elevatedCount++;
+            else flatCount++;
+        }
+
+        for (int i = 0; i < validShapes.Count; i++)
+        {
+            var lower = validShapes[i];
+            double x1 = lower.X, y1 = lower.Y, w1 = lower.Width, h1 = lower.Height, a1 = w1 * h1;
+
+            for (int j = i + 1; j < validShapes.Count; j++)
+            {
+                var higher = validShapes[j];
+                double x2 = higher.X, y2 = higher.Y, w2 = higher.Width, h2 = higher.Height, a2 = w2 * h2;
+
+                double xLeft = Math.Max(x1, x2);
+                double xRight = Math.Min(x1 + w1, x2 + w2);
+                double yTop = Math.Max(y1, y2);
+                double yBottom = Math.Min(y1 + h1, y2 + h2);
+
+                if (xRight > xLeft && yBottom > yTop)
+                {
+                    double overlapArea = (xRight - xLeft) * (yBottom - yTop);
+                    double minArea = Math.Min(a1, a2);
+                    double coverage = overlapArea / minArea;
+
+                    if (coverage > 0.15)
+                    {
+                        if (a1 < a2 * 0.6 && tiers[i] > tiers[j])
+                        {
+                            invertedLayeringCount++;
+                            items.Add(new DiagramShapeElevationShadowItem(
+                                higher.Id, higher.Name, tiers[j], j,
+                                $"Background container '{higher.Name}' sits above elevated content shape '{lower.Name}' in Z-order",
+                                "Warning",
+                                "Send container shape backward in Z-order to avoid obscuring elevated foreground elements"));
+                        }
+
+                        if (string.Equals(lower.Fill, higher.Fill, StringComparison.OrdinalIgnoreCase) &&
+                            lower.StrokeWidthPt < 1.0 && higher.StrokeWidthPt < 1.0)
+                        {
+                            ambiguousBoundaryCount++;
+                            items.Add(new DiagramShapeElevationShadowItem(
+                                higher.Id, higher.Name, tiers[j], j,
+                                $"Overlapping shapes '{lower.Name}' and '{higher.Name}' share identical fill with no stroke or shadow separation",
+                                "Info",
+                                "Add stroke border or adjust elevation to ensure distinct visual boundaries"));
+                        }
+                    }
+                }
+            }
+        }
+
+        double harmonyScore = 100.0;
+        harmonyScore -= (invertedLayeringCount * 18.0);
+        harmonyScore -= (ambiguousBoundaryCount * 10.0);
+        harmonyScore = Math.Round(Math.Clamp(harmonyScore, 0.0, 100.0), 1);
+
+        string category = harmonyScore switch
+        {
+            >= 90.0 => "Optimal 2.5D Elevation Harmony",
+            >= 75.0 => "Good Layering & Depth Separation",
+            >= 60.0 => "Moderate Elevation Clashes",
+            >= 40.0 => "High Visual Depth Discord",
+            _ => "Severe Layering & Stacking Inversions"
+        };
+
+        string summary = FormatElevationShadowSummary(
+            validShapes.Count, flatCount, elevatedCount, invertedLayeringCount,
+            ambiguousBoundaryCount, harmonyScore, category, isSelection);
+
+        return new DiagramShapeElevationShadowAudit(
+            validShapes.Count, flatCount, elevatedCount, invertedLayeringCount,
+            ambiguousBoundaryCount, harmonyScore, items, category, isSelection, summary);
     }
+
+    public static string FormatElevationShadowSummary(
+        int totalShapes, int flatCount, int elevatedCount, int invertedCount,
+        int ambiguousCount, double harmonyScore, string category, bool isSelection = false)
+    {
+        string scopeStr = isSelection ? "Selection · " : "";
+        if (totalShapes <= 1)
+            return $"Diagram shape visual elevation & shadow harmony audit ({scopeStr}{totalShapes} {(totalShapes == 1 ? "shape" : "shapes")}): No overlapping pairs to evaluate";
+
+        string shapeStr = $"{totalShapes} shapes ({elevatedCount} elevated, {flatCount} flat)";
+        var alerts = new List<string>();
+        if (invertedCount > 0) alerts.Add($"⚠ {invertedCount} stacking inversion{(invertedCount == 1 ? "" : "s")}");
+        if (ambiguousCount > 0) alerts.Add($"ℹ {ambiguousCount} ambiguous boundar{(ambiguousCount == 1 ? "y" : "ies")}");
+
+        string issuePart = alerts.Count > 0 ? " · " + string.Join(" · ", alerts) : " · Clean 2.5D depth hierarchy";
+        return $"Diagram shape visual elevation & shadow harmony audit ({scopeStr}{shapeStr}{issuePart} · {category} · {harmonyScore:0.#}% harmony score)";
+    }
+
 
     /// <summary>
     /// Audits diagram shape fill color harmony, WCAG 2.1 non-text contrast ratios against canvas background,
@@ -13574,4 +13705,31 @@ public sealed record DiagramConnectorPortAttachmentAudit(
     IReadOnlyList<ConnectorAttachmentPortItem> Items,
     string Category,
     bool IsSelectionScope,
-    string Summary);
+    string Summary);
+/// <summary>
+/// Represents evaluated simulated elevation, stroke depth, Z-order, and layering harmony for an individual shape.
+/// </summary>
+public sealed record DiagramShapeElevationShadowItem(
+    string ShapeId,
+    string ShapeName,
+    double ElevationTier,
+    int ZIndex,
+    string Issue,
+    string Severity,
+    string Recommendation);
+
+/// <summary>
+/// Represents the result of an audit of diagram shape visual elevation depth, drop shadows,
+/// Z-index stacking hierarchy, and 2.5D visual layering harmony.
+/// </summary>
+public sealed record DiagramShapeElevationShadowAudit(
+    int TotalShapesEvaluated,
+    int FlatShapesCount,
+    int ElevatedShapesCount,
+    int InvertedLayeringCount,
+    int AmbiguousBoundaryCount,
+    double ElevationHarmonyScore,
+    IReadOnlyList<DiagramShapeElevationShadowItem> Items,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);

@@ -12140,10 +12140,188 @@ public static class TextSearch
         string details = string.Join(" · ", parts);
         return $"Markdown strikethrough & underline audit ({details} · {category} · {score:0.#}% consistency score)";
     }
+    /// <summary>
+    /// Audits markdown task lists and checkbox syntax completeness:
+    /// scans for standard GFM task lists (- [ ], - [x], * [ ], + [ ]),
+    /// malformed brackets (- [], - [  ], - [v]), orphaned checkboxes without list bullets,
+    /// empty task descriptions, and computes task completion metrics and compliance score.
+    /// </summary>
+    public static MarkdownTaskListsAudit AuditMarkdownTaskLists(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            string emptySummary = "Markdown task lists audit: Clean document · 0 task list items detected";
+            return new MarkdownTaskListsAudit(
+                0, 0, 0, 0, 0, 0.0, 100.0,
+                Array.Empty<MarkdownTaskListItem>(),
+                "Clean Baseline",
+                emptySummary);
+        }
 
-}
+        var lines = markdownText.Replace("\r\n", "\n").Split('\n');
+        var items = new List<MarkdownTaskListItem>();
+        bool inFencedBlock = false;
+        string? activeFence = null;
 
-/// <summary>
+        int totalTasks = 0;
+        int completedCount = 0;
+        int pendingCount = 0;
+        int malformedCount = 0;
+        int orphanedCount = 0;
+        int emptyDescCount = 0;
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string line = lines[i];
+            string trimmed = line.Trim();
+
+            // Track code fence boundaries
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+            {
+                string fenceMarker = trimmed.Substring(0, 3);
+                if (!inFencedBlock)
+                {
+                    inFencedBlock = true;
+                    activeFence = fenceMarker;
+                }
+                else if (activeFence == fenceMarker)
+                {
+                    inFencedBlock = false;
+                    activeFence = null;
+                }
+                continue;
+            }
+
+            if (inFencedBlock || string.IsNullOrWhiteSpace(trimmed))
+                continue;
+
+            // 1. Valid GFM Task List item: e.g. "- [ ] Task" or "- [x] Done" or "* [X] Finished" or "1. [ ] Ordered"
+            var validMatch = Regex.Match(line, @"^(\s*)([-*+]|\d+\.)\s+\[([ xX])\](\s*.*)$");
+            if (validMatch.Success)
+            {
+                totalTasks++;
+                char checkChar = validMatch.Groups[3].Value[0];
+                bool isCompleted = checkChar == 'x' || checkChar == 'X';
+                string taskText = validMatch.Groups[4].Value.Trim();
+
+                if (isCompleted)
+                    completedCount++;
+                else
+                    pendingCount++;
+
+                if (string.IsNullOrWhiteSpace(taskText))
+                {
+                    emptyDescCount++;
+                    items.Add(new MarkdownTaskListItem(
+                        i + 1, line, "(empty description)",
+                        isCompleted ? "Completed" : "Pending",
+                        "Warning",
+                        "Task item has no descriptive text",
+                        "Add a concise actionable task description after the checkbox"));
+                }
+                else
+                {
+                    items.Add(new MarkdownTaskListItem(
+                        i + 1, line, taskText,
+                        isCompleted ? "Completed" : "Pending",
+                        "Info",
+                        "Valid GFM task checkbox",
+                        "Syntax is complete"));
+                }
+                continue;
+            }
+
+            // 2. Malformed Checkbox: e.g. "- []" (missing space) or "- [  ]" (multiple spaces) or "- [v]" / "- [-]" (non-standard)
+            var malformedMatch = Regex.Match(line, @"^(\s*)([-*+]|\d+\.)\s*\[([^\]]*)\](\s*.*)$");
+            if (malformedMatch.Success)
+            {
+                string inner = malformedMatch.Groups[3].Value;
+                string rest = malformedMatch.Groups[4].Value.Trim();
+                totalTasks++;
+                malformedCount++;
+
+                string issue = inner.Length == 0
+                    ? "Checkbox brackets are empty (- []) without whitespace separator"
+                    : inner.Length > 1 && inner.Trim().Length == 0
+                        ? "Checkbox brackets contain redundant whitespace (- [  ])"
+                        : $"Checkbox contains non-standard status mark '[- {inner}]'";
+
+                items.Add(new MarkdownTaskListItem(
+                    i + 1, line, rest,
+                    "Malformed",
+                    "Error",
+                    issue,
+                    "Use '- [ ]' for pending tasks or '- [x]' for completed tasks"));
+                continue;
+            }
+
+            // 3. Orphaned Checkbox: e.g. "[ ] Task" or "[x] Done" without list bullet
+            var orphanedMatch = Regex.Match(line, @"^(\s*)\[([ xX])\](\s+.*)$");
+            if (orphanedMatch.Success)
+            {
+                totalTasks++;
+                orphanedCount++;
+                string taskText = orphanedMatch.Groups[3].Value.Trim();
+
+                items.Add(new MarkdownTaskListItem(
+                    i + 1, line, taskText,
+                    "Orphaned",
+                    "Warning",
+                    "Checkbox lacks list bullet prefix (missing '-', '*', '+' or '1.')",
+                    "Prepend '- ' before the checkbox for valid GFM markdown parsing"));
+                continue;
+            }
+        }
+
+        double completionPercent = totalTasks > 0
+            ? Math.Round(((double)completedCount / totalTasks) * 100.0, 1)
+            : 0.0;
+
+        double complianceScore = 100.0;
+        complianceScore -= (malformedCount * 18.0);
+        complianceScore -= (orphanedCount * 12.0);
+        complianceScore -= (emptyDescCount * 5.0);
+        complianceScore = Math.Round(Math.Clamp(complianceScore, 0.0, 100.0), 1);
+
+        string category = complianceScore switch
+        {
+            >= 90.0 => "Optimal Task List Syntax",
+            >= 75.0 => "Good Task List Hygiene",
+            >= 60.0 => "Moderate Checklist Ambiguities",
+            >= 40.0 => "High Checklist Formatting Errors",
+            _ => "Severe Task List Syntax Malformations"
+        };
+
+        string summary = FormatTaskListsSummary(
+            totalTasks, completedCount, pendingCount, malformedCount, orphanedCount,
+            completionPercent, complianceScore, category);
+
+        return new MarkdownTaskListsAudit(
+            totalTasks, completedCount, pendingCount, malformedCount, orphanedCount,
+            completionPercent, complianceScore, items, category, summary);
+    }
+
+    public static string FormatTaskListsSummary(string? markdownText)
+        => AuditMarkdownTaskLists(markdownText).Summary;
+
+    public static string FormatTaskListsSummary(
+        int totalTasks, int completedCount, int pendingCount, int malformedCount,
+        int orphanedCount, double completionPercent, double score, string category)
+    {
+        if (totalTasks == 0 && malformedCount == 0 && orphanedCount == 0)
+            return "Markdown task lists audit: Clean document · 0 task list items detected";
+
+        var parts = new List<string>();
+        parts.Add($"{totalTasks} tasks: {completedCount} completed [{completionPercent:0.#}%], {pendingCount} pending");
+        if (malformedCount > 0) parts.Add($"⚠ {malformedCount} malformed");
+        if (orphanedCount > 0) parts.Add($"⚠ {orphanedCount} orphaned");
+
+        string details = string.Join(" · ", parts);
+        return $"Markdown task lists audit ({details} · {category} · {score:0.#}% compliance score)";
+    }
+}
+
+/// <summary>
 /// Represents the result of an audit for Git merge conflict markers and syntax ambiguities.
 /// </summary>
 public sealed record ConflictMarkerAndAmbiguityAudit(
@@ -13542,4 +13720,31 @@ public sealed record MarkdownStrikethroughAudit(
     double ConsistencyScore,
     IReadOnlyList<MarkdownStrikethroughItem> Items,
     string Category,
-    string Summary);
+    string Summary);
+/// <summary>
+/// Represents evaluated metrics, line number, task text, state, and issue for an individual markdown task list item.
+/// </summary>
+public sealed record MarkdownTaskListItem(
+    int LineNumber,
+    string RawLine,
+    string TaskText,
+    string State,
+    string Severity,
+    string Issue,
+    string Recommendation);
+
+/// <summary>
+/// Represents the result of an audit of markdown task lists and checkboxes (- [ ], - [x]),
+/// malformed brackets, orphaned items, completion metrics, and GFM syntax compliance.
+/// </summary>
+public sealed record MarkdownTaskListsAudit(
+    int TotalTasks,
+    int CompletedCount,
+    int PendingCount,
+    int MalformedCount,
+    int OrphanedCount,
+    double CompletionPercentage,
+    double ComplianceScore,
+    IReadOnlyList<MarkdownTaskListItem> Items,
+    string Category,
+    string Summary);

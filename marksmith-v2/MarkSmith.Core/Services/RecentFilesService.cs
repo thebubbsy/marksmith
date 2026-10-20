@@ -5593,6 +5593,44 @@ public sealed class RecentFilesService
         Func<string, string>? contentReader = null)
         => AuditWorkspaceTableFormatting(explicitFiles, fileExistsProvider, contentReader);
 
+    public static string ExportWorkspaceTableAutoAlignmentReport(
+        IReadOnlyList<string>? explicitFiles = null,
+        Func<string, bool>? fileExistsProvider = null,
+        Func<string, string>? contentReader = null)
+    {
+        var audit = AuditWorkspaceMarkdownTableAutoAlign(explicitFiles, fileExistsProvider, contentReader);
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("# Workspace Markdown Table Auto-Alignment Report");
+        sb.AppendLine();
+        sb.AppendLine($"- **Total Documents Evaluated**: {audit.TotalDocumentsEvaluated}");
+        sb.AppendLine($"- **Total Tables Evaluated**: {audit.TotalTablesFound}");
+        sb.AppendLine($"- **Valid Conforming Tables**: {audit.ValidTablesCount}");
+        sb.AppendLine($"- **Ragged Column Count Tables**: {audit.RaggedTablesCount}");
+        sb.AppendLine($"- **Missing Delimiter Dashes**: {audit.MissingDelimiterTablesCount}");
+        sb.AppendLine($"- **Table Formatting Score**: {audit.TabularIntegrityScore:0.#}% ({audit.Category})");
+        sb.AppendLine();
+        sb.AppendLine("## Summary");
+        sb.AppendLine(audit.Summary);
+
+        if (audit.Tables.Count > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine("## Table Alignment Diagnostics");
+            foreach (var table in audit.Tables)
+            {
+                string issue = table.IssueDescription ?? "Conforming table structure";
+                sb.AppendLine($"- `{table.FileName}` (Line {table.StartLineNumber}, {table.HeaderColumnCount} cols, {table.DataRowCount} rows): {issue}");
+            }
+        }
+        else
+        {
+            sb.AppendLine();
+            sb.AppendLine("All markdown tables across the workspace conform to optimal pipe alignment and delimiter column width standards.");
+        }
+
+        return sb.ToString().TrimEnd();
+    }
+
     public static string AlignMarkdownTableColumns(string tableMarkdown)
     {
         if (string.IsNullOrWhiteSpace(tableMarkdown)) return tableMarkdown ?? string.Empty;

@@ -18058,7 +18058,7 @@ public static class LineDiff
             string op = row.Kind.ToString();
 
             // Wildcard discard traps: _ => null, _ => default, _ => false, default: break, default: return null; or tuple discard (_, _) => null
-            if (Regex.IsMatch(line, @"(_|\([^)]*_\s*,\s*_[^)]*\))\s*=>\s*(null|default|false|0|\""\""|string\.Empty)\b") ||
+            if (Regex.IsMatch(line, @"(_|\([^)]*_\s*,\s*_[^)]*\)|\([^)]*\([^\)]*_[^\)]*\)[^)]*\)|\b\w+\s*\([^)]*_\s*,\s*_[^)]*\)|\[\s*..\s*_\s*\]|\{\s*\w+\s*:\s*_\s*\})\s*=>\s*(null|default|false|0|\""\""|string\.Empty)\b") ||
                 Regex.IsMatch(line, @"default:\s*(break|return\s+(null|default|false|0));"))
             {
                 wildcardDiscardTrapCount++;

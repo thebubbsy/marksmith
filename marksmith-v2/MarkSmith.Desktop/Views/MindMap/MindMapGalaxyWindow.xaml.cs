@@ -4142,6 +4142,14 @@ namespace MarkSmith.Views.MindMap
             var result = ViewModel.AuditGraphDiameterAndSmallWorldProperties(); // AuditGraphDiameterAndSmallWorld
             _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
             ViewModel.StatusMessage = $"✓ {result.Summary}";
+        }
+
+        private void OnAuditGraphCyclesAndFeedbackArcSetClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditGraphCyclesAndFeedbackArcSet();
+            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"✓ {result.Summary}";
         }
 
         private void OnAuditGraphDegreeDistributionClick(object sender, RoutedEventArgs e)

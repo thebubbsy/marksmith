@@ -2482,6 +2482,25 @@ public sealed partial class SuiteHubView : UserControl
         }
     }
 
+private async void OnAuditWorkspaceMarkdownTableAutoAlignAndExportClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var files = App.RecentFiles?.Load() ?? new List<string>();
+            var report = RecentFilesService.ExportWorkspaceTableAutoAlignmentReport(explicitFiles: files);
+            await Services.ClipboardWriter.TrySetTextAsync(report);
+            SetNotification("Workspace table auto-align report copied to clipboard", success: true);
+            if (RecentDocsActionBtn != null)
+            {
+                Services.CopyFeedback.ApplyButtonTick(RecentDocsActionBtn, null, "\u2713 Report");
+            }
+        }
+        catch (Exception ex)
+        {
+            SetNotification($"Audit failed: {ex.Message}", success: false);
+        }
+    }
+
     private async void OnAuditWorkspaceMarkdownTableAutoAlignClick(object sender, RoutedEventArgs e)
     {
         try

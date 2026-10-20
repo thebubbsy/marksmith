@@ -3805,6 +3805,18 @@ public sealed partial class HistoryWindow : Window
                     _vm.ShowNotice($"✓ {audit.Summary}");
                 };
                 menu.Items.Add(auditPatternMatching);
+                var auditTuplePatternMatching = new MenuFlyoutItem
+                {
+                    Text = "Audit semantic diff tuple deconstruction & recursive subpattern exhaustiveness",
+                    Icon = new FontIcon { Glyph = "\uE8B9" }
+                };
+                auditTuplePatternMatching.Click += (_, _) =>
+                {
+                    var audit = MarkSmith.Services.LineDiff.AuditPatternMatchingAndEnumBranchExhaustiveness(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+                    _vm.ShowNotice($"✓ {audit.Summary}");
+                };
+                menu.Items.Add(auditTuplePatternMatching);
 
 
 

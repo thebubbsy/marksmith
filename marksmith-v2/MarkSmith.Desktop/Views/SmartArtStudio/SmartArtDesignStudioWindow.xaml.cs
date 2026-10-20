@@ -5098,6 +5098,14 @@ namespace MarkSmith.Views.SmartArtStudio
         var result = ViewModel.AuditTargetBullseyeRadiusProgression();
         _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
         ViewModel.StatusMessage = $"✓ {result.Summary}";
+    }
+
+    private void OnOutlineStatsAuditPyramidProportionalityClick(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel == null) return;
+        var result = ViewModel.AuditPyramidLayerProportionality();
+        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+        ViewModel.StatusMessage = $"✓ {result.Summary}";
     }
 
 

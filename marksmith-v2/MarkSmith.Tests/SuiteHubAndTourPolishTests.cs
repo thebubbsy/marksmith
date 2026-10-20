@@ -6380,5 +6380,59 @@ Some paragraph in between.
         Assert.Contains("AuditWorkspaceMarkdownTableAutoAlignItem", suiteXaml);
         Assert.Contains("OnAuditWorkspaceMarkdownTableAutoAlignClick", suiteCs);
         Assert.Contains("AuditWorkspaceMarkdownTableAutoAlign", suiteCs);
+    }
+[Fact]
+    public void Run201_ExportWorkspaceTableAutoAlignmentReport_GeneratesMarkdownSummaryReport()
+    {
+        var emptyReport = RecentFilesService.ExportWorkspaceTableAutoAlignmentReport(
+            explicitFiles: Array.Empty<string>(),
+            fileExistsProvider: _ => false,
+            contentReader: _ => string.Empty);
+
+        Assert.Contains("# Workspace Markdown Table Auto-Alignment Report", emptyReport);
+        Assert.Contains("Total Documents Evaluated", emptyReport);
+        Assert.Contains("Total Tables Evaluated", emptyReport);
     }
-}
+
+    [Fact]
+    public void Run201_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // Surface 1: MainWindow - Markdown Task List & Checkbox Syntax Completeness Auditor
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("auditTaskListsItem", mainCs);
+        Assert.Contains("AuditMarkdownTaskLists", mainCs);
+
+        // Surface 2: MindMapGalaxyWindow - Graph Cycle Detection & Feedback Arc Set Minimization Auditor
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditGraphCyclesFeedbackArcSetItem", galaxyXaml);
+        Assert.Contains("OnAuditGraphCyclesAndFeedbackArcSetClick", galaxyCs);
+        Assert.Contains("AuditGraphCyclesAndFeedbackArcSet", galaxyCs);
+
+        // Surface 3: ShapeDesignStudioWindow - Diagram Shape Shadow & Visual Elevation Layering Harmony Auditor
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditShapeElevationShadowItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditShapeElevationShadowClick", shapeCs);
+        Assert.Contains("AuditShapeElevationAndShadowHarmony", shapeCs);
+
+        // Surface 4: SmartArtDesignStudioWindow - SmartArt Segmented Pyramid / Layer Hierarchy Proportionality Auditor
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineStatsAuditPyramidProportionalityItem", smartArtXaml);
+        Assert.Contains("OnOutlineStatsAuditPyramidProportionalityClick", smartArtCs);
+        Assert.Contains("AuditPyramidLayerProportionality", smartArtCs);
+
+        // Surface 5: HistoryWindow - Semantic Diff Exhaustive Pattern Matching & Tuple Deconstruction Analyzer
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditTuplePatternMatching", historyCs);
+        Assert.Contains("AuditPatternMatchingAndEnumBranchExhaustiveness", historyCs);
+
+        // Surface 6: SuiteHubView - Workspace Markdown Table Delimiter Auto-Fixer & Alignment Exporter
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("AuditWorkspaceMarkdownTableAutoAlignAndExportItem", suiteXaml);
+        Assert.Contains("OnAuditWorkspaceMarkdownTableAutoAlignAndExportClick", suiteCs);
+        Assert.Contains("ExportWorkspaceTableAutoAlignmentReport", suiteCs);
+    }
+}
