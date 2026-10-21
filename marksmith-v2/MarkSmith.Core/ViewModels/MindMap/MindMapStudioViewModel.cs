@@ -14854,7 +14854,187 @@ namespace MarkSmith.ViewModels.MindMap
             return $"Graph critical path audit ({scope}{details} · {category} · {score:0.#}% hierarchy score)";
         }
 
+    
+        public GraphDisconnectedIslandsAudit AuditGraphDisconnectedIslands(bool selectionOnly = false)
+        {
+            var selected = Nodes.Where(n => n.IsSelected).ToList();
+            var targetNodes = (selectionOnly && selected.Count > 0) ? selected : Nodes.ToList();
+            bool isSelection = selectionOnly && selected.Count > 0;
+            var audit = AuditGraphDisconnectedIslands(targetNodes.Select(n => n.Model), Document.Links, isSelection);
+            StatusMessage = audit.Summary;
+            return audit;
+        }
+
+        public static GraphDisconnectedIslandsAudit AuditGraphDisconnectedIslands(
+            IEnumerable<MindMapNode>? nodes,
+            IEnumerable<MindMapLink>? links = null,
+            bool isSelection = false)
+        {
+            var nodeList = nodes?.ToList() ?? new List<MindMapNode>();
+            int totalNodes = nodeList.Count;
+
+            if (totalNodes == 0)
+            {
+                string emptySummary = FormatDisconnectedIslandsSummary(0, 0, 0, 0, 0, 0, 100.0, "Clean Baseline", isSelection);
+                return new GraphDisconnectedIslandsAudit(
+                    0, 0, 0, 0, 0, 0, 100.0,
+                    Array.Empty<GraphIslandComponentItem>(), "Clean Baseline", isSelection, emptySummary);
+            }
+
+            var nodeMap = nodeList.ToDictionary(n => n.Id, n => n);
+            var linkList = (links ?? Enumerable.Empty<MindMapLink>()).ToList();
+
+            var undirected = new Dictionary<string, HashSet<string>>();
+            foreach (var node in nodeList)
+            {
+                undirected[node.Id] = new HashSet<string>();
+            }
+
+            foreach (var node in nodeList)
+            {
+                if (node.ChildIds != null)
+                {
+                    foreach (var cid in node.ChildIds)
+                    {
+                        if (nodeMap.ContainsKey(cid))
+                        {
+                            undirected[node.Id].Add(cid);
+                            undirected[cid].Add(node.Id);
+                        }
+                    }
+                }
+                if (!string.IsNullOrEmpty(node.ParentId) && nodeMap.ContainsKey(node.ParentId))
+                {
+                    undirected[node.ParentId].Add(node.Id);
+                    undirected[node.Id].Add(node.ParentId);
+                }
+            }
+
+            foreach (var link in linkList)
+            {
+                if (nodeMap.ContainsKey(link.SourceNodeId) && nodeMap.ContainsKey(link.TargetNodeId))
+                {
+                    undirected[link.SourceNodeId].Add(link.TargetNodeId);
+                    undirected[link.TargetNodeId].Add(link.SourceNodeId);
+                }
+            }
+
+            int totalEdges = undirected.Values.Sum(s => s.Count) / 2;
+
+            var visited = new HashSet<string>();
+            var components = new List<List<string>>();
+
+            string rootId = nodeList.FirstOrDefault(n => string.IsNullOrEmpty(n.ParentId))?.Id ?? nodeList[0].Id;
+
+            foreach (var node in nodeList)
+            {
+                if (visited.Contains(node.Id)) continue;
+
+                var comp = new List<string>();
+                var queue = new Queue<string>();
+                queue.Enqueue(node.Id);
+                visited.Add(node.Id);
+
+                while (queue.Count > 0)
+                {
+                    var curr = queue.Dequeue();
+                    comp.Add(curr);
+
+                    foreach (var neighbor in undirected[curr])
+                    {
+                        if (!visited.Contains(neighbor))
+                        {
+                            visited.Add(neighbor);
+                            queue.Enqueue(neighbor);
+                        }
+                    }
+                }
+                components.Add(comp);
+            }
+
+            int totalComponents = components.Count;
+            var orderedComponents = components
+                .OrderByDescending(c => c.Contains(rootId))
+                .ThenByDescending(c => c.Count)
+                .ToList();
+
+            int mainComponentSize = orderedComponents.Count > 0 ? orderedComponents[0].Count : 0;
+            int disconnectedIslandCount = 0;
+            int isolatedSingletonCount = 0;
+            var componentItems = new List<GraphIslandComponentItem>();
+
+            for (int i = 0; i < orderedComponents.Count; i++)
+            {
+                var comp = orderedComponents[i];
+                bool isRootComp = i == 0;
+                bool isSingleton = comp.Count == 1;
+
+                if (!isRootComp)
+                {
+                    if (isSingleton) isolatedSingletonCount++;
+                    else disconnectedIslandCount++;
+                }
+
+                var titles = comp.Select(id => nodeMap.TryGetValue(id, out var n) ? (string.IsNullOrWhiteSpace(n.Title) ? id : n.Title) : id).ToList();
+                string status = isRootComp ? "Main Connected Subgraph" : (isSingleton ? "Isolated Satellite Node" : "Disconnected Island Cluster");
+                string rec = isRootComp
+                    ? "Primary topic subgraph reachable from root topic."
+                    : (isSingleton
+                        ? $"Single node '{titles[0]}' has no connections to the mind map; link to parent."
+                        : $"Cluster of {comp.Count} nodes ({string.Join(", ", titles.Take(3))}) has no path to root; establish bridging edge.");
+
+                componentItems.Add(new GraphIslandComponentItem(
+                    i + 1, comp.Count, isRootComp, isSingleton, titles, status, rec));
+            }
+
+            double score = 100.0;
+            if (totalComponents > 1)
+            {
+                score = 100.0 * (mainComponentSize / (double)totalNodes);
+                score -= isolatedSingletonCount * 5.0;
+                score -= disconnectedIslandCount * 10.0;
+            }
+            score = Math.Clamp(score, 0.0, 100.0);
+
+            string category = score switch
+            {
+                >= 95.0 => "Fully Connected Unified Graph",
+                >= 80.0 => "High Cohesion · Minor Satellite Islands",
+                >= 55.0 => "Fragmented Graph Topology",
+                _ => "Severely Partitioned Subgraphs"
+            };
+
+            string summary = FormatDisconnectedIslandsSummary(
+                totalNodes, totalEdges, totalComponents, disconnectedIslandCount, isolatedSingletonCount, mainComponentSize, score, category, isSelection);
+
+            return new GraphDisconnectedIslandsAudit(
+                totalNodes, totalEdges, totalComponents, disconnectedIslandCount, isolatedSingletonCount, mainComponentSize, score, componentItems, category, isSelection, summary);
+        }
+
+        public static string FormatDisconnectedIslandsSummary(
+            int totalNodes, int totalEdges, int totalComponents, int islands, int singletons, int mainSize, double score, string category, bool isSelection = false)
+        {
+            string scope = isSelection ? "Selection · " : "";
+            if (totalNodes == 0)
+                return $"Graph disconnected islands audit ({scope}Clean graph · 0 nodes evaluated)";
+
+            var parts = new List<string>();
+            parts.Add($"{totalNodes} node{(totalNodes == 1 ? "" : "s")}");
+            parts.Add($"{totalComponents} component{(totalComponents == 1 ? "" : "s")}");
+            if (totalComponents == 1) parts.Add("✓ 100% unified topology");
+            else
+            {
+                parts.Add($"main {mainSize} nodes");
+                if (islands > 0) parts.Add($"⚠ {islands} island cluster{(islands == 1 ? "" : "s")}");
+                if (singletons > 0) parts.Add($"🚨 {singletons} isolated node{(singletons == 1 ? "" : "s")}");
+            }
+
+            string details = string.Join(" · ", parts);
+            return $"Graph disconnected islands audit ({scope}{details} · {category} · {score:0.#}% cohesion score)";
+        }
+
     }
+
 
 
     /// <summary>
@@ -16549,3 +16729,24 @@ namespace MarkSmith.ViewModels.MindMap
         string Summary);
 
 }
+    public sealed record GraphIslandComponentItem(
+        int ComponentIndex,
+        int NodeCount,
+        bool ContainsRoot,
+        bool IsIsolatedSingleton,
+        IReadOnlyList<string> NodeTitles,
+        string Status,
+        string Recommendation);
+
+    public sealed record GraphDisconnectedIslandsAudit(
+        int TotalNodes,
+        int TotalEdges,
+        int TotalComponents,
+        int DisconnectedIslandCount,
+        int IsolatedSingletonCount,
+        int MainComponentSize,
+        double GraphCohesionScore,
+        IReadOnlyList<GraphIslandComponentItem> Components,
+        string Category,
+        bool IsSelectionScope,
+        string Summary);

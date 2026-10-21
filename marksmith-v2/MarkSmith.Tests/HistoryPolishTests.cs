@@ -3848,4 +3848,44 @@ public class HistoryPolishTests : IDisposable
         Assert.True(hazardAudit.MissingDiscardArmCount >= 1);
         Assert.True(hazardAudit.SyntaxEleganceScore <= 80.0);
     }
+
+    [Fact]
+    public void Run215_AuditMemoryAllocationBoxingHazards_DetectsBoxingAndLegacyCollections()
+    {
+        var cleanCode = string.Join("\n",
+            "public void Process()",
+            "{",
+            "    var list = new List<int>();",
+            "    int total = 0;",
+            "    for (int i = 0; i < 10; i++)",
+            "    {",
+            "        total += i;",
+            "    }",
+            "}"
+        );
+        var cleanAudit = LineDiff.AuditMemoryAllocationBoxingHazards("", cleanCode);
+        Assert.Equal(0, cleanAudit.TotalHazardsCount);
+        Assert.Equal(0, cleanAudit.BoxingPrimitiveCount);
+        Assert.Equal(0, cleanAudit.LegacyCollectionCount);
+        Assert.Equal(0, cleanAudit.HeapAllocationLoopCount);
+        Assert.Equal(100.0, cleanAudit.LowAllocationScore);
+        Assert.Equal("Zero-Allocation Discipline", cleanAudit.Category);
+
+        var hazardCode = string.Join("\n",
+            "public void Run()",
+            "{",
+            "    var legacy = new ArrayList();",
+            "    object boxed = 42;",
+            "    for (int i = 0; i < 5; i++)",
+            "    {",
+            "        var buf = new byte[1024];",
+            "    }",
+            "}"
+        );
+        var hazardAudit = LineDiff.AuditMemoryAllocationBoxingHazards("", hazardCode);
+        Assert.True(hazardAudit.LegacyCollectionCount >= 1);
+        Assert.True(hazardAudit.BoxingPrimitiveCount >= 1);
+        Assert.True(hazardAudit.HeapAllocationLoopCount >= 1);
+        Assert.True(hazardAudit.LowAllocationScore <= 60.0);
+    }
 }

@@ -15052,7 +15052,248 @@ public static class TextSearch
         return $"Markdown YAML frontmatter audit ({details} · {category} · {score:0.#}% schema score)";
     }
 
+
+    public static MarkdownTableColumnAlignmentStrictnessAudit AuditMarkdownTableColumnAlignmentStrictness(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            string emptySummary = FormatTableColumnAlignmentStrictnessSummary(0, 0, 0, 0, 0, 0, 100.0, "Clean Baseline · No Tables");
+            return new MarkdownTableColumnAlignmentStrictnessAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<MarkdownTableColumnAlignmentStrictnessItem>(),
+                "Clean Baseline · No Tables", emptySummary);
+        }
+
+        var lines = markdownText.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        var items = new List<MarkdownTableColumnAlignmentStrictnessItem>();
+
+        int totalTables = 0;
+        int totalRows = 0;
+        int alignedTables = 0;
+        int columnMismatchCount = 0;
+        int malformedSeparatorCount = 0;
+        int missingOuterPipeCount = 0;
+
+        bool inCodeBlock = false;
+        var currentTableLines = new List<(int LineNumber, string Line)>();
+
+        void ProcessTable()
+        {
+            if (currentTableLines.Count < 2)
+            {
+                currentTableLines.Clear();
+                return;
+            }
+
+            int headerLineNum = currentTableLines[0].LineNumber;
+            string headerLine = currentTableLines[0].Line;
+            var headerCells = SplitTableCellsStrict(headerLine, out bool headerHasLeading, out bool headerHasTrailing);
+            int expectedCols = headerCells.Count;
+
+            if (expectedCols < 1)
+            {
+                currentTableLines.Clear();
+                return;
+            }
+
+            int sepLineNum = currentTableLines[1].LineNumber;
+            string sepLine = currentTableLines[1].Line;
+            var sepCells = SplitTableCellsStrict(sepLine, out bool sepHasLeading, out bool sepHasTrailing);
+
+            bool isMalformedSep = false;
+            if (sepCells.Count != expectedCols)
+            {
+                isMalformedSep = true;
+            }
+            foreach (var cell in sepCells)
+            {
+                var trimmed = cell.Trim();
+                if (!System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"^:?-+:?$") || !trimmed.Contains('-'))
+                {
+                    isMalformedSep = true;
+                    break;
+                }
+            }
+
+            if (isMalformedSep && sepCells.Count < 2)
+            {
+                currentTableLines.Clear();
+                return;
+            }
+
+            totalTables++;
+            int tableIndex = totalTables;
+            bool tableHasIssues = false;
+
+            bool headerMissingOuter = !headerHasLeading || !headerHasTrailing;
+            if (headerMissingOuter) missingOuterPipeCount++;
+            items.Add(new MarkdownTableColumnAlignmentStrictnessItem(
+                headerLineNum, tableIndex, "Header", expectedCols, expectedCols,
+                headerMissingOuter, false, false, headerLine,
+                headerMissingOuter ? "Header row lacks enclosing outer pipes '|'." : "Valid header row."));
+            totalRows++;
+
+            bool sepMissingOuter = !sepHasLeading || !sepHasTrailing;
+            if (sepMissingOuter) missingOuterPipeCount++;
+            if (isMalformedSep)
+            {
+                malformedSeparatorCount++;
+                tableHasIssues = true;
+            }
+            items.Add(new MarkdownTableColumnAlignmentStrictnessItem(
+                sepLineNum, tableIndex, "Separator", sepCells.Count, expectedCols,
+                sepMissingOuter, isMalformedSep, sepCells.Count != expectedCols, sepLine,
+                isMalformedSep ? "Delimiter separator row contains invalid characters or column count mismatch." : "Valid delimiter separator row."));
+            totalRows++;
+
+            for (int r = 2; r < currentTableLines.Count; r++)
+            {
+                int rowLineNum = currentTableLines[r].LineNumber;
+                string rowLine = currentTableLines[r].Line;
+                var cells = SplitTableCellsStrict(rowLine, out bool rowHasLeading, out bool rowHasTrailing);
+                totalRows++;
+
+                bool rowMissingOuter = !rowHasLeading || !rowHasTrailing;
+                if (rowMissingOuter) missingOuterPipeCount++;
+
+                bool rowColMismatch = cells.Count != expectedCols;
+                if (rowColMismatch)
+                {
+                    columnMismatchCount++;
+                    tableHasIssues = true;
+                }
+
+                items.Add(new MarkdownTableColumnAlignmentStrictnessItem(
+                    rowLineNum, tableIndex, "DataRow", cells.Count, expectedCols,
+                    rowMissingOuter, false, rowColMismatch, rowLine,
+                    rowColMismatch
+                        ? $"Row has {cells.Count} columns but header defined {expectedCols} columns."
+                        : (rowMissingOuter ? "Data row lacks enclosing outer pipes '|'." : "Aligned data row.")));
+            }
+
+            if (!tableHasIssues) alignedTables++;
+            currentTableLines.Clear();
+        }
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var raw = lines[i];
+            var trimmed = raw.Trim();
+
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+            {
+                if (currentTableLines.Count > 0) ProcessTable();
+                inCodeBlock = !inCodeBlock;
+                continue;
+            }
+
+            if (inCodeBlock) continue;
+
+            if (trimmed.Contains('|') && !trimmed.StartsWith(">"))
+            {
+                currentTableLines.Add((i + 1, raw));
+            }
+            else
+            {
+                if (currentTableLines.Count > 0)
+                {
+                    ProcessTable();
+                }
+            }
+        }
+
+        if (currentTableLines.Count > 0)
+        {
+            ProcessTable();
+        }
+
+        if (totalTables == 0)
+        {
+            string cleanSummary = FormatTableColumnAlignmentStrictnessSummary(0, 0, 0, 0, 0, 0, 100.0, "Clean Baseline · No Tables");
+            return new MarkdownTableColumnAlignmentStrictnessAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<MarkdownTableColumnAlignmentStrictnessItem>(),
+                "Clean Baseline · No Tables", cleanSummary);
+        }
+
+        double score = 100.0;
+        score -= malformedSeparatorCount * 20.0;
+        score -= columnMismatchCount * 10.0;
+        score -= Math.Min(missingOuterPipeCount * 2.0, 15.0);
+        score = Math.Clamp(score, 0.0, 100.0);
+
+        string category = score switch
+        {
+            >= 95.0 => "Strictly Aligned Tables",
+            >= 80.0 => "High Table Fidelity",
+            >= 60.0 => "Minor Column Misalignments",
+            _ => "Malformed Table Syntax"
+        };
+
+        string summary = FormatTableColumnAlignmentStrictnessSummary(
+            totalTables, totalRows, alignedTables, columnMismatchCount, malformedSeparatorCount, missingOuterPipeCount, score, category);
+
+        return new MarkdownTableColumnAlignmentStrictnessAudit(
+            totalTables, totalRows, alignedTables, columnMismatchCount, malformedSeparatorCount, missingOuterPipeCount, score, items, category, summary);
+    }
+
+    private static List<string> SplitTableCellsStrict(string line, out bool hasLeadingPipe, out bool hasTrailingPipe)
+    {
+        var cells = new List<string>();
+        string trimmed = line.Trim();
+        hasLeadingPipe = trimmed.StartsWith('|');
+        hasTrailingPipe = trimmed.EndsWith('|') && trimmed.Length > 1 && (trimmed.Length < 2 || trimmed[^2] != '\\');
+
+        if (hasLeadingPipe) trimmed = trimmed[1..];
+        if (hasTrailingPipe && trimmed.Length > 0) trimmed = trimmed[..^1];
+
+        var cur = new System.Text.StringBuilder();
+        bool inBacktick = false;
+
+        for (int i = 0; i < trimmed.Length; i++)
+        {
+            char c = trimmed[i];
+            if (c == '`' && (i == 0 || trimmed[i - 1] != '\\'))
+            {
+                inBacktick = !inBacktick;
+                cur.Append(c);
+            }
+            else if (c == '|' && !inBacktick && (i == 0 || trimmed[i - 1] != '\\'))
+            {
+                cells.Add(cur.ToString().Trim());
+                cur.Clear();
+            }
+            else
+            {
+                cur.Append(c);
+            }
+        }
+        cells.Add(cur.ToString().Trim());
+        return cells;
+    }
+
+    public static string FormatTableColumnAlignmentStrictnessSummary(string? markdownText)
+        => AuditMarkdownTableColumnAlignmentStrictness(markdownText).Summary;
+
+    public static string FormatTableColumnAlignmentStrictnessSummary(
+        int totalTables, int totalRows, int alignedTables, int columnMismatches, int malformedSeparators, int missingOuterPipes, double score, string category)
+    {
+        if (totalTables == 0)
+            return "Markdown table column alignment audit: Clean document · No markdown tables present";
+
+        var parts = new List<string>();
+        parts.Add($"{totalTables} table{(totalTables == 1 ? "" : "s")} ({totalRows} row{(totalRows == 1 ? "" : "s")})");
+        parts.Add($"{alignedTables} aligned");
+        if (columnMismatches > 0) parts.Add($"🚨 {columnMismatches} column mismatch{(columnMismatches == 1 ? "" : "es")}");
+        if (malformedSeparators > 0) parts.Add($"⚠ {malformedSeparators} malformed separator{(malformedSeparators == 1 ? "" : "s")}");
+        if (missingOuterPipes > 0) parts.Add($"ℹ {missingOuterPipes} missing outer pipe{(missingOuterPipes == 1 ? "" : "s")}");
+
+        string details = string.Join(" · ", parts);
+        return $"Markdown table column alignment audit ({details} · {category} · {score:0.#}% fidelity score)";
+    }
+
 }
+
 
 
 
@@ -16808,5 +17049,29 @@ public sealed record MarkdownYamlFrontmatterAudit(
     int MissingRecommendedKeyCount,
     double FrontmatterScore,
     IReadOnlyList<MarkdownYamlFrontmatterItem> Items,
+    string Category,
+    string Summary);
+
+public sealed record MarkdownTableColumnAlignmentStrictnessItem(
+    int LineNumber,
+    int TableIndex,
+    string RowType,
+    int ColumnCount,
+    int ExpectedColumns,
+    bool HasMissingOuterPipes,
+    bool HasMalformedSeparator,
+    bool HasColumnMismatch,
+    string Excerpt,
+    string Recommendation);
+
+public sealed record MarkdownTableColumnAlignmentStrictnessAudit(
+    int TotalTables,
+    int TotalRows,
+    int AlignedTables,
+    int ColumnMismatchCount,
+    int MalformedSeparatorCount,
+    int MissingOuterPipeCount,
+    double TableFidelityScore,
+    IReadOnlyList<MarkdownTableColumnAlignmentStrictnessItem> Items,
     string Category,
     string Summary);

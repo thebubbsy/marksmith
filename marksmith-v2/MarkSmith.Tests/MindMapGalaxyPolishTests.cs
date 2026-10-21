@@ -4739,5 +4739,39 @@ namespace MarkSmith.Tests
         Assert.True(cycleAudit.HasCycles);
         Assert.True(cycleAudit.CriticalPathHierarchyScore < 80.0);
     }
+
+    [Fact]
+    public void Run215_AuditGraphDisconnectedIslands_PartitionsComponentsAndDetectsSingletons()
+    {
+        var root = new MindMapNode { Id = "root", Title = "Main Topic" };
+        var c1 = new MindMapNode { Id = "c1", Title = "Child 1", ParentId = "root" };
+        var c2 = new MindMapNode { Id = "c2", Title = "Child 2", ParentId = "root" };
+        var unifiedNodes = new List<MindMapNode> { root, c1, c2 };
+
+        var unifiedAudit = MindMapStudioViewModel.AuditGraphDisconnectedIslands(unifiedNodes);
+        Assert.Equal(3, unifiedAudit.TotalNodes);
+        Assert.Equal(1, unifiedAudit.TotalComponents);
+        Assert.Equal(0, unifiedAudit.DisconnectedIslandCount);
+        Assert.Equal(0, unifiedAudit.IsolatedSingletonCount);
+        Assert.Equal(3, unifiedAudit.MainComponentSize);
+        Assert.Equal(100.0, unifiedAudit.GraphCohesionScore);
+        Assert.Equal("Fully Connected Unified Graph", unifiedAudit.Category);
+
+        var singleton = new MindMapNode { Id = "iso", Title = "Isolated Idea" };
+        var nodesWithSingleton = new List<MindMapNode> { root, c1, c2, singleton };
+        var singletonAudit = MindMapStudioViewModel.AuditGraphDisconnectedIslands(nodesWithSingleton);
+        Assert.Equal(4, singletonAudit.TotalNodes);
+        Assert.Equal(2, singletonAudit.TotalComponents);
+        Assert.Equal(1, singletonAudit.IsolatedSingletonCount);
+        Assert.True(singletonAudit.GraphCohesionScore < 100.0);
+
+        var i1 = new MindMapNode { Id = "i1", Title = "Island Root" };
+        var i2 = new MindMapNode { Id = "i2", Title = "Island Child", ParentId = "i1" };
+        var nodesWithCluster = new List<MindMapNode> { root, c1, c2, i1, i2 };
+        var clusterAudit = MindMapStudioViewModel.AuditGraphDisconnectedIslands(nodesWithCluster);
+        Assert.Equal(5, clusterAudit.TotalNodes);
+        Assert.Equal(2, clusterAudit.TotalComponents);
+        Assert.Equal(1, clusterAudit.DisconnectedIslandCount);
+    }
 }
 }

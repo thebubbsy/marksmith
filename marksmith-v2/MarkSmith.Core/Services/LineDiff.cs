@@ -19900,7 +19900,135 @@ public static class LineDiff
         return $"Semantic diff pattern matching audit ({details} · {category} · {score:0.#}% elegance score)";
     }
 
+
+    public static DiffMemoryAllocationBoxingAudit AuditMemoryAllocationBoxingHazards(string? beforeText, string? afterText)
+    {
+        var d = Diff(beforeText ?? string.Empty, afterText ?? string.Empty);
+        var unified = BuildUnified(d);
+        return AuditMemoryAllocationBoxingHazards(unified);
+    }
+
+    public static DiffMemoryAllocationBoxingAudit AuditMemoryAllocationBoxingHazards(IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows == null)
+        {
+            string emptySummary = FormatMemoryAllocationSummary(0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new DiffMemoryAllocationBoxingAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<DiffMemoryAllocationBoxingItem>(), "Clean Baseline", emptySummary);
+        }
+
+        var modifiedRows = unifiedRows
+            .Where(r => !r.IsGap && r.Kind == Kind.Added && !string.IsNullOrWhiteSpace(r.Text))
+            .ToList();
+
+        int totalModified = modifiedRows.Count;
+        if (totalModified == 0)
+        {
+            string emptySummary = FormatMemoryAllocationSummary(0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new DiffMemoryAllocationBoxingAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<DiffMemoryAllocationBoxingItem>(), "Clean Baseline", emptySummary);
+        }
+
+        var hazards = new List<DiffMemoryAllocationBoxingItem>();
+        int boxingCount = 0;
+        int legacyCollectionCount = 0;
+        int heapInLoopsCount = 0;
+
+        bool inLoop = false;
+        int loopNesting = 0;
+
+        for (int i = 0; i < modifiedRows.Count; i++)
+        {
+            var row = modifiedRows[i];
+            string line = row.Text.Trim();
+            int lineNum = row.NewNumber ?? row.OldNumber ?? (i + 1);
+
+            if (line.StartsWith("//") || line.StartsWith("/*") || line.StartsWith("*"))
+                continue;
+
+            if (System.Text.RegularExpressions.Regex.IsMatch(line, @"\b(for|foreach|while)\s*\("))
+            {
+                inLoop = true;
+                loopNesting++;
+            }
+            if (line.Contains('}') && inLoop)
+            {
+                loopNesting = Math.Max(0, loopNesting - 1);
+                if (loopNesting == 0) inLoop = false;
+            }
+
+            if (System.Text.RegularExpressions.Regex.IsMatch(line, @"\bnew\s+(ArrayList|Hashtable|SortedList)\b"))
+            {
+                legacyCollectionCount++;
+                hazards.Add(new DiffMemoryAllocationBoxingItem(
+                    lineNum, "LegacyNonGenericCollection", "Error", line,
+                    "Non-generic collection causes boxing of value types and lacks type safety; migrate to generic List<T> or Dictionary<TKey, TValue>."));
+            }
+
+            if (System.Text.RegularExpressions.Regex.IsMatch(line, @"\bobject\s+\w+\s*=\s*(\d+|true|false|'[^']'|DateTime\.|Guid\.|TimeSpan\.)") ||
+                System.Text.RegularExpressions.Regex.IsMatch(line, @"\(\s*object\s*\)\s*(\d+|true|false|\w+\.(Count|Length|Id))"))
+            {
+                boxingCount++;
+                hazards.Add(new DiffMemoryAllocationBoxingItem(
+                    lineNum, "BoxingPrimitiveToObject", "Warning", line,
+                    "Value type boxed into heap object reference; use generics or string interpolation to eliminate boxing allocations."));
+            }
+
+            if (inLoop && (
+                System.Text.RegularExpressions.Regex.IsMatch(line, @"\bnew\s+(byte|int|char|string|float|double)\s*\[") ||
+                System.Text.RegularExpressions.Regex.IsMatch(line, @"\bnew\s+List<") ||
+                line.Contains(".ToList()") || line.Contains(".ToArray()")))
+            {
+                heapInLoopsCount++;
+                hazards.Add(new DiffMemoryAllocationBoxingItem(
+                    lineNum, "HeapAllocationInHotPath", "Warning", line,
+                    "Heap allocation or LINQ materialization inside a loop causes GC pressure; consider array pooling (ArrayPool<T>) or hoisting allocation before loop."));
+            }
+        }
+
+        int totalHazards = boxingCount + legacyCollectionCount + heapInLoopsCount;
+        double score = 100.0;
+        score -= legacyCollectionCount * 20.0;
+        score -= boxingCount * 10.0;
+        score -= heapInLoopsCount * 10.0;
+        score = Math.Clamp(score, 0.0, 100.0);
+
+        string category = score switch
+        {
+            >= 95.0 => "Zero-Allocation Discipline",
+            >= 80.0 => "Low-Allocation Profile",
+            >= 60.0 => "Moderate Boxing & Allocation Hotspots",
+            _ => "Excessive Heap Allocation & Boxing Hazards"
+        };
+
+        string summary = FormatMemoryAllocationSummary(
+            totalModified, totalHazards, boxingCount, legacyCollectionCount, heapInLoopsCount, score, category);
+
+        return new DiffMemoryAllocationBoxingAudit(
+            totalModified, totalHazards, boxingCount, legacyCollectionCount, heapInLoopsCount, score, hazards, category, summary);
+    }
+
+    public static string FormatMemoryAllocationSummary(
+        int totalRows, int hazards, int boxing, int legacyCollections, int heapInLoops, double score, string category)
+    {
+        if (totalRows == 0)
+            return "Semantic diff memory allocation audit: Clean diff · 0 added lines evaluated";
+
+        var parts = new List<string>();
+        parts.Add($"{totalRows} line{(totalRows == 1 ? "" : "s")}");
+        if (hazards == 0) parts.Add("✓ zero boxing hazards");
+        if (boxing > 0) parts.Add($"⚠ {boxing} primitive boxing");
+        if (legacyCollections > 0) parts.Add($"🚨 {legacyCollections} legacy non-generic collection");
+        if (heapInLoops > 0) parts.Add($"⚠ {heapInLoops} loop allocation");
+
+        string details = string.Join(" · ", parts);
+        return $"Semantic diff memory allocation audit ({details} · {category} · {score:0.#}% discipline score)";
+    }
+
 }
+
 
 
 
@@ -22153,5 +22281,23 @@ public sealed record DiffPatternMatchingAudit(
     int ComplexLambdaCount,
     double SyntaxEleganceScore,
     IReadOnlyList<DiffPatternMatchingHazardItem> Hazards,
+    string Category,
+    string Summary);
+
+public sealed record DiffMemoryAllocationBoxingItem(
+    int LineNumber,
+    string HazardType,
+    string Severity,
+    string Excerpt,
+    string Recommendation);
+
+public sealed record DiffMemoryAllocationBoxingAudit(
+    int TotalEvaluatedAdditions,
+    int TotalHazardsCount,
+    int BoxingPrimitiveCount,
+    int LegacyCollectionCount,
+    int HeapAllocationLoopCount,
+    double LowAllocationScore,
+    IReadOnlyList<DiffMemoryAllocationBoxingItem> Hazards,
     string Category,
     string Summary);

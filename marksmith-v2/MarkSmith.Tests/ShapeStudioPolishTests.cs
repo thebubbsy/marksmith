@@ -3998,4 +3998,31 @@ public class ShapeStudioPolishTests
         Assert.True(jitterAudit.MaxCoordinateDrift > 0.0);
         Assert.True(jitterAudit.LayoutPrecisionScore < 90.0);
     }
+
+    [Fact]
+    public void Run215_AuditShapeAspectRatioDistortion_DetectsSquashedAndExtremeShapes()
+    {
+        var sProportional1 = new ShapeCanvasItemViewModel { Id = "s1", Name = "Balanced Circle", Prst = "ellipse", Width = 120, Height = 120 };
+        var sProportional2 = new ShapeCanvasItemViewModel { Id = "s2", Name = "Normal Card", Prst = "roundRect", Width = 200, Height = 100 };
+        var cleanAudit = ShapeDesignStudioViewModel.AuditShapeAspectRatioDistortion(new[] { sProportional1, sProportional2 });
+        Assert.Equal(2, cleanAudit.TotalShapes);
+        Assert.Equal(2, cleanAudit.NormalProportionCount);
+        Assert.Equal(0, cleanAudit.SquashedCount);
+        Assert.Equal(0, cleanAudit.ExtremeDistortionCount);
+        Assert.Equal(0, cleanAudit.DegenerateCount);
+        Assert.Equal(100.0, cleanAudit.ProportionScore);
+
+        var sSquashed = new ShapeCanvasItemViewModel { Id = "s3", Name = "Squashed Circle", Prst = "circle", Width = 150, Height = 30 };
+        var squashedAudit = ShapeDesignStudioViewModel.AuditShapeAspectRatioDistortion(new[] { sSquashed });
+        Assert.Equal(1, squashedAudit.SquashedCount);
+        Assert.True(squashedAudit.ProportionScore < 100.0);
+
+        var sExtreme = new ShapeCanvasItemViewModel { Id = "s4", Name = "Stretched Sliver", Prst = "rect", Width = 800, Height = 10 };
+        var extremeAudit = ShapeDesignStudioViewModel.AuditShapeAspectRatioDistortion(new[] { sExtreme });
+        Assert.Equal(1, extremeAudit.ExtremeDistortionCount);
+
+        var sDegenerate = new ShapeCanvasItemViewModel { Id = "s5", Name = "Zero Height", Prst = "rect", Width = 100, Height = 0 };
+        var degenAudit = ShapeDesignStudioViewModel.AuditShapeAspectRatioDistortion(new[] { sDegenerate });
+        Assert.Equal(1, degenAudit.DegenerateCount);
+    }
 }

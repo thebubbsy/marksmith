@@ -403,6 +403,9 @@
                                     <MenuFlyoutItem x:Name="AuditGraphCriticalPathItem" Text="Audit Graph Longest Dependency Chain &amp; Critical Path Length" Click="OnAuditGraphCriticalPathClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditGraphDisconnectedIslandsItem" Text="Audit Graph Isolated Island Subgraphs &amp; Unreachable Node Partitions" Click="OnAuditGraphDisconnectedIslandsClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem x:Name="AuditGraphColorContrastAccessibilityItem" Text="Audit Graph Node Color Contrast &amp; Cognitive Accessibility" Click="OnAuditGraphColorContrastAccessibilityClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

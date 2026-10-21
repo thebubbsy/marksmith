@@ -441,6 +441,9 @@
                                     <MenuFlyoutItem x:Name="AuditWorkspaceHeadingSlugCollisionsItem" Text="Audit Workspace Cross-Document Heading Anchor &amp; Slug Collisions" Click="OnAuditWorkspaceHeadingSlugCollisionsClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditWorkspaceRelativeLinksItem" Text="Audit Workspace Relative Links &amp; Orphan Markdown Assets" Click="OnAuditWorkspaceRelativeLinksClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem x:Name="AuditWorkspaceCodeBlockLanguageTagsItem" Text="Audit Workspace Code Block Syntax Highlighting &amp; Language Tags" Click="OnAuditWorkspaceCodeBlockLanguageTagsClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

@@ -3698,4 +3698,50 @@ public class SmartArtStudioPolishTests
         Assert.Equal(1, imbalancedAudit.EmptyQuadrantCount);
         Assert.True(imbalancedAudit.MatrixSymmetryScore < 80.0);
     }
+
+    [Fact]
+    public void Run215_AuditVennDiagramSetIntersection_ValidatesSetIntersectionAndCardinalityBalance()
+    {
+        var balancedMd = string.Join("\n",
+            "- Set A: Design",
+            "  - Visual Identity",
+            "  - Layout Systems",
+            "- Set B: Engineering",
+            "  - Architecture",
+            "  - Performance",
+            "- Both A & B: UX Engineering",
+            "  - Design Tokens",
+            "  - Reusable Components"
+        );
+        var balancedAudit = SmartArtDesignStudioViewModel.AuditVennDiagramSetIntersection(balancedMd, "Venn");
+        Assert.Equal(2, balancedAudit.PrimarySetCount);
+        Assert.Equal(1, balancedAudit.IntersectionCount);
+        Assert.False(balancedAudit.HasMissingIntersection);
+        Assert.False(balancedAudit.HasCardinalityImbalance);
+        Assert.Equal(100.0, balancedAudit.VennBalanceScore);
+        Assert.Equal("Harmoniously Balanced Venn Diagram", balancedAudit.Category);
+
+        var disjointMd = string.Join("\n",
+            "- Sales",
+            "  - Lead Generation",
+            "- Production",
+            "  - Manufacturing"
+        );
+        var disjointAudit = SmartArtDesignStudioViewModel.AuditVennDiagramSetIntersection(disjointMd, "Venn");
+        Assert.Equal(2, disjointAudit.PrimarySetCount);
+        Assert.Equal(0, disjointAudit.IntersectionCount);
+        Assert.True(disjointAudit.HasMissingIntersection);
+        Assert.True(disjointAudit.VennBalanceScore < 80.0);
+
+        var imbalancedMd = string.Join("\n",
+            "- Mega Category",
+            "  - Task 1", "  - Task 2", "  - Task 3", "  - Task 4", "  - Task 5",
+            "- Micro Category",
+            "  - Solo Task",
+            "- Intersection Both",
+            "  - Shared"
+        );
+        var imbalancedAudit = SmartArtDesignStudioViewModel.AuditVennDiagramSetIntersection(imbalancedMd, "Venn");
+        Assert.True(imbalancedAudit.HasCardinalityImbalance);
+    }
 }

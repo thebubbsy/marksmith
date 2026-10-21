@@ -4139,4 +4139,46 @@ public class TextSearchTests
         Assert.True(invalidAudit.SyntaxErrorCount >= 1);
         Assert.True(invalidAudit.FrontmatterScore < 85.0);
     }
+
+    [Fact]
+    public void Run215_AuditMarkdownTableColumnAlignmentStrictness_DetectsMalformedSeparatorsAndColumnMismatches()
+    {
+        var cleanTable = string.Join("\n",
+            "| Header 1 | Header 2 | Header 3 |",
+            "| :--- | :---: | ---: |",
+            "| Alpha | Beta | Gamma |",
+            "| Delta | Epsilon | Zeta |"
+        );
+        var cleanAudit = TextSearch.AuditMarkdownTableColumnAlignmentStrictness(cleanTable);
+        Assert.Equal(1, cleanAudit.TotalTables);
+        Assert.Equal(4, cleanAudit.TotalRows);
+        Assert.Equal(1, cleanAudit.AlignedTables);
+        Assert.Equal(0, cleanAudit.ColumnMismatchCount);
+        Assert.Equal(0, cleanAudit.MalformedSeparatorCount);
+        Assert.Equal(100.0, cleanAudit.TableFidelityScore);
+        Assert.Equal("Strictly Aligned Tables", cleanAudit.Category);
+
+        var mismatchTable = string.Join("\n",
+            "| Col A | Col B | Col C |",
+            "| --- | --- | --- |",
+            "| Val 1 | Val 2 |",
+            "| Val 3 | Val 4 | Val 5 |"
+        );
+        var mismatchAudit = TextSearch.AuditMarkdownTableColumnAlignmentStrictness(mismatchTable);
+        Assert.Equal(1, mismatchAudit.TotalTables);
+        Assert.Equal(1, mismatchAudit.ColumnMismatchCount);
+        Assert.True(mismatchAudit.TableFidelityScore < 100.0);
+
+        var malformedSepTable = string.Join("\n",
+            "| Name | Role |",
+            "| --- | invalid_separator |",
+            "| Alice | Admin |"
+        );
+        var malformedAudit = TextSearch.AuditMarkdownTableColumnAlignmentStrictness(malformedSepTable);
+        Assert.Equal(1, malformedAudit.MalformedSeparatorCount);
+
+        var noTablesAudit = TextSearch.AuditMarkdownTableColumnAlignmentStrictness("Just plain text with no tables.");
+        Assert.Equal(0, noTablesAudit.TotalTables);
+        Assert.Equal(100.0, noTablesAudit.TableFidelityScore);
+    }
 }

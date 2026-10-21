@@ -12264,6 +12264,20 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             AnnounceStatus(summary);
         };
         menu.Items.Add(auditYamlFrontmatterSchemaItem);
+        var auditTableColumnAlignmentStrictnessItem = new MenuFlyoutItem
+        {
+            Text = "Audit Markdown Table Column Alignment & Header Delimiter Strictness",
+            Icon = new FontIcon { Glyph = "\uE8B9" }
+        };
+        auditTableColumnAlignmentStrictnessItem.Click += (_, _) =>
+        {
+            var docText = EditorDocument();
+            var summary = MarkSmith.Services.TextSearch.AuditMarkdownTableColumnAlignmentStrictness(docText).Summary;
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditTableColumnAlignmentStrictnessItem);
+
 
 
 

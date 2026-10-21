@@ -11930,7 +11930,170 @@ public sealed class RecentFilesService
         return $"Workspace heading slug audit ({details} · {category} · {score:0.#}% uniqueness score)";
     }
 
+
+    public static WorkspaceRelativeLinksAudit AuditWorkspaceRelativeLinks(
+        IReadOnlyList<string>? explicitFiles = null,
+        Func<string, bool>? fileExistsProvider = null,
+        Func<string, string>? contentReader = null)
+    {
+        var files = (explicitFiles ?? Array.Empty<string>())
+            .Where(f => !string.IsNullOrWhiteSpace(f) && !f.EndsWith(".bak.md", StringComparison.OrdinalIgnoreCase))
+            .Distinct()
+            .ToList();
+
+        if (files.Count == 0)
+        {
+            string emptySummary = FormatWorkspaceRelativeLinksSummary(0, 0, 0, 0, 0, 100.0, "Clean Baseline · 0 Files");
+            return new WorkspaceRelativeLinksAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<WorkspaceRelativeLinkItem>(), "Clean Baseline · 0 Files", emptySummary);
+        }
+
+        var exists = fileExistsProvider ?? File.Exists;
+        var reader = contentReader ?? (p => File.Exists(p) ? File.ReadAllText(p) : string.Empty);
+
+        var items = new List<WorkspaceRelativeLinkItem>();
+        int totalLinks = 0;
+        int validLinks = 0;
+        int brokenLinks = 0;
+
+        var referencedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var linkRegex = new System.Text.RegularExpressions.Regex(@"\[([^\]]+)\]\(([^)]+)\)");
+
+        foreach (var file in files)
+        {
+            string content;
+            try
+            {
+                content = reader(file);
+            }
+            catch
+            {
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(content)) continue;
+
+            string docDir = Path.GetDirectoryName(file) ?? string.Empty;
+            var lines = content.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string line = lines[i];
+                var matches = linkRegex.Matches(line);
+
+                foreach (System.Text.RegularExpressions.Match match in matches)
+                {
+                    string label = match.Groups[1].Value.Trim();
+                    string dest = match.Groups[2].Value.Trim();
+
+                    if (dest.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                        dest.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+                        dest.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase) ||
+                        dest.StartsWith("ftp:", StringComparison.OrdinalIgnoreCase) ||
+                        dest.StartsWith("#"))
+                    {
+                        continue;
+                    }
+
+                    totalLinks++;
+                    string targetPath = dest;
+                    string? fragment = null;
+
+                    int hashIdx = targetPath.IndexOf('#');
+                    if (hashIdx >= 0)
+                    {
+                        fragment = targetPath[(hashIdx + 1)..];
+                        targetPath = targetPath[..hashIdx];
+                    }
+
+                    int queryIdx = targetPath.IndexOf('?');
+                    if (queryIdx >= 0)
+                    {
+                        targetPath = targetPath[..queryIdx];
+                    }
+
+                    string resolved = string.IsNullOrEmpty(targetPath)
+                        ? file
+                        : (Path.IsPathRooted(targetPath) ? targetPath : Path.GetFullPath(Path.Combine(docDir, targetPath)));
+
+                    bool targetExists = exists(resolved);
+                    if (targetExists)
+                    {
+                        validLinks++;
+                        referencedFiles.Add(resolved);
+                        items.Add(new WorkspaceRelativeLinkItem(
+                            file, i + 1, label, dest, resolved, true, fragment != null, fragment, "Valid",
+                            "Relative target resolves to an existing workspace document or asset."));
+                    }
+                    else
+                    {
+                        brokenLinks++;
+                        items.Add(new WorkspaceRelativeLinkItem(
+                            file, i + 1, label, dest, resolved, false, fragment != null, fragment, "BrokenTarget",
+                            $"Broken relative link; target file does not exist at '{resolved}'."));
+                    }
+                }
+            }
+        }
+
+        int orphanDocs = 0;
+        foreach (var file in files)
+        {
+            string fullPath = Path.GetFullPath(file);
+            string fileName = Path.GetFileName(fullPath).ToLowerInvariant();
+
+            if (fileName == "readme.md" || fileName == "index.md")
+                continue;
+
+            if (!referencedFiles.Contains(fullPath))
+            {
+                orphanDocs++;
+                items.Add(new WorkspaceRelativeLinkItem(
+                    file, 1, Path.GetFileName(file), file, fullPath, true, false, null, "OrphanDocument",
+                    "Document has 0 inbound relative links from other workspace documents; consider linking in an index."));
+            }
+        }
+
+        double score = 100.0;
+        score -= brokenLinks * 15.0;
+        score -= orphanDocs * 5.0;
+        score = Math.Clamp(score, 0.0, 100.0);
+
+        string category = score switch
+        {
+            >= 95.0 => "High Workspace Hyperlink Connectivity",
+            >= 80.0 => "Well-Linked Workspace",
+            >= 60.0 => "Broken Relative Links Detected",
+            _ => "Severely Broken Hyperlink Structure"
+        };
+
+        string summary = FormatWorkspaceRelativeLinksSummary(
+            files.Count, totalLinks, validLinks, brokenLinks, orphanDocs, score, category);
+
+        return new WorkspaceRelativeLinksAudit(
+            files.Count, totalLinks, validLinks, brokenLinks, orphanDocs, score, items, category, summary);
+    }
+
+    public static string FormatWorkspaceRelativeLinksSummary(
+        int totalFiles, int totalLinks, int validLinks, int brokenLinks, int orphanDocs, double score, string category)
+    {
+        if (totalFiles == 0)
+            return "Workspace relative links audit: Clean workspace · 0 files evaluated";
+
+        var parts = new List<string>();
+        parts.Add($"{totalFiles} file{(totalFiles == 1 ? "" : "s")}");
+        parts.Add($"{totalLinks} relative link{(totalLinks == 1 ? "" : "s")}");
+        if (brokenLinks > 0) parts.Add($"🚨 {brokenLinks} broken link{(brokenLinks == 1 ? "" : "s")}");
+        else if (totalLinks > 0) parts.Add("✓ 100% valid targets");
+        if (orphanDocs > 0) parts.Add($"ℹ {orphanDocs} orphan doc{(orphanDocs == 1 ? "" : "s")}");
+
+        string details = string.Join(" · ", parts);
+        return $"Workspace relative links audit ({details} · {category} · {score:0.#}% connectivity score)";
+    }
+
 }
+
 
 /// <summary>
 /// Represents dormancy and file inventory metrics for a workspace directory cluster.
@@ -13519,5 +13682,28 @@ public sealed record WorkspaceHeadingSlugCollisionAudit(
     int UniqueSlugCount,
     double HeadingUniquenessScore,
     IReadOnlyList<WorkspaceHeadingSlugCollisionItem> Items,
+    string Category,
+    string Summary);
+
+public sealed record WorkspaceRelativeLinkItem(
+    string SourceDocumentPath,
+    int LineNumber,
+    string LinkText,
+    string RawDestination,
+    string ResolvedFilePath,
+    bool TargetFileExists,
+    bool HasFragment,
+    string? Fragment,
+    string IssueType,
+    string Recommendation);
+
+public sealed record WorkspaceRelativeLinksAudit(
+    int TotalFiles,
+    int TotalRelativeLinks,
+    int ValidLinkCount,
+    int BrokenLinkCount,
+    int OrphanDocumentCount,
+    double ConnectivityScore,
+    IReadOnlyList<WorkspaceRelativeLinkItem> Items,
     string Category,
     string Summary);

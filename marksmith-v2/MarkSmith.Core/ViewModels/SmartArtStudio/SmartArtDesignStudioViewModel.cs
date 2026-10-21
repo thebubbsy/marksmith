@@ -12637,7 +12637,146 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         return $"SmartArt matrix audit ({layout} · {details} · {category} · {score:0.#}% harmony score)";
     }
 
+    
+    public SmartArtVennDiagramSetIntersectionAudit AuditVennDiagramSetIntersection(string? markdown = null, string? layoutName = null)
+    {
+        string md = markdown ?? MarkdownText;
+        string layout = layoutName ?? SelectedLayout?.DisplayName ?? "Venn";
+        return AuditVennDiagramSetIntersection(md, layout, isStatic: false);
     }
+
+    public static SmartArtVennDiagramSetIntersectionAudit AuditVennDiagramSetIntersection(
+        string? markdown,
+        string? layoutName = null,
+        bool isStatic = true)
+    {
+        string layout = layoutName ?? "Venn";
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            string emptySummary = FormatVennDiagramSetIntersectionSummary(0, 0, 0, false, false, 0.0, 100.0, "Empty Outline", layout);
+            return new SmartArtVennDiagramSetIntersectionAudit(
+                0, 0, 0, false, false, 0.0, 100.0,
+                Array.Empty<SmartArtVennSetItem>(), "Empty Outline", layout, emptySummary);
+        }
+
+        var lines = markdown.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        var setList = new List<SmartArtVennSetItem>();
+
+        string? currentSetName = null;
+        var currentItems = new List<string>();
+        int setIndex = 0;
+
+        void FlushSet()
+        {
+            if (currentSetName != null)
+            {
+                setIndex++;
+                string name = currentSetName.Trim();
+                bool isIntersection = name.Contains("&") ||
+                                      name.Contains("and", StringComparison.OrdinalIgnoreCase) ||
+                                      name.Contains("both", StringComparison.OrdinalIgnoreCase) ||
+                                      name.Contains("all", StringComparison.OrdinalIgnoreCase) ||
+                                      name.Contains("overlap", StringComparison.OrdinalIgnoreCase) ||
+                                      name.Contains("intersect", StringComparison.OrdinalIgnoreCase);
+
+                string status = isIntersection ? "Intersection Region" : "Primary Set Region";
+                string rec = isIntersection
+                    ? $"Intersection region with {currentItems.Count} common elements."
+                    : $"Primary set with {currentItems.Count} elements.";
+
+                setList.Add(new SmartArtVennSetItem(
+                    setIndex, name, isIntersection, currentItems.Count, currentItems.ToList(), status, rec));
+                currentItems.Clear();
+            }
+        }
+
+        foreach (var rawLine in lines)
+        {
+            var trimmed = rawLine.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed)) continue;
+
+            if (rawLine.StartsWith("- ") || rawLine.StartsWith("* ") || rawLine.StartsWith("+ "))
+            {
+                FlushSet();
+                currentSetName = trimmed[2..].Trim();
+            }
+            else if (trimmed.StartsWith("- ") || trimmed.StartsWith("* ") || trimmed.StartsWith("+ ") || rawLine.StartsWith("  ") || rawLine.StartsWith("\t"))
+            {
+                string itemText = trimmed.TrimStart('-', '*', '+', ' ').Trim();
+                if (!string.IsNullOrEmpty(itemText))
+                {
+                    currentItems.Add(itemText);
+                }
+            }
+        }
+        FlushSet();
+
+        int primarySetCount = setList.Count(s => !s.IsIntersection);
+        int intersectionCount = setList.Count(s => s.IsIntersection);
+        int totalItems = setList.Sum(s => s.ItemCount);
+
+        bool hasMissingIntersection = primarySetCount >= 2 && intersectionCount == 0;
+        bool hasCardinalityImbalance = false;
+        double cardinalityRatio = 1.0;
+
+        var primaryCounts = setList.Where(s => !s.IsIntersection).Select(s => s.ItemCount).ToList();
+        if (primaryCounts.Count >= 2)
+        {
+            int maxC = primaryCounts.Max();
+            int minC = primaryCounts.Min();
+            if (minC == 0 && maxC > 0)
+            {
+                cardinalityRatio = maxC;
+                if (maxC >= 3) hasCardinalityImbalance = true;
+            }
+            else if (minC > 0)
+            {
+                cardinalityRatio = (double)maxC / minC;
+                if (cardinalityRatio > 3.0) hasCardinalityImbalance = true;
+            }
+        }
+
+        double score = 100.0;
+        if (primarySetCount < 2) score -= 35.0;
+        if (hasMissingIntersection) score -= 25.0;
+        if (hasCardinalityImbalance) score -= 20.0;
+        if (totalItems == 0 && setList.Count > 0) score -= 15.0;
+        score = Math.Clamp(score, 0.0, 100.0);
+
+        string category = score switch
+        {
+            >= 95.0 => "Harmoniously Balanced Venn Diagram",
+            >= 80.0 => "Well-Structured Venn Outline",
+            >= 60.0 => "Cardinality Imbalance Detected",
+            _ => "Malformed Venn Diagram Outline"
+        };
+
+        string summary = FormatVennDiagramSetIntersectionSummary(
+            primarySetCount, intersectionCount, totalItems, hasMissingIntersection, hasCardinalityImbalance, cardinalityRatio, score, category, layout);
+
+        return new SmartArtVennDiagramSetIntersectionAudit(
+            primarySetCount, intersectionCount, totalItems, hasMissingIntersection, hasCardinalityImbalance, cardinalityRatio, score, setList, category, layout, summary);
+    }
+
+    public static string FormatVennDiagramSetIntersectionSummary(
+        int primarySets, int intersections, int totalItems, bool missingIntersection, bool imbalanced, double ratio, double score, string category, string layout)
+    {
+        if (primarySets == 0 && intersections == 0)
+            return $"SmartArt Venn diagram audit: Clean outline · 0 sets defined in {layout}";
+
+        var parts = new List<string>();
+        parts.Add($"{primarySets}-set Venn");
+        if (intersections > 0) parts.Add($"✓ {intersections} intersection{(intersections == 1 ? "" : "s")}");
+        else if (missingIntersection) parts.Add("⚠ 0 intersections (disjoint sets)");
+        parts.Add($"{totalItems} total item{(totalItems == 1 ? "" : "s")}");
+        if (imbalanced) parts.Add($"⚠ {ratio:0.#}:1 cardinality imbalance");
+
+        string details = string.Join(" · ", parts);
+        return $"SmartArt Venn diagram audit ({layout} · {details} · {category} · {score:0.#}% balance score)";
+    }
+
+}
+
 
 
 public sealed record ChevronStageGeometryItem(
@@ -14278,4 +14417,26 @@ public sealed record SmartArtMatrixCoordinateParityAudit(
     IReadOnlyList<SmartArtMatrixCoordinateParityItem> Quadrants,
     string LayoutName,
     string Category,
+    string Summary);
+
+public sealed record SmartArtVennSetItem(
+    int SetIndex,
+    string SetName,
+    bool IsIntersection,
+    int ItemCount,
+    IReadOnlyList<string> Items,
+    string Status,
+    string Recommendation);
+
+public sealed record SmartArtVennDiagramSetIntersectionAudit(
+    int PrimarySetCount,
+    int IntersectionCount,
+    int TotalItems,
+    bool HasMissingIntersection,
+    bool HasCardinalityImbalance,
+    double CardinalityRatio,
+    double VennBalanceScore,
+    IReadOnlyList<SmartArtVennSetItem> Sets,
+    string Category,
+    string LayoutName,
     string Summary);

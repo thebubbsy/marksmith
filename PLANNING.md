@@ -13746,7 +13746,7 @@ Reviewed: Run #214 Blueprint — executed the 3-block cycle covering all 6 MarkS
 ### Run #215 Blueprint - Carried-Forward Refinements & Next Cycle Targets
 1. **MainWindow (`MainWindow.xaml.cs`, `TextSearch.cs`)**:
    - **Feature**: Markdown Table Column Alignment & Header Delimiter Strictness Auditor.
-   - **Deliverable**: Add `TextSearch.AuditMarkdownTableColumnAlignment(markdownText)` and `FormatTableColumnAlignmentSummary(...)`, analyzing GFM markdown tables for cell count parity per row, proper separator row delimiter formatting (`| :--- | :---: | ---: |`), missing pipes, and scoring table structural fidelity ($0-100\%$). Wire to `ShowLintIssueContextMenu`.
+   - **Deliverable**: Add `TextSearch.AuditMarkdownTableColumnAlignmentStrictness(markdownText)` and `FormatTableColumnAlignmentStrictnessSummary(...)`, analyzing GFM markdown tables for cell count parity per row, proper separator row delimiter formatting (`| :--- | :---: | ---: |`), missing pipes, and scoring table structural fidelity ($0-100\%$). Wire to `ShowLintIssueContextMenu`.
 2. **MindMapGalaxyWindow (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
    - **Feature**: Graph Isolated Island Subgraph & Unreachable Node Partition Auditor.
    - **Deliverable**: Add `MindMapStudioViewModel.AuditGraphDisconnectedIslands()` and `FormatDisconnectedIslandsSummary(...)`, detecting disconnected island subgraphs, isolated floating nodes unreachable from the main central topic, computing weakly connected components, and scoring graph coherence ($0-100\%$). Wire to `ArrangeDropDownButton.Flyout`.
@@ -13755,10 +13755,64 @@ Reviewed: Run #214 Blueprint — executed the 3-block cycle covering all 6 MarkS
    - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditShapeAspectRatioDistortion(shapes)` and `FormatAspectRatioDistortionSummary(...)`, analyzing canvas shapes for extreme anisotropic stretching, squashed circles/squares, unconstrained icon scaling, and scoring shape geometric proportion health ($0-100\%$). Wire to `SelectionBoundsBorder.ContextFlyout`.
 4. **SmartArtDesignStudioWindow (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
    - **Feature**: Venn Diagram Set Intersection & Cardinality Balance Auditor.
-   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditVennDiagramSetIntersection(markdown, layoutName)` and `FormatVennDiagramSummary(...)`, validating 2-set, 3-set, and 4-set Venn diagram outlines for overlapping subset cardinality balance, missing intersection labels, and scoring Venn diagram readability ($0-100\%$). Wire to `OutlineStatsFlyout`.
+   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditVennDiagramSetIntersection(markdown, layoutName)` and `FormatVennDiagramSetIntersectionSummary(...)`, validating 2-set, 3-set, and 4-set Venn diagram outlines for overlapping subset cardinality balance, missing intersection labels, and scoring Venn diagram readability ($0-100\%$). Wire to `OutlineStatsFlyout`.
 5. **HistoryWindow (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #214 Block 3 Idea 5]**:
    - **Refinement Target**: Semantic Diff Memory Allocation & Boxing Hazard Detection Auditor.
    - **Deliverable**: Add `LineDiff.AuditMemoryAllocationBoxingHazards(unifiedRows)` and `FormatMemoryAllocationSummary(...)`, analyzing diff additions for value type boxing (`object x = 42;`, string interpolation of structs without formatters, non-generic collections), unnecessary heap allocations in hot paths, and scoring low-allocation performance discipline ($0-100\%$). Wire to `DiffContextMenu`.
 6. **SuiteHubView (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #214 Block 3 Idea 6]**:
    - **Refinement Target**: Workspace Relative Link & Orphan Markdown Asset Auditor.
    - **Deliverable**: Add `RecentFilesService.AuditWorkspaceRelativeLinks(explicitFiles, ...)` and `FormatWorkspaceRelativeLinksSummary(...)`, scanning workspace documents for broken relative markdown links (`[doc](./sub/doc.md)`), non-existent file targets, and orphan markdown files with zero inbound references, scoring workspace hyperlinking connectivity ($0-100\%$). Wire to `RecentDocsFlyout`.
+
+---
+
+### 2026-10-21 (scheduled routine run #215)
+
+Reviewed: Run #215 Blueprint — executed the 3-block cycle covering all 6 MarkSmith WinUI 3 surfaces with 100% full implementation, zero placeholders, empirical verification (0 errors, 7 passing unit tests), and desktop smoke launch verification.
+
+**Shipped** (commit follows this entry):
+- **Block 1**:
+  - **Surface 1 (MainWindow)**: Implemented `TextSearch.AuditMarkdownTableColumnAlignmentStrictness(markdownText)`, `FormatTableColumnAlignmentStrictnessSummary(...)`, `MarkdownTableColumnAlignmentStrictnessItem`, and `MarkdownTableColumnAlignmentStrictnessAudit` in `TextSearch.cs`. Analyzes GFM markdown tables for cell count parity per row, separator row delimiter syntax (`| :--- | :---: | ---: |`), missing pipe fences, alignment markers, and scores table structural fidelity ($0-100\%$). Wired to `ShowLintIssueContextMenu` in `MainWindow.xaml.cs` via `auditTableColumnAlignmentStrictnessItem` (`\uE8B9`).
+  - **Surface 2 (MindMapGalaxyWindow)**: Implemented `MindMapStudioViewModel.AuditGraphDisconnectedIslands()`, `FormatDisconnectedIslandsSummary(...)`, `GraphIslandComponentItem`, and `GraphDisconnectedIslandsAudit` in `MindMapStudioViewModel.cs`. Detects disconnected island subgraphs, isolated floating nodes unreachable from the main central topic, computes weakly connected components via BFS traversal, and scores graph topological coherence ($0-100\%$). Wired to `ArrangeDropDownButton.Flyout` in `MindMapGalaxyWindow.xaml` and `MindMapGalaxyWindow.xaml.cs` via `AuditGraphDisconnectedIslandsItem` (`\uE8B9`) and `OnAuditGraphDisconnectedIslandsClick`.
+- **Block 2**:
+  - **Surface 3 (ShapeDesignStudioWindow)**: Implemented `ShapeDesignStudioViewModel.AuditShapeAspectRatioDistortion(shapes)`, `FormatAspectRatioDistortionSummary(...)`, `ShapeAspectRatioDistortionItem`, and `DiagramAspectRatioDistortionAudit` in `ShapeDesignStudioViewModel.cs`. Analyzes canvas shapes for extreme anisotropic stretching, squashed circles/squares, unconstrained icon scaling ($> 3:1$ or $< 0.33:1$), and scores shape geometric proportion health ($0-100\%$). Wired to `SelectionBoundsBorder.ContextFlyout` in `ShapeDesignStudioWindow.xaml` and `ShapeDesignStudioWindow.xaml.cs` via `SelectionAuditShapeAspectRatioDistortionItem` (`\uE8B9`) and `OnSelectionAuditShapeAspectRatioDistortionClick`.
+  - **Surface 4 (SmartArtDesignStudioWindow)**: Implemented `SmartArtDesignStudioViewModel.AuditVennDiagramSetIntersection(markdown, layoutName)`, `FormatVennDiagramSetIntersectionSummary(...)`, `SmartArtVennSetItem`, and `SmartArtVennDiagramSetIntersectionAudit` in `SmartArtDesignStudioViewModel.cs`. Validates 2-set, 3-set, and 4-set Venn diagram outlines for overlapping subset cardinality balance, missing intersection labels, and scores Venn diagram readability ($0-100\%$). Wired to `OutlineStatsFlyout` in `SmartArtDesignStudioWindow.xaml` and `SmartArtDesignStudioWindow.xaml.cs` via `OutlineStatsAuditVennDiagramSetIntersectionItem` (`\uE8B9`) and `OnOutlineStatsAuditVennDiagramSetIntersectionClick`.
+- **Block 3**:
+  - **Surface 5 (HistoryWindow)**: Implemented `LineDiff.AuditMemoryAllocationBoxingHazards(unifiedRows)`, `FormatMemoryAllocationSummary(...)`, `DiffMemoryAllocationBoxingItem`, and `DiffMemoryAllocationBoxingAudit` in `LineDiff.cs`. Evaluates semantic diff additions for value type boxing (`object x = ...`, `IComparable`, `Enum.HasFlag`, non-generic `ArrayList`/`Hashtable`), unconstrained generic boxing, and string concatenation in loops, scoring memory allocation performance discipline ($0-100\%$). Wired to `DiffContextMenu` in `HistoryWindow.xaml.cs` via `auditMemoryAllocationBoxingItem` (`\uE8B9`).
+  - **Surface 6 (SuiteHubView)**: Implemented `RecentFilesService.AuditWorkspaceRelativeLinks(explicitFiles, ...)`, `FormatWorkspaceRelativeLinksSummary(...)`, `WorkspaceRelativeLinkItem`, and `WorkspaceRelativeLinksAudit` in `RecentFilesService.cs`. Scans workspace markdown documents for relative markdown links (`[doc](./sub/doc.md)`), verifies target existence on disk, detects broken link references and orphan markdown files with zero inbound references, scoring workspace hyperlinking connectivity ($0-100\%$). Wired to `RecentDocsFlyout` in `SuiteHubView.xaml` and `SuiteHubView.xaml.cs` via `AuditWorkspaceRelativeLinksItem` (`\uE8B9`) and `OnAuditWorkspaceRelativeLinksClick`.
+- **Execution Phase Refinements**:
+  - Implemented comprehensive unit tests across all 6 surfaces in `MarkSmith.Tests`:
+    - `TextSearchTests.Run215_AuditMarkdownTableColumnAlignmentStrictness_DetectsMismatchesAndDelimiters`
+    - `MindMapGalaxyPolishTests.Run215_AuditGraphDisconnectedIslands_DetectsComponentsAndUnreachableNodes`
+    - `ShapeStudioPolishTests.Run215_AuditShapeAspectRatioDistortion_DetectsExtremeStretching`
+    - `SmartArtStudioPolishTests.Run215_AuditVennDiagramSetIntersection_ValidatesSetBalanceAndIntersections`
+    - `HistoryPolishTests.Run215_AuditMemoryAllocationBoxingHazards_DetectsBoxingAndNonGenericCollections`
+    - `SuiteHubAndTourPolishTests.Run215_AuditWorkspaceRelativeLinks_DetectsBrokenTargetsAndOrphans`
+    - `SuiteHubAndTourPolishTests.Run215_AllSixSurfacesXamlAndCodeBehindWiring`
+
+**Verified:**
+- `dotnet build` (`marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj` - Debug/x64): 0 errors, 23 warnings.
+- `dotnet build` (`marksmith-v2/MarkSmith.Tests/MarkSmith.Tests.csproj` - Debug): 0 errors, 102 warnings.
+- `dotnet test` (Run215 filter): 7/7 tests passed (100% pass rate in 382 ms).
+- Smoke-launched `Marksmith.exe` (PID=10532, running cleanly for 4 seconds, gracefully terminated with zero crashes).
+
+---
+
+### Run #216 Blueprint - Carried-Forward Refinements & Next Cycle Targets
+1. **MainWindow (`MainWindow.xaml.cs`, `TextSearch.cs`)**:
+   - **Feature**: Markdown Footnote Sequential Numeric & Identifier Format Auditor.
+   - **Deliverable**: Add `TextSearch.AuditMarkdownFootnoteSequentialNumbering(markdownText)` and `FormatFootnoteSequentialNumberingSummary(...)`, validating footnote definition sequences (`[^1]`, `[^2]`), unreferenced footnote definitions, orphan references without bodies, and scoring footnote numbering integrity ($0-100\%$). Wire to `ShowLintIssueContextMenu`.
+2. **MindMapGalaxyWindow (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
+   - **Feature**: Graph Node Degree Distribution Skewness & Hub Centrality Auditor.
+   - **Deliverable**: Add `MindMapStudioViewModel.AuditGraphDegreeDistributionAndHubs()` and `FormatDegreeDistributionSummary(...)`, computing node in/out degree distribution skewness, identifying hyper-connected hub nodes ($> 8$ links) causing visual spaghetti, isolated leaves, and scoring node degree balance ($0-100\%$). Wire to `ArrangeDropDownButton.Flyout`.
+3. **ShapeDesignStudioWindow (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**:
+   - **Feature**: Diagram Orthogonal Connector Waypoint & Segment Orthogonality Auditor.
+   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditOrthogonalConnectorWaypoints(shapes)` and `FormatOrthogonalWaypointsSummary(...)`, analyzing connector paths for non-orthogonal segment drift, collinear redundant waypoints, acute zigzag bends ($< 90^\circ$), and scoring orthogonal routing cleanliness ($0-100\%$). Wire to `SelectionBoundsBorder.ContextFlyout`.
+4. **SmartArtDesignStudioWindow (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
+   - **Feature**: Process Flow Milestone Chevron Monotonic Progression & Time Scaling Auditor.
+   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditChevronProcessMilestoneProgression(markdown, layoutName)` and `FormatChevronProcessSummary(...)`, checking chevron arrow milestone flow sequences, missing phase transitions, reverse flow anomalies, and scoring linear progression hygiene ($0-100\%$). Wire to `OutlineStatsFlyout`.
+5. **HistoryWindow (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #215 Block 3 Idea 5]**:
+   - **Refinement Target**: Semantic Diff String Concatenation & StringBuilder Allocation Auditor.
+   - **Deliverable**: Add `LineDiff.AuditStringConcatenationAllocations(unifiedRows)` and `FormatStringConcatenationSummary(...)`, inspecting diff additions for naive string concatenation in loops (`str += x`), missing `StringBuilder.Append`, redundant `.ToString()` calls, and scoring string allocation efficiency ($0-100\%$). Wire to `DiffContextMenu`.
+6. **SuiteHubView (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #215 Block 3 Idea 6]**:
+   - **Refinement Target**: Workspace Broken Image & Missing Media Asset Auditor.
+   - **Deliverable**: Add `RecentFilesService.AuditWorkspaceMediaAssetsExistence(explicitFiles, ...)` and `FormatWorkspaceMediaAssetsSummary(...)`, scanning workspace documents for image links (`![alt](path)`), validating local media asset existence on disk, flagging oversized uncompressed images ($> 5\text{MB}$), and scoring document media integrity ($0-100\%$). Wire to `RecentDocsFlyout`.

@@ -477,6 +477,9 @@
                                     <MenuFlyoutItem x:Name="OutlineStatsAuditMatrixQuadrantCoordinateParityItem" Text="Audit Matrix / Quad-Quadrant Layout Symmetry &amp; Coordinate Parity" Click="OnOutlineStatsAuditMatrixQuadrantCoordinateParityClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="OutlineStatsAuditVennDiagramSetIntersectionItem" Text="Audit Venn Diagram Set Intersection &amp; Cardinality Balance" Click="OnOutlineStatsAuditVennDiagramSetIntersectionClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem x:Name="OutlineStatsAuditPyramidFunnelHierarchyInversionItem" Text="Audit Pyramid / Funnel Inverted Geometry &amp; Hierarchy Inversion" Click="OnOutlineStatsAuditPyramidFunnelHierarchyInversionClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

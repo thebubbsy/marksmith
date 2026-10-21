@@ -7514,4 +7514,70 @@ Some paragraph in between.
         Assert.Contains("OnAuditWorkspaceHeadingSlugCollisionsClick", suiteCs);
         Assert.Contains("AuditWorkspaceHeadingSlugCollisions", suiteCs);
     }
+
+    [Fact]
+    public void Run215_AuditWorkspaceRelativeLinks_DetectsBrokenTargetsAndOrphanDocuments()
+    {
+        var fileDocs = new Dictionary<string, string>
+        {
+            [@"C:\docs\index.md"] = "# Home\nSee [Architecture](./arch.md) for details.",
+            [@"C:\docs\arch.md"] = "# Arch\nSee [Missing Target](./missing.md) and [Home](./index.md).",
+            [@"C:\docs\orphan.md"] = "# Orphan Note\nNo links here."
+        };
+
+        var audit = RecentFilesService.AuditWorkspaceRelativeLinks(
+            explicitFiles: fileDocs.Keys.ToList(),
+            fileExistsProvider: path => fileDocs.ContainsKey(path) || path == @"C:\docs\index.md" || path == @"C:\docs\arch.md",
+            contentReader: path => fileDocs.TryGetValue(path, out var text) ? text : string.Empty
+        );
+
+        Assert.Equal(3, audit.TotalFiles);
+        Assert.Equal(3, audit.TotalRelativeLinks);
+        Assert.Equal(2, audit.ValidLinkCount);
+        Assert.Equal(1, audit.BrokenLinkCount);
+        Assert.Equal(1, audit.OrphanDocumentCount);
+        Assert.True(audit.ConnectivityScore < 95.0);
+    }
+
+    [Fact]
+    public void Run215_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // Surface 1: MainWindow - Markdown Table Column Alignment & Header Delimiter Strictness Auditor
+        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
+        Assert.Contains("auditTableColumnAlignmentStrictnessItem", mainCs);
+        Assert.Contains("AuditMarkdownTableColumnAlignmentStrictness", mainCs);
+
+        // Surface 2: MindMapGalaxyWindow - Graph Isolated Island Subgraph & Unreachable Node Partition Auditor
+        var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));
+        var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
+        Assert.Contains("AuditGraphDisconnectedIslandsItem", galaxyXaml);
+        Assert.Contains("OnAuditGraphDisconnectedIslandsClick", galaxyCs);
+        Assert.Contains("AuditGraphDisconnectedIslands", galaxyCs);
+
+        // Surface 3: ShapeDesignStudioWindow - Diagram Geometric Aspect Ratio Lock & Extreme Distortion Detection Auditor
+        var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));
+        var shapeCs = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml.cs"));
+        Assert.Contains("SelectionAuditShapeAspectRatioDistortionItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditShapeAspectRatioDistortionClick", shapeCs);
+        Assert.Contains("AuditShapeAspectRatioDistortion", shapeCs);
+
+        // Surface 4: SmartArtDesignStudioWindow - Venn Diagram Set Intersection & Cardinality Balance Auditor
+        var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
+        var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
+        Assert.Contains("OutlineStatsAuditVennDiagramSetIntersectionItem", smartArtXaml);
+        Assert.Contains("OnOutlineStatsAuditVennDiagramSetIntersectionClick", smartArtCs);
+        Assert.Contains("AuditVennDiagramSetIntersection", smartArtCs);
+
+        // Surface 5: HistoryWindow - Semantic Diff Memory Allocation & Boxing Hazard Detection Auditor
+        var historyCs = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml.cs"));
+        Assert.Contains("auditMemoryAllocationBoxingItem", historyCs);
+        Assert.Contains("AuditMemoryAllocationBoxingHazards", historyCs);
+
+        // Surface 6: SuiteHubView - Workspace Relative Link & Orphan Markdown Asset Auditor
+        var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
+        var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
+        Assert.Contains("AuditWorkspaceRelativeLinksItem", suiteXaml);
+        Assert.Contains("OnAuditWorkspaceRelativeLinksClick", suiteCs);
+        Assert.Contains("AuditWorkspaceRelativeLinks", suiteCs);
+    }
 }

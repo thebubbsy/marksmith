@@ -14116,7 +14116,117 @@ public static string FormatGroupNestingSummary(
         return $"Diagram coordinate snap grid audit ({scope}{details} · {category} · {score:0.#}% precision score)";
     }
 
+
+    public DiagramAspectRatioDistortionAudit AuditShapeAspectRatioDistortion(bool selectionOnly = false)
+    {
+        var selected = SelectedItems.ToList();
+        var targetShapes = (selectionOnly && selected.Count > 0) ? selected : Shapes.ToList();
+        bool isSelection = selectionOnly && selected.Count > 0;
+        var audit = AuditShapeAspectRatioDistortion(targetShapes, isSelection);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static DiagramAspectRatioDistortionAudit AuditShapeAspectRatioDistortion(
+        IEnumerable<ShapeCanvasItemViewModel>? targetShapes,
+        bool isSelection = false)
+    {
+        var targetList = (targetShapes ?? Enumerable.Empty<ShapeCanvasItemViewModel>()).Where(s => s != null).ToList();
+        int totalShapes = targetList.Count;
+
+        if (totalShapes == 0)
+        {
+            string emptySummary = FormatAspectRatioDistortionSummary(0, 0, 0, 0, 0, 100.0, "Clean Baseline", isSelection);
+            return new DiagramAspectRatioDistortionAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<ShapeAspectRatioDistortionItem>(), "Clean Baseline", isSelection, emptySummary);
+        }
+
+        var items = new List<ShapeAspectRatioDistortionItem>();
+        int normalCount = 0;
+        int squashedCount = 0;
+        int extremeCount = 0;
+        int degenerateCount = 0;
+
+        foreach (var shape in targetList)
+        {
+            double w = shape.Width;
+            double h = shape.Height;
+            string prst = (shape.Prst ?? "rect").ToLowerInvariant();
+            string name = shape.Name ?? "Shape";
+
+            if (w <= 0.0 || h <= 0.0)
+            {
+                degenerateCount++;
+                items.Add(new ShapeAspectRatioDistortionItem(
+                    shape.Id, name, prst, w, h, 0.0, true, false, false,
+                    $"{name} ({prst}): {w:0.#}x{h:0.#}px",
+                    "Degenerate zero or negative dimension; shape collapsed on canvas."));
+                continue;
+            }
+
+            double ratio = w / h;
+            bool isExtreme = ratio > 12.0 || ratio < (1.0 / 12.0);
+            bool isSquareOrCircle = prst == "ellipse" || prst == "circle" || prst == "oval" || prst == "diamond" || prst == "actor";
+            bool isSquashed = isSquareOrCircle && (Math.Abs(w - h) / Math.Max(w, h) > 0.35);
+
+            if (isExtreme) extremeCount++;
+            else if (isSquashed) squashedCount++;
+            else normalCount++;
+
+            string statusDesc = isExtreme
+                ? $"Extreme anisotropic aspect ratio ({ratio:0.##}:1); risk of unreadable label text or collapsed geometry."
+                : (isSquashed
+                    ? $"Geometric primitive '{prst}' is visibly squashed (width {w:0.#}px vs height {h:0.#}px, diff {(Math.Abs(w - h) / Math.Max(w, h) * 100.0):0.#}%)."
+                    : "Proportionally balanced shape geometry.");
+
+            items.Add(new ShapeAspectRatioDistortionItem(
+                shape.Id, name, prst, w, h, ratio, false, isExtreme, isSquashed,
+                $"{name} ({prst}): {w:0.#}x{h:0.#}px ({ratio:0.##}:1)",
+                statusDesc));
+        }
+
+        double score = 100.0;
+        score -= degenerateCount * 30.0;
+        score -= extremeCount * 20.0;
+        score -= squashedCount * 10.0;
+        score = Math.Clamp(score, 0.0, 100.0);
+
+        string category = score switch
+        {
+            >= 95.0 => "Harmonious Geometric Proportions",
+            >= 80.0 => "Good Aspect Ratios",
+            >= 60.0 => "Noticeable Shape Distortions",
+            _ => "Severe Geometric Distortion"
+        };
+
+        string summary = FormatAspectRatioDistortionSummary(
+            totalShapes, normalCount, squashedCount, extremeCount, degenerateCount, score, category, isSelection);
+
+        return new DiagramAspectRatioDistortionAudit(
+            totalShapes, normalCount, squashedCount, extremeCount, degenerateCount, score, items, category, isSelection, summary);
+    }
+
+    public static string FormatAspectRatioDistortionSummary(
+        int total, int normal, int squashed, int extreme, int degenerate, double score, string category, bool isSelection)
+    {
+        string scope = isSelection ? "Selection · " : "";
+        if (total == 0)
+            return $"Diagram shape aspect ratio audit ({scope}Clean artboard · 0 shapes evaluated)";
+
+        var parts = new List<string>();
+        parts.Add($"{total} shape{(total == 1 ? "" : "s")}");
+        if (normal > 0) parts.Add($"✓ {normal} proportional");
+        if (squashed > 0) parts.Add($"⚠ {squashed} squashed");
+        if (extreme > 0) parts.Add($"🚨 {extreme} extreme distortion");
+        if (degenerate > 0) parts.Add($"🚨 {degenerate} collapsed dimension");
+
+        string details = string.Join(" · ", parts);
+        return $"Diagram shape aspect ratio audit ({scope}{details} · {category} · {score:0.#}% proportion score)";
+    }
+
 }
+
 
 /// <summary>
 /// Represents the result of an audit of shape aspect ratios and proportionality.
@@ -15935,6 +16045,31 @@ public sealed record DiagramSnapGridAlignmentAudit(
     double LayoutPrecisionScore,
     IReadOnlyList<ShapeSnapGridAlignmentItem> Items,
     double GridSize,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);
+
+public sealed record ShapeAspectRatioDistortionItem(
+    string ShapeId,
+    string Name,
+    string Prst,
+    double Width,
+    double Height,
+    double AspectRatio,
+    bool IsDegenerate,
+    bool IsExtremeDistortion,
+    bool IsSquashedSquareOrCircle,
+    string Excerpt,
+    string Recommendation);
+
+public sealed record DiagramAspectRatioDistortionAudit(
+    int TotalShapes,
+    int NormalProportionCount,
+    int SquashedCount,
+    int ExtremeDistortionCount,
+    int DegenerateCount,
+    double ProportionScore,
+    IReadOnlyList<ShapeAspectRatioDistortionItem> Items,
     string Category,
     bool IsSelectionScope,
     string Summary);
