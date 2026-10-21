@@ -222,29 +222,11 @@
                                     <MenuFlyoutItem x:Name="CopyRecentAgeDistributionItem" Text="Copy document age breakdown (Today, This week...)" Click="OnCopyRecentAgeDistributionClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE823;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="CopyRecentPathLengthItem" Text="Copy path length &amp; MAX_PATH safety audit" Click="OnCopyRecentPathLengthClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE9F9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="CopyRecentSizeDistributionItem" Text="Copy disk footprint &amp; file size audit" Click="OnCopyRecentSizeDistributionClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8EA;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="CopyRecentDirectorySpreadItem" Text="Copy directory spread &amp; folder dispersion audit" Click="OnCopyRecentDirectorySpreadClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B7;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="CopyRecentNamingPatternsItem" Text="Copy file naming patterns &amp; casing audit" Click="OnCopyRecentNamingPatternsClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8C8;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="CopyRecentMissingAuditItem" Text="Copy missing &amp; moved file paths audit" Click="OnCopyRecentMissingAuditClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7BA;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem x:Name="CopyRecentSortedCatalogItem" Text="Copy sorted &amp; folder-grouped recent catalog (A–Z)" Click="OnCopyRecentSortedCatalogClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8CB;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
                                     <MenuFlyoutItem x:Name="CopyRecentWorkspaceClustersItem" Text="Copy project workspace clusters" Click="OnCopyRecentWorkspaceClustersClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B7;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="CopyRecentDuplicatesAuditItem" Text="Copy duplicate &amp; versioned files audit" Click="OnCopyRecentDuplicatesAuditClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8C8;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
                                     <MenuFlyoutItem x:Name="CopyRecentHealthScorecardItem" Text="Copy library health &amp; portability scorecard" Click="OnCopyRecentHealthScorecardClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE9D9;" /></MenuFlyoutItem.Icon>
@@ -261,9 +243,6 @@
                                     <MenuFlyoutItem x:Name="CopyRecentDormancyAlertsItem" Text="Copy library dormancy risk &amp; revival alerts" Click="OnCopyRecentDormancyAlertsClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7BA;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="CopyRecentClusterDormancyItem" Text="Copy workspace cluster dormancy &amp; stagnation audit" Click="OnCopyRecentClusterDormancyClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B7;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem x:Name="CopyRecentClusterVelocityItem" Text="Copy workspace cluster activity velocity index" Click="OnCopyRecentClusterVelocityClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8F4;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
@@ -272,27 +251,6 @@
                                     </MenuFlyoutItem>
                                     <MenuFlyoutItem x:Name="CopyFormatClusterMatrixItem" Text="Copy file format cluster matrix &amp; diversity index" Click="OnCopyFormatClusterMatrixClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE809;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="CopyCompanionFormatCoverageItem" Text="Copy companion export format coverage &amp; uncompiled audit" Click="OnCopyCompanionFormatCoverageClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8A5;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="CopyDocumentStalenessItem" Text="Copy document aging, staleness &amp; velocity audit" Click="OnCopyDocumentStalenessClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE823;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="CopyWorkspaceStorageFootprintItem" Text="Copy workspace storage footprint &amp; size audit" Click="OnCopyWorkspaceStorageFootprintClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7C8;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="CopyDocumentNamingConventionsItem" Text="Copy document naming convention &amp; casing audit" Click="OnCopyDocumentNamingConventionsClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8FD;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="CopyPathLengthAuditItem" Text="Copy path length &amp; MAX_PATH (260 char) safety audit" Click="OnCopyPathLengthAuditClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B7;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="CopyExtensionDiversityItem" Text="Copy file extension diversity &amp; format distribution audit" Click="OnCopyExtensionDiversityClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7C3;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="CopyDeadLinksAuditItem" Text="Copy dead link &amp; orphan asset cross-reference audit" Click="OnCopyDeadLinksAuditClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8BD;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
                                     <MenuFlyoutItem x:Name="CopyAssetCompressionAdvisorItem" Text="Copy workspace asset compression &amp; format modernization advisor" Click="OnCopyAssetCompressionAdvisorClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEB9F;" /></MenuFlyoutItem.Icon>
@@ -366,109 +324,14 @@
                                     <MenuFlyoutItem x:Name="ApplyWorkspaceDialectNormalizationItem" Text="Apply workspace markdown dialect batch normalization &amp; create rollback backups" Click="OnApplyWorkspaceDialectNormalizationClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditWorkspaceFrontmatterSchemasItem" Text="Audit workspace markdown frontmatter schemas, required keys &amp; date formats" Click="OnAuditWorkspaceFrontmatterSchemasClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditWorkspaceWikiLinksItem" Text="Audit workspace markdown cross-document wiki-links &amp; relative media assets" Click="OnAuditWorkspaceWikiLinksClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditWorkspaceTagTaxonomyItem" Text="Audit workspace markdown tag taxonomy, plural duplicates &amp; singleton tags" Click="OnAuditWorkspaceTagTaxonomyClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditWorkspaceWordCountsItem" Text="Audit workspace markdown document word counts, reading times &amp; length tiers" Click="OnAuditWorkspaceWordCountsClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditWorkspaceCodeFenceLanguagesItem" Text="Audit workspace markdown code fence languages, missing tags &amp; alias consistency" Click="OnAuditWorkspaceCodeFenceLanguagesClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditWorkspaceMathFormulasItem" Text="Audit workspace markdown mathematical expressions, KaTeX &amp; LaTeX syntax" Click="OnAuditWorkspaceMathFormulasClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditWorkspaceTableAlignmentItem" Text="Audit workspace markdown table column alignment, delimiter bars &amp; pipe grid integrity" Click="OnAuditWorkspaceTableAlignmentClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditWorkspaceFrontmatterItem" Text="Audit workspace markdown frontmatter YAML / TOML schema validation &amp; metadata consistency" Click="OnAuditWorkspaceFrontmatterClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditWorkspaceTaskListsItem" Text="Audit workspace markdown task list progress, completion velocity &amp; action items" Click="OnAuditWorkspaceTaskListsClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditWorkspaceInterDocLinksItem" Text="Audit workspace markdown cross-document anchor links &amp; inter-document resolution" Click="OnAuditWorkspaceInterDocLinksClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditWorkspaceImageAssetsItem" Text="Audit workspace markdown image asset paths, local file existence &amp; broken media anchors" Click="OnAuditWorkspaceImageAssetsClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditWorkspaceMarkdownTableAutoAlignItem" Text="Audit &amp; auto-align workspace markdown table pipe delimiter formatting &amp; column widths" Click="OnAuditWorkspaceMarkdownTableAutoAlignClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
 
-                                    <MenuFlyoutItem x:Name="AuditWorkspaceMarkdownTableAutoAlignAndExportItem" Text="Audit, auto-align &amp; export workspace markdown table formatting report" Click="OnAuditWorkspaceMarkdownTableAutoAlignAndExportClick">
-
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-
-                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem x:Name="ApplyWorkspaceMarkdownTableAutoAlignItem" Text="Apply workspace markdown table column padding &amp; auto-alignment fixes" Click="OnApplyWorkspaceMarkdownTableAutoAlignClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
                                     <MenuFlyoutItem x:Name="RestoreWorkspaceTableBackupsItem" Text="Restore workspace markdown table backups (.bak.md snapshots)" Click="OnRestoreWorkspaceTableBackupsClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditWorkspaceBacklinksItem" Text="Audit workspace backlinks, document graph &amp; unreferenced anchors" Click="OnAuditWorkspaceBacklinksClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditWorkspaceMediaAttachmentsItem" Text="Audit workspace markdown images &amp; local media attachment integrity" Click="OnAuditWorkspaceMediaAttachmentsClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditWorkspaceMathDelimitersItem" Text="Audit workspace markdown math formulas &amp; KaTeX delimiter health" Click="OnAuditWorkspaceMathDelimitersClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditWorkspaceMermaidDiagramsItem" Text="Audit workspace mermaid diagram syntax, entity encoding &amp; unescaped labels" Click="OnAuditWorkspaceMermaidDiagramsClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditWorkspaceFrontmatterAndDateHygieneItem" Text="Audit workspace markdown YAML frontmatter &amp; ISO-8601 date hygiene" Click="OnAuditWorkspaceFrontmatterAndDateHygieneClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditWorkspaceDocumentReadabilityDensityItem" Text="Audit workspace document reading time &amp; section density distribution" Click="OnAuditWorkspaceDocumentReadabilityDensityClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditWorkspaceWikilinksAndCrossReferencesItem" Text="Audit workspace relative file path &amp; cross-document wikilink integrity" Click="OnAuditWorkspaceWikilinksAndCrossReferencesClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditWorkspaceMediaAssetOptimizationItem" Text="Audit workspace image &amp; binary asset size, alt text &amp; aspect ratio" Click="OnAuditWorkspaceMediaAssetOptimizationClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditWorkspaceHeadingSlugCollisionsItem" Text="Audit Workspace Cross-Document Heading Anchor &amp; Slug Collisions" Click="OnAuditWorkspaceHeadingSlugCollisionsClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditWorkspaceRelativeLinksItem" Text="Audit Workspace Relative Links &amp; Orphan Markdown Assets" Click="OnAuditWorkspaceRelativeLinksClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditWorkspaceMediaAssetsItem" Text="Audit Workspace Referenced Media Assets &amp; Oversized Images" Click="OnAuditWorkspaceMediaAssetsClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditWorkspaceDocumentTaxonomyCohesionItem" Text="Audit Workspace Document Frontmatter Taxonomy &amp; Category Cohesion" Click="OnAuditWorkspaceDocumentTaxonomyCohesionClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditWorkspaceDocumentAnchorSlugsItem" Text="Audit Workspace Document Cross-Reference Anchor &amp; Header Slug Drift" Click="OnAuditWorkspaceDocumentAnchorSlugsClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditWorkspaceDocumentTocConsistencyItem" Text="Audit Workspace Table of Contents (TOC) &amp; Heading Alignment" Click="OnAuditWorkspaceDocumentTocConsistencyClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditWorkspaceCodeBlockLanguageTagsItem" Text="Audit Workspace Code Block Syntax Highlighting &amp; Language Tags" Click="OnAuditWorkspaceCodeBlockLanguageTagsClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
 
-                                    <MenuFlyoutItem x:Name="AuditWorkspaceCrossFileLinksItem" Text="Audit workspace markdown cross-file links &amp; anchor reference integrity" Click="OnAuditWorkspaceCrossFileLinksClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditWorkspaceMarkdownTablesItem" Text="Audit workspace markdown table formatting, column alignment &amp; pipe syntax" Click="OnAuditWorkspaceMarkdownTablesClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditWorkspaceHeadingSlugsItem" Text="Audit workspace markdown heading slugs &amp; table of contents anchor consistency" Click="OnAuditWorkspaceHeadingSlugsClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem Text="Clear recent filter" Click="OnClearRecentFilterClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
@@ -479,6 +342,147 @@
                                     <MenuFlyoutItem Text="Clear recent documents history" Click="OnClearRecentDocsClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE74D;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutSeparator />
+                                    <MenuFlyoutSubItem Text="Diagnostics" ToolTipService.ToolTip="Read-only checks that summarise and copy a report">
+                                        <MenuFlyoutSubItem.Icon><FontIcon Glyph="&#xE9D9;" /></MenuFlyoutSubItem.Icon>
+                                        <MenuFlyoutItem x:Name="AuditWorkspaceMarkdownTableAutoAlignItem" Text="Audit &amp; auto-align workspace markdown table pipe delimiter formatting &amp; column widths" Click="OnAuditWorkspaceMarkdownTableAutoAlignClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditWorkspaceBacklinksItem" Text="Audit workspace backlinks, document graph &amp; unreferenced anchors" Click="OnAuditWorkspaceBacklinksClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditWorkspaceCodeBlockLanguageTagsItem" Text="Audit Workspace Code Block Syntax Highlighting &amp; Language Tags" Click="OnAuditWorkspaceCodeBlockLanguageTagsClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditWorkspaceHeadingSlugCollisionsItem" Text="Audit Workspace Cross-Document Heading Anchor &amp; Slug Collisions" Click="OnAuditWorkspaceHeadingSlugCollisionsClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditWorkspaceDocumentAnchorSlugsItem" Text="Audit Workspace Document Cross-Reference Anchor &amp; Header Slug Drift" Click="OnAuditWorkspaceDocumentAnchorSlugsClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditWorkspaceDocumentTaxonomyCohesionItem" Text="Audit Workspace Document Frontmatter Taxonomy &amp; Category Cohesion" Click="OnAuditWorkspaceDocumentTaxonomyCohesionClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditWorkspaceDocumentReadabilityDensityItem" Text="Audit workspace document reading time &amp; section density distribution" Click="OnAuditWorkspaceDocumentReadabilityDensityClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditWorkspaceMediaAssetOptimizationItem" Text="Audit workspace image &amp; binary asset size, alt text &amp; aspect ratio" Click="OnAuditWorkspaceMediaAssetOptimizationClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditWorkspaceCodeFenceLanguagesItem" Text="Audit workspace markdown code fence languages, missing tags &amp; alias consistency" Click="OnAuditWorkspaceCodeFenceLanguagesClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditWorkspaceInterDocLinksItem" Text="Audit workspace markdown cross-document anchor links &amp; inter-document resolution" Click="OnAuditWorkspaceInterDocLinksClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditWorkspaceWikiLinksItem" Text="Audit workspace markdown cross-document wiki-links &amp; relative media assets" Click="OnAuditWorkspaceWikiLinksClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditWorkspaceCrossFileLinksItem" Text="Audit workspace markdown cross-file links &amp; anchor reference integrity" Click="OnAuditWorkspaceCrossFileLinksClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditWorkspaceWordCountsItem" Text="Audit workspace markdown document word counts, reading times &amp; length tiers" Click="OnAuditWorkspaceWordCountsClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditWorkspaceFrontmatterSchemasItem" Text="Audit workspace markdown frontmatter schemas, required keys &amp; date formats" Click="OnAuditWorkspaceFrontmatterSchemasClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditWorkspaceFrontmatterItem" Text="Audit workspace markdown frontmatter YAML / TOML schema validation &amp; metadata consistency" Click="OnAuditWorkspaceFrontmatterClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditWorkspaceHeadingSlugsItem" Text="Audit workspace markdown heading slugs &amp; table of contents anchor consistency" Click="OnAuditWorkspaceHeadingSlugsClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditWorkspaceImageAssetsItem" Text="Audit workspace markdown image asset paths, local file existence &amp; broken media anchors" Click="OnAuditWorkspaceImageAssetsClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditWorkspaceMediaAttachmentsItem" Text="Audit workspace markdown images &amp; local media attachment integrity" Click="OnAuditWorkspaceMediaAttachmentsClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditWorkspaceMathDelimitersItem" Text="Audit workspace markdown math formulas &amp; KaTeX delimiter health" Click="OnAuditWorkspaceMathDelimitersClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditWorkspaceMathFormulasItem" Text="Audit workspace markdown mathematical expressions, KaTeX &amp; LaTeX syntax" Click="OnAuditWorkspaceMathFormulasClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditWorkspaceTableAlignmentItem" Text="Audit workspace markdown table column alignment, delimiter bars &amp; pipe grid integrity" Click="OnAuditWorkspaceTableAlignmentClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditWorkspaceMarkdownTablesItem" Text="Audit workspace markdown table formatting, column alignment &amp; pipe syntax" Click="OnAuditWorkspaceMarkdownTablesClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditWorkspaceTagTaxonomyItem" Text="Audit workspace markdown tag taxonomy, plural duplicates &amp; singleton tags" Click="OnAuditWorkspaceTagTaxonomyClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditWorkspaceTaskListsItem" Text="Audit workspace markdown task list progress, completion velocity &amp; action items" Click="OnAuditWorkspaceTaskListsClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditWorkspaceFrontmatterAndDateHygieneItem" Text="Audit workspace markdown YAML frontmatter &amp; ISO-8601 date hygiene" Click="OnAuditWorkspaceFrontmatterAndDateHygieneClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditWorkspaceMermaidDiagramsItem" Text="Audit workspace mermaid diagram syntax, entity encoding &amp; unescaped labels" Click="OnAuditWorkspaceMermaidDiagramsClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditWorkspaceMediaAssetsItem" Text="Audit Workspace Referenced Media Assets &amp; Oversized Images" Click="OnAuditWorkspaceMediaAssetsClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditWorkspaceWikilinksAndCrossReferencesItem" Text="Audit workspace relative file path &amp; cross-document wikilink integrity" Click="OnAuditWorkspaceWikilinksAndCrossReferencesClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditWorkspaceRelativeLinksItem" Text="Audit Workspace Relative Links &amp; Orphan Markdown Assets" Click="OnAuditWorkspaceRelativeLinksClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditWorkspaceDocumentTocConsistencyItem" Text="Audit Workspace Table of Contents (TOC) &amp; Heading Alignment" Click="OnAuditWorkspaceDocumentTocConsistencyClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditWorkspaceMarkdownTableAutoAlignAndExportItem" Text="Audit, auto-align &amp; export workspace markdown table formatting report" Click="OnAuditWorkspaceMarkdownTableAutoAlignAndExportClick">
+                                        
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="CopyCompanionFormatCoverageItem" Text="Copy companion export format coverage &amp; uncompiled audit" Click="OnCopyCompanionFormatCoverageClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8A5;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="CopyDeadLinksAuditItem" Text="Copy dead link &amp; orphan asset cross-reference audit" Click="OnCopyDeadLinksAuditClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8BD;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="CopyRecentDirectorySpreadItem" Text="Copy directory spread &amp; folder dispersion audit" Click="OnCopyRecentDirectorySpreadClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B7;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="CopyRecentSizeDistributionItem" Text="Copy disk footprint &amp; file size audit" Click="OnCopyRecentSizeDistributionClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8EA;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="CopyDocumentStalenessItem" Text="Copy document aging, staleness &amp; velocity audit" Click="OnCopyDocumentStalenessClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE823;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="CopyDocumentNamingConventionsItem" Text="Copy document naming convention &amp; casing audit" Click="OnCopyDocumentNamingConventionsClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8FD;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="CopyRecentDuplicatesAuditItem" Text="Copy duplicate &amp; versioned files audit" Click="OnCopyRecentDuplicatesAuditClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8C8;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="CopyExtensionDiversityItem" Text="Copy file extension diversity &amp; format distribution audit" Click="OnCopyExtensionDiversityClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7C3;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="CopyRecentNamingPatternsItem" Text="Copy file naming patterns &amp; casing audit" Click="OnCopyRecentNamingPatternsClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8C8;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="CopyRecentMissingAuditItem" Text="Copy missing &amp; moved file paths audit" Click="OnCopyRecentMissingAuditClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7BA;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="CopyPathLengthAuditItem" Text="Copy path length &amp; MAX_PATH (260 char) safety audit" Click="OnCopyPathLengthAuditClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B7;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="CopyRecentPathLengthItem" Text="Copy path length &amp; MAX_PATH safety audit" Click="OnCopyRecentPathLengthClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE9F9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="CopyRecentClusterDormancyItem" Text="Copy workspace cluster dormancy &amp; stagnation audit" Click="OnCopyRecentClusterDormancyClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B7;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="CopyWorkspaceStorageFootprintItem" Text="Copy workspace storage footprint &amp; size audit" Click="OnCopyWorkspaceStorageFootprintClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7C8;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                    </MenuFlyoutSubItem>
                                 </MenuFlyout>
                             </Button.Flyout>
                         </Button>

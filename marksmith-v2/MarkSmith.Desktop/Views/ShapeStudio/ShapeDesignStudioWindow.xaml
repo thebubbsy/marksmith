@@ -652,226 +652,228 @@
                                         <MenuFlyoutItem x:Name="SelectionDistributeRadialItem" Text="Distribute shapes radially (Circular / Elliptical orbit)" Click="OnSelectionDistributeRadialClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="SelectionAuditLayerStackItem" Text="Audit z-order layering stack indices" Click="OnSelectionAuditLayerStackClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8E5;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="SelectionAuditGridSnapItem" Text="Audit 8px design grid alignment" Click="OnSelectionAuditGridSnapClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE809;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
                                         <MenuFlyoutItem x:Name="SelectionQuantizeGridItem" Text="Snap shapes to 8px design grid" Click="OnSelectionQuantizeGridClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="SelectionAuditAspectRatioItem" Text="Audit aspect ratio &amp; shape proportionality" Click="OnSelectionAuditAspectRatioClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
                                         <MenuFlyoutItem x:Name="SelectionLockAspectRatioSquareItem" Text="Lock shape aspect ratio (1:1 Square)" Click="OnSelectionLockAspectRatioSquareClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE734;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="SelectionAuditSpacingItem" Text="Audit multi-shape spacing &amp; gap uniformity" Click="OnSelectionAuditSpacingClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
                                         <MenuFlyoutItem x:Name="SelectionDistributeSpacingHorizontalItem" Text="Distribute uniform horizontal spacing (Equal gutters)" Click="OnSelectionDistributeSpacingHorizontalClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE734;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="SelectionAuditOcclusionItem" Text="Audit Z-order depth overlap &amp; occlusion" Click="OnSelectionAuditOcclusionClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE71E;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="SelectionAuditBoundaryBleedItem" Text="Audit canvas boundary margins &amp; bleed" Click="OnSelectionAuditBoundaryBleedClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7B5;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="SelectionAuditTextContrastItem" Text="Audit shape label text contrast &amp; WCAG compliance" Click="OnSelectionAuditTextContrastClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7E6;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="SelectionAuditGoldenRatioItem" Text="Audit Golden Ratio (φ = 1.618) &amp; harmonic scale progression" Click="OnSelectionAuditGoldenRatioClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="SelectionAuditGoldenSpiralItem" Text="Audit Golden Spiral logarithmic expansion &amp; angular progression" Click="OnSelectionAuditGoldenSpiralClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE777;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="SelectionAuditColorHarmonyItem" Text="Audit color palette harmony &amp; chromatic coherence" Click="OnSelectionAuditColorHarmonyClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE771;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="SelectionAuditIsometricItem" Text="Audit 30°/60° isometric grid alignment &amp; depth stacking" Click="OnSelectionAuditIsometricClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE746;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="SelectionAuditSymmetryItem" Text="Audit diagram bilateral reflection &amp; rotational symmetry" Click="OnSelectionAuditSymmetryClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE745;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="SelectionAuditSpacingUniformityItem" Text="Audit shape boundary spacing uniformity &amp; collisions" Click="OnSelectionAuditSpacingUniformityClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE746;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="SelectionAuditOrthogonalRoutingItem" Text="Audit orthogonal connection routing channels &amp; wire crossings" Click="OnSelectionAuditOrthogonalRoutingClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE81E;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="SelectionAuditGridSnapConformanceItem" Text="Audit shape grid snap conformance &amp; subpixel drift" Click="OnSelectionAuditGridSnapConformanceClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE706;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="SelectionAuditVisualWeightItem" Text="Audit diagram visual weight &amp; centroid optical balance" Click="OnSelectionAuditVisualWeightClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7C5;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="SelectionAuditConnectorCurvatureItem" Text="Audit connector path curvature &amp; Bezier tangent smoothness" Click="OnSelectionAuditConnectorCurvatureClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE746;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="SelectionAuditAspectRatioScalingItem" Text="Audit shape aspect ratio lock &amp; geometric primitive scaling" Click="OnSelectionAuditAspectRatioScalingClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE799;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="SelectionAuditStrokeAlignmentItem" Text="Audit stroke alignment, corner radius uniformity &amp; miter limits" Click="OnSelectionAuditStrokeAlignmentClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="SelectionAuditConnectorObstaclesItem" Text="Audit connector routing &amp; shape obstacle collisions" Click="OnSelectionAuditConnectorObstaclesClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE81E;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="SelectionAuditCompoundGroupsItem" Text="Audit compound group bounds, child containment &amp; z-stacking" Click="OnSelectionAuditCompoundGroupsClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE71D;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="SelectionAuditConnectorPortSnappingItem" Text="Audit connector port snapping &amp; sub-grid float drift" Click="OnSelectionAuditConnectorPortSnappingClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="SelectionAuditCanvasSpatialBalanceItem" Text="Audit canvas spatial balance, center of mass &amp; margin clearances" Click="OnSelectionAuditCanvasSpatialBalanceClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="SelectionAuditShapeCollinearityItem" Text="Audit shape alignment collinearity &amp; distribution spacing" Click="OnSelectionAuditShapeCollinearityClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="SelectionAuditVisualFlowDirectionalityItem" Text="Audit diagram visual flow directionality &amp; arrow vector hierarchy" Click="OnSelectionAuditVisualFlowDirectionalityClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="SelectionAuditAspectRatioGoldenRatioItem" Text="Audit shape aspect ratio consistency &amp; golden ratio (&#x03C6; &#x2248; 1.618) adherence" Click="OnSelectionAuditAspectRatioGoldenRatioClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="SelectionAuditCornerRadiusConsistencyItem" Text="Audit shape corner radius consistency &amp; rounded rectangle harmony" Click="OnSelectionAuditCornerRadiusConsistencyClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="SelectionAuditZIndexOcclusionItem" Text="Audit shape z-index stacking layering &amp; overlap occlusion" Click="OnSelectionAuditZIndexOcclusionClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="SelectionAuditConnectorArrowheadUniformityItem" Text="Audit connector arrowhead style uniformity &amp; endpoint attachment" Click="OnSelectionAuditConnectorArrowheadUniformityClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="SelectionAuditStrokeWeightAndDashItem" Text="Audit shape stroke weight consistency &amp; border dash uniformity" Click="OnSelectionAuditStrokeWeightAndDashClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="SelectionAuditFillColorPaletteHarmonyItem" Text="Audit shape fill color harmony &amp; WCAG contrast uniformity" Click="OnSelectionAuditFillColorPaletteHarmonyClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="SelectionAuditAspectRatioHarmonyItem" Text="Audit shape aspect ratio harmony &amp; visual mass distribution" Click="OnSelectionAuditAspectRatioHarmonyClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="SelectionAuditConnectorRoutesItem" Text="Audit connector route directness, bend counts &amp; obstacle collisions" Click="OnSelectionAuditConnectorRoutesClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="SelectionAuditLayerOcclusionItem" Text="Audit diagram Z-order layer stacking, occlusions &amp; visual hierarchy" Click="OnSelectionAuditLayerOcclusionClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="SelectionAuditAlignmentSnappingItem" Text="Audit diagram canvas symmetric alignment, grid snapping &amp; distribution parity" Click="OnSelectionAuditAlignmentSnappingClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="SelectionAuditConnectionPortRoutingItem" Text="Audit connection port orthogonality, angle snapping &amp; collinear routing" Click="OnSelectionAuditConnectionPortRoutingClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="SelectionAuditVisualDensityMarginsItem" Text="Audit diagram shape visual density, canvas margin padding &amp; viewport perimeter safety" Click="OnSelectionAuditVisualDensityMarginsClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="SelectionAuditZOrderOcclusionItem" Text="Audit diagram Z-index layering, occlusion depth &amp; shape visual stacking" Click="OnSelectionAuditZOrderOcclusionClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="SelectionAuditConnectorOrthogonalBendsItem" Text="Audit diagram connector orthogonal routing, corner bends &amp; segment occlusion" Click="OnSelectionAuditConnectorOrthogonalBendsClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="SelectionAuditAlignmentGuidesSnappingItem" Text="Audit diagram shape alignment guide proximity &amp; smart snap distribution" Click="OnSelectionAuditAlignmentGuidesSnappingClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="SelectionAuditGroupHierarchyPaddingItem" Text="Audit diagram shape grouping hierarchy, container bounds &amp; padding" Click="OnSelectionAuditGroupHierarchyPaddingClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="SelectionAuditLayeringZOrderOcclusionItem" Text="Audit diagram shape Z-order layering, stacking depth &amp; overlap inversion" Click="OnSelectionAuditLayeringZOrderOcclusionClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="SelectionAuditVisualWeightContrastItem" Text="Audit diagram shape visual weight, WCAG contrast ratio &amp; readability" Click="OnSelectionAuditVisualWeightContrastClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="SelectionAuditConnectorAnchorSnappingItem" Text="Audit diagram connector anchor snapping margin &amp; alignment orthogonality" Click="OnSelectionAuditConnectorAnchorSnappingClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="SelectionAuditShapeAspectRatioItem" Text="Audit diagram shape aspect ratio uniformity, golden ratio &amp; geometry aesthetics" Click="OnSelectionAuditShapeAspectRatioClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="SelectionAuditColorContrastItem" Text="Audit diagram shape fill &amp; stroke color contrast accessibility (WCAG 2.1 AA/AAA)" Click="OnSelectionAuditColorContrastClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="SelectionAuditShapeZOrderStackingItem" Text="Audit diagram shape Z-order layering, stacking depth &amp; overlap occlusion" Click="OnSelectionAuditShapeZOrderStackingClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="SelectionAuditShapeTextPaddingItem" Text="Audit diagram shape text padding, label boundaries &amp; boundary overflow" Click="OnSelectionAuditShapeTextPaddingClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="SelectionAuditConnectorArrowheadsItem" Text="Audit diagram connector arrowhead alignment, endpoint orthogonality &amp; port attachments" Click="OnSelectionAuditConnectorArrowheadsClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="SelectionAuditShapeStrokeDashItem" Text="Audit diagram shape stroke dash pattern, border weight &amp; cap uniformity" Click="OnSelectionAuditShapeStrokeDashClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-
-                                    <MenuFlyoutItem x:Name="SelectionAuditShapeElevationShadowItem" Text="Audit diagram shape shadow, visual elevation &amp; 2.5D layering harmony" Click="OnSelectionAuditShapeElevationShadowClick">
-
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
-
-                                    </MenuFlyoutItem>
-                    <MenuFlyoutItem x:Name="SelectionAuditShapeGroupNestingItem" Text="Audit shape group nesting depth &amp; hierarchy complexity" Click="OnSelectionAuditShapeGroupNestingClick">
-                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                    </MenuFlyoutItem>
-                    <MenuFlyoutItem x:Name="SelectionAuditConnectorRoutingAlignmentItem" Text="Audit connector anchor snapping &amp; routing alignment" Click="OnSelectionAuditConnectorRoutingAlignmentClick">
-                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                    </MenuFlyoutItem>
-                    <MenuFlyoutItem x:Name="SelectionAuditIsometricAlignmentItem" Text="Audit diagram isometric grid &amp; 30-degree projection alignment" Click="OnSelectionAuditIsometricAlignmentClick">
-                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="SelectionAuditObliqueAlignmentItem" Text="Audit diagram oblique projection (cabinet/cavalier 30°/45°/60°) angles" Click="OnSelectionAuditObliqueAlignmentClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="SelectionAuditDimetricAlignmentItem" Text="Audit diagram dimetric projection (15°/75°/26.6°) angles" Click="OnSelectionAuditDimetricAlignmentClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="SelectionAuditTrimetricAlignmentItem" Text="Audit trimetric projection &amp; tri-axial angle alignment" Click="OnSelectionAuditTrimetricAlignmentClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="SelectionAuditIsometricGridSnappingItem" Text="Audit diagram isometric 8px/16px grid snapping &amp; offset quanta" Click="OnSelectionAuditIsometricGridSnappingClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="SelectionAuditMagneticSnappingGuidesItem" Text="Audit diagram magnetic snapping guide rays &amp; cardinal edge anchors" Click="OnSelectionAuditMagneticSnappingGuidesClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="SelectionAuditBezierHandleSymmetryItem" Text="Audit vector path tangent continuity &amp; bezier handle symmetry" Click="OnSelectionAuditBezierHandleSymmetryClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="SelectionAuditDiagramViewportBleedItem" Text="Audit vector diagram canvas viewport margins &amp; bleed edge safety" Click="OnSelectionAuditDiagramViewportBleedClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="SelectionAuditDiagramCoordinateSnapGridAlignmentItem" Text="Audit Diagram Coordinate Snap Grid &amp; Cardinal Alignment" Click="OnSelectionAuditDiagramCoordinateSnapGridAlignmentClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="SelectionAuditShapeAspectRatioDistortionItem" Text="Audit Diagram Geometric Aspect Ratio Lock &amp; Extreme Distortion" Click="OnSelectionAuditShapeAspectRatioDistortionClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="SelectionAuditOrthogonalConnectorWaypointsItem" Text="Audit Diagram Orthogonal Connector Waypoints &amp; Redundant Routing" Click="OnSelectionAuditOrthogonalConnectorWaypointsClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="SelectionAuditDiagramZIndexStackingItem" Text="Audit Diagram Z-Index Stacking Normalization &amp; Layer Occlusion" Click="OnSelectionAuditDiagramZIndexStackingClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="SelectionAuditDiagramTextContrastItem" Text="Audit Diagram Text Contrast &amp; Label Contrast Ratio" Click="OnSelectionAuditDiagramTextContrastClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="SelectionAuditDiagramShadowConsistencyItem" Text="Audit Drop Shadow Directional Lighting &amp; Blur Consistency" Click="OnSelectionAuditDiagramShadowConsistencyClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="SelectionAuditShapeOcclusionAndStackingOrderItem" Text="Audit Shape Z-Index Stacking Order &amp; Visual Occlusion" Click="OnSelectionAuditShapeOcclusionAndStackingOrderClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-
-                    <MenuFlyoutItem x:Name="SelectionAuditRadialAlignmentItem" Text="Audit diagram radial &amp; concentric ring alignment" Click="OnSelectionAuditRadialAlignmentClick">
-                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                    </MenuFlyoutItem>
+                                        <MenuFlyoutSeparator />
+                                        <MenuFlyoutSubItem Text="Diagnostics" ToolTipService.ToolTip="Read-only checks that summarise and copy a report">
+                                            <MenuFlyoutSubItem.Icon><FontIcon Glyph="&#xE9D9;" /></MenuFlyoutSubItem.Icon>
+                                            <MenuFlyoutItem x:Name="SelectionAuditIsometricItem" Text="Audit 30°/60° isometric grid alignment &amp; depth stacking" Click="OnSelectionAuditIsometricClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE746;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditGridSnapItem" Text="Audit 8px design grid alignment" Click="OnSelectionAuditGridSnapClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE809;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditAspectRatioItem" Text="Audit aspect ratio &amp; shape proportionality" Click="OnSelectionAuditAspectRatioClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditBoundaryBleedItem" Text="Audit canvas boundary margins &amp; bleed" Click="OnSelectionAuditBoundaryBleedClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7B5;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditCanvasSpatialBalanceItem" Text="Audit canvas spatial balance, center of mass &amp; margin clearances" Click="OnSelectionAuditCanvasSpatialBalanceClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditColorHarmonyItem" Text="Audit color palette harmony &amp; chromatic coherence" Click="OnSelectionAuditColorHarmonyClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE771;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditCompoundGroupsItem" Text="Audit compound group bounds, child containment &amp; z-stacking" Click="OnSelectionAuditCompoundGroupsClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE71D;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditConnectionPortRoutingItem" Text="Audit connection port orthogonality, angle snapping &amp; collinear routing" Click="OnSelectionAuditConnectionPortRoutingClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditConnectorRoutingAlignmentItem" Text="Audit connector anchor snapping &amp; routing alignment" Click="OnSelectionAuditConnectorRoutingAlignmentClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditConnectorArrowheadUniformityItem" Text="Audit connector arrowhead style uniformity &amp; endpoint attachment" Click="OnSelectionAuditConnectorArrowheadUniformityClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditConnectorCurvatureItem" Text="Audit connector path curvature &amp; Bezier tangent smoothness" Click="OnSelectionAuditConnectorCurvatureClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE746;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditConnectorPortSnappingItem" Text="Audit connector port snapping &amp; sub-grid float drift" Click="OnSelectionAuditConnectorPortSnappingClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditConnectorRoutesItem" Text="Audit connector route directness, bend counts &amp; obstacle collisions" Click="OnSelectionAuditConnectorRoutesClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditConnectorObstaclesItem" Text="Audit connector routing &amp; shape obstacle collisions" Click="OnSelectionAuditConnectorObstaclesClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE81E;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditSymmetryItem" Text="Audit diagram bilateral reflection &amp; rotational symmetry" Click="OnSelectionAuditSymmetryClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE745;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditAlignmentSnappingItem" Text="Audit diagram canvas symmetric alignment, grid snapping &amp; distribution parity" Click="OnSelectionAuditAlignmentSnappingClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditConnectorAnchorSnappingItem" Text="Audit diagram connector anchor snapping margin &amp; alignment orthogonality" Click="OnSelectionAuditConnectorAnchorSnappingClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditConnectorArrowheadsItem" Text="Audit diagram connector arrowhead alignment, endpoint orthogonality &amp; port attachments" Click="OnSelectionAuditConnectorArrowheadsClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditConnectorOrthogonalBendsItem" Text="Audit diagram connector orthogonal routing, corner bends &amp; segment occlusion" Click="OnSelectionAuditConnectorOrthogonalBendsClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditDiagramCoordinateSnapGridAlignmentItem" Text="Audit Diagram Coordinate Snap Grid &amp; Cardinal Alignment" Click="OnSelectionAuditDiagramCoordinateSnapGridAlignmentClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditDimetricAlignmentItem" Text="Audit diagram dimetric projection (15°/75°/26.6°) angles" Click="OnSelectionAuditDimetricAlignmentClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditShapeAspectRatioDistortionItem" Text="Audit Diagram Geometric Aspect Ratio Lock &amp; Extreme Distortion" Click="OnSelectionAuditShapeAspectRatioDistortionClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditIsometricGridSnappingItem" Text="Audit diagram isometric 8px/16px grid snapping &amp; offset quanta" Click="OnSelectionAuditIsometricGridSnappingClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditIsometricAlignmentItem" Text="Audit diagram isometric grid &amp; 30-degree projection alignment" Click="OnSelectionAuditIsometricAlignmentClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditMagneticSnappingGuidesItem" Text="Audit diagram magnetic snapping guide rays &amp; cardinal edge anchors" Click="OnSelectionAuditMagneticSnappingGuidesClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditObliqueAlignmentItem" Text="Audit diagram oblique projection (cabinet/cavalier 30°/45°/60°) angles" Click="OnSelectionAuditObliqueAlignmentClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditOrthogonalConnectorWaypointsItem" Text="Audit Diagram Orthogonal Connector Waypoints &amp; Redundant Routing" Click="OnSelectionAuditOrthogonalConnectorWaypointsClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditRadialAlignmentItem" Text="Audit diagram radial &amp; concentric ring alignment" Click="OnSelectionAuditRadialAlignmentClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditAlignmentGuidesSnappingItem" Text="Audit diagram shape alignment guide proximity &amp; smart snap distribution" Click="OnSelectionAuditAlignmentGuidesSnappingClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditShapeAspectRatioItem" Text="Audit diagram shape aspect ratio uniformity, golden ratio &amp; geometry aesthetics" Click="OnSelectionAuditShapeAspectRatioClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditColorContrastItem" Text="Audit diagram shape fill &amp; stroke color contrast accessibility (WCAG 2.1 AA/AAA)" Click="OnSelectionAuditColorContrastClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditGroupHierarchyPaddingItem" Text="Audit diagram shape grouping hierarchy, container bounds &amp; padding" Click="OnSelectionAuditGroupHierarchyPaddingClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditShapeElevationShadowItem" Text="Audit diagram shape shadow, visual elevation &amp; 2.5D layering harmony" Click="OnSelectionAuditShapeElevationShadowClick">
+                                            
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                            
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditShapeStrokeDashItem" Text="Audit diagram shape stroke dash pattern, border weight &amp; cap uniformity" Click="OnSelectionAuditShapeStrokeDashClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditShapeTextPaddingItem" Text="Audit diagram shape text padding, label boundaries &amp; boundary overflow" Click="OnSelectionAuditShapeTextPaddingClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditVisualDensityMarginsItem" Text="Audit diagram shape visual density, canvas margin padding &amp; viewport perimeter safety" Click="OnSelectionAuditVisualDensityMarginsClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditVisualWeightContrastItem" Text="Audit diagram shape visual weight, WCAG contrast ratio &amp; readability" Click="OnSelectionAuditVisualWeightContrastClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditLayeringZOrderOcclusionItem" Text="Audit diagram shape Z-order layering, stacking depth &amp; overlap inversion" Click="OnSelectionAuditLayeringZOrderOcclusionClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditShapeZOrderStackingItem" Text="Audit diagram shape Z-order layering, stacking depth &amp; overlap occlusion" Click="OnSelectionAuditShapeZOrderStackingClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditDiagramTextContrastItem" Text="Audit Diagram Text Contrast &amp; Label Contrast Ratio" Click="OnSelectionAuditDiagramTextContrastClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditVisualFlowDirectionalityItem" Text="Audit diagram visual flow directionality &amp; arrow vector hierarchy" Click="OnSelectionAuditVisualFlowDirectionalityClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditVisualWeightItem" Text="Audit diagram visual weight &amp; centroid optical balance" Click="OnSelectionAuditVisualWeightClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7C5;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditZOrderOcclusionItem" Text="Audit diagram Z-index layering, occlusion depth &amp; shape visual stacking" Click="OnSelectionAuditZOrderOcclusionClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditDiagramZIndexStackingItem" Text="Audit Diagram Z-Index Stacking Normalization &amp; Layer Occlusion" Click="OnSelectionAuditDiagramZIndexStackingClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditLayerOcclusionItem" Text="Audit diagram Z-order layer stacking, occlusions &amp; visual hierarchy" Click="OnSelectionAuditLayerOcclusionClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditDiagramShadowConsistencyItem" Text="Audit Drop Shadow Directional Lighting &amp; Blur Consistency" Click="OnSelectionAuditDiagramShadowConsistencyClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditGoldenRatioItem" Text="Audit Golden Ratio (φ = 1.618) &amp; harmonic scale progression" Click="OnSelectionAuditGoldenRatioClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditGoldenSpiralItem" Text="Audit Golden Spiral logarithmic expansion &amp; angular progression" Click="OnSelectionAuditGoldenSpiralClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE777;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditSpacingItem" Text="Audit multi-shape spacing &amp; gap uniformity" Click="OnSelectionAuditSpacingClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditOrthogonalRoutingItem" Text="Audit orthogonal connection routing channels &amp; wire crossings" Click="OnSelectionAuditOrthogonalRoutingClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE81E;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditShapeCollinearityItem" Text="Audit shape alignment collinearity &amp; distribution spacing" Click="OnSelectionAuditShapeCollinearityClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditAspectRatioGoldenRatioItem" Text="Audit shape aspect ratio consistency &amp; golden ratio (&#x03C6; &#x2248; 1.618) adherence" Click="OnSelectionAuditAspectRatioGoldenRatioClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditAspectRatioHarmonyItem" Text="Audit shape aspect ratio harmony &amp; visual mass distribution" Click="OnSelectionAuditAspectRatioHarmonyClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditAspectRatioScalingItem" Text="Audit shape aspect ratio lock &amp; geometric primitive scaling" Click="OnSelectionAuditAspectRatioScalingClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE799;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditSpacingUniformityItem" Text="Audit shape boundary spacing uniformity &amp; collisions" Click="OnSelectionAuditSpacingUniformityClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE746;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditCornerRadiusConsistencyItem" Text="Audit shape corner radius consistency &amp; rounded rectangle harmony" Click="OnSelectionAuditCornerRadiusConsistencyClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditFillColorPaletteHarmonyItem" Text="Audit shape fill color harmony &amp; WCAG contrast uniformity" Click="OnSelectionAuditFillColorPaletteHarmonyClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditGridSnapConformanceItem" Text="Audit shape grid snap conformance &amp; subpixel drift" Click="OnSelectionAuditGridSnapConformanceClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE706;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditShapeGroupNestingItem" Text="Audit shape group nesting depth &amp; hierarchy complexity" Click="OnSelectionAuditShapeGroupNestingClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditTextContrastItem" Text="Audit shape label text contrast &amp; WCAG compliance" Click="OnSelectionAuditTextContrastClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7E6;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditStrokeWeightAndDashItem" Text="Audit shape stroke weight consistency &amp; border dash uniformity" Click="OnSelectionAuditStrokeWeightAndDashClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditZIndexOcclusionItem" Text="Audit shape z-index stacking layering &amp; overlap occlusion" Click="OnSelectionAuditZIndexOcclusionClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditShapeOcclusionAndStackingOrderItem" Text="Audit Shape Z-Index Stacking Order &amp; Visual Occlusion" Click="OnSelectionAuditShapeOcclusionAndStackingOrderClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditStrokeAlignmentItem" Text="Audit stroke alignment, corner radius uniformity &amp; miter limits" Click="OnSelectionAuditStrokeAlignmentClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditTrimetricAlignmentItem" Text="Audit trimetric projection &amp; tri-axial angle alignment" Click="OnSelectionAuditTrimetricAlignmentClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditDiagramViewportBleedItem" Text="Audit vector diagram canvas viewport margins &amp; bleed edge safety" Click="OnSelectionAuditDiagramViewportBleedClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditBezierHandleSymmetryItem" Text="Audit vector path tangent continuity &amp; bezier handle symmetry" Click="OnSelectionAuditBezierHandleSymmetryClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditOcclusionItem" Text="Audit Z-order depth overlap &amp; occlusion" Click="OnSelectionAuditOcclusionClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE71E;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionAuditLayerStackItem" Text="Audit z-order layering stack indices" Click="OnSelectionAuditLayerStackClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8E5;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                        </MenuFlyoutSubItem>
                                     </MenuFlyout>
 
                                 </Border.ContextFlyout>

@@ -4114,6 +4114,7 @@ var auditResourceDisposalLeaksItem = new MenuFlyoutItem
         clearFilters.Click += (_, _) => _vm.ClearFiltersCommand.Execute(null);
         menu.Items.Add(clearFilters);
 
+        MenuDiagnostics.Fold(menu);
         menu.ShowAt(fe, new FlyoutShowOptions { Position = e.GetPosition(fe) });
     }
 

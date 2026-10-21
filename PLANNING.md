@@ -14015,3 +14015,68 @@ Reviewed: Run #219 Blueprint — executed the 3-block cycle covering all 6 MarkS
 6. **SuiteHubView (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**:
    - **Feature**: Workspace Code Block Language Tag Standardization Auditor.
    - **Deliverable**: Add `RecentFilesService.AuditWorkspaceCodeBlockLanguages(explicitFiles, ...)` and `FormatCodeBlockLanguagesSummary(...)`, analyzing fenced code blocks across repository markdown files for inconsistent language aliases (e.g. `csharp` vs `cs`, `javascript` vs `js`, `sh` vs `bash`, untyped bare fences), and scoring syntax highlighting standardization ($0-100\%$). Wire to `RecentDocsFlyout`.
+
+---
+
+### 2026-10-22 (scheduled routine run #220) — COURSE CORRECTION: menu de-clutter + mojibake repair
+
+**Reviewed:** the Run #220 Blueprint above, and the ~70 runs before it. **That blueprint was not
+executed, on purpose.** Since roughly run #150 every run has added six more "Audit …" scoring
+reports (CriticMarkup auditors, async fire-and-forget hazards in a *Markdown editor's* history
+view, golden-spiral checks on shapes…). Those are new features, which the mandate forbids, and
+they were stacked straight into the real action menus. The result was the opposite of polish:
+
+- Shape Studio's selection right-click menu had **69** audit items under the real actions, several
+  near-duplicates ("Audit Z-order…" five ways), most with the same generic `E790` glyph.
+- Mind Map Arrange: 69. SmartArt outline stats: 72. Suite Hub recent-docs: 45. The status-bar
+  breadcrumb / find-count / copy-links menus and History's timeline-header menu: 18–60 each.
+- `LineDiff.cs` is 23k lines, `TextSearch.cs` 18k, `RecentFilesService.cs` 14.5k: almost all of it
+  this auditor sprawl. Mind Map has **three** separate edge-crossing/planarity auditors.
+- Commit `a875c9ca` double-encoded 316 lines of `TextSearch.cs`, so status messages showed
+  mojibake (`Match 2 of 7 Â· Line 2`, broken emoji). 21 tests had been failing on it since, and
+  the run notes kept reporting only their own 7-test filter as "100% pass".
+
+**Shipped:**
+- **Diagnostics submenu everywhere.** Every audit item now lives in one alphabetised
+  `Diagnostics` submenu (glyph `E9D9`, tooltip "Read-only checks that summarise and copy a
+  report"), last in its menu behind a separator. XAML menus (Mind Map, Shape, SmartArt, Suite Hub)
+  were restructured in place; x:Names and Click handlers unchanged. Code-built menus call the new
+  `Services/MenuDiagnostics.Fold(menu)` just before `ShowAt` (MainWindow ×3, History ×1), which
+  also tidies dangling separators. Nothing was deleted: every report still works, one hover away.
+- **Mojibake repair** in `TextSearch.cs`: all 316 corrupted lines restored (cp1252 round-trip, and
+  the 12 with unrecoverable bytes restored from `1637fee3`).
+- **Tests:** new `MenuDiagnosticsPolishTests` (6) guards the structure (no menu may carry 3+ loose
+  audit items; Diagnostics is last, separated, sorted) and that `TextSearch.cs` stays mojibake-free.
+  `Run192_AllSixSurfaces…` asserted a method name a later run had rewired away from; pointed it at
+  the method the handler really calls.
+
+**Verified:** Desktop build 0 errors / 23 warnings. Full test project before the fix: 22 failed /
+5481 passed; after: **0 failed / 5509 passed / 1 skipped** (full project, includes the new 6).
+Smoke-launched a scratch-OutDir build (an existing Marksmith.exe, PID 65700, held the Debug output
+locked and was left alone). Not verified by eye: the menus were not opened under a mouse this run.
+
+**Cut v3.36.0.** MarksmithBaseVersion now 3.37.0.
+
+### Standing rules for every future run (read before writing a blueprint)
+
+1. **No new Audit/Score/Analyze items. Ever.** If a blueprint idea's deliverable is "Add
+   `AuditX(...)` and `FormatXSummary(...)`", it is a feature, not polish: drop it.
+2. Polish means an existing control looks, moves and responds better: hover/press/focus states,
+   spacing, alignment, empty/loading/error states, keyboard paths, copy, consistent icons, dark/light
+   and high-contrast correctness. Verify by launching and looking (gx.ps1/mouse.ps1 rigs from runs
+   #68-#70), not by grepping XAML for an x:Name.
+3. Run the **whole** test project, not a filter, and report the real count.
+4. Leave the "6 surfaces × 1 idea" template behind; pick one or two surfaces and finish them.
+
+### Run #221 Blueprint
+1. **Diagnostics triage (decide, then cut).** The submenus are long. Remove exact/near duplicates
+   (three planarity auditors, five Z-order ones, etc.) keeping the best-named one, and give each
+   kept item a meaningful glyph instead of `E790`. Ask in the run notes whether the user wants the
+   whole Diagnostics tier deleted; until they say so, prune duplicates only.
+2. **Shape Studio selection menu (the real actions)**: 25+ items in one flat list. Group into
+   Arrange / Align & distribute / Style / Select submenus, matching Mind Map's Arrange menu, with
+   keyboard accelerators shown consistently.
+3. **Eye-check pass** of all four status-bar pill menus and History's timeline menu with the
+   mouse rig; screenshot before/after into the run scratchpad.
+4. Sweep `LineDiff.cs` / `RecentFilesService.cs` / `MindMapStudioViewModel.cs` for any other
+   mis-encoded strings (only `TextSearch.cs` was found this run, but check `.xaml` resources too).

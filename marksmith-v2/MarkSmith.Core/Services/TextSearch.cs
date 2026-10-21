@@ -235,7 +235,7 @@ public static class TextSearch
 
         var countStr = valid.Count == 1 ? "1 query" : $"{valid.Count} queries";
         var preview = string.Join(", ", valid.Take(3).Select(q => $"\"{q}\""));
-        if (valid.Count > 3) preview += ", â€¦";
+        if (valid.Count > 3) preview += ", …";
 
         return $"Search history ({countStr}): [{preview}]";
     }
@@ -322,7 +322,7 @@ public static class TextSearch
         var baseInfo = matchNumber > 0 && totalCount > 0
             ? $"Match {matchNumber} of {totalCount}"
             : "Match";
-        return $"{baseInfo} Â· Line {line}, Col {col} (Len: {len})";
+        return $"{baseInfo} · Line {line}, Col {col} (Len: {len})";
     }
 
     /// <summary>
@@ -401,8 +401,8 @@ public static class TextSearch
         if (isRegex) optionsList.Add("Regex");
 
         string optionsStr = optionsList.Count > 0
-            ? " Â· Options: [" + string.Join(", ", optionsList) + "]"
-            : " Â· Options: [Default]";
+            ? " · Options: [" + string.Join(", ", optionsList) + "]"
+            : " · Options: [Default]";
 
         string matchLabel = matchCount == 1 ? "1 match" : $"{matchCount} matches";
 
@@ -427,7 +427,7 @@ public static class TextSearch
             modeAndValidation = "Mode: Plain Text";
         }
 
-        return $"Query: \"{query}\" Â· {matchLabel}{optionsStr} Â· {modeAndValidation}";
+        return $"Query: \"{query}\" · {matchLabel}{optionsStr} · {modeAndValidation}";
     }
 
     /// <summary>
@@ -453,7 +453,7 @@ public static class TextSearch
         int wordFrequency = (int)Math.Round((double)totalWordCount / matchCount);
         string freqStr = wordFrequency <= 1 ? "every word" : $"1 every {wordFrequency:N0} words";
 
-        return $"{matchLabel} across {totalWordCount:N0} words ({densityPct:0.00}% density Â· {freqStr})";
+        return $"{matchLabel} across {totalWordCount:N0} words ({densityPct:0.00}% density · {freqStr})";
     }
 
     /// <summary>
@@ -511,12 +511,12 @@ public static class TextSearch
         var hotspots = clusters.Where(c => c.MatchCount >= 2).OrderByDescending(c => c.MatchCount).ToList();
         if (hotspots.Count == 0)
         {
-            return $"{matchLabel} across {clusters.Count} isolated locations (Evenly dispersed Â· 0 hotspots)";
+            return $"{matchLabel} across {clusters.Count} isolated locations (Evenly dispersed · 0 hotspots)";
         }
 
-        var hotspotPreviews = hotspots.Take(3).Select(h => $"{h.MatchCount} matches @ char {h.StartOffset}â€“{h.EndOffset}");
+        var hotspotPreviews = hotspots.Take(3).Select(h => $"{h.MatchCount} matches @ char {h.StartOffset}–{h.EndOffset}");
         string hotspotList = string.Join(", ", hotspotPreviews);
-        if (hotspots.Count > 3) hotspotList += ", â€¦";
+        if (hotspots.Count > 3) hotspotList += ", …";
 
         string clusterLabel = clusters.Count == 1 ? "1 cluster" : $"{clusters.Count} clusters";
         string hotspotSummary = hotspots.Count == 1 ? "1 hotspot" : $"{hotspots.Count} hotspots";
@@ -757,17 +757,17 @@ public static class TextSearch
         string q = string.IsNullOrEmpty(query) ? "(empty)" : query;
         string r = replacement ?? string.Empty;
         if (replacedCount <= 0)
-            return $"Case-preserving replace ('{q}' â†’ '{r}'): 0 matches replaced";
+            return $"Case-preserving replace ('{q}' → '{r}'): 0 matches replaced";
 
         string matchLabel = replacedCount == 1 ? "1 match replaced" : $"{replacedCount} matches replaced";
-        return $"Case-preserving replace ('{q}' â†’ '{r}'): {matchLabel} ({upperCount} UPPER, {titleCount} Title, {lowerCount} lower)";
+        return $"Case-preserving replace ('{q}' → '{r}'): {matchLabel} ({upperCount} UPPER, {titleCount} Title, {lowerCount} lower)";
     }
 
     /// <summary>
     /// Automatically fixes safe, non-destructive Markdown lint issues outside fenced code blocks:
     /// - Trailing whitespace (while preserving intentional 2-space Markdown hard line breaks)
     /// - Hard tab characters (expanded to 4 spaces)
-    /// - ATX headings missing a space after 1â€“6 leading '#' characters (e.g., "#Heading" â†’ "# Heading")
+    /// - ATX headings missing a space after 1–6 leading '#' characters (e.g., "#Heading" → "# Heading")
     /// - Runs of 3+ consecutive blank lines (collapsed to at most 2 blank lines)
     /// </summary>
     public static (string FixedMarkdown, int TrailingSpacesFixed, int HardTabsFixed, int HeadingSpacesFixed, int BlankLineClustersFixed, int TotalFixes) FixSafeMarkdownLintIssues(
@@ -1073,7 +1073,7 @@ public static class TextSearch
     {
         if (string.IsNullOrWhiteSpace(text))
         {
-            string emptyState = $"Scope {portalRadiusPx}% Â· Glass: {(glassBlur ? "On" : "Off")} Â· Surround: {(surroundBlur ? "On" : "Off")}";
+            string emptyState = $"Scope {portalRadiusPx}% · Glass: {(glassBlur ? "On" : "Off")} · Surround: {(surroundBlur ? "On" : "Off")}";
             return (0, 0, 0, 0.0, 0.0, emptyState);
         }
 
@@ -1098,7 +1098,7 @@ public static class TextSearch
         else if (surroundBlur) blurSummary = "Surround Blur Active";
         else blurSummary = "Clear Preview (No Blur)";
 
-        string state = $"Scope {clampedScope}% Â· {blurSummary}";
+        string state = $"Scope {clampedScope}% · {blurSummary}";
         return (totalWords, totalLines, apertureWords, apertureReadSeconds, totalReadMinutes, state);
     }
 
@@ -1121,7 +1121,7 @@ public static class TextSearch
 
         string docLabel = totalWords == 1 ? "1 word" : $"{totalWords:N0} words";
         string lineLabel = totalLines == 1 ? "1 line" : $"{totalLines:N0} lines";
-        return $"Focus reading profile ({state}): ~{apertureWords} words in aperture (~{apertureReadSec:0.#}s read) Â· Document: {docLabel} across {lineLabel} (~{totalReadMin:0.#}m total)";
+        return $"Focus reading profile ({state}): ~{apertureWords} words in aperture (~{apertureReadSec:0.#}s read) · Document: {docLabel} across {lineLabel} (~{totalReadMin:0.#}m total)";
     }
 
     /// <summary>
@@ -1244,12 +1244,12 @@ public static class TextSearch
         string wordLabel = totalWords == 1 ? "1 word" : $"{totalWords:N0} words";
 
         var sb = new StringBuilder();
-        sb.AppendLine($"Markdown section budgets ({secLabel} Â· Total {wordLabel} Â· ~{totalReadMin:0.#}m read):");
+        sb.AppendLine($"Markdown section budgets ({secLabel} · Total {wordLabel} · ~{totalReadMin:0.#}m read):");
         for (int i = 0; i < budgets.Count; i++)
         {
             var b = budgets[i];
             string levelTag = b.Level > 0 ? $"[H{b.Level}]" : "[Intro]";
-            sb.Append($"  Â§{i + 1}. {levelTag} {b.Title} Â· {b.WordCount} words ({b.WordPercentage:0.#}%) Â· ~{b.ReadingTimeMinutes:0.#}m read (Line {b.LineNumber})");
+            sb.Append($"  §{i + 1}. {levelTag} {b.Title} · {b.WordCount} words ({b.WordPercentage:0.#}%) · ~{b.ReadingTimeMinutes:0.#}m read (Line {b.LineNumber})");
             if (i < budgets.Count - 1) sb.AppendLine();
         }
 
@@ -1483,17 +1483,17 @@ public static class TextSearch
         sb.AppendLine($"Footnote & reference link integrity ({issuesCount} issue{(issuesCount == 1 ? "" : "s")} detected):");
 
         if (audit.MissingFootnoteDefs.Count > 0)
-            sb.AppendLine($"  â€¢ Missing footnote definitions: {string.Join(", ", audit.MissingFootnoteDefs.Select(d => $"[^{d}]"))}");
+            sb.AppendLine($"  • Missing footnote definitions: {string.Join(", ", audit.MissingFootnoteDefs.Select(d => $"[^{d}]"))}");
         if (audit.UnusedFootnoteDefs.Count > 0)
-            sb.AppendLine($"  â€¢ Unused footnote definitions: {string.Join(", ", audit.UnusedFootnoteDefs.Select(d => $"[^{d}]"))}");
+            sb.AppendLine($"  • Unused footnote definitions: {string.Join(", ", audit.UnusedFootnoteDefs.Select(d => $"[^{d}]"))}");
         if (audit.DuplicateFootnoteDefs.Count > 0)
-            sb.AppendLine($"  â€¢ Duplicate footnote definitions: {string.Join(", ", audit.DuplicateFootnoteDefs.Select(d => $"[^{d}]"))}");
+            sb.AppendLine($"  • Duplicate footnote definitions: {string.Join(", ", audit.DuplicateFootnoteDefs.Select(d => $"[^{d}]"))}");
         if (audit.MissingLinkDefs.Count > 0)
-            sb.AppendLine($"  â€¢ Missing link definitions: {string.Join(", ", audit.MissingLinkDefs.Select(d => $"[{d}]"))}");
+            sb.AppendLine($"  • Missing link definitions: {string.Join(", ", audit.MissingLinkDefs.Select(d => $"[{d}]"))}");
         if (audit.UnusedLinkDefs.Count > 0)
-            sb.AppendLine($"  â€¢ Unused link definitions: {string.Join(", ", audit.UnusedLinkDefs.Select(d => $"[{d}]"))}");
+            sb.AppendLine($"  • Unused link definitions: {string.Join(", ", audit.UnusedLinkDefs.Select(d => $"[{d}]"))}");
         if (audit.DuplicateLinkDefs.Count > 0)
-            sb.Append($"  â€¢ Duplicate link definitions: {string.Join(", ", audit.DuplicateLinkDefs.Select(d => $"[{d}]"))}");
+            sb.Append($"  • Duplicate link definitions: {string.Join(", ", audit.DuplicateLinkDefs.Select(d => $"[{d}]"))}");
 
         return sb.ToString().TrimEnd();
     }
@@ -1619,7 +1619,7 @@ public static class TextSearch
         double estMinutesRemaining = 0)
     {
         if (currentWords == 0 && startWords == 0)
-            return "Session velocity: 0 words Â· Session initialized";
+            return "Session velocity: 0 words · Session initialized";
 
         string deltaStr = netDelta >= 0 ? $"+{netDelta}" : netDelta.ToString();
         string timeStr = elapsedMinutes < 1.0 ? $"{Math.Round(elapsedMinutes * 60, 0)}s" : $"{elapsedMinutes:0.#}m";
@@ -1630,22 +1630,22 @@ public static class TextSearch
             if (currentWords >= targetWords)
             {
                 int over = currentWords - targetWords;
-                targetStr = $" Â· Target ({targetWords:N0}w) reached! (+{over}w over)";
+                targetStr = $" · Target ({targetWords:N0}w) reached! (+{over}w over)";
             }
             else if (wpm > 0.1)
             {
                 string remTime = estMinutesRemaining < 60
                     ? $"~{estMinutesRemaining:0}m remaining"
                     : $"~{Math.Floor(estMinutesRemaining / 60)}h {estMinutesRemaining % 60:0}m remaining";
-                targetStr = $" Â· Target: {targetWords:N0}w ({wordsRemaining:N0}w left Â· {remTime})";
+                targetStr = $" · Target: {targetWords:N0}w ({wordsRemaining:N0}w left · {remTime})";
             }
             else
             {
-                targetStr = $" Â· Target: {targetWords:N0}w ({wordsRemaining:N0}w left Â· Pace stalled)";
+                targetStr = $" · Target: {targetWords:N0}w ({wordsRemaining:N0}w left · Pace stalled)";
             }
         }
 
-        return $"Session velocity ({paceCategory} Â· {deltaStr} words in {timeStr}): {wpm:0.#} WPM ({wph:0} WPH) Â· Current: {currentWords:N0} words{targetStr}";
+        return $"Session velocity ({paceCategory} · {deltaStr} words in {timeStr}): {wpm:0.#} WPM ({wph:0} WPH) · Current: {currentWords:N0} words{targetStr}";
     }
 
     /// <summary>
@@ -1674,7 +1674,7 @@ public static class TextSearch
         {
             return new ReadabilityScorecard(
                 0.0, 0.0, "None", "None", 0, 0, 0, 0, 0.0, 0.0,
-                "Readability scorecard: 0 words Â· Document is empty");
+                "Readability scorecard: 0 words · Document is empty");
         }
 
         // Strip code fences (```...``` or ~~~...~~~ or :::...:::)
@@ -1703,7 +1703,7 @@ public static class TextSearch
         {
             return new ReadabilityScorecard(
                 0.0, 0.0, "None", "None", 0, 0, 0, 0, 0.0, 0.0,
-                "Readability scorecard: 0 words Â· Document contains no readable prose");
+                "Readability scorecard: 0 words · Document contains no readable prose");
         }
 
         int totalWords = words.Count;
@@ -1751,7 +1751,7 @@ public static class TextSearch
         double avgWords = Math.Round(asl, 1);
         double avgSyllables = Math.Round(asw, 2);
 
-        string summary = $"Readability scorecard (Score: {ease:0.#}/100 Â· {easeCategory}): Grade {grade:0.#} ({gradeCategory}) Â· {totalWords:N0}w, {sentenceCount:N0}s ({avgWords:0.#} wps, {avgSyllables:0.##} spw Â· {polysyllabicWords} polysyllabic)";
+        string summary = $"Readability scorecard (Score: {ease:0.#}/100 · {easeCategory}): Grade {grade:0.#} ({gradeCategory}) · {totalWords:N0}w, {sentenceCount:N0}s ({avgWords:0.#} wps, {avgSyllables:0.##} spw · {polysyllabicWords} polysyllabic)";
 
         return new ReadabilityScorecard(
             ease, grade, easeCategory, gradeCategory, totalWords, sentenceCount, totalSyllables, polysyllabicWords, avgWords, avgSyllables, summary);
@@ -1811,7 +1811,7 @@ public static class TextSearch
 
     /// <summary>
     /// Audits markdown prose for paragraph length, sentence flow cadence, run-on sentences (>35 words),
-    /// and micro-sentences (â‰¤3 words), automatically stripping code blocks, HTML, and tables.
+    /// and micro-sentences (≤3 words), automatically stripping code blocks, HTML, and tables.
     /// </summary>
     public static SentenceFlowCadence AuditSentenceFlowCadence(string? markdownText)
     {
@@ -1819,7 +1819,7 @@ public static class TextSearch
         {
             return new SentenceFlowCadence(
                 0, 0, 0, 0.0, 0, 0, 0, "None",
-                "Sentence flow cadence: 0 words Â· Document is empty");
+                "Sentence flow cadence: 0 words · Document is empty");
         }
 
         // Strip code fences (```...``` or ~~~...~~~ or :::...:::)
@@ -1846,7 +1846,7 @@ public static class TextSearch
         {
             return new SentenceFlowCadence(
                 0, 0, 0, 0.0, 0, 0, 0, "None",
-                "Sentence flow cadence: 0 words Â· Document contains no readable prose paragraphs");
+                "Sentence flow cadence: 0 words · Document contains no readable prose paragraphs");
         }
 
         int totalSentences = 0;
@@ -1880,7 +1880,7 @@ public static class TextSearch
         {
             return new SentenceFlowCadence(
                 paragraphs.Count, 0, 0, 0.0, 0, 0, 0, "None",
-                "Sentence flow cadence: 0 words Â· Document contains no complete sentences");
+                "Sentence flow cadence: 0 words · Document contains no complete sentences");
         }
 
         double avgWords = Math.Round((double)totalWords / totalSentences, 1);
@@ -1897,7 +1897,7 @@ public static class TextSearch
         else
             rating = "Balanced Flow";
 
-        string summary = $"Sentence flow cadence ({rating} Â· {avgWords:0.#} wps): {paragraphs.Count:N0} paragraphs, {totalSentences:N0} sentences ({totalWords:N0} words) Â· {runOnCount} run-on (>35w), {microCount} micro (â‰¤3w) Â· Max: {maxSentenceWords}w";
+        string summary = $"Sentence flow cadence ({rating} · {avgWords:0.#} wps): {paragraphs.Count:N0} paragraphs, {totalSentences:N0} sentences ({totalWords:N0} words) · {runOnCount} run-on (>35w), {microCount} micro (≤3w) · Max: {maxSentenceWords}w";
 
         return new SentenceFlowCadence(
             paragraphs.Count,
@@ -1990,7 +1990,7 @@ public static class TextSearch
         string summary;
         if (isClean)
         {
-            summary = "âœ“ Conflict markers & syntax ambiguities: Clean (0 issues detected)";
+            summary = "✓ Conflict markers & syntax ambiguities: Clean (0 issues detected)";
         }
         else
         {
@@ -2007,7 +2007,7 @@ public static class TextSearch
             }
 
             string preview = conflictLines.Count > 0 ? conflictLines[0] : ambiguities[0];
-            summary = $"âš  {string.Join(" and ", parts)} detected Â· {preview}";
+            summary = $"⚠ {string.Join(" and ", parts)} detected · {preview}";
         }
 
         return new ConflictMarkerAndAmbiguityAudit(
@@ -2041,7 +2041,7 @@ public static class TextSearch
                 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
                 "None", "None", 0, 0, 0, 0, 0,
                 TimeSpan.Zero, TimeSpan.Zero,
-                "Readability metrics: 0 words Â· Document contains no readable prose");
+                "Readability metrics: 0 words · Document contains no readable prose");
         }
 
         // 1. Strip non-prose Markdown constructs
@@ -2073,7 +2073,7 @@ public static class TextSearch
                 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
                 "None", "None", 0, 0, 0, 0, 0,
                 TimeSpan.Zero, TimeSpan.Zero,
-                "Readability metrics: 0 words Â· Document contains no readable prose");
+                "Readability metrics: 0 words · Document contains no readable prose");
         }
 
         int totalWords = words.Count;
@@ -2145,7 +2145,7 @@ public static class TextSearch
         string readTimeStr = readTime.TotalMinutes < 1.0 ? $"{Math.Max(1, (int)readTime.TotalSeconds)}s" : $"{readTime.TotalMinutes:0.#}m";
         string speakTimeStr = speakTime.TotalMinutes < 1.0 ? $"{Math.Max(1, (int)speakTime.TotalSeconds)}s" : $"{speakTime.TotalMinutes:0.#}m";
 
-        string summary = $"Readability audit: Grade {consensus:0.#} ({audienceCategory}) Â· Ease: {fleschEase:0.#}/100 ({easeCategory}) Â· Fog: {gunningFog:0.#} Â· CLI: {cli:0.#} Â· ARI: {ari:0.#} Â· {totalWords:N0}w ({readTimeStr} read, {speakTimeStr} speak)";
+        string summary = $"Readability audit: Grade {consensus:0.#} ({audienceCategory}) · Ease: {fleschEase:0.#}/100 ({easeCategory}) · Fog: {gunningFog:0.#} · CLI: {cli:0.#} · ARI: {ari:0.#} · {totalWords:N0}w ({readTimeStr} read, {speakTimeStr} speak)";
 
         return new ReadabilityMetricsAudit(
             fleschEase, fkGrade, gunningFog, cli, ari, consensus,
@@ -2183,7 +2183,7 @@ public static class TextSearch
                 Array.Empty<string>(),
                 Array.Empty<HeadingOutlineItem>(),
                 "No Headings (Unstructured)",
-                "Outline balance audit: 0 headings (Empty document) Â· No outline structure detected");
+                "Outline balance audit: 0 headings (Empty document) · No outline structure detected");
         }
 
         var lines = markdownText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
@@ -2256,7 +2256,7 @@ public static class TextSearch
                 Array.Empty<string>(),
                 Array.Empty<HeadingOutlineItem>(),
                 "No Headings (Unstructured)",
-                "Outline balance audit: 0 headings Â· Document contains no markdown headings");
+                "Outline balance audit: 0 headings · Document contains no markdown headings");
         }
 
         int totalHeadings = headings.Count;
@@ -2300,10 +2300,10 @@ public static class TextSearch
     public static string FormatHeadingOutlineBalanceSummary(
         int totalHeadings, int minDepth, int maxDepth, int skippedLevels, string balanceCategory, IReadOnlyDictionary<int, int>? levelCounts = null)
     {
-        if (totalHeadings <= 0) return "Outline balance audit: 0 headings Â· Document contains no markdown headings";
+        if (totalHeadings <= 0) return "Outline balance audit: 0 headings · Document contains no markdown headings";
 
         string hLabel = totalHeadings == 1 ? "1 heading" : $"{totalHeadings} headings";
-        string range = minDepth == maxDepth ? $"H{minDepth}" : $"H{minDepth}â€“H{maxDepth}";
+        string range = minDepth == maxDepth ? $"H{minDepth}" : $"H{minDepth}–H{maxDepth}";
 
         string dist = "";
         if (levelCounts != null)
@@ -2312,8 +2312,8 @@ public static class TextSearch
             dist = $" [{string.Join(", ", active)}]";
         }
 
-        string skippedStr = skippedLevels > 0 ? $" Â· {skippedLevels} skipped levels warning" : " Â· No skipped levels";
-        return $"Outline balance audit ({hLabel} across {range}{dist} Â· {balanceCategory}){skippedStr}";
+        string skippedStr = skippedLevels > 0 ? $" · {skippedLevels} skipped levels warning" : " · No skipped levels";
+        return $"Outline balance audit ({hLabel} across {range}{dist} · {balanceCategory}){skippedStr}";
     }
 
     /// <summary>
@@ -2329,7 +2329,7 @@ public static class TextSearch
                 0, 0, 0, 0, 0, 100.0,
                 languageCounts,
                 "No Code Blocks",
-                "Code fence language coverage: 0 code blocks Â· Document contains no code blocks");
+                "Code fence language coverage: 0 code blocks · Document contains no code blocks");
         }
 
         var lines = markdownText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
@@ -2430,11 +2430,11 @@ public static class TextSearch
         }
         else if (coveragePercent >= 80.0)
         {
-            category = "High Coverage (â‰¥80%)";
+            category = "High Coverage (≥80%)";
         }
         else if (coveragePercent >= 50.0)
         {
-            category = "Mixed Coverage (50â€“79%)";
+            category = "Mixed Coverage (50–79%)";
         }
         else
         {
@@ -2463,10 +2463,10 @@ public static class TextSearch
         double coveragePercent, string category, IReadOnlyDictionary<string, int>? languages = null)
     {
         if (totalFenced == 0 && inlineSpans == 0)
-            return "Code fence language coverage: 0 code blocks Â· Document contains no code blocks";
+            return "Code fence language coverage: 0 code blocks · Document contains no code blocks";
 
         if (totalFenced == 0)
-            return $"Code fence language coverage (0 fenced, {inlineSpans} inline code spans Â· {category}): No fenced blocks to audit";
+            return $"Code fence language coverage (0 fenced, {inlineSpans} inline code spans · {category}): No fenced blocks to audit";
 
         string fencedLabel = totalFenced == 1 ? "1 fenced block" : $"{totalFenced} fenced blocks";
         string tagBreakdown = $"{taggedFenced} tagged, {untaggedFenced} untagged";
@@ -2476,10 +2476,10 @@ public static class TextSearch
         if (languages != null && languages.Count > 0)
         {
             var topLangs = languages.OrderByDescending(kv => kv.Value).Take(3).Select(kv => $"{kv.Key} ({kv.Value})");
-            langSummary = $" Â· Top: {string.Join(", ", topLangs)}";
+            langSummary = $" · Top: {string.Join(", ", topLangs)}";
         }
 
-        return $"Code fence language coverage ({fencedLabel} [{tagBreakdown}], {inlineLabel} Â· {category}): {coveragePercent:0.#}% tagged ({totalCodeLines} code lines){langSummary}";
+        return $"Code fence language coverage ({fencedLabel} [{tagBreakdown}], {inlineLabel} · {category}): {coveragePercent:0.#}% tagged ({totalCodeLines} code lines){langSummary}";
     }
 
     /// <summary>
@@ -2492,7 +2492,7 @@ public static class TextSearch
         {
             return new ListIndentationAudit(
                 0, 0, 0, 0, 0.0, 0, 0, "No Lists",
-                "List indentation hierarchy: 0 list items Â· Document contains no lists");
+                "List indentation hierarchy: 0 list items · Document contains no lists");
         }
 
         var lines = markdownText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
@@ -2591,7 +2591,7 @@ public static class TextSearch
         {
             return new ListIndentationAudit(
                 0, 0, 0, 0, 0.0, 0, 0, "No Lists",
-                "List indentation hierarchy: 0 list items Â· Document contains no lists");
+                "List indentation hierarchy: 0 list items · Document contains no lists");
         }
 
         double avgIndent = Math.Round((double)totalIndentSpaces / totalItems, 1);
@@ -2611,7 +2611,7 @@ public static class TextSearch
         }
         else if (maxDepth >= 4)
         {
-            category = "Deep Hierarchy (â‰¥4 Levels)";
+            category = "Deep Hierarchy (≥4 Levels)";
         }
         else
         {
@@ -2639,15 +2639,15 @@ public static class TextSearch
         int inconsistentJumps, int mixedTypeJumps, string category)
     {
         if (totalItems == 0)
-            return "List indentation hierarchy: 0 list items Â· Document contains no lists";
+            return "List indentation hierarchy: 0 list items · Document contains no lists";
 
         string itemsLabel = totalItems == 1 ? "1 item" : $"{totalItems} items";
         string breakdown = $"{unorderedCount} unordered, {orderedCount} ordered";
         string depthLabel = maxDepth == 0 ? "flat" : $"max depth {maxDepth}";
-        string issueNote = inconsistentJumps > 0 ? $" Â· âš  {inconsistentJumps} indent jumps" : "";
-        string mixedNote = mixedTypeJumps > 0 ? $" Â· {mixedTypeJumps} mixed transitions" : "";
+        string issueNote = inconsistentJumps > 0 ? $" · ⚠ {inconsistentJumps} indent jumps" : "";
+        string mixedNote = mixedTypeJumps > 0 ? $" · {mixedTypeJumps} mixed transitions" : "";
 
-        return $"List hierarchy ({itemsLabel} [{breakdown}], {depthLabel} Â· {category}): avg indent {avgIndent:0.#}sp{issueNote}{mixedNote}";
+        return $"List hierarchy ({itemsLabel} [{breakdown}], {depthLabel} · {category}): avg indent {avgIndent:0.#}sp{issueNote}{mixedNote}";
     }
 
     private static List<string> SplitMarkdownTableCells(string line)
@@ -2708,7 +2708,7 @@ public static class TextSearch
         {
             return new TableColumnAlignmentAudit(
                 0, 0, 0, 0, Array.Empty<MarkdownTableInfo>(), "No Tables",
-                "Markdown tables: 0 tables Â· Document contains no markdown tables");
+                "Markdown tables: 0 tables · Document contains no markdown tables");
         }
 
         var lines = markdownText.Replace("\r", "").Split('\n');
@@ -2823,7 +2823,7 @@ public static class TextSearch
         {
             return new TableColumnAlignmentAudit(
                 0, 0, 0, 0, Array.Empty<MarkdownTableInfo>(), "No Tables",
-                "Markdown tables: 0 tables Â· Document contains no markdown tables");
+                "Markdown tables: 0 tables · Document contains no markdown tables");
         }
 
         int totalTables = tables.Count;
@@ -2851,14 +2851,14 @@ public static class TextSearch
         int totalTables, int totalRows, int raggedRows, int maxCols, string category)
     {
         if (totalTables == 0)
-            return "Markdown tables: 0 tables Â· Document contains no markdown tables";
+            return "Markdown tables: 0 tables · Document contains no markdown tables";
 
         string tableLabel = totalTables == 1 ? "1 table" : $"{totalTables} tables";
         string rowLabel = totalRows == 1 ? "1 row" : $"{totalRows} rows";
         string colLabel = maxCols == 1 ? "1 col" : $"max {maxCols} cols";
-        string raggedNote = raggedRows > 0 ? $" Â· âš  {raggedRows} ragged {(raggedRows == 1 ? "row" : "rows")}" : "";
+        string raggedNote = raggedRows > 0 ? $" · ⚠ {raggedRows} ragged {(raggedRows == 1 ? "row" : "rows")}" : "";
 
-        return $"Markdown tables ({tableLabel} [{rowLabel}, {colLabel}] Â· {category}){raggedNote}";
+        return $"Markdown tables ({tableLabel} [{rowLabel}, {colLabel}] · {category}){raggedNote}";
     }
 
     /// <summary>
@@ -2871,7 +2871,7 @@ public static class TextSearch
         {
             return new TaskListProgressAudit(
                 0, 0, 0, 0.0, Array.Empty<TaskListSectionProgress>(), Array.Empty<TaskListItem>(),
-                "No Tasks", "Markdown tasks: 0 items Â· Document contains no checklist items");
+                "No Tasks", "Markdown tasks: 0 items · Document contains no checklist items");
         }
 
         var lines = markdownText.Replace("\r", "").Split('\n');
@@ -2929,7 +2929,7 @@ public static class TextSearch
         {
             return new TaskListProgressAudit(
                 0, 0, 0, 0.0, Array.Empty<TaskListSectionProgress>(), Array.Empty<TaskListItem>(),
-                "No Tasks", "Markdown tasks: 0 items Â· Document contains no checklist items");
+                "No Tasks", "Markdown tasks: 0 items · Document contains no checklist items");
         }
 
         int totalTasks = allTasks.Count;
@@ -2995,7 +2995,7 @@ public static class TextSearch
         IReadOnlyList<TaskListItem>? samplePending = null)
     {
         if (totalTasks == 0)
-            return "Markdown tasks: 0 items Â· Document contains no checklist items";
+            return "Markdown tasks: 0 items · Document contains no checklist items";
 
         string itemLabel = totalTasks == 1 ? "1 task" : $"{totalTasks} tasks";
         string completedLabel = completedTasks == 1 ? "1 completed" : $"{completedTasks} completed";
@@ -3005,10 +3005,10 @@ public static class TextSearch
         {
             var first = samplePending[0];
             string shortTask = first.TaskText.Length > 40 ? first.TaskText[..37] + "..." : first.TaskText;
-            nextUp = $" Â· Next: [L{first.LineNumber}] {shortTask}";
+            nextUp = $" · Next: [L{first.LineNumber}] {shortTask}";
         }
 
-        return $"Markdown tasks ({itemLabel} Â· {completedLabel} ({completionPercentage:0.#}%), {pendingTasks} pending Â· {category}){nextUp}";
+        return $"Markdown tasks ({itemLabel} · {completedLabel} ({completionPercentage:0.#}%), {pendingTasks} pending · {category}){nextUp}";
     }
 
     /// <summary>
@@ -3022,7 +3022,7 @@ public static class TextSearch
             return new FootnoteLinkageAudit(
                 0, 0, 0, 0, Array.Empty<string>(), Array.Empty<string>(), Array.Empty<string>(),
                 Array.Empty<FootnoteSequenceItem>(), Array.Empty<FootnoteDefinitionItem>(),
-                "No Footnotes", "Markdown footnotes: 0 items Â· Document contains no footnotes");
+                "No Footnotes", "Markdown footnotes: 0 items · Document contains no footnotes");
         }
 
         var lines = markdownText.Replace("\r", "").Split('\n');
@@ -3087,7 +3087,7 @@ public static class TextSearch
             return new FootnoteLinkageAudit(
                 0, 0, 0, 0, Array.Empty<string>(), Array.Empty<string>(), Array.Empty<string>(),
                 Array.Empty<FootnoteSequenceItem>(), Array.Empty<FootnoteDefinitionItem>(),
-                "No Footnotes", "Markdown footnotes: 0 items Â· Document contains no footnotes");
+                "No Footnotes", "Markdown footnotes: 0 items · Document contains no footnotes");
         }
 
         var referencedIds = references.Select(r => r.Id).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
@@ -3148,7 +3148,7 @@ public static class TextSearch
         IReadOnlyList<FootnoteDefinitionItem>? definitions = null)
     {
         if (totalReferences == 0 && totalDefinitions == 0)
-            return "Markdown footnotes: 0 items Â· Document contains no footnotes";
+            return "Markdown footnotes: 0 items · Document contains no footnotes";
 
         string refLabel = totalReferences == 1 ? "1 ref" : $"{totalReferences} refs";
         string defLabel = totalDefinitions == 1 ? "1 def" : $"{totalDefinitions} defs";
@@ -3156,18 +3156,18 @@ public static class TextSearch
         string issues = "";
         if (unresolvedIds.Count > 0)
         {
-            issues += $" Â· {unresolvedIds.Count} missing defs [^{string.Join(", [^", unresolvedIds.Take(2))}]";
+            issues += $" · {unresolvedIds.Count} missing defs [^{string.Join(", [^", unresolvedIds.Take(2))}]";
         }
         if (orphanIds.Count > 0)
         {
-            issues += $" Â· {orphanIds.Count} orphan defs [^{string.Join(", [^", orphanIds.Take(2))}]";
+            issues += $" · {orphanIds.Count} orphan defs [^{string.Join(", [^", orphanIds.Take(2))}]";
         }
         if (duplicateDefs.Count > 0)
         {
-            issues += $" Â· {duplicateDefs.Count} duplicate defs [^{string.Join(", [^", duplicateDefs.Take(2))}]";
+            issues += $" · {duplicateDefs.Count} duplicate defs [^{string.Join(", [^", duplicateDefs.Take(2))}]";
         }
 
-        return $"Markdown footnotes ({refLabel}, {defLabel} Â· {category}){issues}";
+        return $"Markdown footnotes ({refLabel}, {defLabel} · {category}){issues}";
     }
 
     /// <summary>
@@ -3189,7 +3189,7 @@ public static class TextSearch
 
         if (string.IsNullOrWhiteSpace(markdownText))
         {
-            string emptySummary = "YAML frontmatter schema: 0 properties Â· Document is empty";
+            string emptySummary = "YAML frontmatter schema: 0 properties · Document is empty";
             return new FrontmatterSchemaAudit(
                 false, false, 0, Array.Empty<string>(), reqList, Array.Empty<string>(), Array.Empty<string>(),
                 Array.Empty<FrontmatterPropertyItem>(), "Empty Document", 0.0, emptySummary);
@@ -3205,7 +3205,7 @@ public static class TextSearch
 
         if (firstNonEmpty >= lines.Length || !lines[firstNonEmpty].Trim().StartsWith("---"))
         {
-            string noFrontmatterSummary = "YAML frontmatter schema: No Frontmatter Â· Document contains no YAML header";
+            string noFrontmatterSummary = "YAML frontmatter schema: No Frontmatter · Document contains no YAML header";
             return new FrontmatterSchemaAudit(
                 false, false, 0, Array.Empty<string>(), reqList, Array.Empty<string>(), Array.Empty<string>(),
                 Array.Empty<FrontmatterPropertyItem>(), "No Frontmatter", 0.0, noFrontmatterSummary);
@@ -3313,16 +3313,16 @@ public static class TextSearch
         string category, double completeness)
     {
         if (!hasFrontmatter)
-            return "YAML frontmatter schema: No Frontmatter Â· Document contains no YAML header";
+            return "YAML frontmatter schema: No Frontmatter · Document contains no YAML header";
 
         string propLabel = propCount == 1 ? "1 property" : $"{propCount} properties";
         string issues = "";
-        if (!isClosed) issues += " Â· Unclosed YAML block (missing closing '---')";
-        if (missingRequired.Count > 0) issues += $" Â· Missing: {string.Join(", ", missingRequired)}";
-        if (duplicateKeys.Count > 0) issues += $" Â· Duplicates: {string.Join(", ", duplicateKeys)}";
-        if (customKeys.Count > 0) issues += $" Â· {customKeys.Count} custom: {string.Join(", ", customKeys.Take(2))}";
+        if (!isClosed) issues += " · Unclosed YAML block (missing closing '---')";
+        if (missingRequired.Count > 0) issues += $" · Missing: {string.Join(", ", missingRequired)}";
+        if (duplicateKeys.Count > 0) issues += $" · Duplicates: {string.Join(", ", duplicateKeys)}";
+        if (customKeys.Count > 0) issues += $" · {customKeys.Count} custom: {string.Join(", ", customKeys.Take(2))}";
 
-        return $"YAML frontmatter schema ({propLabel} Â· {category} Â· {completeness:0.#}% complete){issues}";
+        return $"YAML frontmatter schema ({propLabel} · {category} · {completeness:0.#}% complete){issues}";
     }
 
     /// <summary>
@@ -3340,7 +3340,7 @@ public static class TextSearch
                 Array.Empty<string>(),
                 Array.Empty<string>(),
                 "Empty Document", 100.0,
-                "TOC & anchor audit: 0 headings Â· Document contains no headings or anchor links");
+                "TOC & anchor audit: 0 headings · Document contains no headings or anchor links");
         }
 
         var lines = markdownText.Replace("\r\n", "\n").Split('\n');
@@ -3523,19 +3523,19 @@ public static class TextSearch
         int duplicateSlugs, string category, double integrity, IReadOnlyList<string> brokenSlugs)
     {
         if (totalHeadings == 0 && totalLinks == 0)
-            return "TOC & anchor audit: 0 headings Â· Document contains no headings or anchor links";
+            return "TOC & anchor audit: 0 headings · Document contains no headings or anchor links";
 
         string headingDesc = totalHeadings == 1 ? "1 heading" : $"{totalHeadings} headings";
         string depthSpan = totalHeadings > 0 ? $" (H{minLevel}-H{maxLevel})" : "";
         string linkDesc = totalLinks > 0 ? $", {totalLinks} anchor links ({validLinks} valid, {brokenLinks} broken)" : "";
         string issues = "";
 
-        if (hierarchyJumps > 0) issues += $" Â· âš  {hierarchyJumps} skipped levels";
-        if (brokenLinks > 0) issues += $" Â· âš  {brokenLinks} broken targets ({string.Join(", ", brokenSlugs.Take(2))})";
-        if (duplicateSlugs > 0) issues += $" Â· {duplicateSlugs} duplicate slugs";
-        if (selfRefLinks > 0) issues += $" Â· {selfRefLinks} self-referential";
+        if (hierarchyJumps > 0) issues += $" · ⚠ {hierarchyJumps} skipped levels";
+        if (brokenLinks > 0) issues += $" · ⚠ {brokenLinks} broken targets ({string.Join(", ", brokenSlugs.Take(2))})";
+        if (duplicateSlugs > 0) issues += $" · {duplicateSlugs} duplicate slugs";
+        if (selfRefLinks > 0) issues += $" · {selfRefLinks} self-referential";
 
-        return $"TOC & anchor audit: {headingDesc}{depthSpan}{linkDesc} Â· {category} Â· {integrity:0.#}% integrity{issues}";
+        return $"TOC & anchor audit: {headingDesc}{depthSpan}{linkDesc} · {category} · {integrity:0.#}% integrity{issues}";
     }
 
     /// <summary>
@@ -3555,7 +3555,7 @@ public static class TextSearch
                 Array.Empty<string>(),
                 Array.Empty<string>(),
                 "Empty Document",
-                "Reference link audit: 0 links Â· Document contains no reference link definitions or usages");
+                "Reference link audit: 0 links · Document contains no reference link definitions or usages");
         }
 
         var lines = markdownText.Replace("\r\n", "\n").Split('\n');
@@ -3779,18 +3779,18 @@ public static class TextSearch
         IReadOnlyList<string> brokenLabels, IReadOnlyList<string> orphanLabels)
     {
         if (totalDefs == 0 && totalLinks == 0)
-            return "Reference link audit: 0 links Â· Document contains no reference link definitions or usages";
+            return "Reference link audit: 0 links · Document contains no reference link definitions or usages";
 
         string defDesc = totalDefs == 1 ? "1 definition" : $"{totalDefs} definitions";
         string linkDesc = totalLinks == 1 ? "1 reference link" : $"{totalLinks} reference links";
         string breakdown = $"{resolvedLinks} resolved, {brokenLinks} broken, {orphanDefs} orphans";
 
         string issues = "";
-        if (brokenLinks > 0) issues += $" Â· âš  {brokenLinks} broken targets ({string.Join(", ", brokenLabels.Take(2))})";
-        if (orphanDefs > 0) issues += $" Â· âš  {orphanDefs} orphan defs ({string.Join(", ", orphanLabels.Take(2))})";
-        if (duplicateDefs > 0) issues += $" Â· {duplicateDefs} duplicate labels";
+        if (brokenLinks > 0) issues += $" · ⚠ {brokenLinks} broken targets ({string.Join(", ", brokenLabels.Take(2))})";
+        if (orphanDefs > 0) issues += $" · ⚠ {orphanDefs} orphan defs ({string.Join(", ", orphanLabels.Take(2))})";
+        if (duplicateDefs > 0) issues += $" · {duplicateDefs} duplicate labels";
 
-        return $"Reference link audit: {defDesc}, {linkDesc} [{breakdown}] Â· {category} Â· {integrityScore:0.#}% integrity{issues}";
+        return $"Reference link audit: {defDesc}, {linkDesc} [{breakdown}] · {category} · {integrityScore:0.#}% integrity{issues}";
     }
 
     /// <summary>
@@ -3801,7 +3801,7 @@ public static class TextSearch
     {
         if (string.IsNullOrWhiteSpace(markdownText))
         {
-            string emptySummary = "Syntax ambiguity audit: 0 issues Â· Document is empty";
+            string emptySummary = "Syntax ambiguity audit: 0 issues · Document is empty";
             return new SyntaxAmbiguityAudit(0, 0, 0, 0, 0, 100.0, Array.Empty<DelimiterBalanceItem>(), "Empty Document", emptySummary);
         }
 
@@ -4013,7 +4013,7 @@ public static class TextSearch
         double integrityScore, string category, IReadOnlyList<DelimiterBalanceItem> ambiguities)
     {
         if (totalAmbiguities == 0)
-            return "Syntax ambiguity audit: 0 issues Â· All inline delimiters (*, `, $, []) are 100% balanced";
+            return "Syntax ambiguity audit: 0 issues · All inline delimiters (*, `, $, []) are 100% balanced";
 
         string issueDesc = totalAmbiguities == 1 ? "1 ambiguity" : $"{totalAmbiguities} ambiguities";
         var parts = new List<string>();
@@ -4027,10 +4027,10 @@ public static class TextSearch
         if (ambiguities.Count > 0)
         {
             var a = ambiguities[0];
-            firstIssue = $" Â· Line {a.LineNumber}: {a.Description}";
+            firstIssue = $" · Line {a.LineNumber}: {a.Description}";
         }
 
-        return $"Syntax ambiguity audit ({issueDesc} [{breakdown}] Â· {category} Â· {integrityScore:0.#}% integrity){firstIssue}";
+        return $"Syntax ambiguity audit ({issueDesc} [{breakdown}] · {category} · {integrityScore:0.#}% integrity){firstIssue}";
     }
 
     /// <summary>
@@ -4041,7 +4041,7 @@ public static class TextSearch
     {
         if (string.IsNullOrWhiteSpace(markdownText))
         {
-            string emptySummary = "LaTeX math formula audit: 0 equations Â· Document contains no math blocks or inline delimiters";
+            string emptySummary = "LaTeX math formula audit: 0 equations · Document contains no math blocks or inline delimiters";
             return new MathFormulaAudit(0, 0, 0, 0, 0, 0.0, Array.Empty<MathFormulaItem>(), Array.Empty<string>(), "No Formulas (Clean)", 100.0, emptySummary);
         }
 
@@ -4403,31 +4403,31 @@ public static class TextSearch
         IReadOnlyList<MathFormulaItem> formulas, IReadOnlyList<string> globalIssues)
     {
         if (totalFormulas == 0)
-            return "LaTeX math formula audit: 0 equations Â· Document contains no math blocks or inline delimiters";
+            return "LaTeX math formula audit: 0 equations · Document contains no math blocks or inline delimiters";
 
         string formDesc = totalFormulas == 1 ? "1 formula" : $"{totalFormulas} formulas";
         string breakdown = $"{inlineCount} inline, {displayCount} display";
 
         if (problemCount == 0)
         {
-            return $"LaTeX math formula audit ({formDesc} [{breakdown}] Â· {category} Â· 100% valid): ~{meanComplexity:0.#} avg complexity score";
+            return $"LaTeX math formula audit ({formDesc} [{breakdown}] · {category} · 100% valid): ~{meanComplexity:0.#} avg complexity score";
         }
 
         string firstProblem = "";
         if (globalIssues.Count > 0)
         {
-            firstProblem = $" Â· {globalIssues[0]}";
+            firstProblem = $" · {globalIssues[0]}";
         }
         else
         {
             var p = formulas.FirstOrDefault(f => !f.IsBalanced);
             if (p != null && p.SyntaxIssues.Count > 0)
             {
-                firstProblem = $" Â· Line {p.LineNumber}: {p.SyntaxIssues[0]} in '{p.FormulaSnippet}'";
+                firstProblem = $" · Line {p.LineNumber}: {p.SyntaxIssues[0]} in '{p.FormulaSnippet}'";
             }
         }
 
-        return $"LaTeX math formula audit ({problemCount}/{totalFormulas} issues Â· {syntaxIntegrityScore:0.#}% valid [{breakdown}] Â· {category}): ~{meanComplexity:0.#} avg complexity{firstProblem}";
+        return $"LaTeX math formula audit ({problemCount}/{totalFormulas} issues · {syntaxIntegrityScore:0.#}% valid [{breakdown}] · {category}): ~{meanComplexity:0.#} avg complexity{firstProblem}";
     }
 
     /// <summary>
@@ -4438,7 +4438,7 @@ public static class TextSearch
     {
         if (string.IsNullOrWhiteSpace(markdownText))
         {
-            string emptySummary = "Markdown table alignment audit: 0 tables Â· Document contains no markdown tables";
+            string emptySummary = "Markdown table alignment audit: 0 tables · Document contains no markdown tables";
             return new TableAlignmentAndSpacingAudit(
                 0, 0, 0, 0, 0, 0, 100.0, Array.Empty<TableDetailInfo>(), Array.Empty<string>(), "No Tables", emptySummary);
         }
@@ -4667,7 +4667,7 @@ public static class TextSearch
 
         if (tables.Count == 0)
         {
-            string emptySummary = "Markdown table alignment audit: 0 tables Â· Document contains no markdown tables";
+            string emptySummary = "Markdown table alignment audit: 0 tables · Document contains no markdown tables";
             return new TableAlignmentAndSpacingAudit(
                 0, 0, 0, 0, 0, 0, 100.0, Array.Empty<TableDetailInfo>(), Array.Empty<string>(), "No Tables", emptySummary);
         }
@@ -4731,7 +4731,7 @@ public static class TextSearch
         IReadOnlyList<TableDetailInfo> tables)
     {
         if (totalTables == 0)
-            return "Markdown table alignment audit: 0 tables Â· Document contains no markdown tables";
+            return "Markdown table alignment audit: 0 tables · Document contains no markdown tables";
 
         string tableDesc = totalTables == 1 ? "1 table" : $"{totalTables} tables";
         int maxCols = tables.Count > 0 ? tables.Max(t => t.ColumnCount) : 0;
@@ -4739,11 +4739,11 @@ public static class TextSearch
 
         if (totalRagged == 0 && issues.Count == 0)
         {
-            return $"Markdown table alignment audit ({tableDesc} [{colDesc}] Â· {category} Â· {meanScore:0.#}% score): Fully aligned GFM grids";
+            return $"Markdown table alignment audit ({tableDesc} [{colDesc}] · {category} · {meanScore:0.#}% score): Fully aligned GFM grids";
         }
 
-        string firstIssue = issues.Count > 0 ? $" Â· {issues[0]}" : "";
-        return $"Markdown table alignment audit ({tableDesc} [{colDesc}] Â· {category} Â· {meanScore:0.#}% score){firstIssue}";
+        string firstIssue = issues.Count > 0 ? $" · {issues[0]}" : "";
+        return $"Markdown table alignment audit ({tableDesc} [{colDesc}] · {category} · {meanScore:0.#}% score){firstIssue}";
     }
 
     /// <summary>
@@ -4759,7 +4759,7 @@ public static class TextSearch
                 Array.Empty<DefinitionItemInfo>(),
                 Array.Empty<string>(),
                 "No Definition Lists",
-                "Markdown definition list audit: 0 definition lists Â· Document contains no definition lists");
+                "Markdown definition list audit: 0 definition lists · Document contains no definition lists");
         }
 
         var lines = markdownText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
@@ -4897,7 +4897,7 @@ public static class TextSearch
                 Array.Empty<DefinitionItemInfo>(),
                 Array.Empty<string>(),
                 "No Definition Lists",
-                "Markdown definition list audit: 0 definition lists Â· Document contains no definition lists");
+                "Markdown definition list audit: 0 definition lists · Document contains no definition lists");
         }
 
         double uniformityScore = totalDefinitions > 0
@@ -4908,9 +4908,9 @@ public static class TextSearch
         if (irregularIndents == 0)
             category = "Strict Uniform Indent (100%)";
         else if (uniformityScore >= 80.0)
-            category = "High Consistency (â‰¥80%)";
+            category = "High Consistency (≥80%)";
         else if (uniformityScore >= 50.0)
-            category = "Moderate Indent Jumps (50â€“79%)";
+            category = "Moderate Indent Jumps (50–79%)";
         else
             category = "Ragged / Inconsistent Indents (<50%)";
 
@@ -4937,7 +4937,7 @@ public static class TextSearch
         int irregularIndents, double uniformityScore, string category, IReadOnlyList<string>? issues = null)
     {
         if (totalLists == 0 && totalDefinitions == 0)
-            return "Markdown definition list audit: 0 definition lists Â· Document contains no definition lists";
+            return "Markdown definition list audit: 0 definition lists · Document contains no definition lists";
 
         string listDesc = totalLists == 1 ? "1 definition list" : $"{totalLists} definition lists";
         string breakdown = $"{totalTerms} terms, {totalDefinitions} definitions";
@@ -4945,11 +4945,11 @@ public static class TextSearch
 
         if (irregularIndents == 0)
         {
-            return $"Markdown definition list audit ({listDesc} [{breakdown}, {typeDesc}] Â· {category} Â· {uniformityScore:0.#}% score): Uniform hanging indents";
+            return $"Markdown definition list audit ({listDesc} [{breakdown}, {typeDesc}] · {category} · {uniformityScore:0.#}% score): Uniform hanging indents";
         }
 
-        string firstIssue = (issues != null && issues.Count > 0) ? $" Â· {issues[0]}" : "";
-        return $"Markdown definition list audit ({listDesc} [{breakdown}, {typeDesc}] Â· {category} Â· {uniformityScore:0.#}% score){firstIssue}";
+        string firstIssue = (issues != null && issues.Count > 0) ? $" · {issues[0]}" : "";
+        return $"Markdown definition list audit ({listDesc} [{breakdown}, {typeDesc}] · {category} · {uniformityScore:0.#}% score){firstIssue}";
     }
 
     /// <summary>
@@ -4960,7 +4960,7 @@ public static class TextSearch
     {
         if (string.IsNullOrWhiteSpace(markdownText))
         {
-            string emptySummary = "Footnote reference consistency audit: 0 footnotes Â· Document contains no footnote references or definitions";
+            string emptySummary = "Footnote reference consistency audit: 0 footnotes · Document contains no footnote references or definitions";
             return new FootnoteReferenceConsistencyAudit(
                 0, 0, 0, 0, 0, 0, 0, 0, 100.0,
                 Array.Empty<FootnoteAnchorItem>(),
@@ -5097,7 +5097,7 @@ public static class TextSearch
 
         if (totalAnchors == 0 && totalDefs == 0)
         {
-            string emptySummary = "Footnote reference consistency audit: 0 footnotes Â· Document contains no footnote references or definitions";
+            string emptySummary = "Footnote reference consistency audit: 0 footnotes · Document contains no footnote references or definitions";
             return new FootnoteReferenceConsistencyAudit(
                 0, 0, 0, 0, 0, 0, 0, 0, 100.0,
                 anchors, detailedDefinitions, missingIds, orphanIds, duplicateIds,
@@ -5176,19 +5176,19 @@ public static class TextSearch
         double consistencyScore, string category)
     {
         if (totalAnchors == 0 && totalDefinitions == 0)
-            return "Footnote reference consistency audit: 0 footnotes Â· Document contains no footnote references or definitions";
+            return "Footnote reference consistency audit: 0 footnotes · Document contains no footnote references or definitions";
 
         string anchorLabel = totalAnchors == 1 ? "1 anchor" : $"{totalAnchors} anchors";
         string defLabel = totalDefinitions == 1 ? "1 definition" : $"{totalDefinitions} definitions";
 
         var alerts = new List<string>();
-        if (missing > 0) alerts.Add($"ðŸš¨ {missing} missing target{(missing == 1 ? "" : "s")}");
-        if (unreferenced > 0) alerts.Add($"âš  {unreferenced} orphan{(unreferenced == 1 ? "" : "s")}");
-        if (duplicates > 0) alerts.Add($"âš  {duplicates} duplicate{(duplicates == 1 ? "" : "s")}");
+        if (missing > 0) alerts.Add($"🚨 {missing} missing target{(missing == 1 ? "" : "s")}");
+        if (unreferenced > 0) alerts.Add($"⚠ {unreferenced} orphan{(unreferenced == 1 ? "" : "s")}");
+        if (duplicates > 0) alerts.Add($"⚠ {duplicates} duplicate{(duplicates == 1 ? "" : "s")}");
 
-        string alertSuffix = alerts.Count > 0 ? $" Â· {string.Join(", ", alerts)}" : " Â· Fully linked";
+        string alertSuffix = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · Fully linked";
 
-        return $"Footnote reference consistency audit ({anchorLabel}, {defLabel} Â· {category} Â· {consistencyScore:0.#}% score){alertSuffix}";
+        return $"Footnote reference consistency audit ({anchorLabel}, {defLabel} · {category} · {consistencyScore:0.#}% score){alertSuffix}";
     }
 
     /// <summary>
@@ -5200,7 +5200,7 @@ public static class TextSearch
     {
         if (string.IsNullOrWhiteSpace(markdownText))
         {
-            string emptySummary = "Markdown admonition callout audit: 0 callouts Â· Document contains no admonitions";
+            string emptySummary = "Markdown admonition callout audit: 0 callouts · Document contains no admonitions";
             return new AdmonitionCalloutAudit(
                 0, 0, 0, 0, 0, 0, 0, 100.0,
                 Array.Empty<AdmonitionCalloutItem>(),
@@ -5345,7 +5345,7 @@ public static class TextSearch
         int totalCallouts = callouts.Count;
         if (totalCallouts == 0)
         {
-            string emptySummary = "Markdown admonition callout audit: 0 callouts Â· Document contains no admonitions";
+            string emptySummary = "Markdown admonition callout audit: 0 callouts · Document contains no admonitions";
             return new AdmonitionCalloutAudit(
                 0, 0, 0, 0, 0, 0, 0, 100.0,
                 callouts, issues, "No Admonitions", emptySummary);
@@ -5402,19 +5402,19 @@ public static class TextSearch
         int maxNestingDepth, int improperSpacing, int emptyBody, double parityScore, string category)
     {
         if (totalCallouts == 0)
-            return "Markdown admonition callout audit: 0 callouts Â· Document contains no admonitions";
+            return "Markdown admonition callout audit: 0 callouts · Document contains no admonitions";
 
         string calloutLabel = totalCallouts == 1 ? "1 callout" : $"{totalCallouts} callouts";
 
         var alerts = new List<string>();
-        if (improperSpacing > 0) alerts.Add($"âš  {improperSpacing} spacing defect{(improperSpacing == 1 ? "" : "s")}");
-        if (emptyBody > 0) alerts.Add($"ðŸš¨ {emptyBody} empty body{(emptyBody == 1 ? "" : "ies")}");
+        if (improperSpacing > 0) alerts.Add($"⚠ {improperSpacing} spacing defect{(improperSpacing == 1 ? "" : "s")}");
+        if (emptyBody > 0) alerts.Add($"🚨 {emptyBody} empty body{(emptyBody == 1 ? "" : "ies")}");
         if (customCallouts > 0) alerts.Add($"{customCallouts} non-standard");
         if (nestedCallouts > 0) alerts.Add($"{nestedCallouts} nested (max depth {maxNestingDepth})");
 
-        string alertSuffix = alerts.Count > 0 ? $" Â· {string.Join(", ", alerts)}" : " Â· All GFM standard types";
+        string alertSuffix = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · All GFM standard types";
 
-        return $"Markdown admonition callout audit ({calloutLabel} Â· {category} Â· {parityScore:0.#}% score){alertSuffix}";
+        return $"Markdown admonition callout audit ({calloutLabel} · {category} · {parityScore:0.#}% score){alertSuffix}";
     }
 
     /// <summary>
@@ -5445,7 +5445,7 @@ public static class TextSearch
             return new ImageAccessibilityAudit(
                 0, 0, 0, 0, 0, 0, 0, 0, 100.0,
                 images, issues, "No Images Detected",
-                "Markdown image accessibility audit: 0 images Â· Document contains no embedded media");
+                "Markdown image accessibility audit: 0 images · Document contains no embedded media");
         }
 
         var lines = markdownText.Replace("\r", "").Split('\n');
@@ -5573,7 +5573,7 @@ public static class TextSearch
                 WarningMessage: warning));
         }
 
-        static string TruncateUrl(string u) => u.Length <= 40 ? u : u.Substring(0, 37) + "â€¦";
+        static string TruncateUrl(string u) => u.Length <= 40 ? u : u.Substring(0, 37) + "…";
 
         int totalImages = images.Count;
         if (totalImages == 0)
@@ -5581,7 +5581,7 @@ public static class TextSearch
             return new ImageAccessibilityAudit(
                 0, 0, 0, 0, 0, 0, 0, 0, 100.0,
                 images, issues, "No Images Detected",
-                "Markdown image accessibility audit: 0 images Â· Document contains no embedded media");
+                "Markdown image accessibility audit: 0 images · Document contains no embedded media");
         }
 
         int missingAlt = images.Count(img => !img.HasAltText);
@@ -5636,19 +5636,19 @@ public static class TextSearch
         int dataUris, int localRelative, double score, string category)
     {
         if (totalImages == 0)
-            return "Markdown image accessibility audit: 0 images Â· Document contains no embedded media";
+            return "Markdown image accessibility audit: 0 images · Document contains no embedded media";
 
         string imgLabel = totalImages == 1 ? "1 image" : $"{totalImages} images";
         var alerts = new List<string>();
-        if (missingAlt > 0) alerts.Add($"ðŸš¨ {missingAlt} missing alt-text");
-        if (genericAlt > 0) alerts.Add($"âš  {genericAlt} generic alt");
-        if (insecureHttp > 0) alerts.Add($"ðŸ”“ {insecureHttp} insecure http");
+        if (missingAlt > 0) alerts.Add($"🚨 {missingAlt} missing alt-text");
+        if (genericAlt > 0) alerts.Add($"⚠ {genericAlt} generic alt");
+        if (insecureHttp > 0) alerts.Add($"🔓 {insecureHttp} insecure http");
         if (dataUris > 0) alerts.Add($"{dataUris} data-uri");
         if (localRelative > 0) alerts.Add($"{localRelative} local relative");
 
-        string alertSuffix = alerts.Count > 0 ? $" Â· {string.Join(", ", alerts)}" : " Â· 100% descriptive alt-text";
+        string alertSuffix = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · 100% descriptive alt-text";
 
-        return $"Markdown image accessibility audit ({imgLabel} Â· {category} Â· {score:0.#}% compliance){alertSuffix}";
+        return $"Markdown image accessibility audit ({imgLabel} · {category} · {score:0.#}% compliance){alertSuffix}";
     }
 
     /// <summary>
@@ -5665,7 +5665,7 @@ public static class TextSearch
                 Array.Empty<MathDelimiterItem>(),
                 Array.Empty<string>(),
                 "No Math Formulas",
-                "LaTeX math delimiter & macro audit: 0 formulas Â· Document contains no math notation");
+                "LaTeX math delimiter & macro audit: 0 formulas · Document contains no math notation");
         }
 
         var lines = markdownText.Replace("\r", "").Split('\n');
@@ -5836,7 +5836,7 @@ public static class TextSearch
 
             bool isBalanced = itemIssues.Count == 0;
             string snippet = rawContent.Trim().Replace('\n', ' ');
-            if (snippet.Length > 40) snippet = snippet.Substring(0, 37) + "â€¦";
+            if (snippet.Length > 40) snippet = snippet.Substring(0, 37) + "…";
 
             mathItems.Add(new MathDelimiterItem(
                 LineNumber: lineNumber,
@@ -5914,7 +5914,7 @@ public static class TextSearch
                 }
 
                 string snippet = content.Trim();
-                if (snippet.Length > 30) snippet = snippet.Substring(0, 27) + "â€¦";
+                if (snippet.Length > 30) snippet = snippet.Substring(0, 27) + "…";
 
                 mathItems.Add(new MathDelimiterItem(
                     LineNumber: i + 1,
@@ -6033,7 +6033,7 @@ public static class TextSearch
                 }
 
                 string snippet = content.Trim();
-                if (snippet.Length > 25) snippet = snippet.Substring(0, 22) + "â€¦";
+                if (snippet.Length > 25) snippet = snippet.Substring(0, 22) + "…";
 
                 mathItems.Add(new MathDelimiterItem(
                     LineNumber: i + 1,
@@ -6106,18 +6106,18 @@ public static class TextSearch
         double score, string category)
     {
         if (totalSpans == 0 && syntaxIssues == 0)
-            return "LaTeX math delimiter & macro audit: 0 formulas Â· Document contains no math notation";
+            return "LaTeX math delimiter & macro audit: 0 formulas · Document contains no math notation";
 
         string formulaLabel = totalSpans == 1 ? "1 formula" : $"{totalSpans} formulas";
         var alerts = new List<string>();
-        if (unbalancedDelims > 0) alerts.Add($"ðŸš¨ {unbalancedDelims} unclosed delimiter(s)");
-        if (unbalancedBraces > 0) alerts.Add($"âš  {unbalancedBraces} unbalanced brace(s)");
-        if (invalidSpacing > 0) alerts.Add($"ðŸ“ {invalidSpacing} invalid spacing");
-        if (unknownMacros > 0) alerts.Add($"ðŸ” {unknownMacros} unknown macro(s)");
+        if (unbalancedDelims > 0) alerts.Add($"🚨 {unbalancedDelims} unclosed delimiter(s)");
+        if (unbalancedBraces > 0) alerts.Add($"⚠ {unbalancedBraces} unbalanced brace(s)");
+        if (invalidSpacing > 0) alerts.Add($"📐 {invalidSpacing} invalid spacing");
+        if (unknownMacros > 0) alerts.Add($"🔍 {unknownMacros} unknown macro(s)");
 
-        string alertSuffix = alerts.Count > 0 ? $" Â· {string.Join(", ", alerts)}" : " Â· 100% KaTeX syntax parity";
+        string alertSuffix = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · 100% KaTeX syntax parity";
 
-        return $"LaTeX math delimiter audit ({formulaLabel} Â· {displayCount} display, {inlineCount} inline Â· {category} Â· {score:0.#}% interop){alertSuffix}";
+        return $"LaTeX math delimiter audit ({formulaLabel} · {displayCount} display, {inlineCount} inline · {category} · {score:0.#}% interop){alertSuffix}";
     }
 
     /// <summary>
@@ -6133,7 +6133,7 @@ public static class TextSearch
                 0, 0, 0, 0, 0, 100.0, 0.0, 0.0, 0.0, 0.0, 0.0,
                 Array.Empty<ReadingGradeMetricInfo>(),
                 "Empty Document",
-                "Document reading ease audit: 0 words Â· Document contains no readable prose");
+                "Document reading ease audit: 0 words · Document contains no readable prose");
         }
 
         // 1. Strip code blocks (```...``` and ~~~...~~~)
@@ -6195,7 +6195,7 @@ public static class TextSearch
                 0, 0, 0, 0, 0, 100.0, 0.0, 0.0, 0.0, 0.0, 0.0,
                 Array.Empty<ReadingGradeMetricInfo>(),
                 "No Readable Prose",
-                "Document reading ease audit: 0 words Â· Document contains no readable prose");
+                "Document reading ease audit: 0 words · Document contains no readable prose");
         }
 
         int totalWords = words.Count;
@@ -6231,17 +6231,17 @@ public static class TextSearch
         if (fleschReadingEase >= 90.0) category = "Very Easy (5th Grade)";
         else if (fleschReadingEase >= 80.0) category = "Easy (6th Grade)";
         else if (fleschReadingEase >= 70.0) category = "Fairly Easy (7th Grade)";
-        else if (fleschReadingEase >= 60.0) category = "Standard / Plain English (8thâ€“9th Grade)";
-        else if (fleschReadingEase >= 50.0) category = "Fairly Difficult (10thâ€“12th Grade)";
+        else if (fleschReadingEase >= 60.0) category = "Standard / Plain English (8th–9th Grade)";
+        else if (fleschReadingEase >= 50.0) category = "Fairly Difficult (10th–12th Grade)";
         else if (fleschReadingEase >= 30.0) category = "Difficult (College Level)";
         else category = "Very Difficult / Technical (Graduate Level)";
 
         var metrics = new List<ReadingGradeMetricInfo>
         {
-            new("Flesch Reading Ease", fleschReadingEase, $"{fleschReadingEase:0.#}/100", "60â€“70 (Plain English)", category),
-            new("Flesch-Kincaid Grade Level", gradeLevel, $"Grade {gradeLevel:0.#}", "7.0â€“9.0 (General Audience)", $"Requires ~{Math.Ceiling(gradeLevel)} years of formal education"),
-            new("Average Sentence Length", wordsPerSentence, $"{wordsPerSentence:0.#} words/sentence", "15â€“20 words", wordsPerSentence > 25 ? "Long complex sentences" : "Well-paced sentences"),
-            new("Syllable Complexity", syllablesPerWord, $"{syllablesPerWord:0.##} syllables/word", "1.3â€“1.6 syllables", syllablesPerWord > 1.8 ? "Heavy multisyllabic vocabulary" : "Accessible vocabulary"),
+            new("Flesch Reading Ease", fleschReadingEase, $"{fleschReadingEase:0.#}/100", "60–70 (Plain English)", category),
+            new("Flesch-Kincaid Grade Level", gradeLevel, $"Grade {gradeLevel:0.#}", "7.0–9.0 (General Audience)", $"Requires ~{Math.Ceiling(gradeLevel)} years of formal education"),
+            new("Average Sentence Length", wordsPerSentence, $"{wordsPerSentence:0.#} words/sentence", "15–20 words", wordsPerSentence > 25 ? "Long complex sentences" : "Well-paced sentences"),
+            new("Syllable Complexity", syllablesPerWord, $"{syllablesPerWord:0.##} syllables/word", "1.3–1.6 syllables", syllablesPerWord > 1.8 ? "Heavy multisyllabic vocabulary" : "Accessible vocabulary"),
             new("Silent Reading Duration", silentReadingMinutes, $"~{silentReadingMinutes:0.#} min", "225 words/min", $"{totalWords} total words"),
             new("Spoken Presentation Duration", speakingMinutes, $"~{speakingMinutes:0.#} min", "140 words/min", $"{totalWords} total words")
         };
@@ -6270,13 +6270,13 @@ public static class TextSearch
         double gradeLevel, double readingTimeMins, string category)
     {
         if (totalWords == 0)
-            return "Document reading ease audit: 0 words Â· Document contains no readable prose";
+            return "Document reading ease audit: 0 words · Document contains no readable prose";
 
         string wordLabel = totalWords == 1 ? "1 word" : $"{totalWords} words";
         string sentenceLabel = totalSentences == 1 ? "1 sentence" : $"{totalSentences} sentences";
 
-        return $"Document reading ease ({wordLabel}, {sentenceLabel} Â· {category}): " +
-               $"Flesch score {readingEase:0.#}/100 Â· Grade Level {gradeLevel:0.#} Â· ~{readingTimeMins:0.#} min read";
+        return $"Document reading ease ({wordLabel}, {sentenceLabel} · {category}): " +
+               $"Flesch score {readingEase:0.#}/100 · Grade Level {gradeLevel:0.#} · ~{readingTimeMins:0.#} min read";
     }
 
     /// <summary>
@@ -6291,7 +6291,7 @@ public static class TextSearch
                 0, 0, 0, 0, 0, 0, 100.0,
                 Array.Empty<DefinitionListItem>(),
                 "No Definition Lists",
-                "Markdown definition lists & glossary terms: 0 terms Â· Document contains no definition lists");
+                "Markdown definition lists & glossary terms: 0 terms · Document contains no definition lists");
         }
 
         // Strip fenced code blocks
@@ -6414,7 +6414,7 @@ public static class TextSearch
                 0, 0, 0, 0, 0, 0, 100.0,
                 Array.Empty<DefinitionListItem>(),
                 "No Definition Lists",
-                "Markdown definition lists & glossary terms: 0 terms Â· Document contains no definition lists");
+                "Markdown definition lists & glossary terms: 0 terms · Document contains no definition lists");
         }
 
         double penalty = (orphaned * 25.0) + (irregularIndent * 10.0);
@@ -6457,16 +6457,16 @@ public static class TextSearch
         int totalTerms, int totalDefs, int orphaned, int multiDef, int irregular, double score, string category)
     {
         if (totalTerms == 0)
-            return "Markdown definition lists & glossary terms: 0 terms Â· Document contains no definition lists";
+            return "Markdown definition lists & glossary terms: 0 terms · Document contains no definition lists";
 
         string termsLabel = totalTerms == 1 ? "1 term" : $"{totalTerms} terms";
         string breakdown = multiDef > 0 ? $"{multiDef} multi-definition" : "single-definition";
         var alerts = new List<string>();
-        if (orphaned > 0) alerts.Add($"âš  {orphaned} orphaned");
-        if (irregular > 0) alerts.Add($"âš  {irregular} irregular indent");
-        string alertSuffix = alerts.Count > 0 ? $" Â· {string.Join(", ", alerts)}" : " Â· syntax aligned";
+        if (orphaned > 0) alerts.Add($"⚠ {orphaned} orphaned");
+        if (irregular > 0) alerts.Add($"⚠ {irregular} irregular indent");
+        string alertSuffix = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · syntax aligned";
 
-        return $"Definition lists & glossary terms ({termsLabel} [{totalDefs} defs, {breakdown}] Â· {category} Â· {score:0.#}% score){alertSuffix}";
+        return $"Definition lists & glossary terms ({termsLabel} [{totalDefs} defs, {breakdown}] · {category} · {score:0.#}% score){alertSuffix}";
     }
 
     /// <summary>
@@ -6482,7 +6482,7 @@ public static class TextSearch
                 0, 0, 0, 0, 0, 0, 0.0, 100.0,
                 Array.Empty<TaskListHierarchyItem>(),
                 "No Task Lists",
-                "Task list progress & hierarchy: 0 tasks (Empty document) Â· No GFM task lists detected");
+                "Task list progress & hierarchy: 0 tasks (Empty document) · No GFM task lists detected");
         }
 
         var lines = markdownText.Replace("\r", "").Split('\n');
@@ -6519,7 +6519,7 @@ public static class TextSearch
                 0, 0, 0, 0, 0, 0, 0.0, 100.0,
                 Array.Empty<TaskListHierarchyItem>(),
                 "No Task Lists",
-                "Task list progress & hierarchy: 0 tasks Â· Document contains no GFM task lists");
+                "Task list progress & hierarchy: 0 tasks · Document contains no GFM task lists");
         }
 
         // Build hierarchical relationships using indentation levels
@@ -6657,15 +6657,15 @@ public static class TextSearch
         double completionPct, double hierarchyScore, string category)
     {
         if (totalTasks == 0)
-            return "Task list progress & hierarchy: 0 tasks Â· Document contains no GFM task lists";
+            return "Task list progress & hierarchy: 0 tasks · Document contains no GFM task lists";
 
         string tasksLabel = totalTasks == 1 ? "1 task" : $"{totalTasks} tasks";
         var alerts = new List<string>();
-        if (inconsistentParents > 0) alerts.Add($"âš  {inconsistentParents} inconsistent parent-child states");
+        if (inconsistentParents > 0) alerts.Add($"⚠ {inconsistentParents} inconsistent parent-child states");
         if (nestedSubtasks > 0) alerts.Add($"{nestedSubtasks} subtasks");
-        string alertSuffix = alerts.Count > 0 ? $" Â· {string.Join(", ", alerts)}" : " Â· flat root checklist";
+        string alertSuffix = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · flat root checklist";
 
-        return $"Task list progress & hierarchy ({completedTasks}/{tasksLabel} [{completionPct:0.#}% done] Â· {category} Â· {hierarchyScore:0.#}% hierarchy score){alertSuffix}";
+        return $"Task list progress & hierarchy ({completedTasks}/{tasksLabel} [{completionPct:0.#}% done] · {category} · {hierarchyScore:0.#}% hierarchy score){alertSuffix}";
     }
 
     /// <summary>
@@ -6680,7 +6680,7 @@ public static class TextSearch
                 0, 0, 0, 0, 0, 0, 0, 0, 100.0,
                 Array.Empty<TableColumnAlignmentItem>(),
                 "No Tables",
-                "Markdown table column alignment: 0 tables Â· Document contains no markdown tables");
+                "Markdown table column alignment: 0 tables · Document contains no markdown tables");
         }
 
         var lines = markdownText.Replace("\r", "").Split('\n');
@@ -6843,7 +6843,7 @@ public static class TextSearch
                 0, 0, 0, 0, 0, 0, 0, 0, 100.0,
                 Array.Empty<TableColumnAlignmentItem>(),
                 "No Tables",
-                "Markdown table column alignment: 0 tables Â· Document contains no markdown tables");
+                "Markdown table column alignment: 0 tables · Document contains no markdown tables");
         }
 
         double penalty = (totalRaggedRows * 15.0) + (missingOuterPipes * 3.0);
@@ -6892,17 +6892,17 @@ public static class TextSearch
         int raggedRowCount, int missingPipeCount, double alignmentConsistencyScore, string category)
     {
         if (totalTables == 0)
-            return "Markdown table column alignment: 0 tables Â· Document contains no markdown tables";
+            return "Markdown table column alignment: 0 tables · Document contains no markdown tables";
 
         string tableLabel = totalTables == 1 ? "1 table" : $"{totalTables} tables";
         string colLabel = totalColumns == 1 ? "1 column" : $"{totalColumns} columns";
 
         var alerts = new List<string>();
-        if (raggedRowCount > 0) alerts.Add($"âš  {raggedRowCount} ragged {(raggedRowCount == 1 ? "row" : "rows")}");
+        if (raggedRowCount > 0) alerts.Add($"⚠ {raggedRowCount} ragged {(raggedRowCount == 1 ? "row" : "rows")}");
         if (missingPipeCount > 0) alerts.Add($"{missingPipeCount} missing outer pipes");
-        string alertSuffix = alerts.Count > 0 ? $" Â· {string.Join(", ", alerts)}" : " Â· 100% uniform delimiter borders";
+        string alertSuffix = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · 100% uniform delimiter borders";
 
-        return $"Markdown table column alignment ({tableLabel} [{colLabel}] Â· {category} Â· {alignmentConsistencyScore:0.#}% score): " +
+        return $"Markdown table column alignment ({tableLabel} [{colLabel}] · {category} · {alignmentConsistencyScore:0.#}% score): " +
                $"{leftAligned} left, {centerAligned} center, {rightAligned} right, {defaultAligned} default{alertSuffix}";
     }
 
@@ -6919,7 +6919,7 @@ public static class TextSearch
                 0, 0, 0, 0, 0, 0, 0, 0, 100.0,
                 Array.Empty<FootnoteReferencePairingItem>(),
                 "Zero Footnotes (Clean Baseline)",
-                "Footnote reference pairing: 0 footnotes Â· Document contains no footnote references or definitions");
+                "Footnote reference pairing: 0 footnotes · Document contains no footnote references or definitions");
         }
 
         var lines = markdownText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
@@ -6998,7 +6998,7 @@ public static class TextSearch
                 0, 0, 0, 0, 0, 0, 0, 0, 100.0,
                 Array.Empty<FootnoteReferencePairingItem>(),
                 "Zero Footnotes (Clean Baseline)",
-                "Footnote reference pairing: 0 footnotes Â· Document contains no footnote references or definitions");
+                "Footnote reference pairing: 0 footnotes · Document contains no footnote references or definitions");
         }
 
         var allIds = new HashSet<string>(refCounts.Keys.Concat(defCounts.Keys), StringComparer.OrdinalIgnoreCase);
@@ -7071,15 +7071,15 @@ public static class TextSearch
         int matched, double score, string category)
     {
         if (totalRefs == 0 && totalDefs == 0)
-            return "Footnote reference pairing: 0 footnotes Â· Document contains no footnote references or definitions";
+            return "Footnote reference pairing: 0 footnotes · Document contains no footnote references or definitions";
 
         var alerts = new List<string>();
-        if (dangling > 0) alerts.Add($"âš  {dangling} dangling {(dangling == 1 ? "ref" : "refs")}");
+        if (dangling > 0) alerts.Add($"⚠ {dangling} dangling {(dangling == 1 ? "ref" : "refs")}");
         if (orphans > 0) alerts.Add($"{orphans} orphan {(orphans == 1 ? "def" : "defs")}");
         if (duplicates > 0) alerts.Add($"{duplicates} duplicate {(duplicates == 1 ? "def" : "defs")}");
-        string alertSuffix = alerts.Count > 0 ? $" Â· {string.Join(", ", alerts)}" : " Â· 100% paired bi-directional anchors";
+        string alertSuffix = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · 100% paired bi-directional anchors";
 
-        return $"Footnote reference pairing ({totalRefs} refs [{uniqueRefs} unique], {totalDefs} defs [{uniqueDefs} unique] Â· {category} Â· {score:0.#}% score): " +
+        return $"Footnote reference pairing ({totalRefs} refs [{uniqueRefs} unique], {totalDefs} defs [{uniqueDefs} unique] · {category} · {score:0.#}% score): " +
                $"{matched} matched {(matched == 1 ? "pair" : "pairs")}{alertSuffix}";
     }
 
@@ -7096,7 +7096,7 @@ public static class TextSearch
                 0, 0, 0, 0, 0, 0, 0, 100.0,
                 Array.Empty<DocumentImageAltItem>(),
                 "Zero Images (Accessible Baseline)",
-                "Image alt-text WCAG audit: 0 images Â· Document contains no image embeds");
+                "Image alt-text WCAG audit: 0 images · Document contains no image embeds");
         }
 
         var lines = markdownText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
@@ -7195,7 +7195,7 @@ public static class TextSearch
                 0, 0, 0, 0, 0, 0, 0, 100.0,
                 Array.Empty<DocumentImageAltItem>(),
                 "Zero Images (Accessible Baseline)",
-                "Image alt-text WCAG audit: 0 images Â· Document contains no image embeds");
+                "Image alt-text WCAG audit: 0 images · Document contains no image embeds");
         }
 
         int totalImages = items.Count;
@@ -7301,32 +7301,32 @@ public static class TextSearch
         if (isEmpty)
         {
             qualityTier = "Missing / Empty Alt Text";
-            status = "âš  Missing alt-text violates WCAG 1.1.1 Non-Text Content";
+            status = "⚠ Missing alt-text violates WCAG 1.1.1 Non-Text Content";
         }
         else if (isGeneric)
         {
             qualityTier = "Generic Placeholder Alt Text";
-            status = "âš  Placeholder alt-text provides non-descriptive context";
+            status = "⚠ Placeholder alt-text provides non-descriptive context";
         }
         else if (hasRedundantPrefix)
         {
             qualityTier = "Redundant Prefix Phrasing";
-            status = "âš  Screen readers announce image role automatically; drop 'image of'";
+            status = "⚠ Screen readers announce image role automatically; drop 'image of'";
         }
         else if (isOverlyLong)
         {
             qualityTier = "Overly Long Alt Text";
-            status = "â„¹ Alt text exceeds 150 chars; consider moving detailed narrative to caption";
+            status = "ℹ Alt text exceeds 150 chars; consider moving detailed narrative to caption";
         }
         else if (alt.Length >= 8)
         {
             qualityTier = "Descriptive Alt Text";
-            status = "âœ“ Meaningful, descriptive accessible alternative text";
+            status = "✓ Meaningful, descriptive accessible alternative text";
         }
         else
         {
             qualityTier = "Concise Alt Text";
-            status = "âœ“ Concise accessible description";
+            status = "✓ Concise accessible description";
         }
 
         return new DocumentImageAltItem(
@@ -7356,18 +7356,18 @@ public static class TextSearch
         int overlyLong, int dataUri, double score, string category)
     {
         if (totalImages == 0)
-            return "Image alt-text WCAG audit: 0 images Â· Document contains no image embeds";
+            return "Image alt-text WCAG audit: 0 images · Document contains no image embeds";
 
         string imageLabel = totalImages == 1 ? "1 image" : $"{totalImages} images";
         var alerts = new List<string>();
-        if (empty > 0) alerts.Add($"âš  {empty} empty");
+        if (empty > 0) alerts.Add($"⚠ {empty} empty");
         if (generic > 0) alerts.Add($"{generic} generic");
         if (redundantPrefix > 0) alerts.Add($"{redundantPrefix} redundant prefix");
         if (overlyLong > 0) alerts.Add($"{overlyLong} overly long (>150 chars)");
         if (dataUri > 0) alerts.Add($"{dataUri} data URI");
 
-        string details = alerts.Count > 0 ? $" Â· {string.Join(", ", alerts)}" : " Â· 100% descriptive alt text";
-        return $"Image alt-text WCAG audit ({imageLabel} Â· {category} Â· {score:0.#}% score): {descriptive} descriptive{details}";
+        string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · 100% descriptive alt text";
+        return $"Image alt-text WCAG audit ({imageLabel} · {category} · {score:0.#}% score): {descriptive} descriptive{details}";
     }
 
     /// <summary>
@@ -7382,7 +7382,7 @@ public static class TextSearch
                 0, 0, 0, 0, 0, 0, 0, 100.0,
                 Array.Empty<StrikethroughHighlightSpanItem>(),
                 "Zero Styled Spans (Clean Baseline)",
-                "Markdown strikethrough & highlight audit: 0 styled spans Â· Clean baseline");
+                "Markdown strikethrough & highlight audit: 0 styled spans · Clean baseline");
         }
 
         var lines = markdownText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
@@ -7433,7 +7433,7 @@ public static class TextSearch
                 0, 0, 0, 0, 0, 0, 0, 100.0,
                 Array.Empty<StrikethroughHighlightSpanItem>(),
                 "Zero Styled Spans (Clean Baseline)",
-                "Markdown strikethrough & highlight audit: 0 styled spans Â· Clean baseline");
+                "Markdown strikethrough & highlight audit: 0 styled spans · Clean baseline");
         }
 
         double score = Math.Round((double)balancedCount / totalSpans * 100.0, 1);
@@ -7530,17 +7530,17 @@ public static class TextSearch
         int whitespaceErrors, int emptySpans, double score, string category)
     {
         if (totalSpans == 0)
-            return "Markdown strikethrough & highlight audit: 0 styled spans Â· Clean baseline";
+            return "Markdown strikethrough & highlight audit: 0 styled spans · Clean baseline";
 
         string spanLabel = totalSpans == 1 ? "1 span" : $"{totalSpans} spans";
         var alerts = new List<string>();
-        if (unclosed > 0) alerts.Add($"âš  {unclosed} unclosed");
+        if (unclosed > 0) alerts.Add($"⚠ {unclosed} unclosed");
         if (whitespaceErrors > 0) alerts.Add($"{whitespaceErrors} whitespace {(whitespaceErrors == 1 ? "error" : "errors")}");
         if (emptySpans > 0) alerts.Add($"{emptySpans} empty");
 
         string typeDist = $"{strikethrough} ~~strikethrough~~, {highlight} ==highlight==";
-        string details = alerts.Count > 0 ? $" Â· {string.Join(", ", alerts)}" : " Â· 100% balanced formatting";
-        return $"Markdown strikethrough & highlight audit ({spanLabel} [{typeDist}] Â· {category} Â· {score:0.#}% score): {balanced} balanced{details}";
+        string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · 100% balanced formatting";
+        return $"Markdown strikethrough & highlight audit ({spanLabel} [{typeDist}] · {category} · {score:0.#}% score): {balanced} balanced{details}";
     }
 
     /// <summary>
@@ -7649,7 +7649,7 @@ public static class TextSearch
                         alertType = "CAUTION";
                         cautionAlerts++;
                     }
-                    else if (inner.StartsWith("--") || inner.StartsWith("â€”") || inner.StartsWith("â€“"))
+                    else if (inner.StartsWith("--") || inner.StartsWith("—") || inner.StartsWith("–"))
                     {
                         isCitation = true;
                         citations++;
@@ -7713,7 +7713,7 @@ public static class TextSearch
         int nestedDeep, double score, string category)
     {
         if (totalQuoteLines == 0)
-            return "Markdown blockquote & callout audit: 0 quote lines Â· Clean baseline";
+            return "Markdown blockquote & callout audit: 0 quote lines · Clean baseline";
 
         string lineLabel = totalQuoteLines == 1 ? "1 line" : $"{totalQuoteLines} lines";
         string blockLabel = totalBlocks == 1 ? "1 block" : $"{totalBlocks} blocks";
@@ -7731,11 +7731,11 @@ public static class TextSearch
             parts.Add($"{totalAlerts} alert {(totalAlerts == 1 ? "callout" : "callouts")} [{string.Join(", ", alertTypes)}]");
         }
         if (citations > 0) parts.Add($"{citations} {(citations == 1 ? "citation" : "citations")}");
-        if (nestedDeep > 0) parts.Add($"âš  {nestedDeep} deep (depth > 2)");
+        if (nestedDeep > 0) parts.Add($"⚠ {nestedDeep} deep (depth > 2)");
 
-        string details = parts.Count > 0 ? $" Â· {string.Join(", ", parts)}" : "";
-        string prefix = $"Markdown blockquote & callout audit ({lineLabel} in {blockLabel} Â· Max depth {maxDepth} Â· {category} Â· {score:0.#}% score)";
-        return details.Length > 0 ? $"{prefix}:{details}" : $"{prefix} Â· Structured quotes";
+        string details = parts.Count > 0 ? $" · {string.Join(", ", parts)}" : "";
+        string prefix = $"Markdown blockquote & callout audit ({lineLabel} in {blockLabel} · Max depth {maxDepth} · {category} · {score:0.#}% score)";
+        return details.Length > 0 ? $"{prefix}:{details}" : $"{prefix} · Structured quotes";
     }
 
     /// <summary>
@@ -7751,7 +7751,7 @@ public static class TextSearch
                 0, 0, 0, 0, 0, 100.0,
                 Array.Empty<DefinitionListContinuityItem>(),
                 "Clean Baseline",
-                "Markdown definition list audit: 0 terms Â· Document contains no definition lists");
+                "Markdown definition list audit: 0 terms · Document contains no definition lists");
         }
 
         var lines = markdownText.Replace("\r", "").Split('\n');
@@ -7930,8 +7930,8 @@ public static class TextSearch
                     }
 
                     string status = hasPrecedingBlank && hasValidContinuation
-                        ? $"âœ“ {defCount} {(defCount == 1 ? "definition" : "definitions")}"
-                        : $"âš  Spacing/continuation alert ({defCount} defs)";
+                        ? $"✓ {defCount} {(defCount == 1 ? "definition" : "definitions")}"
+                        : $"⚠ Spacing/continuation alert ({defCount} defs)";
 
                     items.Add(new DefinitionListContinuityItem(
                         termLineNumber, termText, defCount, hasPrecedingBlank, hasValidContinuation, status));
@@ -7947,7 +7947,7 @@ public static class TextSearch
                 0, 0, 0, 0, 0, 100.0,
                 Array.Empty<DefinitionListContinuityItem>(),
                 "Clean Baseline",
-                "Markdown definition list audit: 0 terms Â· Document contains no definition lists");
+                "Markdown definition list audit: 0 terms · Document contains no definition lists");
         }
 
         double penalty = (spacingIssues * 8.0) + (orphanTerms * 15.0);
@@ -7985,19 +7985,19 @@ public static class TextSearch
         int spacingIssues, double score, string category)
     {
         if (totalTerms == 0)
-            return "Markdown definition list audit: 0 terms Â· Document contains no definition lists";
+            return "Markdown definition list audit: 0 terms · Document contains no definition lists";
 
         string termStr = totalTerms == 1 ? "1 term" : $"{totalTerms} terms";
         string defStr = totalDefinitions == 1 ? "1 definition" : $"{totalDefinitions} definitions";
 
         var parts = new List<string>();
         if (multilineDefs > 0) parts.Add($"{multilineDefs} multiline");
-        if (spacingIssues > 0) parts.Add($"âš  {spacingIssues} spacing {(spacingIssues == 1 ? "alert" : "alerts")}");
-        if (orphanTerms > 0) parts.Add($"âš  {orphanTerms} orphan");
+        if (spacingIssues > 0) parts.Add($"⚠ {spacingIssues} spacing {(spacingIssues == 1 ? "alert" : "alerts")}");
+        if (orphanTerms > 0) parts.Add($"⚠ {orphanTerms} orphan");
 
-        string details = parts.Count > 0 ? $" Â· {string.Join(", ", parts)}" : "";
-        string prefix = $"Markdown definition list audit ({termStr}, {defStr} Â· {category} Â· {score:0.#}% score)";
-        return details.Length > 0 ? $"{prefix}:{details}" : $"{prefix} Â· Structured definitions";
+        string details = parts.Count > 0 ? $" · {string.Join(", ", parts)}" : "";
+        string prefix = $"Markdown definition list audit ({termStr}, {defStr} · {category} · {score:0.#}% score)";
+        return details.Length > 0 ? $"{prefix}:{details}" : $"{prefix} · Structured definitions";
     }
 
     /// <summary>
@@ -8013,7 +8013,7 @@ public static class TextSearch
                 0, 0, 0, 0, 0, 0, 100.0,
                 Array.Empty<FootnoteOrderItem>(),
                 "Clean Baseline",
-                "Markdown footnote order & orphan audit: 0 references Â· Document contains no footnotes");
+                "Markdown footnote order & orphan audit: 0 references · Document contains no footnotes");
         }
 
         var lines = markdownText.Replace("\r", "").Split('\n');
@@ -8182,19 +8182,19 @@ public static class TextSearch
                 string status;
                 if (!hasDef)
                 {
-                    status = "âš  Missing definition (Orphan reference)";
+                    status = "⚠ Missing definition (Orphan reference)";
                 }
                 else if (isOutOfOrder)
                 {
-                    status = $"âš  Out-of-order reference (defined line {defInfo.LineNumber})";
+                    status = $"⚠ Out-of-order reference (defined line {defInfo.LineNumber})";
                 }
                 else if (defInfo.ParagraphCount > 1)
                 {
-                    status = $"âœ“ Defined line {defInfo.LineNumber} ({defInfo.ParagraphCount} paragraphs)";
+                    status = $"✓ Defined line {defInfo.LineNumber} ({defInfo.ParagraphCount} paragraphs)";
                 }
                 else
                 {
-                    status = $"âœ“ Defined line {defInfo.LineNumber}";
+                    status = $"✓ Defined line {defInfo.LineNumber}";
                 }
 
                 items.Add(new FootnoteOrderItem(
@@ -8227,7 +8227,7 @@ public static class TextSearch
                 0, 0, 0, 0, 0, 0, 100.0,
                 Array.Empty<FootnoteOrderItem>(),
                 "Clean Baseline",
-                "Markdown footnote order & orphan audit: 0 references Â· Document contains no footnotes");
+                "Markdown footnote order & orphan audit: 0 references · Document contains no footnotes");
         }
 
         double penalty = (orphanRefs * 15.0) + (unusedDefs * 10.0) + (outOfOrderRefs * 8.0);
@@ -8265,20 +8265,20 @@ public static class TextSearch
         int outOfOrderRefs, int multiParaDefs, double score, string category)
     {
         if (totalRefs == 0 && totalDefs == 0)
-            return "Markdown footnote order & orphan audit: 0 references Â· Document contains no footnotes";
+            return "Markdown footnote order & orphan audit: 0 references · Document contains no footnotes";
 
         string refStr = totalRefs == 1 ? "1 reference" : $"{totalRefs} references";
         string defStr = totalDefs == 1 ? "1 definition" : $"{totalDefs} definitions";
 
         var parts = new List<string>();
         if (multiParaDefs > 0) parts.Add($"{multiParaDefs} multi-paragraph");
-        if (orphanRefs > 0) parts.Add($"âš  {orphanRefs} orphan {(orphanRefs == 1 ? "ref" : "refs")}");
-        if (unusedDefs > 0) parts.Add($"âš  {unusedDefs} unused {(unusedDefs == 1 ? "def" : "defs")}");
-        if (outOfOrderRefs > 0) parts.Add($"âš  {outOfOrderRefs} out-of-order");
+        if (orphanRefs > 0) parts.Add($"⚠ {orphanRefs} orphan {(orphanRefs == 1 ? "ref" : "refs")}");
+        if (unusedDefs > 0) parts.Add($"⚠ {unusedDefs} unused {(unusedDefs == 1 ? "def" : "defs")}");
+        if (outOfOrderRefs > 0) parts.Add($"⚠ {outOfOrderRefs} out-of-order");
 
-        string details = parts.Count > 0 ? $" Â· {string.Join(", ", parts)}" : "";
-        string prefix = $"Markdown footnote order & orphan audit ({refStr}, {defStr} Â· {category} Â· {score:0.#}% score)";
-        return details.Length > 0 ? $"{prefix}:{details}" : $"{prefix} Â· Sequential & balanced";
+        string details = parts.Count > 0 ? $" · {string.Join(", ", parts)}" : "";
+        string prefix = $"Markdown footnote order & orphan audit ({refStr}, {defStr} · {category} · {score:0.#}% score)";
+        return details.Length > 0 ? $"{prefix}:{details}" : $"{prefix} · Sequential & balanced";
     }
     /// <summary>
     /// Audits markdown text for inline ($...$ / \(...\)) and display ($$...$$ / \[...\]) math formulas,
@@ -8294,7 +8294,7 @@ public static class TextSearch
                 0, 0, 0, 0, 0, 0, 100.0,
                 Array.Empty<InlineMathItem>(),
                 "Clean Baseline",
-                "Markdown math syntax audit: 0 math blocks Â· Document contains no math formulas");
+                "Markdown math syntax audit: 0 math blocks · Document contains no math formulas");
         }
 
         var lines = markdownText.Replace("\r", "").Split('\n');
@@ -8394,7 +8394,7 @@ public static class TextSearch
                         isClean,
                         unclosed,
                         false,
-                        isClean ? $"âœ“ Valid display block ({formula.Length} chars)" : $"âš  {unclosed} unclosed brace(s)"));
+                        isClean ? $"✓ Valid display block ({formula.Length} chars)" : $"⚠ {unclosed} unclosed brace(s)"));
                     displayCount++;
 
                     rawLine = rawLine.Substring(closeIndex + 2);
@@ -8426,7 +8426,7 @@ public static class TextSearch
                     isClean,
                     unclosed,
                     false,
-                    isClean ? $"âœ“ Valid display math ({formula.Length} chars)" : $"âš  {unclosed} unclosed brace(s)"));
+                    isClean ? $"✓ Valid display math ({formula.Length} chars)" : $"⚠ {unclosed} unclosed brace(s)"));
                 return " ";
             });
 
@@ -8448,7 +8448,7 @@ public static class TextSearch
                     isClean,
                     unclosed,
                     false,
-                    isClean ? $"âœ“ Valid display math ({formula.Length} chars)" : $"âš  {unclosed} unclosed brace(s)"));
+                    isClean ? $"✓ Valid display math ({formula.Length} chars)" : $"⚠ {unclosed} unclosed brace(s)"));
                 return " ";
             });
 
@@ -8481,7 +8481,7 @@ public static class TextSearch
                     isClean,
                     unclosed,
                     false,
-                    isClean ? $"âœ“ Valid inline math ({formula.Length} chars)" : $"âš  {unclosed} unclosed brace(s)"));
+                    isClean ? $"✓ Valid inline math ({formula.Length} chars)" : $"⚠ {unclosed} unclosed brace(s)"));
                 return " ";
             });
 
@@ -8511,7 +8511,7 @@ public static class TextSearch
                     isClean,
                     unclosed,
                     false,
-                    isClean ? $"âœ“ Valid inline math ({formula.Length} chars)" : $"âš  {unclosed} unclosed brace(s)"));
+                    isClean ? $"✓ Valid inline math ({formula.Length} chars)" : $"⚠ {unclosed} unclosed brace(s)"));
                 return " ";
             });
 
@@ -8539,7 +8539,7 @@ public static class TextSearch
                             false,
                             0,
                             true,
-                            "âš  Unclosed math delimiter or unescaped dollar"));
+                            "⚠ Unclosed math delimiter or unescaped dollar"));
                     }
                 }
             }
@@ -8555,7 +8555,7 @@ public static class TextSearch
                 false,
                 0,
                 true,
-                "âš  Unclosed display math block ($$)"));
+                "⚠ Unclosed display math block ($$)"));
         }
 
         int totalBlocks = inlineCount + displayCount + malformedCount;
@@ -8565,7 +8565,7 @@ public static class TextSearch
                 0, 0, 0, 0, 0, 0, 100.0,
                 Array.Empty<InlineMathItem>(),
                 "Clean Baseline",
-                "Markdown math syntax audit: 0 math blocks Â· Document contains no math formulas");
+                "Markdown math syntax audit: 0 math blocks · Document contains no math formulas");
         }
 
         double penalty = (malformedCount * 15.0) + (unclosedBraceCount * 10.0) + (currencyCollisionCount * 4.0);
@@ -8630,19 +8630,19 @@ public static class TextSearch
         int unclosedBraceCount, int currencyCollisions, double score, string category)
     {
         if (totalBlocks == 0 && currencyCollisions == 0)
-            return "Markdown math syntax audit: 0 math blocks Â· Document contains no math formulas";
+            return "Markdown math syntax audit: 0 math blocks · Document contains no math formulas";
 
         string blockStr = totalBlocks == 1 ? "1 math block" : $"{totalBlocks} math blocks";
         var parts = new List<string>();
         if (inlineCount > 0) parts.Add($"{inlineCount} inline");
         if (displayCount > 0) parts.Add($"{displayCount} display");
-        if (malformedCount > 0) parts.Add($"âš  {malformedCount} malformed/unclosed");
-        if (unclosedBraceCount > 0) parts.Add($"âš  {unclosedBraceCount} brace mismatch");
+        if (malformedCount > 0) parts.Add($"⚠ {malformedCount} malformed/unclosed");
+        if (unclosedBraceCount > 0) parts.Add($"⚠ {unclosedBraceCount} brace mismatch");
         if (currencyCollisions > 0) parts.Add($"{currencyCollisions} unescaped $ currency");
 
-        string details = parts.Count > 0 ? $" Â· {string.Join(", ", parts)}" : "";
-        string prefix = $"Markdown math syntax audit ({blockStr} Â· {category} Â· {score:0.#}% score)";
-        return details.Length > 0 ? $"{prefix}:{details}" : $"{prefix} Â· Symmetrical & balanced";
+        string details = parts.Count > 0 ? $" · {string.Join(", ", parts)}" : "";
+        string prefix = $"Markdown math syntax audit ({blockStr} · {category} · {score:0.#}% score)";
+        return details.Length > 0 ? $"{prefix}:{details}" : $"{prefix} · Symmetrical & balanced";
     }
 
     /// <summary>
@@ -8658,7 +8658,7 @@ public static class TextSearch
                 Array.Empty<HeaderAnchorItem>(),
                 Array.Empty<string>(),
                 "Clean Baseline",
-                "Markdown header anchor & TOC audit: 0 headings Â· Document contains no headings or TOC links");
+                "Markdown header anchor & TOC audit: 0 headings · Document contains no headings or TOC links");
         }
 
         var lines = markdownText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
@@ -8764,8 +8764,8 @@ public static class TextSearch
                 allGeneratedSlugs.Add(baseSlug);
 
                 string status = hasCollision
-                    ? $"âš  Duplicate heading slug collision (#{finalSlug} auto-disambiguated)"
-                    : $"âœ“ Unique slug (#{finalSlug})";
+                    ? $"⚠ Duplicate heading slug collision (#{finalSlug} auto-disambiguated)"
+                    : $"✓ Unique slug (#{finalSlug})";
 
                 headerItems.Add(new HeaderAnchorItem(
                     i + 1, level, headerRaw, finalSlug, hasCollision, collisionIdx, false, status));
@@ -8798,8 +8798,8 @@ public static class TextSearch
             if (!isRef) unreferencedCount++;
 
             string status = h.Status;
-            if (isRef) status += " Â· Synced in TOC";
-            else if (tocLinksFound.Count > 0) status += " Â· Not in TOC";
+            if (isRef) status += " · Synced in TOC";
+            else if (tocLinksFound.Count > 0) status += " · Not in TOC";
 
             updatedHeaders.Add(h with { IsReferencedInToc = isRef, Status = status });
         }
@@ -8823,7 +8823,7 @@ public static class TextSearch
         score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
 
         string category = score >= 90.0
-            ? "Optimal Anchor & TOC Sync (â‰¥90%)"
+            ? "Optimal Anchor & TOC Sync (≥90%)"
             : score >= 75.0
                 ? "Moderate Anchor Collision Risk (75-89%)"
                 : "Degraded Navigation & Broken TOC (<75%)";
@@ -8870,18 +8870,18 @@ public static class TextSearch
         string category, IReadOnlyList<string>? brokenSlugs = null)
     {
         if (totalHeaders == 0 && tocLinks == 0)
-            return "Markdown header anchor & TOC audit: 0 headings Â· Document contains no headings or TOC links";
+            return "Markdown header anchor & TOC audit: 0 headings · Document contains no headings or TOC links";
 
         string headerStr = totalHeaders == 1 ? "1 heading" : $"{totalHeaders} headings";
         var parts = new List<string>();
         parts.Add($"{uniqueSlugs} unique anchor {(uniqueSlugs == 1 ? "slug" : "slugs")}");
-        if (collisions > 0) parts.Add($"âš  {collisions} duplicate slug {(collisions == 1 ? "collision" : "collisions")}");
+        if (collisions > 0) parts.Add($"⚠ {collisions} duplicate slug {(collisions == 1 ? "collision" : "collisions")}");
         else parts.Add("0 slug collisions");
 
         if (tocLinks > 0)
         {
             parts.Add($"{tocLinks} TOC {(tocLinks == 1 ? "link" : "links")}");
-            if (brokenTocCount > 0) parts.Add($"âš  {brokenTocCount} broken TOC {(brokenTocCount == 1 ? "target" : "targets")}");
+            if (brokenTocCount > 0) parts.Add($"⚠ {brokenTocCount} broken TOC {(brokenTocCount == 1 ? "target" : "targets")}");
             else parts.Add("100% TOC links resolved");
         }
         else
@@ -8889,8 +8889,8 @@ public static class TextSearch
             parts.Add("no TOC links defined");
         }
 
-        string details = string.Join(" Â· ", parts);
-        return $"Markdown header anchor & TOC audit ({headerStr} Â· {category} Â· {score:0.#}% score): {details}";
+        string details = string.Join(" · ", parts);
+        return $"Markdown header anchor & TOC audit ({headerStr} · {category} · {score:0.#}% score): {details}";
     }
 
     /// <summary>
@@ -8905,7 +8905,7 @@ public static class TextSearch
                 0, 0, 0, 0, 0, 0, 0, 100.0,
                 Array.Empty<CalloutItem>(),
                 "Clean Baseline",
-                "Markdown callout alert audit: 0 alerts Â· Document contains no callout alert blocks");
+                "Markdown callout alert audit: 0 alerts · Document contains no callout alert blocks");
         }
 
         var lines = markdownText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
@@ -9031,15 +9031,15 @@ public static class TextSearch
 
                 string status;
                 if (!isValidType)
-                    status = $"âš  Unknown alert type '[!{alertType}]' (expected NOTE/TIP/IMPORTANT/WARNING/CAUTION)";
+                    status = $"⚠ Unknown alert type '[!{alertType}]' (expected NOTE/TIP/IMPORTANT/WARNING/CAUTION)";
                 else if (isNested)
-                    status = $"âš  Invalid nested callout at depth {quoteDepth} (violates rule: do not nest alerts)";
+                    status = $"⚠ Invalid nested callout at depth {quoteDepth} (violates rule: do not nest alerts)";
                 else if (isConsecutive)
-                    status = $"âš  Consecutive alert placement without intervening text (violates alert governance)";
+                    status = $"⚠ Consecutive alert placement without intervening text (violates alert governance)";
                 else if (hasEmptyBody)
-                    status = "âš  Missing accessible body content / empty callout block";
+                    status = "⚠ Missing accessible body content / empty callout block";
                 else
-                    status = $"âœ“ Standard [!{alertType}] alert ({totalWords} words)";
+                    status = $"✓ Standard [!{alertType}] alert ({totalWords} words)";
 
                 items.Add(new CalloutItem(
                     startLine,
@@ -9063,7 +9063,7 @@ public static class TextSearch
                 0, 0, 0, 0, 0, 0, 0, 100.0,
                 Array.Empty<CalloutItem>(),
                 "Clean Baseline",
-                "Markdown callout alert audit: 0 alerts Â· Document contains no callout alert blocks");
+                "Markdown callout alert audit: 0 alerts · Document contains no callout alert blocks");
         }
 
         double score = 100.0;
@@ -9074,7 +9074,7 @@ public static class TextSearch
         score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
 
         string category = score >= 90.0
-            ? "Optimal Callout Semantics (â‰¥90%)"
+            ? "Optimal Callout Semantics (≥90%)"
             : score >= 75.0
                 ? "Moderate Alert Hierarchy Risk (75-89%)"
                 : "Degraded Callout Governance (<75%)";
@@ -9099,22 +9099,22 @@ public static class TextSearch
         int emptyBodyCount, int unknownTypeCount, int maxDepth, double score, string category)
     {
         if (totalAlerts == 0)
-            return "Markdown callout alert audit: 0 alerts Â· Document contains no callout alert blocks";
+            return "Markdown callout alert audit: 0 alerts · Document contains no callout alert blocks";
 
         string alertStr = totalAlerts == 1 ? "1 alert" : $"{totalAlerts} alerts";
         var parts = new List<string>();
         parts.Add($"{validCount} standard {(validCount == 1 ? "alert" : "alerts")}");
-        if (nestedCount > 0) parts.Add($"âš  {nestedCount} nested (depth {maxDepth})");
+        if (nestedCount > 0) parts.Add($"⚠ {nestedCount} nested (depth {maxDepth})");
         else parts.Add("0 nested alerts");
 
-        if (consecutiveCount > 0) parts.Add($"âš  {consecutiveCount} consecutive");
+        if (consecutiveCount > 0) parts.Add($"⚠ {consecutiveCount} consecutive");
         else parts.Add("0 consecutive alerts");
 
-        if (emptyBodyCount > 0) parts.Add($"âš  {emptyBodyCount} empty body");
-        if (unknownTypeCount > 0) parts.Add($"âš  {unknownTypeCount} unknown type");
+        if (emptyBodyCount > 0) parts.Add($"⚠ {emptyBodyCount} empty body");
+        if (unknownTypeCount > 0) parts.Add($"⚠ {unknownTypeCount} unknown type");
 
-        string details = string.Join(" Â· ", parts);
-        return $"Markdown callout alert audit ({alertStr} Â· {category} Â· {score:0.#}% score): {details}";
+        string details = string.Join(" · ", parts);
+        return $"Markdown callout alert audit ({alertStr} · {category} · {score:0.#}% score): {details}";
     }
 
     /// <summary>
@@ -9129,7 +9129,7 @@ public static class TextSearch
                 0, 0, 0, 0, 0, 0, 100.0,
                 Array.Empty<ImageCaptionAccessibilityItem>(),
                 "Clean Baseline",
-                "Markdown image accessibility audit: 0 images Â· Document contains no image references");
+                "Markdown image accessibility audit: 0 images · Document contains no image references");
         }
 
         var lines = markdownText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
@@ -9217,13 +9217,13 @@ public static class TextSearch
 
             string status;
             if (hasEmptyAlt)
-                status = "âš  Missing alt text (Critical screen reader accessibility barrier)";
+                status = "⚠ Missing alt text (Critical screen reader accessibility barrier)";
             else if (isGeneric)
-                status = $"âš  Generic placeholder / filename used as alt text ('{alt}')";
+                status = $"⚠ Generic placeholder / filename used as alt text ('{alt}')";
             else if (isOverlyVerbose)
-                status = $"âš  Overly verbose alt text ({alt.Length} chars > 150 max recommended)";
+                status = $"⚠ Overly verbose alt text ({alt.Length} chars > 150 max recommended)";
             else
-                status = $"âœ“ Accessible descriptive alt text ({alt.Length} chars)" + (hasCaption ? $" Â· Caption: '{title}'" : "");
+                status = $"✓ Accessible descriptive alt text ({alt.Length} chars)" + (hasCaption ? $" · Caption: '{title}'" : "");
 
             items.Add(new ImageCaptionAccessibilityItem(
                 lineNum,
@@ -9245,7 +9245,7 @@ public static class TextSearch
                 0, 0, 0, 0, 0, 0, 100.0,
                 Array.Empty<ImageCaptionAccessibilityItem>(),
                 "Clean Baseline",
-                "Markdown image accessibility audit: 0 images Â· Document contains no image references");
+                "Markdown image accessibility audit: 0 images · Document contains no image references");
         }
 
         double score = 100.0;
@@ -9255,7 +9255,7 @@ public static class TextSearch
         score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
 
         string category = score >= 90.0
-            ? "Optimal Image Accessibility (â‰¥90%)"
+            ? "Optimal Image Accessibility (≥90%)"
             : score >= 75.0
                 ? "Moderate Accessibility Risk (75-89%)"
                 : "Degraded Accessibility Governance (<75%)";
@@ -9280,20 +9280,20 @@ public static class TextSearch
         int overlyVerboseCount, int captionedCount, double score, string category)
     {
         if (totalImages == 0)
-            return "Markdown image accessibility audit: 0 images Â· Document contains no image references";
+            return "Markdown image accessibility audit: 0 images · Document contains no image references";
 
         string imgStr = totalImages == 1 ? "1 image" : $"{totalImages} images";
         var parts = new List<string>();
         parts.Add($"{descriptiveCount} descriptive alt");
-        if (emptyAltCount > 0) parts.Add($"âš  {emptyAltCount} missing alt");
+        if (emptyAltCount > 0) parts.Add($"⚠ {emptyAltCount} missing alt");
         else parts.Add("0 missing alt");
 
-        if (genericFilenameCount > 0) parts.Add($"âš  {genericFilenameCount} generic placeholder");
-        if (overlyVerboseCount > 0) parts.Add($"âš  {overlyVerboseCount} overly verbose (>150 chars)");
+        if (genericFilenameCount > 0) parts.Add($"⚠ {genericFilenameCount} generic placeholder");
+        if (overlyVerboseCount > 0) parts.Add($"⚠ {overlyVerboseCount} overly verbose (>150 chars)");
         if (captionedCount > 0) parts.Add($"{captionedCount} captioned");
 
-        string details = string.Join(" Â· ", parts);
-        return $"Markdown image accessibility audit ({imgStr} Â· {category} Â· {score:0.#}% WCAG score): {details}";
+        string details = string.Join(" · ", parts);
+        return $"Markdown image accessibility audit ({imgStr} · {category} · {score:0.#}% WCAG score): {details}";
     }
 
     /// <summary>
@@ -9308,7 +9308,7 @@ public static class TextSearch
                 0, 0, 0, 0, 0, 0, 0, 100.0,
                 Array.Empty<FootnoteReferenceDefinitionItem>(),
                 "Clean Baseline",
-                "Markdown footnote & reference link audit: 0 references Â· Document contains no footnote or reference definitions");
+                "Markdown footnote & reference link audit: 0 references · Document contains no footnote or reference definitions");
         }
 
         var lines = markdownText.Replace("\r\n", "\n").Split('\n');
@@ -9444,7 +9444,7 @@ public static class TextSearch
             if (!exists) orphanRefs++;
             else validPairs++;
 
-            string status = exists ? $"âœ“ Footnote reference [^{r.Label}] bound to definition" : $"âš  Orphaned footnote reference [^{r.Label}] without definition";
+            string status = exists ? $"✓ Footnote reference [^{r.Label}] bound to definition" : $"⚠ Orphaned footnote reference [^{r.Label}] without definition";
             items.Add(new FootnoteReferenceDefinitionItem(r.Line, r.Label, "FootnoteReference", null, !exists, false, false, false, status));
         }
 
@@ -9458,7 +9458,7 @@ public static class TextSearch
 
             foreach (var def in kvp.Value)
             {
-                string status = !referenced ? $"âš  Dangling footnote definition [^{kvp.Key}]: never referenced in text" : (isDup ? $"âš  Duplicate footnote definition [^{kvp.Key}]:" : $"âœ“ Footnote definition [^{kvp.Key}]: bound to {kvp.Value.Count} references");
+                string status = !referenced ? $"⚠ Dangling footnote definition [^{kvp.Key}]: never referenced in text" : (isDup ? $"⚠ Duplicate footnote definition [^{kvp.Key}]:" : $"✓ Footnote definition [^{kvp.Key}]: bound to {kvp.Value.Count} references");
                 items.Add(new FootnoteReferenceDefinitionItem(def.Line, kvp.Key, "FootnoteDefinition", def.Content, false, !referenced, isDup, false, status));
             }
         }
@@ -9471,7 +9471,7 @@ public static class TextSearch
             if (!exists) orphanRefs++;
             else if (!isCyclic) validPairs++;
 
-            string status = isCyclic ? $"âš  Cyclic reference link alias chain detected for [{r.Label}]" : (exists ? $"âœ“ Reference link [{r.Label}] bound to definition" : $"âš  Orphaned reference link [{r.Label}] without definition");
+            string status = isCyclic ? $"⚠ Cyclic reference link alias chain detected for [{r.Label}]" : (exists ? $"✓ Reference link [{r.Label}] bound to definition" : $"⚠ Orphaned reference link [{r.Label}] without definition");
             items.Add(new FootnoteReferenceDefinitionItem(r.Line, r.Label, "LinkReference", r.Text, !exists, false, false, isCyclic, status));
         }
 
@@ -9486,7 +9486,7 @@ public static class TextSearch
 
             foreach (var def in kvp.Value)
             {
-                string status = isCyclic ? $"âš  Cyclic reference alias definition for [{kvp.Key}] -> {def.Target}" : (!referenced ? $"âš  Dangling link definition [{kvp.Key}]: never referenced in text" : (isDup ? $"âš  Duplicate link definition [{kvp.Key}]:" : $"âœ“ Link definition [{kvp.Key}]: bound to '{def.Target}'"));
+                string status = isCyclic ? $"⚠ Cyclic reference alias definition for [{kvp.Key}] -> {def.Target}" : (!referenced ? $"⚠ Dangling link definition [{kvp.Key}]: never referenced in text" : (isDup ? $"⚠ Duplicate link definition [{kvp.Key}]:" : $"✓ Link definition [{kvp.Key}]: bound to '{def.Target}'"));
                 items.Add(new FootnoteReferenceDefinitionItem(def.Line, kvp.Key, "LinkDefinition", def.Target, false, !referenced, isDup, isCyclic, status));
             }
         }
@@ -9500,7 +9500,7 @@ public static class TextSearch
                 0, 0, 0, 0, 0, 0, 0, 100.0,
                 Array.Empty<FootnoteReferenceDefinitionItem>(),
                 "Clean Baseline",
-                "Markdown footnote & reference link audit: 0 references Â· Document contains no footnote or reference definitions");
+                "Markdown footnote & reference link audit: 0 references · Document contains no footnote or reference definitions");
         }
 
         double score = 100.0;
@@ -9511,7 +9511,7 @@ public static class TextSearch
         score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
 
         string category = score >= 90.0
-            ? "Optimal Footnote & Reference Governance (â‰¥90%)"
+            ? "Optimal Footnote & Reference Governance (≥90%)"
             : score >= 75.0
                 ? "Moderate Reference Integrity Risk (75-89%)"
                 : "Degraded Reference Integrity (<75%)";
@@ -9534,22 +9534,22 @@ public static class TextSearch
         int duplicates, int cycles, double score, string category)
     {
         if (totalRefs == 0 && totalDefs == 0)
-            return "Markdown footnote & reference link audit: 0 references Â· Document contains no footnote or reference definitions";
+            return "Markdown footnote & reference link audit: 0 references · Document contains no footnote or reference definitions";
 
         var parts = new List<string>();
         parts.Add($"{validPairs} valid {(validPairs == 1 ? "pair" : "pairs")}");
 
-        if (orphans > 0) parts.Add($"âš  {orphans} orphaned {(orphans == 1 ? "reference" : "references")}");
+        if (orphans > 0) parts.Add($"⚠ {orphans} orphaned {(orphans == 1 ? "reference" : "references")}");
         else parts.Add("0 orphans");
 
-        if (dangling > 0) parts.Add($"âš  {dangling} dangling {(dangling == 1 ? "definition" : "definitions")}");
+        if (dangling > 0) parts.Add($"⚠ {dangling} dangling {(dangling == 1 ? "definition" : "definitions")}");
         else parts.Add("0 dangling");
 
-        if (duplicates > 0) parts.Add($"âš  {duplicates} duplicate {(duplicates == 1 ? "definition" : "definitions")}");
-        if (cycles > 0) parts.Add($"âš  {cycles} cyclic {(cycles == 1 ? "loop" : "loops")}");
+        if (duplicates > 0) parts.Add($"⚠ {duplicates} duplicate {(duplicates == 1 ? "definition" : "definitions")}");
+        if (cycles > 0) parts.Add($"⚠ {cycles} cyclic {(cycles == 1 ? "loop" : "loops")}");
 
-        string details = string.Join(" Â· ", parts);
-        return $"Markdown footnote & reference link audit ({totalRefs} refs, {totalDefs} defs Â· {category} Â· {score:0.#}% integrity score): {details}";
+        string details = string.Join(" · ", parts);
+        return $"Markdown footnote & reference link audit ({totalRefs} refs, {totalDefs} defs · {category} · {score:0.#}% integrity score): {details}";
     }
 
     /// <summary>
@@ -9564,7 +9564,7 @@ public static class TextSearch
                 0, 0, 0, 0, 0, 0, 0, 100.0,
                 Array.Empty<TableStructureItem>(),
                 "Clean Baseline",
-                "Markdown table structure & alignment audit: 0 tables Â· Document contains no tables");
+                "Markdown table structure & alignment audit: 0 tables · Document contains no tables");
         }
 
         var lines = markdownText.Replace("\r\n", "\n").Split('\n');
@@ -9703,8 +9703,8 @@ public static class TextSearch
 
                     bool isOuterClean = missingOuterPipes == 0;
                     string status = (raggedCount > 0 || !validDelimiter)
-                        ? $"âš  Table #{tableIndexCounter} (L{startLine}-L{endLine}): {headerColCount} cols, {raggedCount} ragged rows, {(validDelimiter ? "valid delimiter" : "invalid delimiter")}"
-                        : $"âœ“ Table #{tableIndexCounter} (L{startLine}-L{endLine}): {headerColCount} cols, {tableRows} rows, balanced alignments ({string.Join("/", alignments)})";
+                        ? $"⚠ Table #{tableIndexCounter} (L{startLine}-L{endLine}): {headerColCount} cols, {raggedCount} ragged rows, {(validDelimiter ? "valid delimiter" : "invalid delimiter")}"
+                        : $"✓ Table #{tableIndexCounter} (L{startLine}-L{endLine}): {headerColCount} cols, {tableRows} rows, balanced alignments ({string.Join("/", alignments)})";
 
                     tables.Add(new TableStructureItem(
                         tableIndexCounter++,
@@ -9734,7 +9734,7 @@ public static class TextSearch
                 0, 0, 0, 0, 0, 0, 0, 100.0,
                 Array.Empty<TableStructureItem>(),
                 "Clean Baseline",
-                "Markdown table structure & alignment audit: 0 tables Â· Document contains no tables");
+                "Markdown table structure & alignment audit: 0 tables · Document contains no tables");
         }
 
         double score = 100.0;
@@ -9745,7 +9745,7 @@ public static class TextSearch
         score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
 
         string category = score >= 90.0
-            ? "Optimal Table Structure & Alignment (â‰¥90%)"
+            ? "Optimal Table Structure & Alignment (≥90%)"
             : score >= 75.0
                 ? "Moderate Table Delimiter / Parity Risk (75-89%)"
                 : "Degraded Table Syntax & Ragged Rows (<75%)";
@@ -9779,21 +9779,21 @@ public static class TextSearch
         int delimiterIssues, int unescapedPipes, int outerPipesMissing, double score, string category)
     {
         if (totalTables == 0)
-            return "Markdown table structure & alignment audit: 0 tables Â· Document contains no tables";
+            return "Markdown table structure & alignment audit: 0 tables · Document contains no tables";
 
         string tblLabel = totalTables == 1 ? "1 table" : $"{totalTables} tables";
         var parts = new List<string>();
         parts.Add($"{totalRows} rows, {totalCols} total cols");
 
-        if (raggedRows > 0) parts.Add($"âš  {raggedRows} ragged {(raggedRows == 1 ? "row" : "rows")}");
+        if (raggedRows > 0) parts.Add($"⚠ {raggedRows} ragged {(raggedRows == 1 ? "row" : "rows")}");
         else parts.Add("0 ragged rows");
 
-        if (delimiterIssues > 0) parts.Add($"âš  {delimiterIssues} delimiter {(delimiterIssues == 1 ? "issue" : "issues")}");
-        if (unescapedPipes > 0) parts.Add($"âš  {unescapedPipes} unescaped {(unescapedPipes == 1 ? "pipe" : "pipes")}");
-        if (outerPipesMissing > 0) parts.Add($"âš  {outerPipesMissing} missing outer pipes");
+        if (delimiterIssues > 0) parts.Add($"⚠ {delimiterIssues} delimiter {(delimiterIssues == 1 ? "issue" : "issues")}");
+        if (unescapedPipes > 0) parts.Add($"⚠ {unescapedPipes} unescaped {(unescapedPipes == 1 ? "pipe" : "pipes")}");
+        if (outerPipesMissing > 0) parts.Add($"⚠ {outerPipesMissing} missing outer pipes");
 
-        string details = string.Join(" Â· ", parts);
-        return $"Markdown table structure & alignment audit ({tblLabel} Â· {category} Â· {score:0.#}% compliance score): {details}";
+        string details = string.Join(" · ", parts);
+        return $"Markdown table structure & alignment audit ({tblLabel} · {category} · {score:0.#}% compliance score): {details}";
     }
 
     /// <summary>
@@ -9810,7 +9810,7 @@ public static class TextSearch
                 0, 0, 0, 0, 0, 0, 0, 0, 0.0, 100.0,
                 Array.Empty<TaskPriorityItem>(),
                 "Clean Baseline",
-                "Markdown task list priority & due date audit: 0 tasks Â· Document contains no checklist items");
+                "Markdown task list priority & due date audit: 0 tasks · Document contains no checklist items");
         }
 
         var lines = markdownText.Replace("\r", "").Split('\n');
@@ -9820,7 +9820,7 @@ public static class TextSearch
 
         var taskItems = new List<TaskPriorityItem>();
         var taskRegex = new Regex(@"^\s*(?:[-*+]|\d+\.)\s+\[([ xX])\]\s*(.*)$", RegexOptions.Compiled);
-        var dueDateRegex = new Regex(@"(?:@due\(|due:|ðŸ“…\s*)([0-9]{4}-[0-9]{2}-[0-9]{2})\)?", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        var dueDateRegex = new Regex(@"(?:@due\(|due:|📅\s*)([0-9]{4}-[0-9]{2}-[0-9]{2})\)?", RegexOptions.Compiled | RegexOptions.IgnoreCase);
         var p0Regex = new Regex(@"(?:\[p0\]|\[high\]|#urgent|!urgent|!high)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
         var p1Regex = new Regex(@"(?:\[p1\]|\[med\]|\[medium\]|#medium)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
         var p2Regex = new Regex(@"(?:\[p2\]|\[p3\]|\[low\]|#low)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
@@ -9883,8 +9883,8 @@ public static class TextSearch
                 }
 
                 string status;
-                if (isCompleted) status = "âœ“ Completed";
-                else if (isOverdue) status = $"âš  Overdue (due {dueDate:yyyy-MM-dd})";
+                if (isCompleted) status = "✓ Completed";
+                else if (isOverdue) status = $"⚠ Overdue (due {dueDate:yyyy-MM-dd})";
                 else if (dueDate != null) status = $"Due {dueDate:yyyy-MM-dd}";
                 else if (priority != "None") status = $"{priority} priority";
                 else status = "Pending";
@@ -9899,7 +9899,7 @@ public static class TextSearch
                 0, 0, 0, 0, 0, 0, 0, 0, 0.0, 100.0,
                 Array.Empty<TaskPriorityItem>(),
                 "Clean Baseline",
-                "Markdown task list priority & due date audit: 0 tasks Â· Document contains no checklist items");
+                "Markdown task list priority & due date audit: 0 tasks · Document contains no checklist items");
         }
 
         int totalTasks = taskItems.Count;
@@ -9928,7 +9928,7 @@ public static class TextSearch
         score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
 
         string category = score >= 90.0
-            ? "Optimal Task Tracking & Deadline Rigor (â‰¥90%)"
+            ? "Optimal Task Tracking & Deadline Rigor (≥90%)"
             : score >= 75.0
                 ? "Good Task Progress & Priority Structure (75-89%)"
                 : score >= 50.0
@@ -9965,20 +9965,20 @@ public static class TextSearch
         int overdueCount, double completionRate, double score, string category)
     {
         if (totalTasks == 0)
-            return "Markdown task list priority & due date audit: 0 tasks Â· Document contains no checklist items";
+            return "Markdown task list priority & due date audit: 0 tasks · Document contains no checklist items";
 
         string taskStr = totalTasks == 1 ? "1 task" : $"{totalTasks} tasks";
         var parts = new List<string>();
         parts.Add($"{completedTasks}/{totalTasks} completed ({completionRate:0.#}%)");
 
-        if (overdueCount > 0) parts.Add($"âš  {overdueCount} overdue");
+        if (overdueCount > 0) parts.Add($"⚠ {overdueCount} overdue");
         else parts.Add("0 overdue");
 
         if (highCount > 0) parts.Add($"{highCount} high-priority");
         if (pendingTasks > 0) parts.Add($"{pendingTasks} pending");
 
-        string details = string.Join(" Â· ", parts);
-        return $"Markdown task list priority & due date audit ({taskStr} Â· {category} Â· {score:0.#}% rigor score): {details}";
+        string details = string.Join(" · ", parts);
+        return $"Markdown task list priority & due date audit ({taskStr} · {category} · {score:0.#}% rigor score): {details}";
     }
 
     /// <summary>
@@ -9989,7 +9989,7 @@ public static class TextSearch
     {
         if (string.IsNullOrWhiteSpace(markdownText))
         {
-            string emptySummary = "Markdown blockquote callout & attribution audit: 0 quote lines Â· Document contains no blockquotes";
+            string emptySummary = "Markdown blockquote callout & attribution audit: 0 quote lines · Document contains no blockquotes";
             return new MarkdownBlockquoteCalloutAudit(
                 0, 0, 0, 0, 0, 0, 0, 0, 100.0,
                 Array.Empty<BlockquoteCalloutLevelItem>(),
@@ -10098,8 +10098,8 @@ public static class TextSearch
                     }
                     else
                     {
-                        // Check attribution footer: -- Author or â€” Author or â€• Author
-                        var matchAttr = System.Text.RegularExpressions.Regex.Match(content, @"^(?:--|â€”|â€•)\s*(.+)$");
+                        // Check attribution footer: -- Author or — Author or ― Author
+                        var matchAttr = System.Text.RegularExpressions.Regex.Match(content, @"^(?:--|—|―)\s*(.+)$");
                         if (matchAttr.Success)
                         {
                             isAttribution = true;
@@ -10135,8 +10135,8 @@ public static class TextSearch
 
         string category;
         if (totalQuoteLines == 0) category = "Clean Baseline";
-        else if (score >= 90.0) category = "Optimal Blockquote & Callout Governance (â‰¥90%)";
-        else if (score >= 75.0) category = "Moderate Blockquote Hierarchy (75â€“89%)";
+        else if (score >= 90.0) category = "Optimal Blockquote & Callout Governance (≥90%)";
+        else if (score >= 75.0) category = "Moderate Blockquote Hierarchy (75–89%)";
         else category = "Excessive Nesting & Callout Irregularities (<75%)";
 
         string summary = FormatBlockquoteCalloutSummary(
@@ -10161,7 +10161,7 @@ public static class TextSearch
         double score, string category)
     {
         if (totalQuoteLines == 0)
-            return "Markdown blockquote callout & attribution audit: 0 quote lines Â· Document contains no blockquotes";
+            return "Markdown blockquote callout & attribution audit: 0 quote lines · Document contains no blockquotes";
 
         string lineStr = totalQuoteLines == 1 ? "1 quote line" : $"{totalQuoteLines} quote lines";
         string blockStr = totalQuoteBlocks == 1 ? "1 block" : $"{totalQuoteBlocks} blocks";
@@ -10180,13 +10180,13 @@ public static class TextSearch
             parts.Add($"{attributionCount} citation attributions");
 
         if (excessiveNestingCount > 0)
-            parts.Add($"âš  {excessiveNestingCount} deep nested (>3)");
+            parts.Add($"⚠ {excessiveNestingCount} deep nested (>3)");
 
         if (emptyQuoteCount > 0)
-            parts.Add($"âš  {emptyQuoteCount} empty quote lines");
+            parts.Add($"⚠ {emptyQuoteCount} empty quote lines");
 
-        string details = string.Join(" Â· ", parts);
-        return $"Markdown blockquote callout & attribution audit ({details} Â· {category} Â· {score:0.#}% rigor score)";
+        string details = string.Join(" · ", parts);
+        return $"Markdown blockquote callout & attribution audit ({details} · {category} · {score:0.#}% rigor score)";
     }
 
     /// <summary>
@@ -10197,7 +10197,7 @@ public static class TextSearch
     {
         if (string.IsNullOrWhiteSpace(markdownText))
         {
-            string emptySummary = "Markdown HTML entities & character escape audit: Clean text Â· 0 entities or escapes detected";
+            string emptySummary = "Markdown HTML entities & character escape audit: Clean text · 0 entities or escapes detected";
             return new MarkdownHtmlEntitiesAudit(
                 0, 0, 0, 0, 0, 0, 100.0,
                 Array.Empty<HtmlEntityEscapeItem>(),
@@ -10334,8 +10334,8 @@ public static class TextSearch
 
         string category;
         if (totalEntities == 0 && brokenCount == 0 && ambiguousEscapeCount == 0 && unescapedBracketCount == 0) category = "Clean Baseline";
-        else if (score >= 90.0) category = "Optimal Entity & Character Encoding Governance (â‰¥90%)";
-        else if (score >= 75.0) category = "Moderate Encoding Regularity with Minor Drift (75â€“89%)";
+        else if (score >= 90.0) category = "Optimal Entity & Character Encoding Governance (≥90%)";
+        else if (score >= 75.0) category = "Moderate Encoding Regularity with Minor Drift (75–89%)";
         else category = "Severe Broken Entities & Escape Ambiguities (<75%)";
 
         string summary = FormatHtmlEntitiesSummary(
@@ -10360,7 +10360,7 @@ public static class TextSearch
         int ambiguousEscapeCount, int unescapedBracketCount, double score, string category)
     {
         if (totalEntities == 0 && ambiguousEscapeCount == 0 && unescapedBracketCount == 0 && brokenCount == 0)
-            return "Markdown HTML entities & character escape audit: Clean text Â· 0 entities or escapes detected";
+            return "Markdown HTML entities & character escape audit: Clean text · 0 entities or escapes detected";
 
         var parts = new List<string>();
         if (totalEntities > 0)
@@ -10373,16 +10373,16 @@ public static class TextSearch
         }
 
         if (brokenCount > 0)
-            parts.Add($"âš  {brokenCount} broken entities missing ';'");
+            parts.Add($"⚠ {brokenCount} broken entities missing ';'");
 
         if (ambiguousEscapeCount > 0)
-            parts.Add($"âš  {ambiguousEscapeCount} ambiguous escapes");
+            parts.Add($"⚠ {ambiguousEscapeCount} ambiguous escapes");
 
         if (unescapedBracketCount > 0)
-            parts.Add($"âš  {unescapedBracketCount} unescaped brackets");
+            parts.Add($"⚠ {unescapedBracketCount} unescaped brackets");
 
-        string details = string.Join(" Â· ", parts);
-        return $"Markdown HTML entities & character escape audit ({details} Â· {category} Â· {score:0.#}% hygiene score)";
+        string details = string.Join(" · ", parts);
+        return $"Markdown HTML entities & character escape audit ({details} · {category} · {score:0.#}% hygiene score)";
     }
 
     /// <summary>
@@ -10393,7 +10393,7 @@ public static class TextSearch
     {
         if (string.IsNullOrWhiteSpace(markdownText))
         {
-            string emptySummary = "Markdown footnote audit: Clean document Â· 0 footnote references or definitions detected";
+            string emptySummary = "Markdown footnote audit: Clean document · 0 footnote references or definitions detected";
             return new MarkdownFootnoteAudit(
                 0, 0, 0, 0, 0, 0, 100.0,
                 Array.Empty<MarkdownFootnoteSequenceItem>(),
@@ -10538,7 +10538,7 @@ public static class TextSearch
 
         string category;
         if (totalRefs == 0 && totalDefs == 0) category = "No Footnotes";
-        else if (score >= 90.0) category = "Optimal Footnote Sequence & Definition Governance (â‰¥90%)";
+        else if (score >= 90.0) category = "Optimal Footnote Sequence & Definition Governance (≥90%)";
         else if (score >= 75.0) category = "Good Footnote Pairing with Minor Sequence Gaps (75-89%)";
         else if (score >= 50.0) category = "Moderate Footnote Sequence or Definition Discrepancies (50-74%)";
         else category = "Severe Orphaned Footnote Anchor or Definition Corruption (<50%)";
@@ -10557,24 +10557,24 @@ public static class TextSearch
         int totalRefs, int totalDefs, int matched, int orphanRefs, int orphanDefs, int seqMismatches, double score, string category)
     {
         if (totalRefs == 0 && totalDefs == 0)
-            return "Markdown footnote audit: Clean document Â· 0 footnote references or definitions detected";
+            return "Markdown footnote audit: Clean document · 0 footnote references or definitions detected";
 
         var parts = new List<string>();
         parts.Add($"{totalRefs} ref{(totalRefs == 1 ? "" : "s")}");
         parts.Add($"{totalDefs} def{(totalDefs == 1 ? "" : "s")}");
         if (matched > 0) parts.Add($"{matched} matched");
-        if (orphanRefs > 0) parts.Add($"âš  {orphanRefs} orphaned ref{(orphanRefs == 1 ? "" : "s")}");
-        if (orphanDefs > 0) parts.Add($"âš  {orphanDefs} unreferenced def{(orphanDefs == 1 ? "" : "s")}");
-        if (seqMismatches > 0) parts.Add($"âš  {seqMismatches} sequence mismatch{(seqMismatches == 1 ? "" : "es")}");
+        if (orphanRefs > 0) parts.Add($"⚠ {orphanRefs} orphaned ref{(orphanRefs == 1 ? "" : "s")}");
+        if (orphanDefs > 0) parts.Add($"⚠ {orphanDefs} unreferenced def{(orphanDefs == 1 ? "" : "s")}");
+        if (seqMismatches > 0) parts.Add($"⚠ {seqMismatches} sequence mismatch{(seqMismatches == 1 ? "" : "es")}");
 
-        string details = string.Join(" Â· ", parts);
-        return $"Markdown footnote audit ({details} Â· {category} Â· {score:0.#}% integrity score)";
+        string details = string.Join(" · ", parts);
+        return $"Markdown footnote audit ({details} · {category} · {score:0.#}% integrity score)";
     }
     public static MarkdownListNestingAudit AuditListNestingAndMarkerSequence(string? markdownText)
     {
         if (string.IsNullOrWhiteSpace(markdownText))
         {
-            string emptySummary = "Markdown list audit: Clean document Â· 0 list items detected";
+            string emptySummary = "Markdown list audit: Clean document · 0 list items detected";
             return new MarkdownListNestingAudit(
                 0, 0, 0, 0, 0, 0, 0, 100.0,
                 Array.Empty<MarkdownListNestingItem>(),
@@ -10794,7 +10794,7 @@ public static class TextSearch
 
         string category;
         if (totalListItems == 0) category = "No List Items";
-        else if (score >= 90.0) category = "Optimal List Structure & Marker Hierarchy (â‰¥90%)";
+        else if (score >= 90.0) category = "Optimal List Structure & Marker Hierarchy (≥90%)";
         else if (score >= 75.0) category = "Good List Nesting with Minor Formatting Inconsistencies (75-89%)";
         else if (score >= 50.0) category = "Moderate List Indentation or Sequence Discrepancies (50-74%)";
         else category = "Severe List Hierarchy & Numbering Sequence Defects (<50%)";
@@ -10818,19 +10818,19 @@ public static class TextSearch
         double score, string category)
     {
         if (totalItems == 0)
-            return "Markdown list audit: Clean document Â· 0 list items detected";
+            return "Markdown list audit: Clean document · 0 list items detected";
 
         var parts = new List<string>();
         parts.Add($"{totalItems} item{(totalItems == 1 ? "" : "s")}");
         if (unordered > 0) parts.Add($"{unordered} unordered");
         if (ordered > 0) parts.Add($"{ordered} ordered");
         if (maxDepth > 0) parts.Add($"depth {maxDepth}");
-        if (indentAnomalies > 0) parts.Add($"âš ï¸ {indentAnomalies} indent anomal{(indentAnomalies == 1 ? "y" : "ies")}");
-        if (markerInconsistencies > 0) parts.Add($"âš ï¸ {markerInconsistencies} marker mismatch{(markerInconsistencies == 1 ? "" : "es")}");
-        if (seqMismatches > 0) parts.Add($"âš ï¸ {seqMismatches} sequence jump{(seqMismatches == 1 ? "" : "s")}");
+        if (indentAnomalies > 0) parts.Add($"⚠️ {indentAnomalies} indent anomal{(indentAnomalies == 1 ? "y" : "ies")}");
+        if (markerInconsistencies > 0) parts.Add($"⚠️ {markerInconsistencies} marker mismatch{(markerInconsistencies == 1 ? "" : "es")}");
+        if (seqMismatches > 0) parts.Add($"⚠️ {seqMismatches} sequence jump{(seqMismatches == 1 ? "" : "s")}");
 
-        string details = string.Join(" Â· ", parts);
-        return $"Markdown list audit ({details} Â· {category} Â· {score:0.#}% consistency score)";
+        string details = string.Join(" · ", parts);
+        return $"Markdown list audit ({details} · {category} · {score:0.#}% consistency score)";
     }
 
     public static MarkdownInlineHtmlSecurityAudit AuditMarkdownInlineHtmlSecurity(string? markdownText)
@@ -11017,7 +11017,7 @@ public static class TextSearch
 
         string category;
         if (totalTags == 0) category = "Clean Document";
-        else if (score >= 95.0) category = "Pristine Sanitization (â‰¥95%)";
+        else if (score >= 95.0) category = "Pristine Sanitization (≥95%)";
         else if (score >= 80.0) category = "Low Injection Risk (80-94%)";
         else if (score >= 60.0) category = "Moderate Injection Risk (60-79%)";
         else if (score >= 40.0) category = "High Injection Risk (40-59%)";
@@ -11039,19 +11039,19 @@ public static class TextSearch
         int unclosedTags, double score, string category)
     {
         if (totalTags == 0)
-            return "Markdown inline HTML security audit: Clean document Â· 0 HTML tags detected";
+            return "Markdown inline HTML security audit: Clean document · 0 HTML tags detected";
 
         string tagStr = totalTags == 1 ? "1 HTML tag" : $"{totalTags} HTML tags";
         var parts = new List<string>();
 
         parts.Add(tagStr);
         if (safeTags > 0) parts.Add($"{safeTags} safe");
-        if (dangerousTags > 0) parts.Add($"âš ï¸ {dangerousTags} dangerous tag{(dangerousTags == 1 ? "" : "s")}");
-        if (dangerousAttrs > 0) parts.Add($"âš ï¸ {dangerousAttrs} dangerous attr{(dangerousAttrs == 1 ? "" : "s")}");
-        if (unclosedTags > 0) parts.Add($"âš ï¸ {unclosedTags} unclosed tag{(unclosedTags == 1 ? "" : "s")}");
+        if (dangerousTags > 0) parts.Add($"⚠️ {dangerousTags} dangerous tag{(dangerousTags == 1 ? "" : "s")}");
+        if (dangerousAttrs > 0) parts.Add($"⚠️ {dangerousAttrs} dangerous attr{(dangerousAttrs == 1 ? "" : "s")}");
+        if (unclosedTags > 0) parts.Add($"⚠️ {unclosedTags} unclosed tag{(unclosedTags == 1 ? "" : "s")}");
 
-        string details = string.Join(" Â· ", parts);
-        return $"Markdown inline HTML security audit ({details} Â· {category} Â· {score:0.#}% security score)";
+        string details = string.Join(" · ", parts);
+        return $"Markdown inline HTML security audit ({details} · {category} · {score:0.#}% security score)";
     }
 
     public static MarkdownTaskListProgressionAudit AuditMarkdownTaskListProgression(string? markdownText)
@@ -11186,7 +11186,7 @@ public static class TextSearch
         score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
 
         string category;
-        if (score >= 95.0) category = "Flawless Task Hygiene (â‰¥95%)";
+        if (score >= 95.0) category = "Flawless Task Hygiene (≥95%)";
         else if (score >= 80.0) category = "High Task Hygiene (80-94%)";
         else if (score >= 60.0) category = "Moderate Task Hygiene (60-79%)";
         else if (score >= 40.0) category = "Suboptimal Task Tracking (40-59%)";
@@ -11404,7 +11404,7 @@ public static class TextSearch
         score = Math.Max(0.0, Math.Min(100.0, Math.Round(score, 1)));
 
         string category;
-        if (score >= 95.0) category = "Flawless Link Reference Integrity (â‰¥95%)";
+        if (score >= 95.0) category = "Flawless Link Reference Integrity (≥95%)";
         else if (score >= 80.0) category = "High Reference Resolution (80-94%)";
         else if (score >= 60.0) category = "Moderate Reference Linkage (60-79%)";
         else if (score >= 40.0) category = "Suboptimal Reference Resolution (40-59%)";
@@ -11426,19 +11426,19 @@ public static class TextSearch
         int unreferenced, int duplicates, double score, string category)
     {
         if (totalDefs == 0 && totalUsages == 0)
-            return "Markdown link reference audit: Clean document Â· 0 reference links detected";
+            return "Markdown link reference audit: Clean document · 0 reference links detected";
 
         var parts = new List<string>
         {
             $"{totalDefs} defs",
             $"{totalUsages} usages ({resolved} resolved)"
         };
-        if (unresolved > 0) parts.Add($"âš ï¸ {unresolved} unresolved");
+        if (unresolved > 0) parts.Add($"⚠️ {unresolved} unresolved");
         if (unreferenced > 0) parts.Add($"{unreferenced} unreferenced");
         if (duplicates > 0) parts.Add($"{duplicates} duplicates");
 
-        string details = string.Join(" Â· ", parts);
-        return $"Markdown link reference audit ({details} Â· {category} Â· {score:0.#}% resolution score)";
+        string details = string.Join(" · ", parts);
+        return $"Markdown link reference audit ({details} · {category} · {score:0.#}% resolution score)";
     }
 
 
@@ -11450,7 +11450,7 @@ public static class TextSearch
         int maxNesting, double score, string category)
     {
         if (totalTasks == 0)
-            return "Markdown task list audit: Clean document Â· 0 task checkboxes detected";
+            return "Markdown task list audit: Clean document · 0 task checkboxes detected";
 
         double pct = (double)completedTasks / totalTasks * 100.0;
         string taskStr = totalTasks == 1 ? "1 task" : $"{totalTasks} tasks";
@@ -11460,11 +11460,11 @@ public static class TextSearch
             $"{completedTasks} completed ({pct:0.#}%)",
             $"{pendingTasks} pending"
         };
-        if (emptyTasks > 0) parts.Add($"âš ï¸ {emptyTasks} unlabeled");
+        if (emptyTasks > 0) parts.Add($"⚠️ {emptyTasks} unlabeled");
         if (maxNesting > 0) parts.Add($"depth {maxNesting}");
 
-        string details = string.Join(" Â· ", parts);
-        return $"Markdown task list audit ({details} Â· {category} Â· {score:0.#}% hygiene score)";
+        string details = string.Join(" · ", parts);
+        return $"Markdown task list audit ({details} · {category} · {score:0.#}% hygiene score)";
     }
 
     public static MarkdownFootnoteDefinitionAudit AuditMarkdownFootnoteDefinitions(string? markdownText)
@@ -11651,7 +11651,7 @@ public static class TextSearch
 
         string category;
         if (totalDefs == 0 && calloutList.Count == 0) category = "No Footnotes";
-        else if (score >= 95.0) category = "Pristine Footnote Linkage (â‰¥95%)";
+        else if (score >= 95.0) category = "Pristine Footnote Linkage (≥95%)";
         else if (score >= 80.0) category = "Good Footnote Linkage (80-94%)";
         else if (score >= 60.0) category = "Marginal Footnote Linkage (60-79%)";
         else category = "Broken Footnote Linkage (<60%)";
@@ -11673,19 +11673,19 @@ public static class TextSearch
         int orphans, int duplicates, double score, string category)
     {
         if (totalDefs == 0 && totalCallouts == 0)
-            return "Markdown footnote definition audit: Clean document Â· 0 footnotes detected";
+            return "Markdown footnote definition audit: Clean document · 0 footnotes detected";
 
         var parts = new List<string>
         {
             $"{totalDefs} def{(totalDefs == 1 ? "" : "s")}",
             $"{totalCallouts} callout{(totalCallouts == 1 ? "" : "s")} ({resolved} resolved)"
         };
-        if (unresolved > 0) parts.Add($"âš ï¸ {unresolved} unresolved");
+        if (unresolved > 0) parts.Add($"⚠️ {unresolved} unresolved");
         if (orphans > 0) parts.Add($"{orphans} orphan{(orphans == 1 ? "" : "s")}");
         if (duplicates > 0) parts.Add($"{duplicates} duplicate{(duplicates == 1 ? "" : "s")}");
 
-        string details = string.Join(" Â· ", parts);
-        return $"Markdown footnote definition audit ({details} Â· {category} Â· {score:0.#}% integrity score)";
+        string details = string.Join(" · ", parts);
+        return $"Markdown footnote definition audit ({details} · {category} · {score:0.#}% integrity score)";
     }
 
 
@@ -11909,7 +11909,7 @@ public static class TextSearch
         double score, string category)
     {
         if (totalMath == 0 && unclosedCount == 0 && currencyCount == 0)
-            return "Markdown math delimiter audit: Clean document Â· 0 math expressions detected";
+            return "Markdown math delimiter audit: Clean document · 0 math expressions detected";
 
         string mathSuffix = totalMath == 1 ? string.Empty : "s";
         string braceSuffix = unbalancedBraces == 1 ? string.Empty : "s";
@@ -11919,12 +11919,12 @@ public static class TextSearch
             $"{totalMath} math formula{mathSuffix} ({inlineCount} inline, {displayCount} display)",
             $"{validCount} valid"
         };
-        if (unclosedCount > 0) parts.Add($"âš ï¸ {unclosedCount} unclosed");
+        if (unclosedCount > 0) parts.Add($"⚠️ {unclosedCount} unclosed");
         if (currencyCount > 0) parts.Add($"{currencyCount} unescaped currency");
         if (unbalancedBraces > 0) parts.Add($"{unbalancedBraces} unbalanced brace{braceSuffix}");
 
-        string details = string.Join(" Â· ", parts);
-        return $"Markdown math delimiter audit ({details} Â· {category} Â· {score:0.#}% fidelity score)";
+        string details = string.Join(" · ", parts);
+        return $"Markdown math delimiter audit ({details} · {category} · {score:0.#}% fidelity score)";
     }
 
     /// <summary>
@@ -11935,7 +11935,7 @@ public static class TextSearch
     {
         if (string.IsNullOrWhiteSpace(markdownText))
         {
-            string emptySummary = "Markdown strikethrough & underline audit: Clean document Â· 0 strikethrough or underline spans detected";
+            string emptySummary = "Markdown strikethrough & underline audit: Clean document · 0 strikethrough or underline spans detected";
             return new MarkdownStrikethroughAudit(
                 0, 0, 0, 0, 0, 0, 100.0,
                 Array.Empty<MarkdownStrikethroughItem>(),
@@ -12128,17 +12128,17 @@ public static class TextSearch
         int unclosedCount, int invalidWhitespaceCount, double score, string category)
     {
         if (totalSpans == 0 && unclosedCount == 0 && invalidWhitespaceCount == 0)
-            return "Markdown strikethrough & underline audit: Clean document Â· 0 strikethrough or underline spans detected";
+            return "Markdown strikethrough & underline audit: Clean document · 0 strikethrough or underline spans detected";
 
         var parts = new List<string>();
         if (gfmCount > 0) parts.Add($"{gfmCount} GFM ~~strike~~");
-        if (pseudoHtmlCount > 0) parts.Add($"â„¹ {pseudoHtmlCount} HTML tags (<del>/<u>)");
-        if (unclosedCount > 0) parts.Add($"âš  {unclosedCount} unclosed");
-        if (invalidWhitespaceCount > 0) parts.Add($"âš  {invalidWhitespaceCount} invalid whitespace padding");
-        if (validCount > 0) parts.Add($"âœ“ {validCount} valid");
+        if (pseudoHtmlCount > 0) parts.Add($"ℹ {pseudoHtmlCount} HTML tags (<del>/<u>)");
+        if (unclosedCount > 0) parts.Add($"⚠ {unclosedCount} unclosed");
+        if (invalidWhitespaceCount > 0) parts.Add($"⚠ {invalidWhitespaceCount} invalid whitespace padding");
+        if (validCount > 0) parts.Add($"✓ {validCount} valid");
 
-        string details = string.Join(" Â· ", parts);
-        return $"Markdown strikethrough & underline audit ({details} Â· {category} Â· {score:0.#}% consistency score)";
+        string details = string.Join(" · ", parts);
+        return $"Markdown strikethrough & underline audit ({details} · {category} · {score:0.#}% consistency score)";
     }
     /// <summary>
     /// Audits markdown task lists and checkbox syntax completeness:
@@ -12150,7 +12150,7 @@ public static class TextSearch
     {
         if (string.IsNullOrWhiteSpace(markdownText))
         {
-            string emptySummary = "Markdown task lists audit: Clean document Â· 0 task list items detected";
+            string emptySummary = "Markdown task lists audit: Clean document · 0 task list items detected";
             return new MarkdownTaskListsAudit(
                 0, 0, 0, 0, 0, 0.0, 100.0,
                 Array.Empty<MarkdownTaskListItem>(),
@@ -12309,15 +12309,15 @@ public static class TextSearch
         int orphanedCount, double completionPercent, double score, string category)
     {
         if (totalTasks == 0 && malformedCount == 0 && orphanedCount == 0)
-            return "Markdown task lists audit: Clean document Â· 0 task list items detected";
+            return "Markdown task lists audit: Clean document · 0 task list items detected";
 
         var parts = new List<string>();
         parts.Add($"{totalTasks} tasks: {completedCount} completed [{completionPercent:0.#}%], {pendingCount} pending");
-        if (malformedCount > 0) parts.Add($"âš  {malformedCount} malformed");
-        if (orphanedCount > 0) parts.Add($"âš  {orphanedCount} orphaned");
+        if (malformedCount > 0) parts.Add($"⚠ {malformedCount} malformed");
+        if (orphanedCount > 0) parts.Add($"⚠ {orphanedCount} orphaned");
 
-        string details = string.Join(" Â· ", parts);
-        return $"Markdown task lists audit ({details} Â· {category} Â· {score:0.#}% compliance score)";
+        string details = string.Join(" · ", parts);
+        return $"Markdown task lists audit ({details} · {category} · {score:0.#}% compliance score)";
     }
 
 
@@ -12332,7 +12332,7 @@ public static class TextSearch
     {
         if (string.IsNullOrWhiteSpace(markdownText))
         {
-            string emptySummary = "Markdown footnotes audit: Clean document Â· 0 footnote references detected";
+            string emptySummary = "Markdown footnotes audit: Clean document · 0 footnote references detected";
             return new MarkdownFootnoteIntegrityAudit(
                 0, 0, 0, 0, 0, 0, true, 100.0,
                 Array.Empty<MarkdownFootnoteIntegrityItem>(),
@@ -12536,17 +12536,17 @@ public static class TextSearch
         int orphanCount, int duplicateCount, bool isSequential, double score, string category)
     {
         if (totalDefs == 0 && totalRefs == 0)
-            return "Markdown footnotes audit: Clean document Â· 0 footnote references detected";
+            return "Markdown footnotes audit: Clean document · 0 footnote references detected";
 
         var parts = new List<string>();
         parts.Add($"{totalRefs} refs, {totalDefs} defs ({resolvedCount} resolved)");
-        if (missingCount > 0) parts.Add($"âš  {missingCount} missing defs");
-        if (orphanCount > 0) parts.Add($"â„¹ {orphanCount} unreferenced");
-        if (duplicateCount > 0) parts.Add($"ðŸš¨ {duplicateCount} duplicates");
+        if (missingCount > 0) parts.Add($"⚠ {missingCount} missing defs");
+        if (orphanCount > 0) parts.Add($"ℹ {orphanCount} unreferenced");
+        if (duplicateCount > 0) parts.Add($"🚨 {duplicateCount} duplicates");
         if (!isSequential) parts.Add("non-sequential");
 
-        string details = string.Join(" Â· ", parts);
-        return $"Markdown footnotes audit ({details} Â· {category} Â· {score:0.#}% integrity score)";
+        string details = string.Join(" · ", parts);
+        return $"Markdown footnotes audit ({details} · {category} · {score:0.#}% integrity score)";
     }
 
     /// <summary>
@@ -12557,7 +12557,7 @@ public static class TextSearch
     {
         if (string.IsNullOrWhiteSpace(markdownText))
         {
-            string emptySummary = "Markdown blockquote audit: Clean document Â· 0 quoted lines detected";
+            string emptySummary = "Markdown blockquote audit: Clean document · 0 quoted lines detected";
             return new MarkdownBlockquoteNestingAudit(
                 0, 0, 0, 0, 0, 0, 100.0,
                 Array.Empty<MarkdownBlockquoteNestingItem>(),
@@ -12741,16 +12741,16 @@ public static class TextSearch
         int nestedCalloutCount, int raggedCount, double score, string category)
     {
         if (totalLines == 0 && raggedCount == 0)
-            return "Markdown blockquote audit: Clean document Â· 0 quoted lines detected";
+            return "Markdown blockquote audit: Clean document · 0 quoted lines detected";
 
         var parts = new List<string>();
         parts.Add($"{totalLines} quoted lines (max depth {maxDepth})");
         if (alertCount > 0) parts.Add($"{alertCount} alert callouts");
-        if (nestedCalloutCount > 0) parts.Add($"â„¹ {nestedCalloutCount} nested alerts");
-        if (raggedCount > 0) parts.Add($"âš  {raggedCount} ragged prefixes");
+        if (nestedCalloutCount > 0) parts.Add($"ℹ {nestedCalloutCount} nested alerts");
+        if (raggedCount > 0) parts.Add($"⚠ {raggedCount} ragged prefixes");
 
-        string details = string.Join(" Â· ", parts);
-        return $"Markdown blockquote audit ({details} Â· {category} Â· {score:0.#}% hierarchy score)";
+        string details = string.Join(" · ", parts);
+        return $"Markdown blockquote audit ({details} · {category} · {score:0.#}% hierarchy score)";
     }
 
 
@@ -12900,7 +12900,7 @@ public static class TextSearch
         int missingBlankLines, int mixedMarkerStyles, double score, string category)
     {
         if (totalBreaks == 0)
-            return "Markdown thematic break audit: Clean document Â· 0 horizontal rules detected";
+            return "Markdown thematic break audit: Clean document · 0 horizontal rules detected";
 
         var parts = new List<string>();
         parts.Add($"{totalBreaks} thematic breaks");
@@ -12911,11 +12911,11 @@ public static class TextSearch
         if (underscoreBreaks > 0) styles.Add($"{underscoreBreaks} '___'");
         parts.Add(string.Join("/", styles));
 
-        if (missingBlankLines > 0) parts.Add($"âš  {missingBlankLines} missing blank lines");
-        if (mixedMarkerStyles > 1) parts.Add($"âš  {mixedMarkerStyles} mixed marker styles");
+        if (missingBlankLines > 0) parts.Add($"⚠ {missingBlankLines} missing blank lines");
+        if (mixedMarkerStyles > 1) parts.Add($"⚠ {mixedMarkerStyles} mixed marker styles");
 
-        string details = string.Join(" Â· ", parts);
-        return $"Markdown thematic break audit ({details} Â· {category} Â· {score:0.#}% spacing score)";
+        string details = string.Join(" · ", parts);
+        return $"Markdown thematic break audit ({details} · {category} · {score:0.#}% spacing score)";
     }
 
     public static MarkdownDefinitionListAudit AuditMarkdownDefinitionLists(string? markdownText)
@@ -13299,16 +13299,16 @@ public static class TextSearch
         int totalUsages, double score, string category)
     {
         if (totalAbbreviations == 0 && undefinedAcronyms == 0)
-            return "Markdown abbreviation audit: Clean document Â· 0 acronyms or abbreviation markers detected";
+            return "Markdown abbreviation audit: Clean document · 0 acronyms or abbreviation markers detected";
 
         var parts = new List<string>();
         parts.Add($"{totalAbbreviations} defined abbreviation{(totalAbbreviations == 1 ? "" : "s")}");
-        if (undefinedAcronyms > 0) parts.Add($"â„¹ {undefinedAcronyms} undefined acronym{(undefinedAcronyms == 1 ? "" : "s")}");
-        if (conflictingDefinitions > 0) parts.Add($"âš  {conflictingDefinitions} conflicting definition{(conflictingDefinitions == 1 ? "" : "s")}");
+        if (undefinedAcronyms > 0) parts.Add($"ℹ {undefinedAcronyms} undefined acronym{(undefinedAcronyms == 1 ? "" : "s")}");
+        if (conflictingDefinitions > 0) parts.Add($"⚠ {conflictingDefinitions} conflicting definition{(conflictingDefinitions == 1 ? "" : "s")}");
         parts.Add($"{totalUsages} body usage{(totalUsages == 1 ? "" : "s")}");
 
-        string details = string.Join(" Â· ", parts);
-        return $"Markdown abbreviation audit ({details} Â· {category} Â· {score:0.#}% governance score)";
+        string details = string.Join(" · ", parts);
+        return $"Markdown abbreviation audit ({details} · {category} · {score:0.#}% governance score)";
     }
 
     public static MarkdownTableCellAudit AuditMarkdownTableCellWrapping(string? markdownText)
@@ -13557,17 +13557,17 @@ public static class TextSearch
         int unbalancedPipes, double score, string category)
     {
         if (totalTables == 0)
-            return "Markdown table cell audit: Clean document Â· 0 tables detected";
+            return "Markdown table cell audit: Clean document · 0 tables detected";
 
         var parts = new List<string>();
         parts.Add($"{totalTables} table{(totalTables == 1 ? "" : "s")}, {totalRows} row{(totalRows == 1 ? "" : "s")}");
-        if (mismatchedRows > 0) parts.Add($"ðŸš¨ {mismatchedRows} mismatched column row{(mismatchedRows == 1 ? "" : "s")}");
-        if (missingDelimiters > 0) parts.Add($"âš  {missingDelimiters} missing delimiter row{(missingDelimiters == 1 ? "" : "s")}");
-        if (unbalancedPipes > 0) parts.Add($"â„¹ {unbalancedPipes} unbordered pipe row{(unbalancedPipes == 1 ? "" : "s")}");
+        if (mismatchedRows > 0) parts.Add($"🚨 {mismatchedRows} mismatched column row{(mismatchedRows == 1 ? "" : "s")}");
+        if (missingDelimiters > 0) parts.Add($"⚠ {missingDelimiters} missing delimiter row{(missingDelimiters == 1 ? "" : "s")}");
+        if (unbalancedPipes > 0) parts.Add($"ℹ {unbalancedPipes} unbordered pipe row{(unbalancedPipes == 1 ? "" : "s")}");
         if (mismatchedRows == 0 && missingDelimiters == 0) parts.Add("100% columns aligned");
 
-        string details = string.Join(" Â· ", parts);
-        return $"Markdown table cell audit ({details} Â· {category} Â· {score:0.#}% hygiene score)";
+        string details = string.Join(" · ", parts);
+        return $"Markdown table cell audit ({details} · {category} · {score:0.#}% hygiene score)";
     }
 
     public static MarkdownFootnoteBidirectionalAudit AuditMarkdownFootnoteBidirectionalLinks(string? markdownText)
@@ -13735,18 +13735,18 @@ public static class TextSearch
         int unreferencedDefs, int duplicateDefs, int circularRefs, double score, string category)
     {
         if (totalRefs == 0 && totalDefs == 0)
-            return "Markdown footnote bidirectional link audit: Clean document Â· 0 footnote references detected";
+            return "Markdown footnote bidirectional link audit: Clean document · 0 footnote references detected";
 
         var parts = new List<string>();
         parts.Add($"{totalRefs} reference{(totalRefs == 1 ? "" : "s")}, {totalDefs} definition{(totalDefs == 1 ? "" : "s")}");
-        if (resolvedPairs > 0) parts.Add($"âœ“ {resolvedPairs} resolved");
-        if (missingDefs > 0) parts.Add($"ðŸš¨ {missingDefs} missing definition{(missingDefs == 1 ? "" : "s")}");
-        if (duplicateDefs > 0) parts.Add($"âš  {duplicateDefs} duplicate definition{(duplicateDefs == 1 ? "" : "s")}");
-        if (circularRefs > 0) parts.Add($"ðŸš¨ {circularRefs} circular reference{(circularRefs == 1 ? "" : "s")}");
-        if (unreferencedDefs > 0) parts.Add($"â„¹ {unreferencedDefs} unreferenced orphan{(unreferencedDefs == 1 ? "" : "s")}");
+        if (resolvedPairs > 0) parts.Add($"✓ {resolvedPairs} resolved");
+        if (missingDefs > 0) parts.Add($"🚨 {missingDefs} missing definition{(missingDefs == 1 ? "" : "s")}");
+        if (duplicateDefs > 0) parts.Add($"⚠ {duplicateDefs} duplicate definition{(duplicateDefs == 1 ? "" : "s")}");
+        if (circularRefs > 0) parts.Add($"🚨 {circularRefs} circular reference{(circularRefs == 1 ? "" : "s")}");
+        if (unreferencedDefs > 0) parts.Add($"ℹ {unreferencedDefs} unreferenced orphan{(unreferencedDefs == 1 ? "" : "s")}");
 
-        string details = string.Join(" Â· ", parts);
-        return $"Markdown footnote bidirectional link audit ({details} Â· {category} Â· {score:0.#}% consistency score)";
+        string details = string.Join(" · ", parts);
+        return $"Markdown footnote bidirectional link audit ({details} · {category} · {score:0.#}% consistency score)";
     }
 
 
@@ -13955,18 +13955,18 @@ public static class TextSearch
         int unclosed, int deprecated, double score, string category)
     {
         if (totalConstructs == 0)
-            return "Markdown inline HTML & angle bracket sanitization audit: Clean document Â· 0 HTML tags or unescaped angle brackets detected";
+            return "Markdown inline HTML & angle bracket sanitization audit: Clean document · 0 HTML tags or unescaped angle brackets detected";
 
         var parts = new List<string>();
         parts.Add($"{totalConstructs} construct{(totalConstructs == 1 ? "" : "s")}");
-        if (allowedSafe > 0) parts.Add($"âœ“ {allowedSafe} safe");
-        if (dangerous > 0) parts.Add($"ðŸš¨ {dangerous} dangerous tag{(dangerous == 1 ? "" : "s")}");
-        if (unescapedRaw > 0) parts.Add($"âš  {unescapedRaw} unescaped bracket{(unescapedRaw == 1 ? "" : "s")}");
-        if (unclosed > 0) parts.Add($"âš  {unclosed} unclosed tag{(unclosed == 1 ? "" : "s")}");
-        if (deprecated > 0) parts.Add($"â„¹ {deprecated} deprecated tag{(deprecated == 1 ? "" : "s")}");
+        if (allowedSafe > 0) parts.Add($"✓ {allowedSafe} safe");
+        if (dangerous > 0) parts.Add($"🚨 {dangerous} dangerous tag{(dangerous == 1 ? "" : "s")}");
+        if (unescapedRaw > 0) parts.Add($"⚠ {unescapedRaw} unescaped bracket{(unescapedRaw == 1 ? "" : "s")}");
+        if (unclosed > 0) parts.Add($"⚠ {unclosed} unclosed tag{(unclosed == 1 ? "" : "s")}");
+        if (deprecated > 0) parts.Add($"ℹ {deprecated} deprecated tag{(deprecated == 1 ? "" : "s")}");
 
-        string details = string.Join(" Â· ", parts);
-        return $"Markdown inline HTML sanitization audit ({details} Â· {category} Â· {score:0.#}% hygiene score)";
+        string details = string.Join(" · ", parts);
+        return $"Markdown inline HTML sanitization audit ({details} · {category} · {score:0.#}% hygiene score)";
     }
 
     public static MarkdownTaskFormattingAudit AuditMarkdownTaskListFormatting(string? markdownText)
@@ -14413,17 +14413,17 @@ public static class TextSearch
         int duplicateTerms, int orphanDefinitions, double score, string category)
     {
         if (totalDefinitions == 0)
-            return "Markdown definition list audit: Clean document Â· 0 glossary definitions detected";
+            return "Markdown definition list audit: Clean document · 0 glossary definitions detected";
 
         var parts = new List<string>();
         parts.Add($"{totalTerms} term{(totalTerms == 1 ? "" : "s")}");
         parts.Add($"{totalDefinitions} definition{(totalDefinitions == 1 ? "" : "s")}");
         if (multiLineDefinitions > 0) parts.Add($"{multiLineDefinitions} multi-line");
-        if (duplicateTerms > 0) parts.Add($"âš  {duplicateTerms} duplicate term{(duplicateTerms == 1 ? "" : "s")}");
-        if (orphanDefinitions > 0) parts.Add($"ðŸš¨ {orphanDefinitions} orphan definition{(orphanDefinitions == 1 ? "" : "s")}");
+        if (duplicateTerms > 0) parts.Add($"⚠ {duplicateTerms} duplicate term{(duplicateTerms == 1 ? "" : "s")}");
+        if (orphanDefinitions > 0) parts.Add($"🚨 {orphanDefinitions} orphan definition{(orphanDefinitions == 1 ? "" : "s")}");
 
-        string details = string.Join(" Â· ", parts);
-        return $"Markdown definition list audit ({details} Â· {category} Â· {score:0.#}% hygiene score)";
+        string details = string.Join(" · ", parts);
+        return $"Markdown definition list audit ({details} · {category} · {score:0.#}% hygiene score)";
     }
 
 

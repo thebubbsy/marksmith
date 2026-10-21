@@ -5656,7 +5656,7 @@ Some paragraph in between.
         var galaxyCs = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml.cs"));
         Assert.Contains("AuditGraphPlanarityItem", galaxyXaml);
         Assert.Contains("OnAuditGraphPlanarityClick", galaxyCs);
-        Assert.Contains("AuditGraphEdgeCrossingsAndPlanarity", galaxyCs);
+        Assert.Contains("AuditGraphEdgeIntersectionPlanarity", galaxyCs);
 
         // Surface 3: ShapeDesignStudioWindow - Diagram Shape Z-Order Layering, Stacking Depth & Overlap Inversion Auditor
         var shapeXaml = File.ReadAllText(DesktopPath("Views", "ShapeStudio", "ShapeDesignStudioWindow.xaml"));

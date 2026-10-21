@@ -8023,6 +8023,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(imageAccessibilityItem);
 
+        MenuDiagnostics.Fold(menu);
         menu.ShowAt(StatusSectionBreadcrumbButton, e.GetPosition(StatusSectionBreadcrumbButton));
     }
 
@@ -9550,6 +9551,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(imageAccessibilityItem);
 
+        MenuDiagnostics.Fold(menu);
         menu.ShowAt(FindCountText, e.GetPosition(FindCountText));
 
         e.Handled = true;
@@ -12333,6 +12335,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
 
 
 
+        MenuDiagnostics.Fold(menu);
         menu.ShowAt(anchor);
     }
 

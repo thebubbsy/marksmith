@@ -243,9 +243,6 @@
                                     <MenuFlyoutItem x:Name="AttachOrphansItem" Text="Cluster &amp; attach orphaned nodes to root" Click="OnAttachOrphansClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B3;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditLinkedFilesItem" Text="Audit linked files health (Valid vs missing paths)" Click="OnAuditLinkedFilesClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8A7;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem x:Name="RollupSubtreeProgressItem" Text="Roll up subtree completion progress to parent hubs" Click="OnRollupSubtreeProgressClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE9D2;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
@@ -264,216 +261,219 @@
                                     <MenuFlyoutItem x:Name="NormalizeNodeCasingItem" Text="Normalize node text casing (Title Case)" Click="OnNormalizeNodeCasingClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8E4;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditInactiveNodesItem" Text="Audit inactive subtrees &amp; dormant vault nodes" Click="OnAuditInactiveNodesClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE74D;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditTopologicalDepthItem" Text="Audit topological depth &amp; level hierarchy" Click="OnAuditTopologicalDepthClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8E5;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditOrphansItem" Text="Audit orphaned nodes &amp; cluster affinity" Click="OnAuditOrphansClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B7;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditClusterHullsItem" Text="Audit cluster convex hulls &amp; spatial extent" Click="OnAuditClusterHullsClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B7;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditMstItem" Text="Audit Minimum Spanning Tree (MST) wireframe" Click="OnAuditMstClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE968;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditDegreeCentralityItem" Text="Audit graph degree centrality &amp; node hubs" Click="OnAuditDegreeCentralityClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7C1;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditPeripheryEccentricityItem" Text="Audit leaf node depth &amp; periphery eccentricity" Click="OnAuditPeripheryEccentricityClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE81C;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditRadialAngularItem" Text="Audit radial concentric rings &amp; angular spacing" Click="OnAuditRadialAngularClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditClusterCohesionItem" Text="Audit semantic tag cluster cohesion &amp; density" Click="OnAuditClusterCohesionClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE81E;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditBipartitePartitionItem" Text="Audit bipartite 2-coloring &amp; odd cycle partition" Click="OnAuditBipartitePartitionClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE72A;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditTopologicalOrderItem" Text="Audit topological DAG sort &amp; sequence depth" Click="OnAuditTopologicalOrderClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8A7;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditGraphVulnerabilityItem" Text="Audit graph bridge links &amp; articulation vulnerability" Click="OnAuditGraphVulnerabilityClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE817;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditNetworkSpanningBackboneItem" Text="Audit network spanning backbone &amp; redundant chords" Click="OnAuditNetworkSpanningBackboneClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE9E9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditGraphCommunitiesItem" Text="Audit graph modularity &amp; community clusters" Click="OnAuditGraphCommunitiesClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE81E;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditGraphDiameterItem" Text="Audit graph diameter, eccentricity &amp; longest path" Click="OnAuditGraphDiameterClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE9E9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditClosenessCentralityItem" Text="Audit closeness centrality, harmonic distance &amp; propagation" Click="OnAuditClosenessCentralityClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8A5;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditBetweennessCentralityItem" Text="Audit graph betweenness centrality, bottlenecks &amp; bridge concepts" Click="OnAuditBetweennessCentralityClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE817;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditEigenvectorCentralityItem" Text="Audit graph eigenvector centrality &amp; influence propagation" Click="OnAuditEigenvectorCentralityClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE81E;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditRadialLayoutItem" Text="Audit graph radial layout spacing &amp; angular sector distribution" Click="OnAuditRadialLayoutClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE809;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditClusteringTransitivityItem" Text="Audit graph clustering coefficient &amp; triadic closure" Click="OnAuditClusteringTransitivityClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE81E;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditSpectralBisectionItem" Text="Audit spectral bisection &amp; algebraic connectivity" Click="OnAuditSpectralBisectionClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE91B;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditBiconnectivityItem" Text="Audit biconnected blocks, articulation points &amp; bridges" Click="OnAuditBiconnectivityClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditKCoreDecompositionItem" Text="Audit graph core-periphery structure &amp; k-core shell decomposition" Click="OnAuditKCoreDecompositionClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xF158;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditGraphAssortativityItem" Text="Audit graph assortative mixing &amp; hub-degree correlation" Click="OnAuditGraphAssortativityClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditCommunityModularityItem" Text="Audit graph community modularity &amp; cluster density" Click="OnAuditCommunityModularityClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditGraphCyclesFeedbackItem" Text="Audit graph directed cycles &amp; feedback loops (Tarjan SCC)" Click="OnAuditGraphCyclesFeedbackClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditGraphDiameterSmallWorldItem" Text="Audit graph diameter, average path length &amp; small-world navigation" Click="OnAuditGraphDiameterAndSmallWorldClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-
-                                    <MenuFlyoutItem x:Name="AuditGraphCyclesFeedbackArcSetItem" Text="Audit graph cycles, back-edges &amp; feedback arc set minimization" Click="OnAuditGraphCyclesAndFeedbackArcSetClick">
-
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditGraphBipartitenessOddCyclesItem" Text="Audit graph bipartiteness, 2-colorability &amp; odd-length cycles" Click="OnAuditGraphBipartitenessAndOddCyclesClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditGraphEdgeIntersectionPlanarityItem" Text="Audit graph edge crossings, 2D planarity &amp; visual link clutter" Click="OnAuditGraphEdgeIntersectionPlanarityClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditGraphMedianClosenessPlacementItem" Text="Audit graph closeness centrality &amp; topological median placement" Click="OnAuditGraphMedianClosenessPlacementClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditGraphHarmonicCentralityItem" Text="Audit graph harmonic centrality &amp; network accessibility" Click="OnAuditGraphHarmonicCentralityClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditGraphBetweennessBottlenecksItem" Text="Audit graph betweenness centrality &amp; bridge bottleneck identification" Click="OnAuditGraphBetweennessBottlenecksClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditGraphDiameterAndGeodesicPathsItem" Text="Audit graph diameter, longest geodesic path &amp; network breadth" Click="OnAuditGraphDiameterAndGeodesicPathsClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditGraphDegreeDistributionItem" Text="Audit node degree distribution skewness, hub centrality &amp; scale-free network" Click="OnAuditGraphDegreeDistributionClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditGraphArticulationPointsItem" Text="Audit graph biconnected components, cut vertices &amp; bridge fragility" Click="OnAuditGraphArticulationPointsClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditGraphKCoreDecompositionItem" Text="Audit graph k-core decomposition, structural shell tiers &amp; nucleus clusters" Click="OnAuditGraphKCoreDecompositionClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditGraphClosenessCentralityItem" Text="Audit graph node closeness &amp; harmonic centrality distribution" Click="OnAuditGraphClosenessCentralityClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditGraphBetweennessCentralityItem" Text="Audit graph node betweenness centrality &amp; gateway bottlenecks" Click="OnAuditGraphBetweennessCentralityClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditGraphRadialTreeSectorDistributionItem" Text="Audit graph radial tree spanning &amp; angular sector distribution" Click="OnAuditGraphRadialTreeSectorDistributionClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-
-                                    <MenuFlyoutItem x:Name="AuditGraphNodeBoundingCollisionsItem" Text="Audit graph node bounding box collisions &amp; label overlaps" Click="OnAuditGraphNodeBoundingCollisionsClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditGraphSemanticClusterCentroidsItem" Text="Audit graph semantic cluster centroids &amp; group boundary convexity" Click="OnAuditGraphSemanticClusterCentroidsClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditGraphRadialDepthDistributionItem" Text="Audit graph node radial hierarchy depth &amp; branch density distribution" Click="OnAuditGraphRadialDepthDistributionClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditGraphDegreeCentralityAndBridgesItem" Text="Audit graph node degree centrality &amp; critical bridge bottlenecks" Click="OnAuditGraphDegreeCentralityAndBridgesClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditGraphCriticalPathItem" Text="Audit Graph Longest Dependency Chain &amp; Critical Path Length" Click="OnAuditGraphCriticalPathClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditGraphDisconnectedIslandsItem" Text="Audit Graph Isolated Island Subgraphs &amp; Unreachable Node Partitions" Click="OnAuditGraphDisconnectedIslandsClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditGraphDegreeDistributionAndHubsItem" Text="Audit Graph Degree Distribution &amp; Hyper-Connected Hub Skewness" Click="OnAuditGraphDegreeDistributionAndHubsClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditGraphRadialClusteringItem" Text="Audit Graph Radial Clustering &amp; Angular Centroid Separation" Click="OnAuditGraphRadialClusteringClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditGraphOrthogonalGridAlignmentItem" Text="Audit Graph Orthogonal Tree Grid Alignment &amp; Branch Level Spacing" Click="OnAuditGraphOrthogonalGridAlignmentClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditGraphBranchSymmetryItem" Text="Audit Graph Branch Leaf Density &amp; Subtree Symmetry Balance" Click="OnAuditGraphBranchSymmetryClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditGraphColorContrastAccessibilityItem" Text="Audit Graph Node Color Contrast &amp; Cognitive Accessibility" Click="OnAuditGraphColorContrastAccessibilityClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-
-
-                                    <MenuFlyoutItem x:Name="AuditGraphDegreeDistributionAndHubDominanceItem" Text="Audit graph node degree distribution &amp; hub dominance" Click="OnAuditGraphDegreeDistributionAndHubDominanceClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditGraphTopologicalHierarchyAndCyclesItem" Text="Audit graph topological hierarchy stratification &amp; DAG cycle resolution" Click="OnAuditGraphTopologicalHierarchyAndCyclesClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditGraphEdgeCrossingsItem" Text="Audit graph edge crossing density &amp; topological planarity" Click="OnAuditGraphEdgeCrossingsClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditGraphSpatialBalanceItem" Text="Audit graph visual mass center of gravity, spatial balance &amp; viewport centering" Click="OnAuditGraphSpatialBalanceClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditGraphNodeProximityItem" Text="Audit graph node bounding box collisions, clearance distances &amp; visual breathing room" Click="OnAuditGraphNodeProximityClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditGraphSubtreeDepthItem" Text="Audit graph subtree depth uniformity, branching factors &amp; leaf density" Click="OnAuditGraphSubtreeDepthClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditGraphCyclesItem" Text="Audit graph cycle detection, feedback loops &amp; strongly connected components (SCC)" Click="OnAuditGraphCyclesClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditGraphSpatialDensityItem" Text="Audit graph spatial density, force-directed overlap &amp; collision avoidance" Click="OnAuditGraphSpatialDensityClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditGraphTreeHierarchyItem" Text="Audit graph tree hierarchy depth, fan-out &amp; branching balance" Click="OnAuditGraphTreeHierarchyClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditGraphClusteringCoefficientItem" Text="Audit graph clustering coefficient, small-world topology &amp; triadic closure" Click="OnAuditGraphClusteringCoefficientClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditGraphBipartiteItem" Text="Audit graph bipartite 2-mode network partition, odd cycles &amp; modularity balance" Click="OnAuditGraphBipartiteClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditGraphPlanarityItem" Text="Audit graph edge crossings, planarity &amp; Kuratowski obstruction" Click="OnAuditGraphPlanarityClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditGraphArticulationItem" Text="Audit graph articulation cut vertices, bridge bottlenecks &amp; network resilience" Click="OnAuditGraphArticulationClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditGraphDegreeDistributionTopologyItem" Text="Audit graph degree distribution, scale-free power law &amp; hub centrality" Click="OnAuditGraphDegreeDistributionTopologyClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditGraphMinimumSpanningTreeItem" Text="Audit graph minimum spanning tree (MST) &amp; backbone highway efficiency" Click="OnAuditGraphMinimumSpanningTreeClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditGraphBiconnectedComponentsItem" Text="Audit graph biconnected components, cut vertices &amp; single point of failure bottlenecks" Click="OnAuditGraphBiconnectedComponentsClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem x:Name="AuditGraphFeedbackArcSetItem" Text="Audit graph cycles, feedback arc set &amp; DAG hierarchy compliance" Click="OnAuditGraphFeedbackArcSetClick">
-                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
+                                    <MenuFlyoutSeparator />
+                                    <MenuFlyoutSubItem Text="Diagnostics" ToolTipService.ToolTip="Read-only checks that summarise and copy a report">
+                                        <MenuFlyoutSubItem.Icon><FontIcon Glyph="&#xE9D9;" /></MenuFlyoutSubItem.Icon>
+                                        <MenuFlyoutItem x:Name="AuditBiconnectivityItem" Text="Audit biconnected blocks, articulation points &amp; bridges" Click="OnAuditBiconnectivityClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditBipartitePartitionItem" Text="Audit bipartite 2-coloring &amp; odd cycle partition" Click="OnAuditBipartitePartitionClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE72A;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditClosenessCentralityItem" Text="Audit closeness centrality, harmonic distance &amp; propagation" Click="OnAuditClosenessCentralityClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8A5;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditClusterHullsItem" Text="Audit cluster convex hulls &amp; spatial extent" Click="OnAuditClusterHullsClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B7;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditGraphArticulationItem" Text="Audit graph articulation cut vertices, bridge bottlenecks &amp; network resilience" Click="OnAuditGraphArticulationClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditGraphAssortativityItem" Text="Audit graph assortative mixing &amp; hub-degree correlation" Click="OnAuditGraphAssortativityClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditGraphBetweennessBottlenecksItem" Text="Audit graph betweenness centrality &amp; bridge bottleneck identification" Click="OnAuditGraphBetweennessBottlenecksClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditBetweennessCentralityItem" Text="Audit graph betweenness centrality, bottlenecks &amp; bridge concepts" Click="OnAuditBetweennessCentralityClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE817;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditGraphArticulationPointsItem" Text="Audit graph biconnected components, cut vertices &amp; bridge fragility" Click="OnAuditGraphArticulationPointsClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditGraphBiconnectedComponentsItem" Text="Audit graph biconnected components, cut vertices &amp; single point of failure bottlenecks" Click="OnAuditGraphBiconnectedComponentsClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditGraphBipartiteItem" Text="Audit graph bipartite 2-mode network partition, odd cycles &amp; modularity balance" Click="OnAuditGraphBipartiteClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditGraphBipartitenessOddCyclesItem" Text="Audit graph bipartiteness, 2-colorability &amp; odd-length cycles" Click="OnAuditGraphBipartitenessAndOddCyclesClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditGraphBranchSymmetryItem" Text="Audit Graph Branch Leaf Density &amp; Subtree Symmetry Balance" Click="OnAuditGraphBranchSymmetryClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditGraphVulnerabilityItem" Text="Audit graph bridge links &amp; articulation vulnerability" Click="OnAuditGraphVulnerabilityClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE817;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditGraphMedianClosenessPlacementItem" Text="Audit graph closeness centrality &amp; topological median placement" Click="OnAuditGraphMedianClosenessPlacementClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditClusteringTransitivityItem" Text="Audit graph clustering coefficient &amp; triadic closure" Click="OnAuditClusteringTransitivityClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE81E;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditGraphClusteringCoefficientItem" Text="Audit graph clustering coefficient, small-world topology &amp; triadic closure" Click="OnAuditGraphClusteringCoefficientClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditCommunityModularityItem" Text="Audit graph community modularity &amp; cluster density" Click="OnAuditCommunityModularityClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditKCoreDecompositionItem" Text="Audit graph core-periphery structure &amp; k-core shell decomposition" Click="OnAuditKCoreDecompositionClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xF158;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditGraphCyclesItem" Text="Audit graph cycle detection, feedback loops &amp; strongly connected components (SCC)" Click="OnAuditGraphCyclesClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditGraphCyclesFeedbackArcSetItem" Text="Audit graph cycles, back-edges &amp; feedback arc set minimization" Click="OnAuditGraphCyclesAndFeedbackArcSetClick">
+                                        
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditGraphFeedbackArcSetItem" Text="Audit graph cycles, feedback arc set &amp; DAG hierarchy compliance" Click="OnAuditGraphFeedbackArcSetClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditDegreeCentralityItem" Text="Audit graph degree centrality &amp; node hubs" Click="OnAuditDegreeCentralityClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7C1;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditGraphDegreeDistributionAndHubsItem" Text="Audit Graph Degree Distribution &amp; Hyper-Connected Hub Skewness" Click="OnAuditGraphDegreeDistributionAndHubsClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditGraphDegreeDistributionTopologyItem" Text="Audit graph degree distribution, scale-free power law &amp; hub centrality" Click="OnAuditGraphDegreeDistributionTopologyClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditGraphDiameterSmallWorldItem" Text="Audit graph diameter, average path length &amp; small-world navigation" Click="OnAuditGraphDiameterAndSmallWorldClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditGraphDiameterItem" Text="Audit graph diameter, eccentricity &amp; longest path" Click="OnAuditGraphDiameterClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE9E9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditGraphDiameterAndGeodesicPathsItem" Text="Audit graph diameter, longest geodesic path &amp; network breadth" Click="OnAuditGraphDiameterAndGeodesicPathsClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditGraphCyclesFeedbackItem" Text="Audit graph directed cycles &amp; feedback loops (Tarjan SCC)" Click="OnAuditGraphCyclesFeedbackClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditGraphEdgeCrossingsItem" Text="Audit graph edge crossing density &amp; topological planarity" Click="OnAuditGraphEdgeCrossingsClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditGraphEdgeIntersectionPlanarityItem" Text="Audit graph edge crossings, 2D planarity &amp; visual link clutter" Click="OnAuditGraphEdgeIntersectionPlanarityClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditGraphPlanarityItem" Text="Audit graph edge crossings, planarity &amp; Kuratowski obstruction" Click="OnAuditGraphPlanarityClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditEigenvectorCentralityItem" Text="Audit graph eigenvector centrality &amp; influence propagation" Click="OnAuditEigenvectorCentralityClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE81E;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditGraphHarmonicCentralityItem" Text="Audit graph harmonic centrality &amp; network accessibility" Click="OnAuditGraphHarmonicCentralityClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditGraphDisconnectedIslandsItem" Text="Audit Graph Isolated Island Subgraphs &amp; Unreachable Node Partitions" Click="OnAuditGraphDisconnectedIslandsClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditGraphKCoreDecompositionItem" Text="Audit graph k-core decomposition, structural shell tiers &amp; nucleus clusters" Click="OnAuditGraphKCoreDecompositionClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditGraphCriticalPathItem" Text="Audit Graph Longest Dependency Chain &amp; Critical Path Length" Click="OnAuditGraphCriticalPathClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditGraphMinimumSpanningTreeItem" Text="Audit graph minimum spanning tree (MST) &amp; backbone highway efficiency" Click="OnAuditGraphMinimumSpanningTreeClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditGraphCommunitiesItem" Text="Audit graph modularity &amp; community clusters" Click="OnAuditGraphCommunitiesClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE81E;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditGraphBetweennessCentralityItem" Text="Audit graph node betweenness centrality &amp; gateway bottlenecks" Click="OnAuditGraphBetweennessCentralityClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditGraphNodeBoundingCollisionsItem" Text="Audit graph node bounding box collisions &amp; label overlaps" Click="OnAuditGraphNodeBoundingCollisionsClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditGraphNodeProximityItem" Text="Audit graph node bounding box collisions, clearance distances &amp; visual breathing room" Click="OnAuditGraphNodeProximityClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditGraphClosenessCentralityItem" Text="Audit graph node closeness &amp; harmonic centrality distribution" Click="OnAuditGraphClosenessCentralityClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditGraphColorContrastAccessibilityItem" Text="Audit Graph Node Color Contrast &amp; Cognitive Accessibility" Click="OnAuditGraphColorContrastAccessibilityClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditGraphDegreeCentralityAndBridgesItem" Text="Audit graph node degree centrality &amp; critical bridge bottlenecks" Click="OnAuditGraphDegreeCentralityAndBridgesClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditGraphDegreeDistributionAndHubDominanceItem" Text="Audit graph node degree distribution &amp; hub dominance" Click="OnAuditGraphDegreeDistributionAndHubDominanceClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditGraphRadialDepthDistributionItem" Text="Audit graph node radial hierarchy depth &amp; branch density distribution" Click="OnAuditGraphRadialDepthDistributionClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditGraphOrthogonalGridAlignmentItem" Text="Audit Graph Orthogonal Tree Grid Alignment &amp; Branch Level Spacing" Click="OnAuditGraphOrthogonalGridAlignmentClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditGraphRadialClusteringItem" Text="Audit Graph Radial Clustering &amp; Angular Centroid Separation" Click="OnAuditGraphRadialClusteringClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditRadialLayoutItem" Text="Audit graph radial layout spacing &amp; angular sector distribution" Click="OnAuditRadialLayoutClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE809;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditGraphRadialTreeSectorDistributionItem" Text="Audit graph radial tree spanning &amp; angular sector distribution" Click="OnAuditGraphRadialTreeSectorDistributionClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditGraphSemanticClusterCentroidsItem" Text="Audit graph semantic cluster centroids &amp; group boundary convexity" Click="OnAuditGraphSemanticClusterCentroidsClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditGraphSpatialDensityItem" Text="Audit graph spatial density, force-directed overlap &amp; collision avoidance" Click="OnAuditGraphSpatialDensityClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditGraphSubtreeDepthItem" Text="Audit graph subtree depth uniformity, branching factors &amp; leaf density" Click="OnAuditGraphSubtreeDepthClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditGraphTopologicalHierarchyAndCyclesItem" Text="Audit graph topological hierarchy stratification &amp; DAG cycle resolution" Click="OnAuditGraphTopologicalHierarchyAndCyclesClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditGraphTreeHierarchyItem" Text="Audit graph tree hierarchy depth, fan-out &amp; branching balance" Click="OnAuditGraphTreeHierarchyClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditGraphSpatialBalanceItem" Text="Audit graph visual mass center of gravity, spatial balance &amp; viewport centering" Click="OnAuditGraphSpatialBalanceClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditInactiveNodesItem" Text="Audit inactive subtrees &amp; dormant vault nodes" Click="OnAuditInactiveNodesClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE74D;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditPeripheryEccentricityItem" Text="Audit leaf node depth &amp; periphery eccentricity" Click="OnAuditPeripheryEccentricityClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE81C;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditLinkedFilesItem" Text="Audit linked files health (Valid vs missing paths)" Click="OnAuditLinkedFilesClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8A7;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditMstItem" Text="Audit Minimum Spanning Tree (MST) wireframe" Click="OnAuditMstClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE968;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditNetworkSpanningBackboneItem" Text="Audit network spanning backbone &amp; redundant chords" Click="OnAuditNetworkSpanningBackboneClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE9E9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditGraphDegreeDistributionItem" Text="Audit node degree distribution skewness, hub centrality &amp; scale-free network" Click="OnAuditGraphDegreeDistributionClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditOrphansItem" Text="Audit orphaned nodes &amp; cluster affinity" Click="OnAuditOrphansClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B7;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditRadialAngularItem" Text="Audit radial concentric rings &amp; angular spacing" Click="OnAuditRadialAngularClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditClusterCohesionItem" Text="Audit semantic tag cluster cohesion &amp; density" Click="OnAuditClusterCohesionClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE81E;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditSpectralBisectionItem" Text="Audit spectral bisection &amp; algebraic connectivity" Click="OnAuditSpectralBisectionClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE91B;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditTopologicalOrderItem" Text="Audit topological DAG sort &amp; sequence depth" Click="OnAuditTopologicalOrderClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8A7;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="AuditTopologicalDepthItem" Text="Audit topological depth &amp; level hierarchy" Click="OnAuditTopologicalDepthClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8E5;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                    </MenuFlyoutSubItem>
                                 </MenuFlyout>
 
                             </DropDownButton.Flyout>
