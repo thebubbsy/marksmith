@@ -4136,4 +4136,33 @@ public class ShapeStudioPolishTests
         Assert.Contains("Diagram text contrast audit", flawedAudit.Summary);
     }
 
+    [Fact]
+    public void Run219_AuditDiagramShadowConsistency_DetectsOpposingAndConflictingAngles()
+    {
+        // 1. Clean Baseline (0 or 1 shadow)
+        var s1 = new ShapeCanvasItemViewModel { Id = "s1", Name = "Shape 1", HasShadow = false, ShadowBlur = 0.0 };
+        var emptyAudit = ShapeDesignStudioViewModel.AuditDiagramShadowConsistency(new[] { s1 });
+        Assert.Equal(1, emptyAudit.TotalShapesEvaluated);
+        Assert.Equal(0, emptyAudit.ShapesWithShadowCount);
+        Assert.Equal(100.0, emptyAudit.LightingConsistencyScore);
+        Assert.Contains("Clean artboard", emptyAudit.Summary);
+
+        // 2. Consistent unified lighting (all shapes illuminated at 315 deg)
+        var s2 = new ShapeCanvasItemViewModel { Id = "s2", Name = "Card Alpha", HasShadow = true, ShadowBlur = 4.0, ShadowAngle = 315.0 };
+        var s3 = new ShapeCanvasItemViewModel { Id = "s3", Name = "Card Beta", HasShadow = true, ShadowBlur = 4.0, ShadowAngle = 315.0 };
+        var consistentAudit = ShapeDesignStudioViewModel.AuditDiagramShadowConsistency(new[] { s2, s3 });
+        Assert.Equal(2, consistentAudit.ShapesWithShadowCount);
+        Assert.Equal(0, consistentAudit.ConflictingAngleCount);
+        Assert.Equal(0, consistentAudit.OpposingAngleCount);
+        Assert.Equal(100.0, consistentAudit.LightingConsistencyScore);
+        Assert.Contains("Optimal Directional Lighting", consistentAudit.Category);
+
+        // 3. Opposing light sources (Shape 2 at 315 deg vs Shape 4 at 135 deg: 180 deg direct opposition)
+        var s4 = new ShapeCanvasItemViewModel { Id = "s4", Name = "Conflicting Shape", HasShadow = true, ShadowBlur = 16.0, ShadowAngle = 135.0 };
+        var conflictingAudit = ShapeDesignStudioViewModel.AuditDiagramShadowConsistency(new[] { s2, s4 });
+        Assert.Equal(1, conflictingAudit.OpposingAngleCount);
+        Assert.True(conflictingAudit.LightingConsistencyScore < 80.0);
+        Assert.Contains("opposing angle", conflictingAudit.Summary);
+    }
+
 }

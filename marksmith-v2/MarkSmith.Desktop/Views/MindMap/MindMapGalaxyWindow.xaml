@@ -415,6 +415,9 @@
                                     <MenuFlyoutItem x:Name="AuditGraphOrthogonalGridAlignmentItem" Text="Audit Graph Orthogonal Tree Grid Alignment &amp; Branch Level Spacing" Click="OnAuditGraphOrthogonalGridAlignmentClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditGraphBranchSymmetryItem" Text="Audit Graph Branch Leaf Density &amp; Subtree Symmetry Balance" Click="OnAuditGraphBranchSymmetryClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem x:Name="AuditGraphColorContrastAccessibilityItem" Text="Audit Graph Node Color Contrast &amp; Cognitive Accessibility" Click="OnAuditGraphColorContrastAccessibilityClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

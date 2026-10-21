@@ -4338,4 +4338,45 @@ public class TextSearchTests
         Assert.Contains("invalid priority", flawedAudit.Summary);
     }
 
+    [Fact]
+    public void Run219_AuditMarkdownFormFields_ValidatesDropdownOptionsAndDateFormats()
+    {
+        // 1. Clean Baseline (no form controls)
+        var emptyAudit = TextSearch.AuditMarkdownFormFields(string.Empty);
+        Assert.Equal(0, emptyAudit.TotalFields);
+        Assert.Equal(100.0, emptyAudit.FormFieldComplianceScore);
+        Assert.Contains("No form controls present", emptyAudit.Summary);
+
+        // 2. Valid form controls
+        string validDoc = @"# Intake Form
+Please select department: [dropdown: Engineering | Design | Marketing | Sales]
+Appointment Date: [date: 2026-11-15]
+Today's Date: [date: today]
+Full Name: [text: ""John Doe""]
+Notes: [text]";
+        var validAudit = TextSearch.AuditMarkdownFormFields(validDoc);
+        Assert.Equal(5, validAudit.TotalFields);
+        Assert.Equal(1, validAudit.ValidDropdowns);
+        Assert.Equal(2, validAudit.ValidDates);
+        Assert.Equal(2, validAudit.ValidTexts);
+        Assert.Equal(0, validAudit.SingleOptionDropdowns);
+        Assert.Equal(0, validAudit.MalformedDates);
+        Assert.Equal(100.0, validAudit.FormFieldComplianceScore);
+        Assert.Contains("5 fields", validAudit.Summary);
+
+        // 3. Defective form controls
+        string defectiveDoc = @"# Defective Form
+Single option: [dropdown: OnlyOneOption]
+Empty option: [dropdown: Option A || Option B]
+Bad date format: [date: 2026/12/31]
+Invalid calendar day: [date: 2026-02-31]
+Empty text tag: [text:]";
+        var defAudit = TextSearch.AuditMarkdownFormFields(defectiveDoc);
+        Assert.True(defAudit.SingleOptionDropdowns >= 2);
+        Assert.True(defAudit.MalformedDates >= 2);
+        Assert.True(defAudit.MalformedPlaceholders >= 1);
+        Assert.True(defAudit.FormFieldComplianceScore < 60.0);
+        Assert.Contains("compliance score", defAudit.Summary);
+    }
+
 }

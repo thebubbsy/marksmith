@@ -5406,6 +5406,23 @@ private async void OnAuditWorkspaceMarkdownTableAutoAlignAndExportClick(object s
         }
     }
 
+    private async void OnAuditWorkspaceDocumentTocConsistencyClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var files = App.RecentFiles?.Load() ?? new List<string>();
+            var result = RecentFilesService.AuditWorkspaceDocumentTocConsistency(explicitFiles: files);
+            await Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            SetNotification(result.Summary, success: true);
+            if (RecentDocsActionBtn != null)
+                RecentDocsActionBtn.Content = "✓ Copied TOC Audit";
+        }
+        catch (Exception ex)
+        {
+            SetNotification($"TOC audit error: {ex.Message}", success: false);
+        }
+    }
+
     private async void OnAuditWorkspaceCodeBlockLanguageTagsClick(object sender, RoutedEventArgs e)
 
     {

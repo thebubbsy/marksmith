@@ -3858,4 +3858,50 @@ public class SmartArtStudioPolishTests
         Assert.Contains("degenerate", degenerateAudit.Summary);
     }
 
+    [Fact]
+    public void Run219_AuditMatrixQuadrantDistribution_Validates2x2GridAndDiagonalBalance()
+    {
+        // 1. Clean Baseline (empty outline)
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditMatrixQuadrantDistribution(string.Empty, "SWOT Matrix");
+        Assert.Equal(0, emptyAudit.TotalQuadrantsDefined);
+        Assert.Equal(100.0, emptyAudit.QuadrantBalanceScore);
+        Assert.Contains("Clean diagram", emptyAudit.Summary);
+
+        // 2. Balanced 2x2 SWOT Matrix
+        string balancedMarkdown = @"- Strengths
+  - Fast execution
+  - Strong architecture
+- Weaknesses
+  - Legacy dependencies
+  - Limited mobile testing
+- Opportunities
+  - Cloud native deployment
+  - Cross-platform reach
+- Threats
+  - Rapidly changing tech
+  - Competitive pressure";
+        var balancedAudit = SmartArtDesignStudioViewModel.AuditMatrixQuadrantDistribution(balancedMarkdown, "SWOT Matrix");
+        Assert.Equal(4, balancedAudit.TotalQuadrantsDefined);
+        Assert.Equal(4, balancedAudit.ActiveQuadrantsCount);
+        Assert.Equal(0, balancedAudit.EmptyQuadrantsCount);
+        Assert.Equal(0, balancedAudit.OverflowQuadrantsCount);
+        Assert.Equal(12, balancedAudit.TotalContentItems);
+        Assert.Equal(0, balancedAudit.DiagonalSkewCount);
+        Assert.Equal(100.0, balancedAudit.QuadrantBalanceScore);
+        Assert.Contains("Optimal 2x2 Quadrant Distribution", balancedAudit.Category);
+
+        // 3. Missing quadrants and heavy diagonal skew
+        string skewedMarkdown = @"- Strengths
+  - Fast execution
+  - Deep telemetry
+  - Robust caching
+  - High availability
+- Weaknesses
+  - Single maintainer";
+        var skewedAudit = SmartArtDesignStudioViewModel.AuditMatrixQuadrantDistribution(skewedMarkdown, "Grid Matrix");
+        Assert.True(skewedAudit.EmptyQuadrantsCount > 0 || skewedAudit.OverflowQuadrantsCount > 0);
+        Assert.True(skewedAudit.QuadrantBalanceScore < 75.0);
+        Assert.Contains("balance score", skewedAudit.Summary);
+    }
+
 }

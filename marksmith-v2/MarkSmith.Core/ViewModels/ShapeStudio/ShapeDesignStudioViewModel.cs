@@ -79,6 +79,21 @@ public partial class ShapeCanvasItemViewModel : ObservableObject
     [ObservableProperty]
     private string _dashStyle = "Solid";
 
+    [ObservableProperty]
+    private double _shadowBlur = 0.0;
+
+    [ObservableProperty]
+    private double _shadowAngle = 315.0; // Azimuth degrees (e.g. 315 = top-left illumination casting shadow to bottom-right)
+
+    [ObservableProperty]
+    private double _shadowDistance = 4.0;
+
+    [ObservableProperty]
+    private double _shadowOpacity = 0.35;
+
+    [ObservableProperty]
+    private bool _hasShadow = false;
+
     /// <summary>Curved-stroke polyline (0..100 local space) for sketch/trace lines.</summary>
     public System.Collections.Generic.List<(double X, double Y)>? PathPoints { get; set; }
 
@@ -14673,6 +14688,129 @@ public static string FormatGroupNestingSummary(
         return $"Diagram text contrast audit ({scope}{details} · {category} · {score:0.#}% contrast score)";
     }
 
+
+    public DiagramShadowConsistencyAudit AuditDiagramShadowConsistency(bool selectionOnly = false)
+    {
+        var selected = Shapes.Where(s => s.IsSelected).ToList();
+        var targetShapes = (selectionOnly && selected.Count > 0) ? selected : Shapes.ToList();
+        bool isSelection = selectionOnly && selected.Count > 0;
+        var audit = AuditDiagramShadowConsistency(targetShapes, isSelection);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static DiagramShadowConsistencyAudit AuditDiagramShadowConsistency(
+        IEnumerable<ShapeCanvasItemViewModel>? shapes,
+        bool isSelection = false)
+    {
+        var shapeList = shapes?.ToList() ?? new List<ShapeCanvasItemViewModel>();
+        var shadowShapes = shapeList.Where(s => s.HasShadow || s.ShadowBlur > 0.0).ToList();
+        int totalShapes = shapeList.Count;
+        int shadowCount = shadowShapes.Count;
+
+        if (shadowCount <= 1)
+        {
+            string emptySummary = FormatShadowConsistencySummary(totalShapes, shadowCount, 0, 0, 0, 100.0, "Clean Baseline · Unified Lighting", isSelection);
+            return new DiagramShadowConsistencyAudit(
+                totalShapes, shadowCount, 0, 0, 0, 100.0,
+                Array.Empty<DiagramShadowConsistencyItem>(), "Clean Baseline · Unified Lighting", isSelection, emptySummary);
+        }
+
+        var items = new List<DiagramShadowConsistencyItem>();
+        int conflictingAngleCount = 0;
+        int opposingAngleCount = 0;
+        int inconsistentBlurCount = 0;
+
+        // Determine dominant / reference shadow angle (mode or average)
+        double refAngle = shadowShapes.First().ShadowAngle;
+        double refBlur = shadowShapes.First().ShadowBlur;
+
+        foreach (var shape in shadowShapes)
+        {
+            // Normalize angles to 0..360
+            double a = ((shape.ShadowAngle % 360) + 360) % 360;
+            double r = ((refAngle % 360) + 360) % 360;
+            double diff = Math.Abs(a - r);
+            if (diff > 180.0) diff = 360.0 - diff;
+
+            if (diff >= 120.0)
+            {
+                opposingAngleCount++;
+                items.Add(new DiagramShadowConsistencyItem(
+                    shape.Id,
+                    shape.Name,
+                    shape.ShadowAngle,
+                    shape.ShadowBlur,
+                    shape.ShadowOpacity,
+                    "OpposingLightSource",
+                    "High",
+                    $"Shadow angle ({shape.ShadowAngle:0}°) conflicts directly with primary lighting ({refAngle:0}°, delta {diff:0}°)",
+                    "Align shadow angle to match diagram unified light direction (recommended 315°)."));
+            }
+            else if (diff >= 45.0)
+            {
+                conflictingAngleCount++;
+                items.Add(new DiagramShadowConsistencyItem(
+                    shape.Id,
+                    shape.Name,
+                    shape.ShadowAngle,
+                    shape.ShadowBlur,
+                    shape.ShadowOpacity,
+                    "ConflictingLightSource",
+                    "Medium",
+                    $"Shadow angle ({shape.ShadowAngle:0}°) deviates from primary lighting ({refAngle:0}°, delta {diff:0}°)",
+                    "Harmonize shadow angle with other artboard elements."));
+            }
+
+            if (refBlur > 0 && Math.Abs(shape.ShadowBlur - refBlur) > 6.0)
+            {
+                inconsistentBlurCount++;
+                items.Add(new DiagramShadowConsistencyItem(
+                    shape.Id,
+                    shape.Name,
+                    shape.ShadowAngle,
+                    shape.ShadowBlur,
+                    shape.ShadowOpacity,
+                    "InconsistentShadowBlur",
+                    "Low",
+                    $"Shadow blur ({shape.ShadowBlur:0.#}px) differs significantly from reference blur ({refBlur:0.#}px)",
+                    "Use cohesive elevation tier blur radii across related shapes."));
+            }
+        }
+
+        double penalty = (opposingAngleCount * 25.0) + (conflictingAngleCount * 12.0) + (inconsistentBlurCount * 8.0);
+        double score = Math.Clamp(100.0 - penalty, 0.0, 100.0);
+
+        string category;
+        if (score >= 90.0) category = "Optimal Directional Lighting & Cohesive Shadow Harmony (90-100%)";
+        else if (score >= 75.0) category = "Consistent Lighting with Minor Shadow Angle Deviations (75-89%)";
+        else if (score >= 60.0) category = "Conflicting Light Sources & Multi-Angle Shadow Bleed (60-74%)";
+        else category = "Chaotic Lighting Incoherence (<60%)";
+
+        string summary = FormatShadowConsistencySummary(
+            totalShapes, shadowCount, conflictingAngleCount, opposingAngleCount, inconsistentBlurCount, score, category, isSelection);
+
+        return new DiagramShadowConsistencyAudit(
+            totalShapes, shadowCount, conflictingAngleCount, opposingAngleCount, inconsistentBlurCount,
+            score, items, category, isSelection, summary);
+    }
+
+    public static string FormatShadowConsistencySummary(
+        int totalShapes, int shadowCount, int conflictingAngle, int opposingAngle, int inconsistentBlur, double score, string category, bool isSelection = false)
+    {
+        string scope = isSelection ? "Selection · " : "";
+        if (shadowCount <= 1)
+            return $"Diagram shadow consistency audit ({scope}Clean artboard · {shadowCount} shadow evaluated)";
+
+        var parts = new List<string>();
+        parts.Add($"{shadowCount}/{totalShapes} shadows");
+        if (opposingAngle > 0) parts.Add($"🚨 {opposingAngle} opposing angle{(opposingAngle == 1 ? "" : "s")}");
+        if (conflictingAngle > 0) parts.Add($"⚠ {conflictingAngle} conflicting angle{(conflictingAngle == 1 ? "" : "s")}");
+        if (inconsistentBlur > 0) parts.Add($"ℹ {inconsistentBlur} blur deviation{(inconsistentBlur == 1 ? "" : "s")}");
+
+        string details = string.Join(" · ", parts);
+        return $"Diagram shadow consistency audit ({scope}{details} · {category} · {score:0.#}% consistency score)";
+    }
 }
 
 
@@ -16587,3 +16725,28 @@ public sealed record DiagramTextContrastAudit(
     string Category,
     bool IsSelectionScope,
     string Summary);
+
+
+public sealed record DiagramShadowConsistencyItem(
+    string ShapeId,
+    string ShapeName,
+    double ShadowAngle,
+    double ShadowBlur,
+    double ShadowOpacity,
+    string IssueType,
+    string Severity,
+    string Excerpt,
+    string Recommendation);
+
+public sealed record DiagramShadowConsistencyAudit(
+    int TotalShapesEvaluated,
+    int ShapesWithShadowCount,
+    int ConflictingAngleCount,
+    int OpposingAngleCount,
+    int InconsistentBlurCount,
+    double LightingConsistencyScore,
+    IReadOnlyList<DiagramShadowConsistencyItem> Items,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);
+

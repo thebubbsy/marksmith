@@ -7852,4 +7852,106 @@ Some paragraph in between.
         Assert.Contains("OnAuditWorkspaceDocumentAnchorSlugsClick", hubCs);
     }
 
+    [Fact]
+    public void Run219_AuditWorkspaceDocumentTocConsistency_DetectsPhantomLinksAndMissingHeadings()
+    {
+        // 1. Clean Baseline (no files)
+        var emptyAudit = RecentFilesService.AuditWorkspaceDocumentTocConsistency(Array.Empty<string>());
+        Assert.Equal(0, emptyAudit.TotalDocumentsEvaluated);
+        Assert.Equal(100.0, emptyAudit.TocAlignmentScore);
+        Assert.Contains("Clean baseline", emptyAudit.Summary);
+
+        // 2. Document with aligned TOC
+        string alignedContent = @"# Architecture Guide
+
+## Table of Contents
+- [Overview](#overview)
+- [Design Principles](#design-principles)
+- [Verification](#verification)
+
+## Overview
+System overview content...
+
+## Design Principles
+Design guidelines...
+
+## Verification
+Verification instructions...";
+
+        var docs = new[] { "docs/architecture.md" };
+        var alignedAudit = RecentFilesService.AuditWorkspaceDocumentTocConsistency(
+            docs,
+            contentReader: path => alignedContent);
+
+        Assert.Equal(1, alignedAudit.TotalDocumentsEvaluated);
+        Assert.Equal(1, alignedAudit.DocumentsWithTocCount);
+        Assert.Equal(0, alignedAudit.PhantomTocLinksCount);
+        Assert.Equal(0, alignedAudit.MissingHeadingsInTocCount);
+        Assert.Equal(100.0, alignedAudit.TocAlignmentScore);
+        Assert.Contains("Optimal TOC Structure", alignedAudit.Category);
+
+        // 3. Document with phantom link and missing headings
+        string brokenContent = @"# Product Roadmap
+
+## Table of Contents
+- [Q1 Goals](#q1-goals)
+- [Phantom Chapter](#nonexistent-chapter)
+
+## Q1 Goals
+Goals content...
+
+## Q2 Strategy
+Strategy content...
+
+## Q3 Launch
+Launch content...";
+
+        var brokenAudit = RecentFilesService.AuditWorkspaceDocumentTocConsistency(
+            new[] { "docs/roadmap.md" },
+            contentReader: path => brokenContent);
+
+        Assert.True(brokenAudit.PhantomTocLinksCount >= 1);
+        Assert.True(brokenAudit.MissingHeadingsInTocCount >= 2);
+        Assert.True(brokenAudit.TocAlignmentScore < 75.0);
+        Assert.Contains("phantom link", brokenAudit.Summary);
+    }
+
+    [Fact]
+    public void Run219_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // Verify Surface 1 (MainWindow): AuditMarkdownFormFields & MenuItem
+        var mainXamlCs = File.ReadAllText(@"..\..\..\..\MarkSmith.Desktop\MainWindow.xaml.cs");
+        Assert.Contains("AuditMarkdownFormFields", mainXamlCs);
+        Assert.Contains("auditFormFieldsItem", mainXamlCs);
+
+        // Verify Surface 2 (MindMapGalaxyWindow): AuditGraphBranchSymmetry & MenuItem
+        var mmXaml = File.ReadAllText(@"..\..\..\..\MarkSmith.Desktop\Views\MindMap\MindMapGalaxyWindow.xaml");
+        var mmXamlCs = File.ReadAllText(@"..\..\..\..\MarkSmith.Desktop\Views\MindMap\MindMapGalaxyWindow.xaml.cs");
+        Assert.Contains("AuditGraphBranchSymmetryItem", mmXaml);
+        Assert.Contains("OnAuditGraphBranchSymmetryClick", mmXamlCs);
+
+        // Verify Surface 3 (ShapeDesignStudioWindow): AuditDiagramShadowConsistency & MenuItem
+        var shapeXaml = File.ReadAllText(@"..\..\..\..\MarkSmith.Desktop\Views\ShapeStudio\ShapeDesignStudioWindow.xaml");
+        var shapeXamlCs = File.ReadAllText(@"..\..\..\..\MarkSmith.Desktop\Views\ShapeStudio\ShapeDesignStudioWindow.xaml.cs");
+        Assert.Contains("SelectionAuditDiagramShadowConsistencyItem", shapeXaml);
+        Assert.Contains("OnSelectionAuditDiagramShadowConsistencyClick", shapeXamlCs);
+
+        // Verify Surface 4 (SmartArtDesignStudioWindow): AuditMatrixQuadrantDistribution & MenuItem
+        var saXaml = File.ReadAllText(@"..\..\..\..\MarkSmith.Desktop\Views\SmartArtStudio\SmartArtDesignStudioWindow.xaml");
+        var saXamlCs = File.ReadAllText(@"..\..\..\..\MarkSmith.Desktop\Views\SmartArtStudio\SmartArtDesignStudioWindow.xaml.cs");
+        Assert.Contains("OutlineStatsAuditMatrixQuadrantDistributionItem", saXaml);
+        Assert.Contains("OnOutlineStatsAuditMatrixQuadrantDistributionClick", saXamlCs);
+
+        // Verify Surface 5 (HistoryWindow): AuditNullForgivingHazards & MenuItem
+        var histXamlCs = File.ReadAllText(@"..\..\..\..\MarkSmith.Desktop\Views\History\HistoryWindow.xaml.cs");
+        Assert.Contains("AuditNullForgivingHazards", histXamlCs);
+        Assert.Contains("auditNullForgivingItem", histXamlCs);
+
+        // Verify Surface 6 (SuiteHubView): AuditWorkspaceDocumentTocConsistency & MenuItem
+        var hubXaml = File.ReadAllText(@"..\..\..\..\MarkSmith.Desktop\Views\SuiteHubView.xaml");
+        var hubXamlCs = File.ReadAllText(@"..\..\..\..\MarkSmith.Desktop\Views\SuiteHubView.xaml.cs");
+        Assert.Contains("AuditWorkspaceDocumentTocConsistencyItem", hubXaml);
+        Assert.Contains("OnAuditWorkspaceDocumentTocConsistencyClick", hubXamlCs);
+    }
+
 }

@@ -453,6 +453,9 @@
                                     <MenuFlyoutItem x:Name="AuditWorkspaceDocumentAnchorSlugsItem" Text="Audit Workspace Document Cross-Reference Anchor &amp; Header Slug Drift" Click="OnAuditWorkspaceDocumentAnchorSlugsClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditWorkspaceDocumentTocConsistencyItem" Text="Audit Workspace Table of Contents (TOC) &amp; Heading Alignment" Click="OnAuditWorkspaceDocumentTocConsistencyClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem x:Name="AuditWorkspaceCodeBlockLanguageTagsItem" Text="Audit Workspace Code Block Syntax Highlighting &amp; Language Tags" Click="OnAuditWorkspaceCodeBlockLanguageTagsClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

@@ -12316,6 +12316,19 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             AnnounceStatus(summary);
         };
         menu.Items.Add(auditTaskListPrioritiesItem);
+        var auditFormFieldsItem = new MenuFlyoutItem
+        {
+            Text = "Audit Fillable Form Controls ([dropdown:], [date:], [text:])",
+            Icon = new FontIcon { Glyph = "\uE8B9" }
+        };
+        auditFormFieldsItem.Click += (_, _) =>
+        {
+            var docText = EditorDocument();
+            var summary = MarkSmith.Services.TextSearch.AuditMarkdownFormFields(docText).Summary;
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditFormFieldsItem);
 
 
 

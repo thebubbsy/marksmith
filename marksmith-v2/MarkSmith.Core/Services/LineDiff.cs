@@ -20498,6 +20498,132 @@ public static class LineDiff
         return $"Diff exception audit ({details} · {category} · {score:0.#}% hygiene score)";
     }
 
+
+    public static DiffNullForgivingAudit AuditNullForgivingHazards(string? beforeText, string? afterText)
+    {
+        var d = Diff(beforeText ?? string.Empty, afterText ?? string.Empty);
+        var unified = BuildUnified(d);
+        return AuditNullForgivingHazards(unified);
+    }
+
+    public static DiffNullForgivingAudit AuditNullForgivingHazards(IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows == null)
+        {
+            string emptySummary = FormatNullForgivingSummary(0, 0, 0, 0, 0, 100.0, "Clean Baseline · Strong Null Safety");
+            return new DiffNullForgivingAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<DiffNullForgivingItem>(), "Clean Baseline · Strong Null Safety", emptySummary);
+        }
+
+        var additions = unifiedRows.Where(r => !r.IsGap && r.Kind == Kind.Added).ToList();
+        int addedLines = additions.Count;
+        if (addedLines == 0)
+        {
+            string emptySummary = FormatNullForgivingSummary(0, 0, 0, 0, 0, 100.0, "Clean Baseline · Strong Null Safety");
+            return new DiffNullForgivingAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<DiffNullForgivingItem>(), "Clean Baseline · Strong Null Safety", emptySummary);
+        }
+
+        var items = new List<DiffNullForgivingItem>();
+        int chainedBangs = 0;
+        int memberBangs = 0;
+        int indexerOrReturnBangs = 0;
+
+        var postfixBangRegex = new System.Text.RegularExpressions.Regex(@"(?<expr>[a-zA-Z0-9_\)\]])!(?!=)(?<next>[.\[;\),]|(?:\s*[\r\n]|$))", System.Text.RegularExpressions.RegexOptions.Compiled);
+        var chainedRegex = new System.Text.RegularExpressions.Regex(@"!\s*\.\s*[a-zA-Z0-9_]+\s*!", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        foreach (var row in additions)
+        {
+            string text = row.Text ?? string.Empty;
+            string trimmed = text.Trim();
+
+            int commentIdx = trimmed.IndexOf("//", StringComparison.Ordinal);
+            if (commentIdx >= 0)
+                trimmed = trimmed[..commentIdx].Trim();
+
+            if (string.IsNullOrWhiteSpace(trimmed))
+                continue;
+
+            string stripped = System.Text.RegularExpressions.Regex.Replace(trimmed, "\"(?:\\\\.|[^\"\\\\])*\"", "\"\"");
+
+            if (chainedRegex.IsMatch(stripped))
+            {
+                chainedBangs++;
+                items.Add(new DiffNullForgivingItem(
+                    row.NewNumber ?? 0,
+                    text,
+                    "ChainedNullSuppression",
+                    "High",
+                    text.Trim(),
+                    "Replace chained '!' operators with null-conditional '?.' or explicit pattern matching."));
+            }
+
+            var matches = postfixBangRegex.Matches(stripped);
+            foreach (System.Text.RegularExpressions.Match m in matches)
+            {
+                string next = m.Groups["next"].Value;
+                if (next.StartsWith("."))
+                {
+                    memberBangs++;
+                    items.Add(new DiffNullForgivingItem(
+                        row.NewNumber ?? 0,
+                        text,
+                        "PostfixMemberDereference",
+                        "Medium",
+                        m.Value,
+                        "Use null-conditional '?.' or ensure target cannot be null before dereferencing."));
+                }
+                else
+                {
+                    indexerOrReturnBangs++;
+                    items.Add(new DiffNullForgivingItem(
+                        row.NewNumber ?? 0,
+                        text,
+                        "SuppressionOnValueOrReturn",
+                        "Low",
+                        m.Value,
+                        "Verify non-null invariant or use null-coalescing '??' fallback."));
+                }
+            }
+        }
+
+        int totalBangs = chainedBangs + memberBangs + indexerOrReturnBangs;
+        double penalty = (chainedBangs * 25.0) + (memberBangs * 10.0) + (indexerOrReturnBangs * 6.0);
+        double score = Math.Clamp(100.0 - penalty, 0.0, 100.0);
+
+        string category;
+        if (totalBangs == 0) category = "Optimal Null Safety & Strict Type Hygiene (90-100%)";
+        else if (score >= 75.0) category = "Acceptable Null Safety with Isolated Bang Suppressions (75-89%)";
+        else if (score >= 60.0) category = "Fragile Null Safety with Multiple Bang Hazards (60-74%)";
+        else category = "High Null Reference Risk & Excessive Bang Suppression (<60%)";
+
+        string summary = FormatNullForgivingSummary(
+            addedLines, chainedBangs, memberBangs, indexerOrReturnBangs, totalBangs, score, category);
+
+        return new DiffNullForgivingAudit(
+            addedLines, chainedBangs, memberBangs, indexerOrReturnBangs, totalBangs,
+            score, items, category, summary);
+    }
+
+    public static string FormatNullForgivingSummary(
+        int addedLines, int chained, int member, int other, int totalBangs, double score, string category)
+    {
+        if (addedLines == 0)
+            return "Diff null safety audit: Clean baseline · 0 added lines evaluated";
+
+        var parts = new List<string>();
+        parts.Add($"{addedLines} added line{(addedLines == 1 ? "" : "s")}");
+        if (totalBangs == 0) parts.Add("✓ 0 bang operators");
+        else parts.Add($"{totalBangs} bang operator{(totalBangs == 1 ? "" : "s")}");
+        if (chained > 0) parts.Add($"🚨 {chained} chained bang");
+        if (member > 0) parts.Add($"⚠ {member} member dereference");
+        if (other > 0) parts.Add($"ℹ {other} value suppression");
+
+        string details = string.Join(" · ", parts);
+        return $"Diff null safety audit ({details} · {category} · {score:0.#}% hygiene score)";
+    }
 }
 
 
@@ -22826,3 +22952,24 @@ public sealed record DiffExceptionSwallowingAudit(
     IReadOnlyList<DiffExceptionSwallowingItem> Items,
     string Category,
     string Summary);
+
+
+public sealed record DiffNullForgivingItem(
+    int LineNumber,
+    string LineText,
+    string IssueType,
+    string Severity,
+    string Excerpt,
+    string Recommendation);
+
+public sealed record DiffNullForgivingAudit(
+    int AddedLinesCount,
+    int ChainedBangCount,
+    int MemberDereferenceBangCount,
+    int OtherSuppressionBangCount,
+    int TotalBangOperatorsCount,
+    double NullSafetyScore,
+    IReadOnlyList<DiffNullForgivingItem> Items,
+    string Category,
+    string Summary);
+

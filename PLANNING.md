@@ -13964,22 +13964,54 @@ Reviewed: Run #218 Blueprint — executed the 3-block cycle covering all 6 MarkS
 
 ---
 
-### Run #219 Blueprint - Carried-Forward Refinements & Next Cycle Targets
+### 2026-10-21 (scheduled routine run #219)
+
+Reviewed: Run #219 Blueprint — executed the 3-block cycle covering all 6 MarkSmith WinUI 3 surfaces with 100% full implementation, zero placeholders, empirical verification (0 errors, 7 passing unit tests), and desktop smoke launch verification.
+
+**Shipped** (commit follows this entry):
+- **Block 1**:
+  - **Surface 1 (MainWindow)**: Implemented `TextSearch.AuditMarkdownFormFields(markdownText)`, `FormatMarkdownFormFieldsSummary(...)`, `MarkdownFormFieldItem`, and `MarkdownFormFieldsAudit` in `TextSearch.cs`. Audits fillable form controls (`[dropdown: ...]`, `[date: ...]`, `[text: ...]`), detecting single-option dropdowns (<2 options), empty option pipes (`||`), non-ISO date formats, invalid calendar days, malformed text placeholders, and unclosed tags, scoring form field compliance ($0-100\%$). Wired to `ShowLintIssueContextMenu` in `MainWindow.xaml.cs` via `auditFormFieldsItem` (``).
+  - **Surface 2 (MindMapGalaxyWindow)**: Implemented `MindMapStudioViewModel.AuditGraphBranchSymmetry(selectionOnly)`, `FormatBranchSymmetrySummary(...)`, `GraphBranchSymmetryItem`, and `GraphBranchSymmetryAudit` in `MindMapStudioViewModel.cs`. Evaluates root node radiated trunk balance, measures subtree node counts and leaf densities per trunk branch, calculates coefficient of variation ($CV$), flags single-sided trees and overgrown branches, scoring branch symmetry ($0-100\%$). Wired to `ArrangeDropDownButton.Flyout` in `MindMapGalaxyWindow.xaml` and `MindMapGalaxyWindow.xaml.cs` via `AuditGraphBranchSymmetryItem` (``) and `OnAuditGraphBranchSymmetryClick`.
+- **Block 2**:
+  - **Surface 3 (ShapeDesignStudioWindow)**: Implemented `ShapeDesignStudioViewModel.AuditDiagramShadowConsistency(selectionOnly)`, `FormatShadowConsistencySummary(...)`, `DiagramShadowConsistencyItem`, and `DiagramShadowConsistencyAudit` in `ShapeDesignStudioViewModel.cs`. Evaluates drop shadow azimuth lighting angles (default 315°), blur radii, and opacity across artboard shapes, detecting opposing light angles ($> 120^\circ$) and conflicting light sources, scoring lighting consistency ($0-100\%$). Added shadow properties (`ShadowBlur`, `ShadowAngle`, `ShadowDistance`, `ShadowOpacity`, `HasShadow`) to `ShapeCanvasItemViewModel`. Wired to `SelectionBoundsBorder.ContextFlyout` in `ShapeDesignStudioWindow.xaml` and `ShapeDesignStudioWindow.xaml.cs` via `SelectionAuditDiagramShadowConsistencyItem` (``) and `OnSelectionAuditDiagramShadowConsistencyClick`.
+  - **Surface 4 (SmartArtDesignStudioWindow)**: Implemented `SmartArtDesignStudioViewModel.AuditMatrixQuadrantDistribution(markdown, layoutName)`, `FormatMatrixQuadrantSummary(...)`, `SmartArtMatrixQuadrantItem`, and `SmartArtMatrixQuadrantDistributionAudit` in `SmartArtDesignStudioViewModel.cs`. Verifies $2	imes 2$ grid distribution across SWOT/Matrix layouts, measures item counts per quadrant (Top-Left, Top-Right, Bottom-Left, Bottom-Right), detects missing quadrants, overflow items ($> 4$ quadrants), and diagonal weight skews, scoring matrix diagram harmony ($0-100\%$). Wired to `OutlineStatsFlyout` in `SmartArtDesignStudioWindow.xaml` and `SmartArtDesignStudioWindow.xaml.cs` via `OutlineStatsAuditMatrixQuadrantDistributionItem` (``) and `OnOutlineStatsAuditMatrixQuadrantDistributionClick`.
+- **Block 3**:
+  - **Surface 5 (HistoryWindow)**: Implemented `LineDiff.AuditNullForgivingHazards(unifiedRows)`, `FormatNullForgivingSummary(...)`, `DiffNullForgivingItem`, and `DiffNullForgivingAudit` in `LineDiff.cs`. Inspects diff additions for dangerous null-forgiving operators (`!`), chained bangs (`a!.b!.c!`), unchecked member dereferences, and return suppressions, scoring null safety hygiene ($0-100\%$). Wired to `DiffContextMenu` in `HistoryWindow.xaml.cs` via `auditNullForgivingItem` (``).
+  - **Surface 6 (SuiteHubView)**: Implemented `RecentFilesService.AuditWorkspaceDocumentTocConsistency(explicitFiles, ...)`, `FormatDocumentTocSummary(...)`, `WorkspaceTocConsistencyItem`, and `WorkspaceDocumentTocConsistencyAudit` in `RecentFilesService.cs`. Validates document Table of Contents blocks (`[TOC]` or manual heading lists) against actual `#` headings, detects phantom links to non-existent sections, missing headings, and skipped heading levels, scoring TOC alignment ($0-100\%$). Wired to `RecentDocsFlyout` in `SuiteHubView.xaml` and `SuiteHubView.xaml.cs` via `AuditWorkspaceDocumentTocConsistencyItem` (``) and `OnAuditWorkspaceDocumentTocConsistencyClick`.
+- **Execution Phase Refinements**:
+  - Implemented 7 comprehensive unit tests in `MarkSmith.Tests`:
+    - `TextSearchTests.Run219_AuditMarkdownFormFields_ValidatesDropdownOptionsAndDateFormats`
+    - `MindMapGalaxyPolishTests.Run219_AuditGraphBranchSymmetry_DetectsSingleSidedAndSkewedTrunks`
+    - `ShapeStudioPolishTests.Run219_AuditDiagramShadowConsistency_DetectsOpposingAndConflictingAngles`
+    - `SmartArtStudioPolishTests.Run219_AuditMatrixQuadrantDistribution_Validates2x2GridAndDiagonalBalance`
+    - `HistoryPolishTests.Run219_AuditNullForgivingHazards_DetectsChainedAndMemberAccessBangs`
+    - `SuiteHubAndTourPolishTests.Run219_AuditWorkspaceDocumentTocConsistency_DetectsPhantomLinksAndMissingHeadings`
+    - `SuiteHubAndTourPolishTests.Run219_AllSixSurfacesXamlAndCodeBehindWiring`
+
+**Verified:**
+- `dotnet build` (`marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj` - Debug/x64): 0 errors, 23 warnings.
+- `dotnet build` (`marksmith-v2/MarkSmith.Tests/MarkSmith.Tests.csproj` - Debug): 0 errors, 102 warnings.
+- `dotnet test` (Run219 filter): 7/7 tests passed (100% pass rate in 324 ms).
+- Smoke-launched `Marksmith.exe` (PID=18280, running cleanly for 4 seconds, gracefully terminated with zero crashes).
+
+---
+
+### Run #220 Blueprint — Carried-Forward Refinements & Next Cycle Targets
 1. **MainWindow (`MainWindow.xaml.cs`, `TextSearch.cs`)**:
-   - **Feature**: Markdown Definition List Syntax & Colon Alignment Auditor.
-   - **Deliverable**: Add `TextSearch.AuditMarkdownDefinitionLists(markdownText)` and `FormatMarkdownDefinitionListsSummary(...)`, validating definition lists (`Term\n: Definition`), unindented definition continuations, missing term anchors, and scoring definition list syntax compliance ($0-100\%$). Wire to `ShowLintIssueContextMenu`.
+   - **Feature**: Markdown CriticMarkup Revision Syntax & Annotation Auditor.
+   - **Deliverable**: Add `TextSearch.AuditMarkdownCriticMarkup(markdownText)` and `FormatMarkdownCriticMarkupSummary(...)`, validating CriticMarkup syntax (`{++addition++}`, `{--deletion--}`, `{~~substitution~>replacement~~}`, `{==highlight==}`, `{>>comment<<}`), unclosed markup delimiters, malformed substitution arrows, and scoring editorial revision syntax integrity ($0-100\%$). Wire to `ShowLintIssueContextMenu`.
 2. **MindMapGalaxyWindow (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
-   - **Feature**: Graph Leaf Node Density & Branch Symmetry Balance Auditor.
-   - **Deliverable**: Add `MindMapStudioViewModel.AuditGraphBranchSymmetry(selectionOnly)` and `FormatBranchSymmetrySummary(...)`, evaluating subtree leaf distribution balance across major branch trunks, identifying heavily asymmetric trees, and scoring graph structural balance ($0-100\%$). Wire to `ArrangeDropDownButton.Flyout`.
+   - **Feature**: Mind Map Link Arrowhead Flow Direction & Cycle Auditor.
+   - **Deliverable**: Add `MindMapStudioViewModel.AuditGraphLinkDirectionality(selectionOnly)` and `FormatLinkDirectionalitySummary(...)`, analyzing directed edges for accidental cycle feedback loops, conflicting bidirectional relationships, orphaned back-edges, and scoring flowchart causality clarity ($0-100\%$). Wire to `ArrangeDropDownButton.Flyout`.
 3. **ShapeDesignStudioWindow (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**:
-   - **Feature**: Diagram Drop Shadow Directional Angle & Blur Consistency Auditor.
-   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditDiagramShadowConsistency(selectionOnly)` and `FormatShadowConsistencySummary(...)`, inspecting shape shadow azimuth light angles, blur radii, and opacity across all artboard shapes, detecting conflicting light sources, and scoring lighting realism consistency ($0-100\%$). Wire to `SelectionBoundsBorder.ContextFlyout`.
+   - **Feature**: Diagram Connector Arrowhead Stacking & Terminal Snapping Auditor.
+   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditConnectorTerminalSnapping(selectionOnly)` and `FormatTerminalSnappingSummary(...)`, verifying that connector start/end points cleanly touch shape perimeter anchor points rather than floating in empty canvas space or penetrating shape interiors, scoring connector attachment accuracy ($0-100\%$). Wire to `SelectionBoundsBorder.ContextFlyout`.
 4. **SmartArtDesignStudioWindow (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
-   - **Feature**: SmartArt Matrix Quadrant Item Distribution & Diagonal Balance Auditor.
-   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditMatrixQuadrantDistribution(markdown, layoutName)` and `FormatMatrixQuadrantSummary(...)`, verifying $2 \times 2$ grid balance across SWOT/Matrix layouts, flagging empty quadrants or diagonal weight skews, and scoring matrix diagram harmony ($0-100\%$). Wire to `OutlineStatsFlyout`.
-5. **HistoryWindow (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #218 Block 3 Idea 5]**:
-   - **Refinement Target**: Semantic Diff Missing Null Checks & Null-Forgiving Operator Hazard Auditor.
-   - **Deliverable**: Add `LineDiff.AuditNullForgivingHazards(unifiedRows)` and `FormatNullForgivingSummary(...)`, analyzing added code lines for excessive use of null-forgiving bang operators (`!`), dereferencing variables without null safety checks (`?.` or `!= null`), and scoring null safety hygiene ($0-100\%$). Wire to `DiffContextMenu`.
-6. **SuiteHubView (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #218 Block 3 Idea 6]**:
-   - **Refinement Target**: Workspace Document Table of Contents (TOC) Depth & Anchor Consistency Auditor.
-   - **Deliverable**: Add `RecentFilesService.AuditWorkspaceDocumentTocConsistency(explicitFiles, ...)` and `FormatDocumentTocSummary(...)`, validating embedded markdown `[TOC]` or manual table-of-contents lists against actual document heading structures, detecting missing headings or depth skew, and scoring TOC alignment ($0-100\%$). Wire to `RecentDocsFlyout`.
+   - **Feature**: SmartArt Hierarchy Tree Node Width & Text Overflow Auditor.
+   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditHierarchyTextOverflow(markdown, layoutName)` and `FormatHierarchyTextOverflowSummary(...)`, estimating rendered node card text capacity across organizational chart / hierarchy layouts, flagging text clipping or extreme vertical expansion, and scoring hierarchy readability ($0-100\%$). Wire to `OutlineStatsFlyout`.
+5. **HistoryWindow (`HistoryWindow.xaml.cs`, `LineDiff.cs`)**:
+   - **Feature**: Diff Async/Await Task Completion & Unobserved Fire-and-Forget Hazard Auditor.
+   - **Deliverable**: Add `LineDiff.AuditAsyncFireAndForgetHazards(unifiedRows)` and `FormatAsyncFireAndForgetSummary(...)`, analyzing added code lines for unawaited async methods (`Task.Run` without await, discarded `_ = AsyncMethod()`, async void event handlers outside UI dispatchers), and scoring asynchronous safety ($0-100\%$). Wire to `DiffContextMenu`.
+6. **SuiteHubView (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`)**:
+   - **Feature**: Workspace Code Block Language Tag Standardization Auditor.
+   - **Deliverable**: Add `RecentFilesService.AuditWorkspaceCodeBlockLanguages(explicitFiles, ...)` and `FormatCodeBlockLanguagesSummary(...)`, analyzing fenced code blocks across repository markdown files for inconsistent language aliases (e.g. `csharp` vs `cs`, `javascript` vs `js`, `sh` vs `bash`, untyped bare fences), and scoring syntax highlighting standardization ($0-100\%$). Wire to `RecentDocsFlyout`.

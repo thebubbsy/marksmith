@@ -4028,6 +4028,18 @@ var auditResourceDisposalLeaksItem = new MenuFlyoutItem
                     _vm.ShowNotice($"\u2713 {audit.Summary}");
                 };
                 menu.Items.Add(auditExceptionSwallowingItem);
+                var auditNullForgivingItem = new MenuFlyoutItem
+                {
+                    Text = "Audit Diff Null-Forgiving Bang Operators & Suppression Hazards (!)",
+                    Icon = new FontIcon { Glyph = "\uE8B9" }
+                };
+                auditNullForgivingItem.Click += (_, _) =>
+                {
+                    var audit = MarkSmith.Services.LineDiff.AuditNullForgivingHazards(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+                    _vm.ShowNotice($"\u2713 {audit.Summary}");
+                };
+                menu.Items.Add(auditNullForgivingItem);
 
 
 

@@ -13273,6 +13273,172 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         return $"SmartArt radial cycle audit ({details} · {category} · {score:0.#}% symmetry score)";
     }
 
+
+    public SmartArtMatrixQuadrantDistributionAudit AuditMatrixQuadrantDistribution(string? markdown = null, string? layoutName = null)
+    {
+        string md = markdown ?? MarkdownText;
+        string layout = layoutName ?? SelectedLayout?.DisplayName ?? "Grid Matrix";
+        return AuditMatrixQuadrantDistribution(md, layout, isStatic: false);
+    }
+
+    public static SmartArtMatrixQuadrantDistributionAudit AuditMatrixQuadrantDistribution(
+        string? markdown,
+        string? layoutName = null,
+        bool isStatic = true)
+    {
+        string layout = layoutName ?? "Grid Matrix";
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            string emptySummary = FormatMatrixQuadrantSummary(0, 0, 0, 0, 0, 0, 100.0, "Clean Baseline · Balanced Matrix", layout);
+            return new SmartArtMatrixQuadrantDistributionAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<SmartArtMatrixQuadrantItem>(), "Clean Baseline · Balanced Matrix", layout, emptySummary);
+        }
+
+        var lines = markdown.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        var items = new List<SmartArtMatrixQuadrantItem>();
+
+        // Parse root items (indent level 0) and children
+        var quadrantRoots = new List<string>();
+        var quadrantItemsCount = new List<int>();
+
+        int curQuadIndex = -1;
+        int curQuadChildCount = 0;
+
+        foreach (var line in lines)
+        {
+            string trimmed = line.Trim();
+            if (string.IsNullOrEmpty(trimmed) || trimmed.StartsWith("```") || trimmed.StartsWith(":::") || trimmed.StartsWith("#"))
+                continue;
+
+            int indent = line.TakeWhile(c => c == ' ' || c == '\t').Count();
+            bool isBullet = trimmed.StartsWith("- ") || trimmed.StartsWith("* ") || trimmed.StartsWith("+ ");
+            string content = isBullet ? trimmed[2..].Trim() : trimmed;
+
+            if (indent == 0 || curQuadIndex == -1)
+            {
+                if (curQuadIndex >= 0)
+                {
+                    quadrantItemsCount.Add(1 + curQuadChildCount);
+                }
+                curQuadIndex++;
+                curQuadChildCount = 0;
+                quadrantRoots.Add(content);
+            }
+            else
+            {
+                curQuadChildCount++;
+            }
+        }
+
+        if (curQuadIndex >= 0)
+        {
+            quadrantItemsCount.Add(1 + curQuadChildCount);
+        }
+
+        int totalQuadrants = quadrantRoots.Count;
+        int activeQuadrants = Math.Min(4, totalQuadrants);
+        int emptyQuadrants = Math.Max(0, 4 - totalQuadrants);
+        int overflowQuadrants = Math.Max(0, totalQuadrants - 4);
+
+        int q1 = quadrantItemsCount.Count > 0 ? quadrantItemsCount[0] : 0;
+        int q2 = quadrantItemsCount.Count > 1 ? quadrantItemsCount[1] : 0;
+        int q3 = quadrantItemsCount.Count > 2 ? quadrantItemsCount[2] : 0;
+        int q4 = quadrantItemsCount.Count > 3 ? quadrantItemsCount[3] : 0;
+
+        int totalItems = q1 + q2 + q3 + q4;
+
+        int diagonalSkew = Math.Abs((q1 + q4) - (q2 + q3));
+
+        string[] quadNames = new[] { "Top-Left (Q1)", "Top-Right (Q2)", "Bottom-Left (Q3)", "Bottom-Right (Q4)" };
+
+        for (int i = 0; i < activeQuadrants; i++)
+        {
+            int count = quadrantItemsCount[i];
+            string name = quadNames[i];
+            string title = quadrantRoots[i];
+
+            if (count == 1)
+            {
+                items.Add(new SmartArtMatrixQuadrantItem(
+                    i + 1,
+                    name,
+                    title,
+                    count,
+                    "MinimalQuadrantContent",
+                    "Low",
+                    $"Quadrant '{name}' contains only heading '{title}' with no subordinate detail bullets",
+                    "Add 1-3 bullet points to provide substance."));
+            }
+        }
+
+        if (emptyQuadrants > 0)
+        {
+            for (int i = activeQuadrants; i < 4; i++)
+            {
+                string name = quadNames[i];
+                items.Add(new SmartArtMatrixQuadrantItem(
+                    i + 1,
+                    name,
+                    "(Empty)",
+                    0,
+                    "MissingQuadrant",
+                    "High",
+                    $"Matrix layout expects 4 quadrants; '{name}' is missing",
+                    "Add root bullet item to populate all 4 quadrants of the 2x2 grid."));
+            }
+        }
+
+        if (overflowQuadrants > 0)
+        {
+            for (int i = 4; i < totalQuadrants; i++)
+            {
+                string title = quadrantRoots[i];
+                items.Add(new SmartArtMatrixQuadrantItem(
+                    i + 1,
+                    $"Overflow Root {i + 1}",
+                    title,
+                    quadrantItemsCount[i],
+                    "OverflowQuadrantClipped",
+                    "Medium",
+                    $"Item '{title}' exceeds 2x2 grid capacity (max 4 quadrants)",
+                    "Subsume under an existing quadrant or switch to a multi-item List/Grid layout."));
+            }
+        }
+
+        double penalty = (emptyQuadrants * 15.0) + (overflowQuadrants * 12.0) + (diagonalSkew > 3 ? 15.0 : diagonalSkew * 3.0);
+        double score = Math.Clamp(100.0 - penalty, 0.0, 100.0);
+
+        string category;
+        if (score >= 90.0) category = "Optimal 2x2 Quadrant Distribution & Diagonal Balance (90-100%)";
+        else if (score >= 75.0) category = "Balanced Matrix with Minor Quadrant Variance (75-89%)";
+        else if (score >= 60.0) category = "Noticeable Quadrant Imbalance & Skewed Distribution (60-74%)";
+        else category = "Severe Matrix Asymmetry & Missing Quadrants (<60%)";
+
+        string summary = FormatMatrixQuadrantSummary(
+            totalQuadrants, activeQuadrants, emptyQuadrants, overflowQuadrants, totalItems, diagonalSkew, score, category, layout);
+
+        return new SmartArtMatrixQuadrantDistributionAudit(
+            totalQuadrants, activeQuadrants, emptyQuadrants, overflowQuadrants, totalItems, diagonalSkew,
+            score, items, category, layout, summary);
+    }
+
+    public static string FormatMatrixQuadrantSummary(
+        int totalQuadrants, int active, int empty, int overflow, int totalItems, int diagonalSkew, double score, string category, string layout)
+    {
+        if (totalQuadrants == 0)
+            return $"SmartArt matrix audit ({layout} · Clean diagram · 0 items)";
+
+        var parts = new List<string>();
+        parts.Add($"{active}/4 quadrants active");
+        parts.Add($"{totalItems} total items");
+        if (diagonalSkew > 0) parts.Add($"diagonal skew {diagonalSkew}");
+        if (empty > 0) parts.Add($"🚨 {empty} missing quadrant{(empty == 1 ? "" : "s")}");
+        if (overflow > 0) parts.Add($"⚠ {overflow} overflow item{(overflow == 1 ? "" : "s")}");
+
+        string details = string.Join(" · ", parts);
+        return $"SmartArt matrix audit ({layout} · {details} · {category} · {score:0.#}% balance score)";
+    }
 }
 
 
@@ -15000,3 +15166,28 @@ public sealed record SmartArtSegmentedCycleAudit(
     IReadOnlyList<SmartArtSegmentedCycleItem> Items,
     string Category,
     string Summary);
+
+
+public sealed record SmartArtMatrixQuadrantItem(
+    int QuadrantNumber,
+    string QuadrantName,
+    string Heading,
+    int ItemCount,
+    string IssueType,
+    string Severity,
+    string Excerpt,
+    string Recommendation);
+
+public sealed record SmartArtMatrixQuadrantDistributionAudit(
+    int TotalQuadrantsDefined,
+    int ActiveQuadrantsCount,
+    int EmptyQuadrantsCount,
+    int OverflowQuadrantsCount,
+    int TotalContentItems,
+    int DiagonalSkewCount,
+    double QuadrantBalanceScore,
+    IReadOnlyList<SmartArtMatrixQuadrantItem> Items,
+    string Category,
+    string LayoutName,
+    string Summary);
+

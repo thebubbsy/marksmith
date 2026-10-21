@@ -15490,7 +15490,178 @@ namespace MarkSmith.ViewModels.MindMap
             return $"Graph orthogonal grid audit ({scope}{details} · {category} · {score:0.#}% alignment score)";
         }
 
-    }
+    
+        public GraphBranchSymmetryAudit AuditGraphBranchSymmetry(bool selectionOnly = false)
+        {
+            var selected = Nodes.Where(n => n.IsSelected).ToList();
+            var targetNodes = (selectionOnly && selected.Count > 0) ? selected : Nodes.ToList();
+            bool isSelection = selectionOnly && selected.Count > 0;
+            var audit = AuditGraphBranchSymmetry(targetNodes.Select(n => n.Model), Document.Links, isSelection);
+            StatusMessage = audit.Summary;
+            return audit;
+        }
+
+        public static GraphBranchSymmetryAudit AuditGraphBranchSymmetry(
+            IEnumerable<MindMapNode>? nodes,
+            IEnumerable<MindMapLink>? links = null,
+            bool isSelection = false)
+        {
+            var nodeList = nodes?.ToList() ?? new List<MindMapNode>();
+            int totalNodes = nodeList.Count;
+            if (totalNodes <= 2)
+            {
+                string emptySummary = FormatBranchSymmetrySummary(totalNodes, totalNodes > 0 ? 1 : 0, 0, 0, 0.0, 100.0, "Clean Baseline · Symmetrical Branch Balance", isSelection);
+                return new GraphBranchSymmetryAudit(
+                    totalNodes, totalNodes > 0 ? 1 : 0, 0, 0, 0.0, 100.0,
+                    Array.Empty<GraphBranchSymmetryItem>(), "Clean Baseline · Symmetrical Branch Balance", isSelection, emptySummary);
+            }
+
+            var linkList = links?.ToList() ?? new List<MindMapLink>();
+            var nodeMap = nodeList.ToDictionary(n => n.Id, n => n);
+            var validLinks = linkList.Where(l => nodeMap.ContainsKey(l.SourceNodeId) && nodeMap.ContainsKey(l.TargetNodeId)).ToList();
+
+            // Calculate in-degree to locate candidate root(s)
+            var inDegree = nodeList.ToDictionary(n => n.Id, _ => 0);
+            var outLinks = nodeList.ToDictionary(n => n.Id, _ => new List<string>());
+
+            foreach (var link in validLinks)
+            {
+                inDegree[link.TargetNodeId]++;
+                outLinks[link.SourceNodeId].Add(link.TargetNodeId);
+            }
+
+            // Root is node with minimum in-degree (ideally 0)
+            var root = nodeList.OrderBy(n => inDegree[n.Id]).ThenBy(n => Math.Abs(n.X) + Math.Abs(n.Y)).First();
+
+            // Direct children of root are primary trunks
+            var trunks = outLinks[root.Id];
+            int trunkCount = trunks.Count;
+
+            var items = new List<GraphBranchSymmetryItem>();
+            var trunkSizes = new List<int>();
+            var trunkLeaves = new List<int>();
+
+            int singleSidedWarnings = 0;
+            int heavySkewCount = 0;
+
+            if (trunkCount <= 1)
+            {
+                singleSidedWarnings = 1;
+                items.Add(new GraphBranchSymmetryItem(
+                    root.Id,
+                    root.Title,
+                    trunkCount,
+                    totalNodes - 1,
+                    0,
+                    "SingleSidedBranch",
+                    "High",
+                    $"Root node '{root.Title}' has {trunkCount} primary branch trunk containing {totalNodes - 1} subordinate nodes",
+                    "Add radiating branches in opposite directions to balance cognitive load."));
+                trunkSizes.Add(totalNodes - 1);
+                trunkLeaves.Add(Math.Max(1, totalNodes - 1));
+            }
+            else
+            {
+                foreach (var trunkId in trunks)
+                {
+                    if (!nodeMap.TryGetValue(trunkId, out var trunkNode)) continue;
+
+                    // BFS to measure subtree size and leaves
+                    var visited = new HashSet<string> { root.Id, trunkId };
+                    var queue = new Queue<string>();
+                    queue.Enqueue(trunkId);
+
+                    int subtreeCount = 0;
+                    int leafCount = 0;
+
+                    while (queue.Count > 0)
+                    {
+                        var curId = queue.Dequeue();
+                        subtreeCount++;
+
+                        var children = outLinks.TryGetValue(curId, out var ch) ? ch.Where(c => !visited.Contains(c)).ToList() : new List<string>();
+                        if (children.Count == 0)
+                        {
+                            leafCount++;
+                        }
+                        else
+                        {
+                            foreach (var c in children)
+                            {
+                                visited.Add(c);
+                                queue.Enqueue(c);
+                            }
+                        }
+                    }
+
+                    trunkSizes.Add(subtreeCount);
+                    trunkLeaves.Add(leafCount);
+                }
+
+                double avgSize = trunkSizes.Average();
+
+                for (int i = 0; i < trunks.Count; i++)
+                {
+                    var trunkId = trunks[i];
+                    if (!nodeMap.TryGetValue(trunkId, out var trunkNode)) continue;
+                    int size = trunkSizes[i];
+                    int leaves = trunkLeaves[i];
+
+                    if (avgSize > 2 && Math.Abs(size - avgSize) > avgSize * 0.7)
+                    {
+                        heavySkewCount++;
+                        items.Add(new GraphBranchSymmetryItem(
+                            trunkNode.Id,
+                            trunkNode.Title,
+                            1,
+                            size,
+                            leaves,
+                            size > avgSize ? "OvergrownBranch" : "UnderdevelopedBranch",
+                            "Medium",
+                            $"Branch '{trunkNode.Title}' contains {size} nodes ({leaves} leaves) vs trunk average {avgSize:0.#}",
+                            size > avgSize ? "Split into sub-topics or reassign peripheral nodes." : "Flesh out missing sub-nodes or merge into sibling branch."));
+                    }
+                }
+            }
+
+            double meanSize = trunkSizes.Count > 0 ? trunkSizes.Average() : 0.0;
+            double varSize = trunkSizes.Count > 0 ? trunkSizes.Select(s => Math.Pow(s - meanSize, 2)).Average() : 0.0;
+            double coeffVar = meanSize > 0 ? Math.Sqrt(varSize) / meanSize : 0.0;
+
+            double penalty = (singleSidedWarnings * 30.0) + (coeffVar * 35.0) + (heavySkewCount * 10.0);
+            double score = Math.Clamp(100.0 - penalty, 0.0, 100.0);
+
+            string category;
+            if (score >= 90.0) category = "Optimal Branch Symmetry & Harmonious Leaf Density (90-100%)";
+            else if (score >= 75.0) category = "Balanced Mind Map with Minor Subtree Variance (75-89%)";
+            else if (score >= 60.0) category = "Noticeable Branch Asymmetry (60-74%)";
+            else category = "Severe Structural Skew & Asymmetric Foliage (<60%)";
+
+            string summary = FormatBranchSymmetrySummary(
+                totalNodes, trunkCount, singleSidedWarnings, heavySkewCount, coeffVar, score, category, isSelection);
+
+            return new GraphBranchSymmetryAudit(
+                totalNodes, trunkCount, singleSidedWarnings, heavySkewCount, coeffVar, score, items, category, isSelection, summary);
+        }
+
+        public static string FormatBranchSymmetrySummary(
+            int totalNodes, int trunkCount, int singleSided, int heavySkew, double coeffVar, double score, string category, bool isSelection = false)
+        {
+            string scope = isSelection ? "Selection · " : "";
+            if (totalNodes <= 2)
+                return $"Graph branch symmetry audit ({scope}Clean graph · {totalNodes} nodes evaluated)";
+
+            var parts = new List<string>();
+            parts.Add($"{totalNodes} nodes");
+            parts.Add($"{trunkCount} trunk{(trunkCount == 1 ? "" : "s")}");
+            parts.Add($"CV {coeffVar:0.00}");
+            if (singleSided > 0) parts.Add($"🚨 single-sided skew");
+            if (heavySkew > 0) parts.Add($"⚠ {heavySkew} asymmetric branch{(heavySkew == 1 ? "" : "es")}");
+
+            string details = string.Join(" · ", parts);
+            return $"Graph branch symmetry audit ({scope}{details} · {category} · {score:0.#}% symmetry score)";
+        }
+}
 
 
 
@@ -17275,3 +17446,28 @@ public sealed record GraphOrthogonalGridAlignmentAudit(
     string Category,
     bool IsSelectionScope,
     string Summary);
+
+
+public sealed record GraphBranchSymmetryItem(
+    string NodeId,
+    string Title,
+    int SubtreeDepth,
+    int SubtreeNodeCount,
+    int LeafCount,
+    string IssueType,
+    string Severity,
+    string Excerpt,
+    string Recommendation);
+
+public sealed record GraphBranchSymmetryAudit(
+    int TotalNodesEvaluated,
+    int PrimaryTrunkCount,
+    int SingleSidedSkewCount,
+    int AsymmetricBranchCount,
+    double CoefficientOfVariation,
+    double SymmetryScore,
+    IReadOnlyList<GraphBranchSymmetryItem> Items,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);
+

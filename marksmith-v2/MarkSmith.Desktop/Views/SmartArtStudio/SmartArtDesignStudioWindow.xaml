@@ -489,6 +489,9 @@
                                     <MenuFlyoutItem x:Name="OutlineStatsAuditSegmentedCycleAngleSlicingItem" Text="Audit SmartArt Segmented Radial Cycle Angle Slicing &amp; Chord Symmetry" Click="OnOutlineStatsAuditSegmentedCycleAngleSlicingClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="OutlineStatsAuditMatrixQuadrantDistributionItem" Text="Audit SmartArt 2x2 Matrix Quadrant Distribution &amp; Diagonal Balance" Click="OnOutlineStatsAuditMatrixQuadrantDistributionClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem x:Name="OutlineStatsAuditPyramidFunnelHierarchyInversionItem" Text="Audit Pyramid / Funnel Inverted Geometry &amp; Hierarchy Inversion" Click="OnOutlineStatsAuditPyramidFunnelHierarchyInversionClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

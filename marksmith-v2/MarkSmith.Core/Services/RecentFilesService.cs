@@ -12685,6 +12685,182 @@ public sealed class RecentFilesService
         return $"Workspace anchor slug audit ({details} · {category} · {score:0.#}% integrity score)";
     }
 
+
+    public static WorkspaceDocumentTocConsistencyAudit AuditWorkspaceDocumentTocConsistency(
+        IEnumerable<string>? explicitFiles = null,
+        Func<string, string>? contentReader = null)
+    {
+        var files = (explicitFiles ?? Array.Empty<string>())
+            .Where(f => !string.IsNullOrWhiteSpace(f))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var readContent = contentReader ?? (p =>
+        {
+            try { return File.Exists(p) ? File.ReadAllText(p) : string.Empty; }
+            catch { return string.Empty; }
+        });
+
+        int totalDocs = files.Count;
+        if (totalDocs == 0)
+        {
+            string emptySummary = FormatDocumentTocSummary(0, 0, 0, 0, 0, 100.0, "Clean Baseline · Cohesive TOC Navigation");
+            return new WorkspaceDocumentTocConsistencyAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<WorkspaceTocConsistencyItem>(), "Clean Baseline · Cohesive TOC Navigation", emptySummary);
+        }
+
+        var items = new List<WorkspaceTocConsistencyItem>();
+        int docsWithToc = 0;
+        int missingHeadingsInToc = 0;
+        int phantomTocLinks = 0;
+        int skippedTocLevels = 0;
+
+        var headingRegex = new System.Text.RegularExpressions.Regex(@"^(#{1,6})\s+(.+)$", System.Text.RegularExpressions.RegexOptions.Compiled);
+        var tocLinkRegex = new System.Text.RegularExpressions.Regex(@"\[(?<title>[^\]]+)\]\(#(?<slug>[a-z0-9\-_]+)\)", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        foreach (var file in files)
+        {
+            string content = readContent(file);
+            if (string.IsNullOrWhiteSpace(content)) continue;
+
+            var lines = content.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+
+            var headings = new List<(int Line, int Level, string Title, string Slug)>();
+            int tocStartLine = -1;
+            int tocEndLine = -1;
+            var tocLinks = new List<(int Line, string Title, string Slug)>();
+
+            bool inFence = false;
+
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string line = lines[i];
+                string trimmed = line.Trim();
+
+                if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+                {
+                    inFence = !inFence;
+                    continue;
+                }
+                if (inFence) continue;
+
+                var hMatch = headingRegex.Match(trimmed);
+                if (hMatch.Success)
+                {
+                    int level = hMatch.Groups[1].Value.Length;
+                    string title = hMatch.Groups[2].Value.Trim();
+                    string slug = System.Text.RegularExpressions.Regex.Replace(title.ToLowerInvariant(), @"[^a-z0-9\-_]+", "-").Trim('-');
+
+                    headings.Add((i + 1, level, title, slug));
+
+                    if (title.Equals("Table of Contents", StringComparison.OrdinalIgnoreCase) ||
+                        title.Equals("Contents", StringComparison.OrdinalIgnoreCase) ||
+                        title.Equals("TOC", StringComparison.OrdinalIgnoreCase))
+                    {
+                        tocStartLine = i + 1;
+                        tocEndLine = i + 1;
+                    }
+                }
+                else if (trimmed.Equals("[TOC]", StringComparison.OrdinalIgnoreCase) || trimmed.Equals("[[_TOC_]]", StringComparison.OrdinalIgnoreCase))
+                {
+                    tocStartLine = i + 1;
+                    tocEndLine = i + 1;
+                }
+                else if (tocStartLine > 0 && tocEndLine == i)
+                {
+                    if (trimmed.StartsWith("- ") || trimmed.StartsWith("* ") || trimmed.StartsWith("1. ") || string.IsNullOrWhiteSpace(trimmed))
+                    {
+                        tocEndLine = i + 1;
+                        var lMatches = tocLinkRegex.Matches(trimmed);
+                        foreach (System.Text.RegularExpressions.Match lm in lMatches)
+                        {
+                            tocLinks.Add((i + 1, lm.Groups["title"].Value, lm.Groups["slug"].Value));
+                        }
+                    }
+                }
+            }
+
+            if (tocStartLine > 0 && tocLinks.Count > 0)
+            {
+                docsWithToc++;
+
+                var headingSlugs = headings
+                    .Where(h => h.Line > tocEndLine)
+                    .Select(h => h.Slug)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                var tocSlugSet = tocLinks.Select(t => t.Slug).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                foreach (var tl in tocLinks)
+                {
+                    if (!headingSlugs.Contains(tl.Slug) && !headings.Any(h => h.Slug.Equals(tl.Slug, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        phantomTocLinks++;
+                        items.Add(new WorkspaceTocConsistencyItem(
+                            file,
+                            tl.Line,
+                            tl.Title,
+                            tl.Slug,
+                            "PhantomTocLink",
+                            "High",
+                            $"TOC links to '#{tl.Slug}', but no matching heading exists in document",
+                            "Update TOC target to point to an existing heading anchor."));
+                    }
+                }
+
+                foreach (var h in headings.Where(h => h.Line > tocEndLine && h.Level <= 3))
+                {
+                    if (!tocSlugSet.Contains(h.Slug))
+                    {
+                        missingHeadingsInToc++;
+                        items.Add(new WorkspaceTocConsistencyItem(
+                            file,
+                            h.Line,
+                            h.Title,
+                            h.Slug,
+                            "MissingHeadingInToc",
+                            "Medium",
+                            $"Heading '{h.Title}' (H{h.Level}) is omitted from the Table of Contents",
+                            "Add anchor link for this heading to the TOC block."));
+                    }
+                }
+            }
+        }
+
+        double penalty = (phantomTocLinks * 20.0) + (missingHeadingsInToc * 8.0) + (skippedTocLevels * 5.0);
+        double score = Math.Clamp(100.0 - penalty, 0.0, 100.0);
+
+        string category;
+        if (score >= 90.0) category = "Optimal TOC Structure & Verified Heading Alignment (90-100%)";
+        else if (score >= 75.0) category = "Consistent TOC with Minor Heading Discrepancies (75-89%)";
+        else if (score >= 60.0) category = "Fragmented TOC Navigation with Broken Anchor Targets (60-74%)";
+        else category = "Severely Broken TOC Alignment & Phantom Anchors (<60%)";
+
+        string summary = FormatDocumentTocSummary(
+            totalDocs, docsWithToc, missingHeadingsInToc, phantomTocLinks, skippedTocLevels, score, category);
+
+        return new WorkspaceDocumentTocConsistencyAudit(
+            totalDocs, docsWithToc, missingHeadingsInToc, phantomTocLinks, skippedTocLevels,
+            score, items, category, summary);
+    }
+
+    public static string FormatDocumentTocSummary(
+        int totalDocs, int withToc, int missingHeadings, int phantomLinks, int skippedLevels, double score, string category)
+    {
+        if (totalDocs == 0)
+            return "Workspace TOC consistency audit: Clean baseline · 0 documents evaluated";
+
+        var parts = new List<string>();
+        parts.Add($"{totalDocs} doc{(totalDocs == 1 ? "" : "s")}");
+        parts.Add($"{withToc} with TOC");
+        if (phantomLinks > 0) parts.Add($"🚨 {phantomLinks} phantom link{(phantomLinks == 1 ? "" : "s")}");
+        if (missingHeadings > 0) parts.Add($"⚠ {missingHeadings} missing heading{(missingHeadings == 1 ? "" : "s")}");
+        if (skippedLevels > 0) parts.Add($"ℹ {skippedLevels} skipped level{(skippedLevels == 1 ? "" : "s")}");
+
+        string details = string.Join(" · ", parts);
+        return $"Workspace TOC consistency audit ({details} · {category} · {score:0.#}% alignment score)";
+    }
 }
 
 
@@ -14367,3 +14543,26 @@ public sealed record WorkspaceDocumentAnchorSlugsAudit(
     IReadOnlyList<WorkspaceAnchorSlugItem> Items,
     string Category,
     string Summary);
+
+
+public sealed record WorkspaceTocConsistencyItem(
+    string FilePath,
+    int LineNumber,
+    string HeadingTitle,
+    string AnchorSlug,
+    string IssueType,
+    string Severity,
+    string Excerpt,
+    string Recommendation);
+
+public sealed record WorkspaceDocumentTocConsistencyAudit(
+    int TotalDocumentsEvaluated,
+    int DocumentsWithTocCount,
+    int MissingHeadingsInTocCount,
+    int PhantomTocLinksCount,
+    int SkippedTocLevelsCount,
+    double TocAlignmentScore,
+    IReadOnlyList<WorkspaceTocConsistencyItem> Items,
+    string Category,
+    string Summary);
+

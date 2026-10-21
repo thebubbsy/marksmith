@@ -15901,6 +15901,211 @@ public static class TextSearch
         return $"Markdown task list priority audit ({details} · {category} · {score:0.#}% compliance score)";
     }
 
+    public static MarkdownFormFieldsAudit AuditMarkdownFormFields(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            string emptySummary = FormatMarkdownFormFieldsSummary(0, 0, 0, 0, 0, 0, 0, 100.0, "Clean Baseline · No Form Controls");
+            return new MarkdownFormFieldsAudit(
+                0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<MarkdownFormFieldItem>(),
+                "Clean Baseline · No Form Controls", emptySummary);
+        }
+
+        var lines = markdownText.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        var items = new List<MarkdownFormFieldItem>();
+
+        int totalFields = 0;
+        int validDropdowns = 0;
+        int validDates = 0;
+        int validTexts = 0;
+        int singleOptionDropdowns = 0;
+        int malformedDates = 0;
+        int malformedPlaceholders = 0;
+
+        bool inCodeBlock = false;
+
+        var dropdownRegex = new System.Text.RegularExpressions.Regex(@"\[dropdown:\s*(?<options>[^\]]+)\]", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
+        var dateRegex = new System.Text.RegularExpressions.Regex(@"\[date(?::\s*(?<date>[^\]]+))?\]", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
+        var textRegex = new System.Text.RegularExpressions.Regex(@"\[text(?::\s*(?:[""“](?<ph>(?:[^""”\\]|\\.)*?)[""”]|(?<ph>[^\]]*)))?\]", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
+        var unclosedRegex = new System.Text.RegularExpressions.Regex(@"\[(?:dropdown|date|text):[^\n\]]*$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            int lineNum = i + 1;
+            string line = lines[i];
+            string trimmed = line.Trim();
+
+            if (trimmed.StartsWith("```", StringComparison.Ordinal) || trimmed.StartsWith("~~~", StringComparison.Ordinal))
+            {
+                inCodeBlock = !inCodeBlock;
+                continue;
+            }
+
+            if (inCodeBlock) continue;
+
+            // Check unclosed tags on line
+            var unclosedMatches = unclosedRegex.Matches(line);
+            foreach (System.Text.RegularExpressions.Match um in unclosedMatches)
+            {
+                totalFields++;
+                malformedPlaceholders++;
+                items.Add(new MarkdownFormFieldItem(
+                    lineNum,
+                    um.Value,
+                    "Unclosed",
+                    "UnclosedFormFieldTag",
+                    "High",
+                    um.Value,
+                    "Close form control tag with trailing ']' bracket."));
+            }
+
+            // Dropdown controls
+            var ddMatches = dropdownRegex.Matches(line);
+            foreach (System.Text.RegularExpressions.Match dm in ddMatches)
+            {
+                totalFields++;
+                string optionsRaw = dm.Groups["options"].Value;
+                var rawParts = optionsRaw.Split('|');
+                var trimmedParts = rawParts.Select(p => p.Trim()).Where(p => p.Length > 0).ToList();
+
+                bool hasEmptyOption = rawParts.Any(p => string.IsNullOrWhiteSpace(p));
+
+                if (trimmedParts.Count < 2)
+                {
+                    singleOptionDropdowns++;
+                    items.Add(new MarkdownFormFieldItem(
+                        lineNum,
+                        dm.Value,
+                        "Dropdown",
+                        "SingleOptionDropdown",
+                        "High",
+                        dm.Value,
+                        "Dropdown must provide at least two distinct options separated by '|'."));
+                }
+                else if (hasEmptyOption)
+                {
+                    singleOptionDropdowns++;
+                    items.Add(new MarkdownFormFieldItem(
+                        lineNum,
+                        dm.Value,
+                        "Dropdown",
+                        "EmptyOptionInDropdown",
+                        "Medium",
+                        dm.Value,
+                        "Remove consecutive or trailing empty option pipes ('||')."));
+                }
+                else
+                {
+                    validDropdowns++;
+                }
+            }
+
+            // Date controls
+            var dtMatches = dateRegex.Matches(line);
+            foreach (System.Text.RegularExpressions.Match dtm in dtMatches)
+            {
+                totalFields++;
+                string dateVal = dtm.Groups["date"].Value.Trim();
+                if (string.IsNullOrEmpty(dateVal) || string.Equals(dateVal, "today", StringComparison.OrdinalIgnoreCase) || string.Equals(dateVal, "now", StringComparison.OrdinalIgnoreCase))
+                {
+                    validDates++;
+                }
+                else if (System.Text.RegularExpressions.Regex.IsMatch(dateVal, @"^\d{4}-\d{2}-\d{2}$"))
+                {
+                    if (DateTime.TryParseExact(dateVal, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out _))
+                    {
+                        validDates++;
+                    }
+                    else
+                    {
+                        malformedDates++;
+                        items.Add(new MarkdownFormFieldItem(
+                            lineNum,
+                            dtm.Value,
+                            "Date",
+                            "InvalidDateCalendarValue",
+                            "High",
+                            dtm.Value,
+                            "Ensure date represents a valid calendar day in YYYY-MM-DD format."));
+                    }
+                }
+                else
+                {
+                    malformedDates++;
+                    items.Add(new MarkdownFormFieldItem(
+                        lineNum,
+                        dtm.Value,
+                        "Date",
+                        "MalformedDateFormat",
+                        "Medium",
+                        dtm.Value,
+                        "Format date using ISO-8601 (YYYY-MM-DD) or keyword 'today'."));
+                }
+            }
+
+            // Text controls
+            var txMatches = textRegex.Matches(line);
+            foreach (System.Text.RegularExpressions.Match txm in txMatches)
+            {
+                totalFields++;
+                string phVal = txm.Groups["ph"].Value;
+                if (txm.Value.StartsWith("[text:", StringComparison.OrdinalIgnoreCase) && string.IsNullOrWhiteSpace(phVal))
+                {
+                    malformedPlaceholders++;
+                    items.Add(new MarkdownFormFieldItem(
+                        lineNum,
+                        txm.Value,
+                        "Text",
+                        "EmptyTextPlaceholder",
+                        "Low",
+                        txm.Value,
+                        "Supply a non-empty placeholder string or use bare '[text]'."));
+                }
+                else
+                {
+                    validTexts++;
+                }
+            }
+        }
+
+        double penalty = (singleOptionDropdowns * 25.0) + (malformedDates * 20.0) + (malformedPlaceholders * 15.0);
+        double score = totalFields == 0 ? 100.0 : Math.Clamp(100.0 - penalty, 0.0, 100.0);
+
+        string category;
+        if (totalFields == 0) category = "Clean Baseline · No Form Controls";
+        else if (score >= 95.0) category = "Optimal Form Controls (95-100%)";
+        else if (score >= 80.0) category = "Good Form Controls with Minor Formatting Warnings (80-94%)";
+        else if (score >= 60.0) category = "Acceptable Form Controls with Noticeable Syntax Defects (60-79%)";
+        else category = "Poor Form Control Syntax (<60%)";
+
+        string summary = FormatMarkdownFormFieldsSummary(
+            totalFields, validDropdowns, validDates, validTexts, singleOptionDropdowns, malformedDates, malformedPlaceholders, score, category);
+
+        return new MarkdownFormFieldsAudit(
+            totalFields, validDropdowns, validDates, validTexts, singleOptionDropdowns, malformedDates, malformedPlaceholders,
+            score, items, category, summary);
+    }
+
+    public static string FormatMarkdownFormFieldsSummary(
+        int totalFields, int validDropdowns, int validDates, int validTexts, int singleOptionDropdowns, int malformedDates, int malformedPlaceholders, double score, string category)
+    {
+        if (totalFields == 0)
+            return "Markdown form field audit: Clean document · No form controls present";
+
+        var parts = new List<string>();
+        parts.Add($"{totalFields} field{(totalFields == 1 ? "" : "s")}");
+        if (validDropdowns > 0) parts.Add($"✓ {validDropdowns} dropdown{(validDropdowns == 1 ? "" : "s")}");
+        if (validDates > 0) parts.Add($"✓ {validDates} date{(validDates == 1 ? "" : "s")}");
+        if (validTexts > 0) parts.Add($"✓ {validTexts} text{(validTexts == 1 ? "" : "s")}");
+        if (singleOptionDropdowns > 0) parts.Add($"🚨 {singleOptionDropdowns} dropdown option warning{(singleOptionDropdowns == 1 ? "" : "s")}");
+        if (malformedDates > 0) parts.Add($"🚨 {malformedDates} malformed date{(malformedDates == 1 ? "" : "s")}");
+        if (malformedPlaceholders > 0) parts.Add($"⚠ {malformedPlaceholders} placeholder defect{(malformedPlaceholders == 1 ? "" : "s")}");
+
+        string details = string.Join(" · ", parts);
+        return $"Markdown form field audit ({details} · {category} · {score:0.#}% compliance score)";
+    }
+
 }
 
 
@@ -17749,3 +17954,27 @@ public sealed record MarkdownTaskListPrioritiesAudit(
     IReadOnlyList<MarkdownTaskListPriorityItem> Items,
     string Category,
     string Summary);
+
+
+public sealed record MarkdownFormFieldItem(
+    int LineNumber,
+    string RawTag,
+    string FieldType,
+    string IssueType,
+    string Severity,
+    string Excerpt,
+    string Recommendation);
+
+public sealed record MarkdownFormFieldsAudit(
+    int TotalFields,
+    int ValidDropdowns,
+    int ValidDates,
+    int ValidTexts,
+    int SingleOptionDropdowns,
+    int MalformedDates,
+    int MalformedPlaceholders,
+    double FormFieldComplianceScore,
+    IReadOnlyList<MarkdownFormFieldItem> Items,
+    string Category,
+    string Summary);
+

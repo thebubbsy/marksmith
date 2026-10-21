@@ -4885,5 +4885,49 @@ namespace MarkSmith.Tests
         Assert.Contains("Graph orthogonal grid audit", flawedAudit.Summary);
     }
 
+    [Fact]
+    public void Run219_AuditGraphBranchSymmetry_DetectsSingleSidedAndSkewedTrunks()
+    {
+        // 1. Clean Baseline (0 or 2 nodes)
+        var emptyAudit = MindMapStudioViewModel.AuditGraphBranchSymmetry(Array.Empty<MindMapNode>());
+        Assert.Equal(0, emptyAudit.TotalNodesEvaluated);
+        Assert.Equal(100.0, emptyAudit.SymmetryScore);
+        Assert.Contains("Clean graph", emptyAudit.Summary);
+
+        // 2. Symmetrical tree with balanced radiating trunks
+        var root = new MindMapNode { Id = "root", Title = "Central Topic", X = 0, Y = 0 };
+        var trunkA = new MindMapNode { Id = "A", Title = "Branch Alpha", X = 200, Y = -100 };
+        var trunkB = new MindMapNode { Id = "B", Title = "Branch Beta", X = -200, Y = 100 };
+        var a1 = new MindMapNode { Id = "A1", Title = "Alpha Sub 1", X = 300, Y = -150 };
+        var b1 = new MindMapNode { Id = "B1", Title = "Beta Sub 1", X = -300, Y = 150 };
+
+        var nodes = new[] { root, trunkA, trunkB, a1, b1 };
+        var links = new[]
+        {
+            new MindMapLink { SourceNodeId = "root", TargetNodeId = "A" },
+            new MindMapLink { SourceNodeId = "root", TargetNodeId = "B" },
+            new MindMapLink { SourceNodeId = "A", TargetNodeId = "A1" },
+            new MindMapLink { SourceNodeId = "B", TargetNodeId = "B1" }
+        };
+
+        var balancedAudit = MindMapStudioViewModel.AuditGraphBranchSymmetry(nodes, links);
+        Assert.Equal(5, balancedAudit.TotalNodesEvaluated);
+        Assert.Equal(2, balancedAudit.PrimaryTrunkCount);
+        Assert.Equal(0, balancedAudit.SingleSidedSkewCount);
+        Assert.Equal(0.0, balancedAudit.CoefficientOfVariation);
+        Assert.Equal(100.0, balancedAudit.SymmetryScore);
+        Assert.Contains("Optimal Branch Symmetry", balancedAudit.Category);
+
+        // 3. Asymmetric tree with single-sided skew
+        var singleTrunkLinks = new[]
+        {
+            new MindMapLink { SourceNodeId = "root", TargetNodeId = "A" },
+            new MindMapLink { SourceNodeId = "A", TargetNodeId = "A1" }
+        };
+        var singleAudit = MindMapStudioViewModel.AuditGraphBranchSymmetry(new[] { root, trunkA, a1 }, singleTrunkLinks);
+        Assert.Equal(1, singleAudit.SingleSidedSkewCount);
+        Assert.True(singleAudit.SymmetryScore < 80.0);
+    }
+
 }
 }

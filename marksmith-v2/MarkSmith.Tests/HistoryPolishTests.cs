@@ -4031,4 +4031,40 @@ public class HistoryPolishTests : IDisposable
         Assert.Contains("empty catch", flawedAudit.Summary);
     }
 
+    [Fact]
+    public void Run219_AuditNullForgivingHazards_DetectsChainedAndMemberAccessBangs()
+    {
+        // 1. Clean Baseline (no additions)
+        var emptyAudit = LineDiff.AuditNullForgivingHazards(string.Empty, string.Empty);
+        Assert.Equal(0, emptyAudit.AddedLinesCount);
+        Assert.Equal(0, emptyAudit.TotalBangOperatorsCount);
+        Assert.Equal(100.0, emptyAudit.NullSafetyScore);
+        Assert.Contains("Clean baseline", emptyAudit.Summary);
+
+        // 2. Clean additions without bang operator
+        string before = "int x = 10;";
+        string afterClean = @"int x = 10;
+string? name = GetName();
+if (name != null)
+{
+    Console.WriteLine(name.Length);
+}
+bool flag = !isValid;";
+        var cleanAudit = LineDiff.AuditNullForgivingHazards(before, afterClean);
+        Assert.Equal(0, cleanAudit.TotalBangOperatorsCount);
+        Assert.Equal(100.0, cleanAudit.NullSafetyScore);
+        Assert.Contains("0 bang operators", cleanAudit.Summary);
+
+        // 3. Hazardous additions with chained and member-access bangs
+        string afterHazards = @"int x = 10;
+var title = doc!.Root!.Title!;
+var item = list[0]!;
+var length = user!.Name.Length;";
+        var hazardAudit = LineDiff.AuditNullForgivingHazards(before, afterHazards);
+        Assert.True(hazardAudit.ChainedBangCount >= 1);
+        Assert.True(hazardAudit.MemberDereferenceBangCount >= 1);
+        Assert.True(hazardAudit.NullSafetyScore < 75.0);
+        Assert.Contains("chained bang", hazardAudit.Summary);
+    }
+
 }
