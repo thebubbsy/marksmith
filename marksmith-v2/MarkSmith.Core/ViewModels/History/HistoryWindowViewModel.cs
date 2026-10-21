@@ -380,6 +380,10 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
     // from DiffTitle/DiffHeader because Preview shows the version itself, not a comparison: the
     // inspector used to say "vs the version before" over a rendered page.
     private string _compareTitle = "Select a version to see its changes";
+
+    public const string NoHistoryDiffTitle = "No history yet";
+    public const string NoDocumentCheckpointTooltip = "Open a document in the editor to take a checkpoint of it";
+    public const string NoDocumentCheckpointNotice = "Open a document in the editor first. A checkpoint saves the editor's current text.";
     private string _compareHeader = "";
 
     private void ApplyHeading()
@@ -470,9 +474,15 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
         else
         {
             SelectedFile = null;
+            _currentFile = "";
             ClearTimeline();
             FileName = "No document selected";
             IsSelectedFileOpen = false;
+            // Nothing has history yet, so neither the diff header nor the checkpoint tooltip can
+            // talk about a selected version or "the editor's current text" of a document.
+            _compareTitle = NoHistoryDiffTitle;
+            ApplyHeading();
+            CheckpointTooltip = NoDocumentCheckpointTooltip;
         }
     }
 
@@ -929,7 +939,12 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
     [RelayCommand]
     public async Task TakeSnapshotAsync(string? label)
     {
-        if (string.IsNullOrEmpty(_currentFile)) return;
+        if (string.IsNullOrEmpty(_currentFile))
+        {
+            // Used to return silently, so the button looked broken on an empty history.
+            ShowNotice(NoDocumentCheckpointNotice, isError: true);
+            return;
+        }
         var text = _editorTextFor?.Invoke(_currentFile);
         if (text is null)
         {

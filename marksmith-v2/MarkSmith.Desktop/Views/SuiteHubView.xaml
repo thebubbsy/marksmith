@@ -513,8 +513,20 @@
                                     VerticalAlignment="Center"
                                     TextChanged="OnTemplateSearchTextChanged"
                                     ToolTipService.ToolTip="Filter starter templates (Type to filter · Enter launches first match · Esc resets)" />
-                    <ScrollViewer x:Name="StarterTemplatesScroller" Grid.Column="2" HorizontalScrollBarVisibility="Auto" HorizontalScrollMode="Auto" VerticalScrollBarVisibility="Disabled">
-                        <StackPanel x:Name="StarterTemplatesPanel" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <!-- Only a few chips fit, so edge chevrons show there is more and page the strip.
+                         They fade rather than collapse so the viewport width never jumps, and are not
+                         tab stops: keyboard users tab through the chips, which scroll into view. -->
+                    <Grid Grid.Column="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="2">
+                    <Button x:Name="StarterScrollLeftButton" Style="{StaticResource SubtleButtonStyle}"
+                            Width="22" Height="26" Padding="0" Opacity="0" IsHitTestVisible="False" IsTabStop="False"
+                            Click="OnStarterScrollLeftClick" VerticalAlignment="Center"
+                            ToolTipService.ToolTip="Earlier templates (mouse wheel scrolls too)"
+                            AutomationProperties.Name="Scroll templates left">
+                        <FontIcon Glyph="&#xE76B;" FontSize="10" />
+                    </Button>
+                    <ScrollViewer x:Name="StarterTemplatesScroller" Grid.Column="1" HorizontalScrollBarVisibility="Auto" HorizontalScrollMode="Auto" VerticalScrollBarVisibility="Disabled"
+                                  ViewChanged="OnStarterTemplatesViewChanged" SizeChanged="OnStarterTemplatesSizeChanged">
+                        <StackPanel x:Name="StarterTemplatesPanel" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" SizeChanged="OnStarterTemplatesSizeChanged">
                             <Button x:Name="TemplateMeetingNotesBtn" Style="{StaticResource DefaultButtonStyle}" Padding="10,4"
                                     Click="OnTemplateMeetingNotesClick" ToolTipService.ToolTip="Create a structured meeting minutes document with agenda and action items"
                                     Tag="meeting notes agenda minutes action items">
@@ -597,6 +609,14 @@
                             </Button>
                         </StackPanel>
                     </ScrollViewer>
+                    <Button x:Name="StarterScrollRightButton" Grid.Column="2" Style="{StaticResource SubtleButtonStyle}"
+                            Width="22" Height="26" Padding="0" Opacity="0" IsHitTestVisible="False" IsTabStop="False"
+                            Click="OnStarterScrollRightClick" VerticalAlignment="Center"
+                            ToolTipService.ToolTip="More templates (mouse wheel scrolls too)"
+                            AutomationProperties.Name="Scroll templates right">
+                        <FontIcon Glyph="&#xE76C;" FontSize="10" />
+                    </Button>
+                    </Grid>
                     <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                         <Border x:Name="TemplateCountPill" Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"

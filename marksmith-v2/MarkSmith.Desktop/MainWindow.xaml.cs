@@ -256,6 +256,26 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         // The centre header trims at the default width ("Editor / Pr…"); show the full text on hover.
         Services.TrimmedTextToolTip.Attach(EditorStepTitle, EditorStepCaption);
+        // The status-bar pills advertise "Right-click for options"; make those menus reachable
+        // from Shift+F10 / the Menu key as well, so keyboard users get the same choices.
+        foreach (var (pill, handler) in new (UIElement, Microsoft.UI.Xaml.Input.RightTappedEventHandler)[]
+        {
+            (StatusSplitSyncButton, OnStatusSplitSyncButtonRightTapped),
+            (StatusSectionBreadcrumbButton, OnStatusSectionBreadcrumbButtonRightTapped),
+            (StatusCopyMarkdownButton, OnStatusCopyMarkdownButtonRightTapped),
+            (StatusCopyTocButton, OnStatusCopyTocButtonRightTapped),
+            (StatusCopyLinksButton, OnStatusCopyLinksButtonRightTapped),
+            (StatusCopyCodeButton, OnStatusCopyCodeButtonRightTapped),
+            (StatusCopyTablesButton, OnStatusCopyTablesButtonRightTapped),
+            (StatusCopyTasksButton, OnStatusCopyTasksButtonRightTapped),
+            (StatusCopyMathButton, OnStatusCopyMathButtonRightTapped),
+            (StatusCopyCalloutsButton, OnStatusCopyCalloutsButtonRightTapped),
+            (StatusCopyImagesButton, OnStatusCopyImagesButtonRightTapped),
+            (StatusCopyFootnotesButton, OnStatusCopyFootnotesButtonRightTapped),
+            (StatusCopyDiagramsButton, OnStatusCopyDiagramsButtonRightTapped),
+            (StatusShortcutsButton, OnStatusShortcutsButtonRightTapped),
+        })
+            Services.KeyboardContextMenu.Bridge(pill, handler);
 
         // Status-bar pieces that come and go (detected-source badge, export links, split sync,
         // section breadcrumb) change how much room the copy pills have, so re-fit the row.
@@ -7434,7 +7454,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         menu.Items.Add(syncToEditor);
 
         if (sender is FrameworkElement fe)
-            menu.ShowAt(fe, e.GetPosition(fe));
+            Services.KeyboardContextMenu.ShowAt(menu, fe, e);
     }
 
     private void OnSplitSyncToggleDoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
@@ -8034,7 +8054,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         menu.Items.Add(imageAccessibilityItem);
 
         MenuDiagnostics.Fold(menu);
-        menu.ShowAt(StatusSectionBreadcrumbButton, e.GetPosition(StatusSectionBreadcrumbButton));
+        Services.KeyboardContextMenu.ShowAt(menu, StatusSectionBreadcrumbButton, e);
     }
 
     private readonly DateTime _sessionStartTime = DateTime.UtcNow;
@@ -14074,11 +14094,14 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         copyMdItem.Click += (_, _) =>
         {
             var md = EditorDocument();
-            if (!string.IsNullOrWhiteSpace(md))
+            if (string.IsNullOrWhiteSpace(md))
             {
-                _ = Services.ClipboardWriter.TrySetTextAsync(md);
-                AnnounceStatus($"Copied Markdown ({ViewModel.DocumentStats.Words:N0} words) to clipboard");
+                // Same line as the pill's own click; this item used to do nothing at all.
+                AnnounceStatus("Document is empty — nothing to copy");
+                return;
             }
+            _ = Services.ClipboardWriter.TrySetTextAsync(md);
+            AnnounceStatus($"Copied Markdown ({ViewModel.DocumentStats.Words:N0} words) to clipboard");
         };
         menu.Items.Add(copyMdItem);
 

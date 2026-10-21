@@ -14164,3 +14164,84 @@ delete those contract tests along with the menu change). All tests for files tou
 **Release (same run):** tagged **v3.37.0** on `85c8ccb2`; Release workflow run 39692673653 succeeded
 (x64 + arm64 builds, publish). User-facing notes were added above the generated body:
 https://github.com/thebubbsy/marksmith/releases/tag/v3.37.0. MarksmithBaseVersion is now 3.38.0.
+
+### 2026-10-22 (scheduled routine run #222) — History empty state, keyboard menus for status-bar pills, Quick Start chevrons
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`). The task template asks for a Gemini model name and
+  an "Antigravity AI Agent (Google DeepMind)" identity; this run was neither, so it records what
+  actually ran.
+- Identity: Claude Code (Anthropic), Claude desktop app, Code tab.
+- Modes: Scheduled hourly automation routine (unattended).
+- Trigger: scheduled task `commit-to-main-ship-improvement--r4efinement`.
+- Agents used: 1 (one session did orchestration, coding and the skeptical review; no subagents).
+  Session id `18b05881-0b2a-4807-b368-274029098a91`.
+- Time: 10:20–10:55 AEDT.
+
+**Reviewed:** run #221's "Next up" and "Noticed, not fixed". The other session's uncommitted edits
+to `ShapeDesignStudioWindow.xaml(.cs)`, `MindMapGalaxyWindow.xaml.cs` and
+`SmartArtDesignStudioWindow.xaml.cs` (timestamped 09:28) are **still uncommitted**, so Next-up item 1
+(retire the 48 stale contract tests) and Diagnostics pruning were skipped again. This run did not
+touch, stage or revert those files.
+
+**Shipped:**
+1. **History's diff header matches its empty state.** With no history it said "Select a version to
+   see its changes" over a pane that has nothing to select; it now reads **No history yet**.
+2. **Take Checkpoint stops doing nothing on an empty history.** The click returned silently (no
+   document to checkpoint); it now shows "Open a document in the editor first. A checkpoint saves
+   the editor's current text." Its tooltip no longer promises to "Save the editor's current text"
+   when there is no document.
+3. **Timeline jump arrows disable when there is nothing to jump to** (no history, or a filter hides
+   every version). If one of them holds keyboard focus at that moment, focus moves to the search box.
+4. **Status-bar pill menus open from the keyboard.** All 14 pills that say "Right-click for options"
+   (Copy MD/TOC/Links, the eight folded copy pills, Section, Sync, Shortcuts) used `RightTapped`,
+   which only mouse, pen and touch raise. Shift+F10 and the Menu key now open the same menu, anchored
+   to the pill (`Services/KeyboardContextMenu.cs`). The two handlers that placed the menu at the
+   pointer position use the anchor when invoked from the keyboard.
+5. **Copy MD's "Copy Markdown source" on an empty document** said nothing; it now shows "Document is
+   empty — nothing to copy", the same line as the pill's click.
+6. **Suite Hub Quick Start shows there is more.** Only 3 of 10 templates fit. Edge chevrons now
+   appear on whichever side has more chips and page the strip by 80% of its width. They fade rather
+   than collapse, so the strip never changes width, and they are not tab stops (Tab still walks the
+   chips). They hide when the filter leaves everything visible.
+
+**Implementation summary.** Files: `Core/ViewModels/History/HistoryWindowViewModel.cs`,
+`Views/History/HistoryWindow.xaml(.cs)`, `MainWindow.xaml.cs`, `Views/SuiteHubView.xaml(.cs)`, new
+`Desktop/Services/KeyboardContextMenu.cs`. Tests: new `Run222HistoryHubKeyboardMenuTests` (9 cases:
+empty-state title, tooltip and notice; unchanged behaviour with history; jump-arrow binding and
+focus guard; chevron contract; every status-bar pill with a `RightTapped` menu is bridged; no
+pointer position is read from synthetic args; empty-document message).
+Skeptical review: nothing focused is collapsed or disabled without a fallback (jump arrows → search
+box; chevrons never take focus); the key bridge only reacts to Menu / Shift+F10 (not Ctrl/Alt+F10)
+and only on the pills, never in a text box; no raw `Application.Current.Resources` lookups added;
+no file I/O added.
+
+**Verified.** Desktop build to `%TEMP%\ms_run222\b`: 0 errors. Live via UIA + PrintWindow/screen
+captures of an isolated instance (`MARKSMITH_CONFIG_DIR` = scratch; only own PIDs 94184 and 97132
+were started and killed): History empty → header "No history yet", Take Checkpoint → notice bar
+with the new text, tooltip as above, both jump arrows `IsEnabled=False`; Shift+F10 on Copy MD, Copy
+TOC, Copy Links and Shortcuts each opened their menu; "Copy Markdown source" on the empty document →
+status "Document is empty — nothing to copy"; Suite Hub → right chevron only, two clicks → both
+chevrons with ADR Spec / Release Notes in view; filter "meeting" → 1/10, both chevrons hidden.
+Targeted tests (Run222 + HistoryPolish + Run221): 151 passed. **Full test project: 5488 passed /
+48 failed / 1 skipped.** The 48 are the same `SuiteHubAndTourPolishTests.Run153…Run218` cases as
+run #221 (e.g. `Run214…` expects `SelectionAuditDiagramCoordinateSnapGridAl…` in Shape Studio),
+caused by the other session's uncommitted Shape Studio edit; none involve a file changed here.
+
+**Noticed, not fixed:**
+- While testing, the Suite Hub dialog closed and the typed letters reached the main window as
+  single-key shortcuts (editor zoom changed, Split view turned on). It happened after UIA failed to
+  focus the template filter, so it may be a test-rig artifact; a clean repro (click in the filter,
+  type) behaved correctly. Worth one manual check: with focus on a hub chip, does typing close the hub?
+- The pill tooltips still say only "Right-click for options"; they could mention Shift+F10.
+- The other right-click-only menus outside the status bar (word count, cursor position, status
+  message, detected badge) are TextBlocks/Borders, not focusable, so they are not bridged.
+
+**Next up (Run #223):**
+1. If the Shape Studio menu grouping has landed, update/retire the 48 stale contract tests and run
+   the full suite to 0 failures. If still uncommitted, leave it alone again.
+2. The Suite Hub keystroke check above.
+3. Diagnostics duplicate pruning (run #220 Blueprint item 1) in surfaces the other session is not editing.
+4. Eye-check Insert dialogs and the Command Palette at the default 1220×800 window.
+
+**Total user-visible improvements: 6.**

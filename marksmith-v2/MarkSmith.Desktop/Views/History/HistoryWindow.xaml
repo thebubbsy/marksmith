@@ -284,11 +284,13 @@
                                     ToolTipService.ToolTip="Timeline quick jump (▲ Latest · ▼ First)">
                                 <StackPanel Orientation="Horizontal" Spacing="2">
                                     <Button x:Name="JumpLatestButton" Style="{StaticResource SubtleButtonStyle}" Width="22" Height="22" Padding="0"
+                                            IsEnabled="{Binding ShowTimeline}"
                                             Click="OnTimelineJumpLatestClick" ToolTipService.ToolTip="Jump to latest version (Home)"
                                             AutomationProperties.Name="Jump to latest version">
                                         <FontIcon Glyph="&#xE70E;" FontSize="9" />
                                     </Button>
                                     <Button x:Name="JumpOldestButton" Style="{StaticResource SubtleButtonStyle}" Width="22" Height="22" Padding="0"
+                                            IsEnabled="{Binding ShowTimeline}"
                                             Click="OnTimelineJumpOldestClick" ToolTipService.ToolTip="Jump to first / oldest version (End)"
                                             AutomationProperties.Name="Jump to oldest version">
                                         <FontIcon Glyph="&#xE70D;" FontSize="9" />

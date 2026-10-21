@@ -2344,6 +2344,36 @@ public sealed partial class SuiteHubView : UserControl
 
 
 
+    private void OnStarterTemplatesViewChanged(object? sender, ScrollViewerViewChangedEventArgs e) => UpdateStarterScrollChevrons();
+
+    private void OnStarterTemplatesSizeChanged(object sender, SizeChangedEventArgs e) => UpdateStarterScrollChevrons();
+
+    // Chevrons appear only on the side that has more chips; the template filter shrinks the strip,
+    // so FilterTemplates refreshes them too.
+    private void UpdateStarterScrollChevrons()
+    {
+        var sv = StarterTemplatesScroller;
+        var canLeft = sv.ScrollableWidth > 0.5 && sv.HorizontalOffset > 0.5;
+        var canRight = sv.ScrollableWidth > 0.5 && sv.HorizontalOffset < sv.ScrollableWidth - 0.5;
+        StarterScrollLeftButton.Opacity = canLeft ? 1 : 0;
+        StarterScrollLeftButton.IsHitTestVisible = canLeft;
+        StarterScrollRightButton.Opacity = canRight ? 1 : 0;
+        StarterScrollRightButton.IsHitTestVisible = canRight;
+    }
+
+    private void OnStarterScrollLeftClick(object sender, RoutedEventArgs e) => PageStarterTemplates(-1);
+
+    private void OnStarterScrollRightClick(object sender, RoutedEventArgs e) => PageStarterTemplates(1);
+
+    // Pages by most of a viewport so the last visible chip stays on screen as a landmark.
+    private void PageStarterTemplates(int direction)
+    {
+        var sv = StarterTemplatesScroller;
+        if (sv.ScrollableWidth <= 0) return;
+        var step = Math.Max(80, sv.ViewportWidth * 0.8);
+        sv.ChangeView(Math.Clamp(sv.HorizontalOffset + direction * step, 0, sv.ScrollableWidth), null, null);
+    }
+
     private void OnStarterTemplatesWheel(object sender, PointerRoutedEventArgs e)
 
     {

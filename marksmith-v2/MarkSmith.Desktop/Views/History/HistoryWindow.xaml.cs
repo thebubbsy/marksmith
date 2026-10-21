@@ -257,6 +257,13 @@ public sealed partial class HistoryWindow : Window
         {
             UpdateTimelineFilterStatus();
         }
+        else if (e.PropertyName == nameof(HistoryWindowViewModel.ShowTimeline) && !_vm.ShowTimeline)
+        {
+            // The jump arrows disable with nothing to jump to; don't strand keyboard focus on them.
+            var focused = Microsoft.UI.Xaml.Input.FocusManager.GetFocusedElement(RootGrid.XamlRoot);
+            if (ReferenceEquals(focused, JumpLatestButton) || ReferenceEquals(focused, JumpOldestButton))
+                SearchBox.Focus(FocusState.Programmatic);
+        }
     }
 
     // The page fits itself to the pane's width when it loads. Loaded while the pane was collapsed
