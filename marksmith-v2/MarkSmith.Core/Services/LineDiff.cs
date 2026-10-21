@@ -20322,6 +20322,182 @@ public static class LineDiff
         return $"Diff LINQ enumeration audit ({details} · {category} · {score:0.#}% safety score)";
     }
 
+
+    public static DiffExceptionSwallowingAudit AuditExceptionSwallowingHazards(string? beforeText, string? afterText)
+    {
+        var d = Diff(beforeText ?? string.Empty, afterText ?? string.Empty);
+        var unified = BuildUnified(d);
+        return AuditExceptionSwallowingHazards(unified);
+    }
+
+    public static DiffExceptionSwallowingAudit AuditExceptionSwallowingHazards(IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows == null)
+        {
+            string emptySummary = FormatExceptionSwallowingSummary(0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new DiffExceptionSwallowingAudit(
+                0, 0, 0, 0, 100.0,
+                Array.Empty<DiffExceptionSwallowingItem>(), "Clean Baseline", emptySummary);
+        }
+
+        var addedLines = unifiedRows
+            .Where(r => !r.IsGap && r.Kind == Kind.Added && !string.IsNullOrWhiteSpace(r.Text))
+            .ToList();
+
+        int totalAddedLines = addedLines.Count;
+        if (totalAddedLines == 0)
+        {
+            string emptySummary = FormatExceptionSwallowingSummary(0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new DiffExceptionSwallowingAudit(
+                0, 0, 0, 0, 100.0,
+                Array.Empty<DiffExceptionSwallowingItem>(), "Clean Baseline", emptySummary);
+        }
+
+        var items = new List<DiffExceptionSwallowingItem>();
+        int emptyCatchCount = 0;
+        int stackTraceLossCount = 0;
+        int swallowedExceptionCount = 0;
+
+        var catchRegex = new System.Text.RegularExpressions.Regex(@"\bcatch\b(?:\s*\(\s*([\w\.\<\>\?]+)(?:\s+([a-zA-Z_]\w*))?\s*\))?", System.Text.RegularExpressions.RegexOptions.Compiled);
+        var throwExRegex = new System.Text.RegularExpressions.Regex(@"\bthrow\s+([a-zA-Z_]\w*)\s*;", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        for (int i = 0; i < addedLines.Count; i++)
+        {
+            var row = addedLines[i];
+            int lineNum = row.NewNumber ?? (i + 1);
+            string line = row.Text ?? string.Empty;
+            string trimmed = line.Trim();
+
+            var catchMatch = catchRegex.Match(trimmed);
+            if (catchMatch.Success)
+            {
+                string excType = catchMatch.Groups[1].Success ? catchMatch.Groups[1].Value : "Exception";
+                string excVar = catchMatch.Groups[2].Success ? catchMatch.Groups[2].Value : string.Empty;
+                string catchSig = catchMatch.Value;
+
+                var bodyLines = new List<string>();
+                bool foundOpeningBrace = trimmed.Contains("{");
+                bool foundClosingBrace = trimmed.Contains("}") && trimmed.IndexOf("}") > trimmed.IndexOf("{");
+
+                if (!foundClosingBrace)
+                {
+                    for (int j = i + 1; j < addedLines.Count && j <= i + 12; j++)
+                    {
+                        string bLine = addedLines[j].Text ?? string.Empty;
+                        string bTrim = bLine.Trim();
+                        if (!foundOpeningBrace && bTrim.Contains("{"))
+                        {
+                            foundOpeningBrace = true;
+                        }
+
+                        if (bTrim.Contains("}"))
+                        {
+                            foundClosingBrace = true;
+                            bodyLines.Add(bTrim.Substring(0, bTrim.IndexOf("}")));
+                            break;
+                        }
+
+                        if (foundOpeningBrace)
+                        {
+                            bodyLines.Add(bTrim);
+                        }
+                    }
+                }
+                else
+                {
+                    int start = trimmed.IndexOf("{") + 1;
+                    int end = trimmed.IndexOf("}");
+                    if (end > start)
+                    {
+                        bodyLines.Add(trimmed.Substring(start, end - start));
+                    }
+                }
+
+                var statements = bodyLines
+                    .Select(s => s.Trim())
+                    .Where(s => !string.IsNullOrEmpty(s) && !s.StartsWith("//") && !s.StartsWith("/*") && s != "{")
+                    .ToList();
+
+                if (statements.Count == 0)
+                {
+                    emptyCatchCount++;
+                    items.Add(new DiffExceptionSwallowingItem(
+                        lineNum, catchSig, "EmptyCatchBlockHazard", "Hazard",
+                        line.Length > 80 ? line.Substring(0, 77) + "..." : line,
+                        $"Empty catch block '{catchSig}' completely silences exceptions. Handle, log, or re-throw."));
+                }
+                else
+                {
+                    string bodyContent = string.Join(" ", statements);
+
+                    if (!string.IsNullOrEmpty(excVar))
+                    {
+                        var throwMatch = throwExRegex.Match(bodyContent);
+                        if (throwMatch.Success && string.Equals(throwMatch.Groups[1].Value, excVar, StringComparison.Ordinal))
+                        {
+                            stackTraceLossCount++;
+                            items.Add(new DiffExceptionSwallowingItem(
+                                lineNum, catchSig, "StackTraceLossHazard", "Hazard",
+                                line.Length > 80 ? line.Substring(0, 77) + "..." : line,
+                                $"Re-throwing caught variable 'throw {excVar};' resets the original stack trace. Use parameterless 'throw;' instead."));
+                        }
+                    }
+
+                    bool hasLoggingOrRethrow = bodyContent.Contains("throw") ||
+                                               bodyContent.Contains("log") ||
+                                               bodyContent.Contains("Log") ||
+                                               bodyContent.Contains("Console") ||
+                                               bodyContent.Contains("Debug") ||
+                                               bodyContent.Contains("return") ||
+                                               bodyContent.Contains("Show") ||
+                                               bodyContent.Contains("Notify");
+
+                    if (!hasLoggingOrRethrow && statements.Count <= 2)
+                    {
+                        swallowedExceptionCount++;
+                        items.Add(new DiffExceptionSwallowingItem(
+                            lineNum, catchSig, "SwallowedExceptionHazard", "Warning",
+                            line.Length > 80 ? line.Substring(0, 77) + "..." : line,
+                            $"Catch block '{catchSig}' does not log or re-throw the error. Record diagnostic telemetry or propagate failure."));
+                    }
+                }
+            }
+        }
+
+        double penalty = (emptyCatchCount * 30.0) + (stackTraceLossCount * 25.0) + (swallowedExceptionCount * 15.0);
+        double score = Math.Max(0.0, Math.Min(100.0, 100.0 - penalty));
+
+        string category = score switch
+        {
+            >= 95.0 => "Optimal · Robust Exception Hygiene",
+            >= 80.0 => "Good · Minor Error Handling Warnings",
+            >= 60.0 => "Caution · Swallowed Exceptions & Stack Trace Loss",
+            _ => "Hazardous · Silent Exception Suppression Detected"
+        };
+
+        string summary = FormatExceptionSwallowingSummary(
+            totalAddedLines, emptyCatchCount, stackTraceLossCount, swallowedExceptionCount, score, category);
+
+        return new DiffExceptionSwallowingAudit(
+            totalAddedLines, emptyCatchCount, stackTraceLossCount, swallowedExceptionCount, score, items, category, summary);
+    }
+
+    public static string FormatExceptionSwallowingSummary(
+        int addedLines, int emptyCatch, int stackLoss, int swallowed, double score, string category)
+    {
+        if (addedLines == 0)
+            return "Diff exception audit: Clean Baseline · 0 added lines evaluated";
+
+        var parts = new List<string>();
+        parts.Add($"{addedLines} added line{(addedLines == 1 ? "" : "s")}");
+        if (emptyCatch > 0) parts.Add($"🚨 {emptyCatch} empty catch");
+        if (stackLoss > 0) parts.Add($"🚨 {stackLoss} 'throw ex;' stack trace loss");
+        if (swallowed > 0) parts.Add($"⚡ {swallowed} swallowed unlogged exception{(swallowed == 1 ? "" : "s")}");
+
+        string details = string.Join(" · ", parts);
+        return $"Diff exception audit ({details} · {category} · {score:0.#}% hygiene score)";
+    }
+
 }
 
 
@@ -22630,5 +22806,23 @@ public sealed record DiffLinqMultipleEnumerationAudit(
     int RedundantMaterializationCount,
     double LinqSafetyScore,
     IReadOnlyList<DiffLinqMultipleEnumerationItem> Items,
+    string Category,
+    string Summary);
+
+public sealed record DiffExceptionSwallowingItem(
+    int LineNumber,
+    string CatchSignature,
+    string HazardType,
+    string Severity,
+    string Excerpt,
+    string Recommendation);
+
+public sealed record DiffExceptionSwallowingAudit(
+    int TotalAddedLines,
+    int EmptyCatchCount,
+    int StackTraceLossThrowCount,
+    int SwallowedExceptionCount,
+    double ErrorHandlingHygieneScore,
+    IReadOnlyList<DiffExceptionSwallowingItem> Items,
     string Category,
     string Summary);

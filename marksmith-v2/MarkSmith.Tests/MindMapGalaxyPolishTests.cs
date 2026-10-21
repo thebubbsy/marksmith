@@ -4852,5 +4852,38 @@ namespace MarkSmith.Tests
         Assert.Contains("angular crowding", crowdedAudit.Summary);
     }
 
+    [Fact]
+    public void Run218_AuditGraphOrthogonalGridAlignment_DetectsOverlapsAndOffGrid()
+    {
+        // 1. Clean Baseline (no nodes)
+        var emptyAudit = MindMapStudioViewModel.AuditGraphOrthogonalGridAlignment(null);
+        Assert.Equal(0, emptyAudit.TotalNodesEvaluated);
+        Assert.Equal(100.0, emptyAudit.GridAlignmentScore);
+
+        // 2. Clean orthogonal layout (grid-snapped, spaced out)
+        var root = new MindMapNode { Id = "R", Title = "Root", X = 100, Y = 100 };
+        var c1 = new MindMapNode { Id = "C1", Title = "Branch 1", ParentId = "R", X = 200, Y = 100 };
+        var c2 = new MindMapNode { Id = "C2", Title = "Branch 2", ParentId = "R", X = 200, Y = 160 };
+
+        var cleanAudit = MindMapStudioViewModel.AuditGraphOrthogonalGridAlignment(new[] { root, c1, c2 });
+        Assert.Equal(3, cleanAudit.TotalNodesEvaluated);
+        Assert.Equal(3, cleanAudit.AlignedNodesCount);
+        Assert.Equal(0, cleanAudit.OverlappingNodeCount);
+        Assert.Equal(0, cleanAudit.MisalignedGridCount);
+        Assert.Equal(100.0, cleanAudit.GridAlignmentScore);
+        Assert.Equal("Optimal · Strict Orthogonal Grid Alignment", cleanAudit.Category);
+
+        // 3. Flawed layout with overlapping coordinates and off-grid positions
+        var n1 = new MindMapNode { Id = "A", Title = "Node A", X = 100, Y = 100 };
+        var n2 = new MindMapNode { Id = "B", Title = "Node B", X = 102, Y = 103 }; // overlapping (<10px)
+        var n3 = new MindMapNode { Id = "C", Title = "Offgrid", X = 153.7, Y = 187.3 }; // offgrid
+
+        var flawedAudit = MindMapStudioViewModel.AuditGraphOrthogonalGridAlignment(new[] { n1, n2, n3 });
+        Assert.True(flawedAudit.OverlappingNodeCount >= 1);
+        Assert.True(flawedAudit.MisalignedGridCount >= 1);
+        Assert.True(flawedAudit.GridAlignmentScore <= 70.0);
+        Assert.Contains("Graph orthogonal grid audit", flawedAudit.Summary);
+    }
+
 }
 }

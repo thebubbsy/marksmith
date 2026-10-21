@@ -4239,6 +4239,14 @@ namespace MarkSmith.Views.MindMap
             ViewModel.StatusMessage = $"\u2713 {result.Summary}";
         }
 
+        private void OnAuditGraphOrthogonalGridAlignmentClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var result = ViewModel.AuditGraphOrthogonalGridAlignment();
+            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+        }
+
         private void OnAuditGraphColorContrastAccessibilityClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;

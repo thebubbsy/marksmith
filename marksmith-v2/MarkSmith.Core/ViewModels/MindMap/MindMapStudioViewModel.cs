@@ -15352,6 +15352,144 @@ namespace MarkSmith.ViewModels.MindMap
             return $"Graph radial clustering audit ({scope}{details} · {category} · {score:0.#}% clarity score)";
         }
 
+
+        public GraphOrthogonalGridAlignmentAudit AuditGraphOrthogonalGridAlignment(bool selectionOnly = false)
+        {
+            var selected = Nodes.Where(n => n.IsSelected).ToList();
+            var targetNodes = (selectionOnly && selected.Count > 0) ? selected : Nodes.ToList();
+            bool isSelection = selectionOnly && selected.Count > 0;
+            var audit = AuditGraphOrthogonalGridAlignment(targetNodes.Select(n => n.Model), Document.Links, isSelection);
+            StatusMessage = audit.Summary;
+            return audit;
+        }
+
+        public static GraphOrthogonalGridAlignmentAudit AuditGraphOrthogonalGridAlignment(
+            IEnumerable<MindMapNode>? nodes,
+            IEnumerable<MindMapLink>? links = null,
+            bool isSelection = false)
+        {
+            var nodeList = nodes?.ToList() ?? new List<MindMapNode>();
+            int totalNodes = nodeList.Count;
+            if (totalNodes <= 1)
+            {
+                string emptySummary = FormatOrthogonalGridAlignmentSummary(totalNodes, totalNodes, 0, 0, 0, 100.0, "Clean Baseline · Optimal Grid Alignment", isSelection);
+                return new GraphOrthogonalGridAlignmentAudit(
+                    totalNodes, totalNodes, 0, 0, 0, 100.0,
+                    Array.Empty<GraphOrthogonalGridAlignmentItem>(), "Clean Baseline · Optimal Grid Alignment", isSelection, emptySummary);
+            }
+
+            var items = new List<GraphOrthogonalGridAlignmentItem>();
+            int alignedCount = 0;
+            int overlappingCount = 0;
+            int misalignedCount = 0;
+            int inconsistentTierCount = 0;
+
+            var nodeMap = nodeList.ToDictionary(n => n.Id, n => n);
+
+            // 1. Check coordinate overlaps between pairs of nodes
+            for (int i = 0; i < nodeList.Count; i++)
+            {
+                var nA = nodeList[i];
+                for (int j = i + 1; j < nodeList.Count; j++)
+                {
+                    var nB = nodeList[j];
+                    double dx = Math.Abs(nA.X - nB.X);
+                    double dy = Math.Abs(nA.Y - nB.Y);
+                    if (dx < 10.0 && dy < 10.0)
+                    {
+                        overlappingCount++;
+                        items.Add(new GraphOrthogonalGridAlignmentItem(
+                            nA.Id, string.IsNullOrWhiteSpace(nA.Title) ? "Untitled Node" : nA.Title,
+                            nA.X, nA.Y, "OverlappingNodeCoordinates", "Hazard",
+                            $"Node overlaps coordinate position of '{nB.Title ?? nB.Id}' (dx={dx:0.#}, dy={dy:0.#}).",
+                            "Offset node positions or apply auto-layout to eliminate visual overlap collisions."));
+                    }
+                }
+            }
+
+            // 2. Check grid alignment (snapping to 10px modulo) and tier spacing
+            foreach (var node in nodeList)
+            {
+                string title = string.IsNullOrWhiteSpace(node.Title) ? "Untitled Node" : node.Title;
+                double modX = Math.Abs(node.X % 10.0);
+                double modY = Math.Abs(node.Y % 10.0);
+                bool offGrid = (modX > 0.5 && modX < 9.5) || (modY > 0.5 && modY < 9.5);
+
+                if (offGrid)
+                {
+                    misalignedCount++;
+                    items.Add(new GraphOrthogonalGridAlignmentItem(
+                        node.Id, title, node.X, node.Y, "OffGridCoordinates", "Warning",
+                        $"Node coordinates ({node.X:0.#}, {node.Y:0.#}) are off 10px orthogonal grid snap.",
+                        "Snap node coordinates to 10px or 20px grid increments for clean visual rhythm."));
+                }
+                else
+                {
+                    alignedCount++;
+                }
+
+                // Check parent-child tier spacing if parent exists
+                if (!string.IsNullOrEmpty(node.ParentId) && nodeMap.TryGetValue(node.ParentId, out var parentNode))
+                {
+                    double branchDx = Math.Abs(node.X - parentNode.X);
+                    double branchDy = Math.Abs(node.Y - parentNode.Y);
+                    double branchDist = Math.Sqrt(branchDx * branchDx + branchDy * branchDy);
+
+                    if (branchDist < 25.0)
+                    {
+                        inconsistentTierCount++;
+                        items.Add(new GraphOrthogonalGridAlignmentItem(
+                            node.Id, title, node.X, node.Y, "CompressedTierSpacing", "Caution",
+                            $"Branch distance ({branchDist:0.#}px) to parent '{parentNode.Title ?? parentNode.Id}' is heavily compressed (<25px).",
+                            "Expand branch spacing to maintain distinct hierarchy tier separation."));
+                    }
+                    else if (branchDist > 500.0)
+                    {
+                        inconsistentTierCount++;
+                        items.Add(new GraphOrthogonalGridAlignmentItem(
+                            node.Id, title, node.X, node.Y, "DistendedTierSpacing", "Caution",
+                            $"Branch distance ({branchDist:0.#}px) to parent '{parentNode.Title ?? parentNode.Id}' is distended (>500px).",
+                            "Pull child nodes closer to parent cluster to prevent orphaned visual appearance."));
+                    }
+                }
+            }
+
+            double penalty = (overlappingCount * 30.0) + (misalignedCount * 5.0) + (inconsistentTierCount * 10.0);
+            double score = Math.Max(0.0, Math.Min(100.0, 100.0 - penalty));
+
+            string category = score switch
+            {
+                >= 95.0 => "Optimal · Strict Orthogonal Grid Alignment",
+                >= 80.0 => "Good · Minor Grid Offsets",
+                >= 60.0 => "Caution · Node Collisions & Off-Grid Drift",
+                _ => "Hazardous · Severe Coordinate Overlaps & Chaos"
+            };
+
+            string summary = FormatOrthogonalGridAlignmentSummary(
+                totalNodes, alignedCount, overlappingCount, misalignedCount, inconsistentTierCount, score, category, isSelection);
+
+            return new GraphOrthogonalGridAlignmentAudit(
+                totalNodes, alignedCount, overlappingCount, misalignedCount, inconsistentTierCount, score, items, category, isSelection, summary);
+        }
+
+        public static string FormatOrthogonalGridAlignmentSummary(
+            int totalNodes, int aligned, int overlapping, int misaligned, int inconsistentTier, double score, string category, bool isSelection = false)
+        {
+            string scope = isSelection ? "Selection · " : "";
+            if (totalNodes == 0)
+                return $"Graph orthogonal grid audit ({scope}Clean graph · 0 nodes evaluated)";
+
+            var parts = new List<string>();
+            parts.Add($"{totalNodes} node{(totalNodes == 1 ? "" : "s")}");
+            if (aligned > 0) parts.Add($"✓ {aligned} grid-snapped");
+            if (overlapping > 0) parts.Add($"🚨 {overlapping} overlapping pair{(overlapping == 1 ? "" : "s")}");
+            if (misaligned > 0) parts.Add($"⚡ {misaligned} off-grid");
+            if (inconsistentTier > 0) parts.Add($"⚠ {inconsistentTier} tier spacing issue{(inconsistentTier == 1 ? "" : "s")}");
+
+            string details = string.Join(" · ", parts);
+            return $"Graph orthogonal grid audit ({scope}{details} · {category} · {score:0.#}% alignment score)";
+        }
+
     }
 
 
@@ -17112,6 +17250,28 @@ public sealed record GraphRadialClusteringAudit(
     int WellSeparatedCount,
     double RadialClarityScore,
     IReadOnlyList<GraphRadialClusterItem> Items,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);
+
+public sealed record GraphOrthogonalGridAlignmentItem(
+    string NodeId,
+    string Title,
+    double X,
+    double Y,
+    string IssueType,
+    string Severity,
+    string Excerpt,
+    string Recommendation);
+
+public sealed record GraphOrthogonalGridAlignmentAudit(
+    int TotalNodesEvaluated,
+    int AlignedNodesCount,
+    int OverlappingNodeCount,
+    int MisalignedGridCount,
+    int InconsistentTierCount,
+    double GridAlignmentScore,
+    IReadOnlyList<GraphOrthogonalGridAlignmentItem> Items,
     string Category,
     bool IsSelectionScope,
     string Summary);

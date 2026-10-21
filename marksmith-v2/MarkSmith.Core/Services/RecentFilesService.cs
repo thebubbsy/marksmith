@@ -12467,6 +12467,224 @@ public sealed class RecentFilesService
         return $"Workspace document taxonomy audit ({details} · {category} · {score:0.#}% cohesion score)";
     }
 
+
+    public static WorkspaceDocumentAnchorSlugsAudit AuditWorkspaceDocumentAnchorSlugs(
+        IEnumerable<string>? explicitFiles = null,
+        Func<string, string>? contentReader = null)
+    {
+        var files = (explicitFiles ?? Array.Empty<string>())
+            .Where(f => !string.IsNullOrWhiteSpace(f))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var readContent = contentReader ?? (p =>
+        {
+            try { return File.Exists(p) ? File.ReadAllText(p) : string.Empty; }
+            catch { return string.Empty; }
+        });
+
+        int totalDocs = files.Count;
+        if (totalDocs == 0)
+        {
+            string emptySummary = FormatAnchorSlugsSummary(0, 0, 0, 0, 0, 100.0, "Clean Baseline · No Documents");
+            return new WorkspaceDocumentAnchorSlugsAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<WorkspaceAnchorSlugItem>(), "Clean Baseline · No Documents", emptySummary);
+        }
+
+        var items = new List<WorkspaceAnchorSlugItem>();
+        int totalHeadingsIndexed = 0;
+        int totalAnchorLinksChecked = 0;
+        int brokenAnchorCount = 0;
+        int duplicateHeadingCount = 0;
+
+        var fileSlugsMap = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        var fileNameMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        var headingRegex = new System.Text.RegularExpressions.Regex(@"^#{1,6}\s+(.+)$", System.Text.RegularExpressions.RegexOptions.Compiled);
+        var linkRegex = new System.Text.RegularExpressions.Regex(@"\[([^\]]+)\]\(([^)]*#([a-zA-Z0-9_\-\.\/]+))\)", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        // Phase 1: Index headings and compute slugs for each document
+        foreach (var docPath in files)
+        {
+            string fName = System.IO.Path.GetFileName(docPath);
+            fileNameMap[fName] = docPath;
+
+            string content = readContent(docPath);
+            if (string.IsNullOrWhiteSpace(content))
+            {
+                fileSlugsMap[docPath] = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                continue;
+            }
+
+            var lines = content.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+            var slugs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var slugCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+            bool inCode = false;
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string line = lines[i].Trim();
+                if (line.StartsWith("```") || line.StartsWith("~~~"))
+                {
+                    inCode = !inCode;
+                    continue;
+                }
+                if (inCode) continue;
+
+                var hMatch = headingRegex.Match(line);
+                if (hMatch.Success)
+                {
+                    totalHeadingsIndexed++;
+                    string rawTitle = hMatch.Groups[1].Value.Trim();
+
+                    string baseSlug = GenerateMarkdownSlug(rawTitle);
+                    string finalSlug = baseSlug;
+
+                    if (!slugCounts.TryGetValue(baseSlug, out int count))
+                    {
+                        slugCounts[baseSlug] = 1;
+                    }
+                    else
+                    {
+                        duplicateHeadingCount++;
+                        slugCounts[baseSlug] = count + 1;
+                        finalSlug = $"{baseSlug}-{count}";
+
+                        items.Add(new WorkspaceAnchorSlugItem(
+                            docPath, i + 1, rawTitle, finalSlug, "DuplicateHeadingSlug", "Warning",
+                            line, $"Heading '{rawTitle}' is duplicated in document. Markdig auto-disambiguates to '#{finalSlug}'."));
+                    }
+
+                    slugs.Add(finalSlug);
+                    slugs.Add(baseSlug);
+                }
+            }
+
+            fileSlugsMap[docPath] = slugs;
+        }
+
+        // Phase 2: Check all anchor links
+        foreach (var docPath in files)
+        {
+            string content = readContent(docPath);
+            if (string.IsNullOrWhiteSpace(content)) continue;
+
+            var lines = content.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+            bool inCode = false;
+
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string line = lines[i];
+                string trimmed = line.Trim();
+                if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+                {
+                    inCode = !inCode;
+                    continue;
+                }
+                if (inCode) continue;
+
+                var linkMatches = linkRegex.Matches(line);
+                foreach (System.Text.RegularExpressions.Match lm in linkMatches)
+                {
+                    totalAnchorLinksChecked++;
+                    string linkText = lm.Groups[1].Value;
+                    string fullTarget = lm.Groups[2].Value;
+                    string targetSlug = lm.Groups[3].Value;
+
+                    int hashIdx = fullTarget.IndexOf('#');
+                    string targetFilePart = hashIdx > 0 ? fullTarget.Substring(0, hashIdx) : string.Empty;
+
+                    string targetDocPath = docPath;
+                    if (!string.IsNullOrEmpty(targetFilePart))
+                    {
+                        string targetFileName = System.IO.Path.GetFileName(targetFilePart);
+                        if (!fileNameMap.TryGetValue(targetFileName, out var resolvedPath))
+                        {
+                            brokenAnchorCount++;
+                            items.Add(new WorkspaceAnchorSlugItem(
+                                docPath, i + 1, linkText, fullTarget, "MissingTargetFileAnchor", "Hazard",
+                                line.Length > 80 ? line.Substring(0, 77) + "..." : line,
+                                $"Anchor link references missing document '{targetFilePart}'."));
+                            continue;
+                        }
+                        targetDocPath = resolvedPath;
+                    }
+
+                    if (fileSlugsMap.TryGetValue(targetDocPath, out var validSlugs))
+                    {
+                        if (!validSlugs.Contains(targetSlug))
+                        {
+                            brokenAnchorCount++;
+                            items.Add(new WorkspaceAnchorSlugItem(
+                                docPath, i + 1, linkText, targetSlug, "BrokenAnchorSlug", "Hazard",
+                                line.Length > 80 ? line.Substring(0, 77) + "..." : line,
+                                $"Anchor '#{targetSlug}' not found in target document. Heading text may have changed."));
+                        }
+                    }
+                }
+            }
+        }
+
+        double penalty = (brokenAnchorCount * 25.0) + (duplicateHeadingCount * 10.0);
+        double score = Math.Max(0.0, Math.Min(100.0, 100.0 - penalty));
+
+        string category = score switch
+        {
+            >= 95.0 => "Optimal · Navigational Anchor Integrity",
+            >= 80.0 => "Good · Minor Heading Disambiguations",
+            >= 60.0 => "Caution · Broken Anchor References",
+            _ => "Hazardous · Severe Cross-Reference Link Rot"
+        };
+
+        string summary = FormatAnchorSlugsSummary(
+            totalDocs, totalHeadingsIndexed, totalAnchorLinksChecked, brokenAnchorCount, duplicateHeadingCount, score, category);
+
+        return new WorkspaceDocumentAnchorSlugsAudit(
+            totalDocs, totalHeadingsIndexed, totalAnchorLinksChecked, brokenAnchorCount, duplicateHeadingCount,
+            score, items, category, summary);
+    }
+
+    private static string GenerateMarkdownSlug(string heading)
+    {
+        if (string.IsNullOrWhiteSpace(heading)) return "heading";
+        var sb = new System.Text.StringBuilder();
+        foreach (char c in heading.ToLowerInvariant())
+        {
+            if (char.IsLetterOrDigit(c))
+            {
+                sb.Append(c);
+            }
+            else if (char.IsWhiteSpace(c) || c == '-' || c == '_')
+            {
+                if (sb.Length > 0 && sb[sb.Length - 1] != '-')
+                {
+                    sb.Append('-');
+                }
+            }
+        }
+        string slug = sb.ToString().Trim('-');
+        return string.IsNullOrEmpty(slug) ? "heading" : slug;
+    }
+
+    public static string FormatAnchorSlugsSummary(
+        int totalDocs, int headings, int anchors, int broken, int duplicates, double score, string category)
+    {
+        if (totalDocs == 0)
+            return "Workspace anchor slug audit: Clean baseline · 0 documents evaluated";
+
+        var parts = new List<string>();
+        parts.Add($"{totalDocs} doc{(totalDocs == 1 ? "" : "s")}");
+        parts.Add($"{headings} heading{(headings == 1 ? "" : "s")}");
+        parts.Add($"{anchors} anchor link{(anchors == 1 ? "" : "s")}");
+        if (broken > 0) parts.Add($"🚨 {broken} broken anchor{(broken == 1 ? "" : "s")}");
+        if (duplicates > 0) parts.Add($"⚡ {duplicates} duplicate heading{(duplicates == 1 ? "" : "s")}");
+        if (broken == 0 && duplicates == 0) parts.Add("✓ zero link rot");
+
+        string details = string.Join(" · ", parts);
+        return $"Workspace anchor slug audit ({details} · {category} · {score:0.#}% integrity score)";
+    }
+
 }
 
 
@@ -14126,5 +14344,26 @@ public sealed record WorkspaceDocumentTaxonomyCohesionAudit(
     int UntaggedDocumentCount,
     double TaxonomyCohesionScore,
     IReadOnlyList<WorkspaceTaxonomyItem> Items,
+    string Category,
+    string Summary);
+
+public sealed record WorkspaceAnchorSlugItem(
+    string DocumentPath,
+    int LineNumber,
+    string LinkText,
+    string TargetSlug,
+    string IssueType,
+    string Severity,
+    string Excerpt,
+    string Recommendation);
+
+public sealed record WorkspaceDocumentAnchorSlugsAudit(
+    int TotalDocumentsEvaluated,
+    int TotalHeadingsIndexed,
+    int TotalAnchorLinksChecked,
+    int BrokenAnchorCount,
+    int DuplicateHeadingCount,
+    double AnchorIntegrityScore,
+    IReadOnlyList<WorkspaceAnchorSlugItem> Items,
     string Category,
     string Summary);

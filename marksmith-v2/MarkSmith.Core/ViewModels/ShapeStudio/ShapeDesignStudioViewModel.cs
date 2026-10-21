@@ -14550,6 +14550,129 @@ public static string FormatGroupNestingSummary(
         return $"Diagram z-index stacking audit ({scope}{details} · {category} · {score:0.#}% stacking score)";
     }
 
+
+    public DiagramTextContrastAudit AuditDiagramTextContrast(bool selectionOnly = false)
+    {
+        var selected = SelectedItems.ToList();
+        var targetShapes = (selectionOnly && selected.Count > 0) ? selected : Shapes.ToList();
+        bool isSelection = selectionOnly && selected.Count > 0;
+        var audit = AuditDiagramTextContrast(targetShapes, isSelection);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static DiagramTextContrastAudit AuditDiagramTextContrast(
+        IEnumerable<ShapeCanvasItemViewModel>? targetShapes,
+        bool isSelection = false)
+    {
+        var targetList = (targetShapes ?? Enumerable.Empty<ShapeCanvasItemViewModel>())
+            .Where(s => s != null && !string.IsNullOrWhiteSpace(s.Text))
+            .ToList();
+
+        int totalTextShapes = targetList.Count;
+        if (totalTextShapes == 0)
+        {
+            string emptySummary = FormatTextContrastSummary(0, 0, 0, 0, 100.0, "Clean Baseline · No Text Shapes", isSelection);
+            return new DiagramTextContrastAudit(
+                0, 0, 0, 0, 100.0,
+                Array.Empty<DiagramTextContrastItem>(), "Clean Baseline · No Text Shapes", isSelection, emptySummary);
+        }
+
+        var items = new List<DiagramTextContrastItem>();
+        int passWcagAa = 0;
+        int lowContrastWarnings = 0;
+        int severeContrastFails = 0;
+
+        foreach (var shape in targetList)
+        {
+            string text = shape.Text?.Trim() ?? string.Empty;
+            string rawFill = shape.Fill?.Trim() ?? "FFFFFF";
+            string cleanFill = rawFill.TrimStart('#');
+            if (cleanFill.Length != 6 && cleanFill.Length != 8) cleanFill = "FFFFFF";
+            if (cleanFill.Length == 8) cleanFill = cleanFill.Substring(2);
+
+            string cleanText;
+            if (!string.IsNullOrWhiteSpace(shape.TextColor))
+            {
+                cleanText = shape.TextColor.Trim().TrimStart('#');
+                if (cleanText.Length != 6 && cleanText.Length != 8) cleanText = "121212";
+                if (cleanText.Length == 8) cleanText = cleanText.Substring(2);
+            }
+            else
+            {
+                cleanText = Services.ContrastGuard.GetLuminance(cleanFill) < 0.35 ? "FFFFFF" : "1E1E1E";
+            }
+
+            double ratio = Services.ContrastGuard.GetContrastRatio(cleanText, cleanFill);
+
+            string level;
+            string severity;
+            string rec;
+
+            if (ratio >= 4.5)
+            {
+                passWcagAa++;
+                level = ratio >= 7.0 ? "WCAG AAA" : "WCAG AA";
+                severity = "Valid";
+                rec = $"High contrast legibility achieved ({ratio:0.1}:1 ratio).";
+            }
+            else if (ratio < 3.0)
+            {
+                severeContrastFails++;
+                level = "Severe Fail";
+                severity = "Hazard";
+                string suggested = Services.ContrastGuard.EnsureLegibleText(cleanText, cleanFill);
+                rec = $"Severe contrast defect ({ratio:0.1}:1 ratio < 3.0:1 threshold). Switch label text color to #{suggested}.";
+            }
+            else
+            {
+                lowContrastWarnings++;
+                level = "Low Contrast Warning";
+                severity = "Warning";
+                string suggested = Services.ContrastGuard.EnsureLegibleText(cleanText, cleanFill);
+                rec = $"Contrast ratio ({ratio:0.1}:1) falls below WCAG AA 4.5:1 minimum. Consider #{suggested} for improved readability.";
+            }
+
+            items.Add(new DiagramTextContrastItem(
+                shape.Id, shape.Name ?? "Shape", text, $"#{cleanFill}", $"#{cleanText}",
+                ratio, level, severity, rec));
+        }
+
+        double penalty = (severeContrastFails * 25.0) + (lowContrastWarnings * 10.0);
+        double score = Math.Max(0.0, Math.Min(100.0, 100.0 - penalty));
+
+        string category = score switch
+        {
+            >= 95.0 => "Optimal · Accessible Color Contrast",
+            >= 80.0 => "Good · Minor Contrast Warnings",
+            >= 60.0 => "Caution · Low Legibility Labels",
+            _ => "Hazardous · Severe Contrast Failures"
+        };
+
+        string summary = FormatTextContrastSummary(
+            totalTextShapes, passWcagAa, lowContrastWarnings, severeContrastFails, score, category, isSelection);
+
+        return new DiagramTextContrastAudit(
+            totalTextShapes, passWcagAa, lowContrastWarnings, severeContrastFails, score, items, category, isSelection, summary);
+    }
+
+    public static string FormatTextContrastSummary(
+        int total, int passAa, int warnings, int severeFails, double score, string category, bool isSelection)
+    {
+        string scope = isSelection ? "Selection · " : "";
+        if (total == 0)
+            return $"Diagram text contrast audit ({scope}Clean artboard · 0 text shapes evaluated)";
+
+        var parts = new List<string>();
+        parts.Add($"{total} text shape{(total == 1 ? "" : "s")}");
+        if (passAa > 0) parts.Add($"✓ {passAa} WCAG AA/AAA");
+        if (warnings > 0) parts.Add($"⚡ {warnings} low contrast (<4.5:1)");
+        if (severeFails > 0) parts.Add($"🚨 {severeFails} severe fail (<3.0:1)");
+
+        string details = string.Join(" · ", parts);
+        return $"Diagram text contrast audit ({scope}{details} · {category} · {score:0.#}% contrast score)";
+    }
+
 }
 
 
@@ -16439,6 +16562,28 @@ public sealed record DiagramZIndexStackingAudit(
     int SparseGapCount,
     double StackingHygieneScore,
     IReadOnlyList<ShapeZIndexStackingItem> Items,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);
+
+public sealed record DiagramTextContrastItem(
+    string ShapeId,
+    string ShapeName,
+    string Text,
+    string FillColor,
+    string TextColor,
+    double ContrastRatio,
+    string ComplianceLevel,
+    string Severity,
+    string Recommendation);
+
+public sealed record DiagramTextContrastAudit(
+    int TotalTextShapesEvaluated,
+    int PassWcagAaCount,
+    int LowContrastWarningCount,
+    int SevereContrastFailCount,
+    double ContrastComplianceScore,
+    IReadOnlyList<DiagramTextContrastItem> Items,
     string Category,
     bool IsSelectionScope,
     string Summary);

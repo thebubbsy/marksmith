@@ -4016,6 +4016,18 @@ var auditResourceDisposalLeaksItem = new MenuFlyoutItem
                     _vm.ShowNotice($"\u2713 {audit.Summary}");
                 };
                 menu.Items.Add(auditLinqMultipleEnumerationItem);
+                var auditExceptionSwallowingItem = new MenuFlyoutItem
+                {
+                    Text = "Audit Diff Exception Swallowing & Bare Catch Block Hazards",
+                    Icon = new FontIcon { Glyph = "\uE8B9" }
+                };
+                auditExceptionSwallowingItem.Click += (_, _) =>
+                {
+                    var audit = MarkSmith.Services.LineDiff.AuditExceptionSwallowingHazards(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+                    _vm.ShowNotice($"\u2713 {audit.Summary}");
+                };
+                menu.Items.Add(auditExceptionSwallowingItem);
 
 
 

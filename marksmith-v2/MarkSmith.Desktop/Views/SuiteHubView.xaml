@@ -450,6 +450,9 @@
                                     <MenuFlyoutItem x:Name="AuditWorkspaceDocumentTaxonomyCohesionItem" Text="Audit Workspace Document Frontmatter Taxonomy &amp; Category Cohesion" Click="OnAuditWorkspaceDocumentTaxonomyCohesionClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditWorkspaceDocumentAnchorSlugsItem" Text="Audit Workspace Document Cross-Reference Anchor &amp; Header Slug Drift" Click="OnAuditWorkspaceDocumentAnchorSlugsClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem x:Name="AuditWorkspaceCodeBlockLanguageTagsItem" Text="Audit Workspace Code Block Syntax Highlighting &amp; Language Tags" Click="OnAuditWorkspaceCodeBlockLanguageTagsClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

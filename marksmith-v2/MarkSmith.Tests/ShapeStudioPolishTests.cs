@@ -4103,4 +4103,37 @@ public class ShapeStudioPolishTests
         Assert.Contains("Diagram z-index stacking audit", invertedAudit.Summary);
     }
 
+    [Fact]
+    public void Run218_AuditDiagramTextContrast_DetectsLowContrastAndAccessibleColors()
+    {
+        // 1. Clean Baseline (no shapes)
+        var emptyAudit = ShapeDesignStudioViewModel.AuditDiagramTextContrast(null);
+        Assert.Equal(0, emptyAudit.TotalTextShapesEvaluated);
+        Assert.Equal(100.0, emptyAudit.ContrastComplianceScore);
+
+        // 2. High contrast accessible shapes (dark text on white/light-grey fills)
+        var s1 = new ShapeCanvasItemViewModel { Id = "S1", Name = "Card", Text = "Card Header", Fill = "FFFFFF", TextColor = "121212" };
+        var s2 = new ShapeCanvasItemViewModel { Id = "S2", Name = "Badge", Text = "Badge Text", Fill = "E0E0E0", TextColor = "121212" };
+
+        var cleanAudit = ShapeDesignStudioViewModel.AuditDiagramTextContrast(new[] { s1, s2 });
+        Assert.Equal(2, cleanAudit.TotalTextShapesEvaluated);
+        Assert.Equal(2, cleanAudit.PassWcagAaCount);
+        Assert.Equal(0, cleanAudit.LowContrastWarningCount);
+        Assert.Equal(0, cleanAudit.SevereContrastFailCount);
+        Assert.Equal(100.0, cleanAudit.ContrastComplianceScore);
+        Assert.Equal("Optimal · Accessible Color Contrast", cleanAudit.Category);
+        Assert.Equal(0, cleanAudit.LowContrastWarningCount);
+        Assert.Equal(0, cleanAudit.SevereContrastFailCount);
+        Assert.Equal(100.0, cleanAudit.ContrastComplianceScore);
+        Assert.Equal("Optimal · Accessible Color Contrast", cleanAudit.Category);
+
+        // 3. Low contrast shape (light grey text #D0D0D0 on white #FFFFFF)
+        var lowContrastShape = new ShapeCanvasItemViewModel { Id = "LOW", Name = "LowContrast", Text = "Unreadable", Fill = "FFFFFF", TextColor = "D0D0D0" };
+        var flawedAudit = ShapeDesignStudioViewModel.AuditDiagramTextContrast(new[] { lowContrastShape });
+        Assert.Equal(1, flawedAudit.TotalTextShapesEvaluated);
+        Assert.True(flawedAudit.SevereContrastFailCount >= 1 || flawedAudit.LowContrastWarningCount >= 1);
+        Assert.True(flawedAudit.ContrastComplianceScore <= 75.0);
+        Assert.Contains("Diagram text contrast audit", flawedAudit.Summary);
+    }
+
 }

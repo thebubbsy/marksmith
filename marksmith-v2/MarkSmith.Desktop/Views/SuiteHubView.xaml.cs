@@ -5387,6 +5387,25 @@ private async void OnAuditWorkspaceMarkdownTableAutoAlignAndExportClick(object s
         }
     }
 
+    private async void OnAuditWorkspaceDocumentAnchorSlugsClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var files = App.RecentFiles?.Load() ?? new List<string>();
+            var result = RecentFilesService.AuditWorkspaceDocumentAnchorSlugs(explicitFiles: files);
+            await Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            SetNotification(result.Summary, success: true);
+            if (RecentDocsActionBtn != null)
+            {
+                RecentDocsActionBtn.Flyout?.Hide();
+            }
+        }
+        catch (Exception ex)
+        {
+            SetNotification($"Anchor slug audit failed: {ex.Message}", success: false);
+        }
+    }
+
     private async void OnAuditWorkspaceCodeBlockLanguageTagsClick(object sender, RoutedEventArgs e)
 
     {

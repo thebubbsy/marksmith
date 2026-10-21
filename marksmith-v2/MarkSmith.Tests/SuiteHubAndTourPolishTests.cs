@@ -7758,4 +7758,98 @@ Some paragraph in between.
         Assert.Contains("OnAuditWorkspaceDocumentTaxonomyCohesionClick", hubCs);
     }
 
+    [Fact]
+    public void Run218_AuditWorkspaceDocumentAnchorSlugs_DetectsBrokenAnchorsAndDuplicateSlugs()
+    {
+        // 1. Clean Baseline (no files)
+        var emptyAudit = RecentFilesService.AuditWorkspaceDocumentAnchorSlugs(null);
+        Assert.Equal(0, emptyAudit.TotalDocumentsEvaluated);
+        Assert.Equal(100.0, emptyAudit.AnchorIntegrityScore);
+
+        // 2. Clean valid cross references
+        var doc1 = "C:\\Docs\\Architecture.md";
+        var doc2 = "C:\\Docs\\Deployment.md";
+
+        var contents = new Dictionary<string, string>
+        {
+            { doc1, "# Architecture Overview\nSee [Deployment Steps](Deployment.md#deployment-steps) for details." },
+            { doc2, "# Deployment Steps\nBack to [Architecture Overview](Architecture.md#architecture-overview)." }
+        };
+
+        var cleanAudit = RecentFilesService.AuditWorkspaceDocumentAnchorSlugs(
+            explicitFiles: new[] { doc1, doc2 },
+            contentReader: path => contents.TryGetValue(path, out var c) ? c : string.Empty
+        );
+
+        Assert.Equal(2, cleanAudit.TotalDocumentsEvaluated);
+        Assert.Equal(2, cleanAudit.TotalHeadingsIndexed);
+        Assert.Equal(2, cleanAudit.TotalAnchorLinksChecked);
+        Assert.Equal(0, cleanAudit.BrokenAnchorCount);
+        Assert.Equal(0, cleanAudit.DuplicateHeadingCount);
+        Assert.Equal(100.0, cleanAudit.AnchorIntegrityScore);
+        Assert.Equal("Optimal · Navigational Anchor Integrity", cleanAudit.Category);
+
+        // 3. Flawed anchors: broken slug (#missing-target) and duplicate headings (#overview)
+        var flawedDoc = "C:\\Docs\\Flawed.md";
+        var flawedContents = new Dictionary<string, string>
+        {
+            {
+                flawedDoc,
+                string.Join("\n",
+                    "# Overview",
+                    "Link to [Non Existent](#non-existent-target).",
+                    "# Overview",
+                    "Link to [First Overview](#overview)."
+                )
+            }
+        };
+
+        var flawedAudit = RecentFilesService.AuditWorkspaceDocumentAnchorSlugs(
+            explicitFiles: new[] { flawedDoc },
+            contentReader: path => flawedContents.TryGetValue(path, out var c) ? c : string.Empty
+        );
+
+        Assert.True(flawedAudit.BrokenAnchorCount >= 1 || flawedAudit.DuplicateHeadingCount >= 1);
+        Assert.True(flawedAudit.AnchorIntegrityScore <= 75.0);
+        Assert.Contains("Workspace anchor slug audit", flawedAudit.Summary);
+    }
+
+    [Fact]
+    public void Run218_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // 1. MainWindow
+        var mainCs = System.IO.File.ReadAllText(@"..\..\..\..\MarkSmith.Desktop\MainWindow.xaml.cs");
+        Assert.Contains("AuditMarkdownTaskListPriorities", mainCs);
+        Assert.Contains("auditTaskListPrioritiesItem", mainCs);
+
+        // 2. MindMapGalaxyWindow
+        var mindMapXaml = System.IO.File.ReadAllText(@"..\..\..\..\MarkSmith.Desktop\Views\MindMap\MindMapGalaxyWindow.xaml");
+        Assert.Contains("AuditGraphOrthogonalGridAlignmentItem", mindMapXaml);
+        var mindMapCs = System.IO.File.ReadAllText(@"..\..\..\..\MarkSmith.Desktop\Views\MindMap\MindMapGalaxyWindow.xaml.cs");
+        Assert.Contains("OnAuditGraphOrthogonalGridAlignmentClick", mindMapCs);
+
+        // 3. ShapeDesignStudioWindow
+        var shapeXaml = System.IO.File.ReadAllText(@"..\..\..\..\MarkSmith.Desktop\Views\ShapeStudio\ShapeDesignStudioWindow.xaml");
+        Assert.Contains("SelectionAuditDiagramTextContrastItem", shapeXaml);
+        var shapeCs = System.IO.File.ReadAllText(@"..\..\..\..\MarkSmith.Desktop\Views\ShapeStudio\ShapeDesignStudioWindow.xaml.cs");
+        Assert.Contains("OnSelectionAuditDiagramTextContrastClick", shapeCs);
+
+        // 4. SmartArtDesignStudioWindow
+        var smartArtXaml = System.IO.File.ReadAllText(@"..\..\..\..\MarkSmith.Desktop\Views\SmartArtStudio\SmartArtDesignStudioWindow.xaml");
+        Assert.Contains("OutlineStatsAuditSegmentedCycleAngleSlicingItem", smartArtXaml);
+        var smartArtCs = System.IO.File.ReadAllText(@"..\..\..\..\MarkSmith.Desktop\Views\SmartArtStudio\SmartArtDesignStudioWindow.xaml.cs");
+        Assert.Contains("OnOutlineStatsAuditSegmentedCycleAngleSlicingClick", smartArtCs);
+
+        // 5. HistoryWindow
+        var historyCs = System.IO.File.ReadAllText(@"..\..\..\..\MarkSmith.Desktop\Views\History\HistoryWindow.xaml.cs");
+        Assert.Contains("AuditExceptionSwallowingHazards", historyCs);
+        Assert.Contains("auditExceptionSwallowingItem", historyCs);
+
+        // 6. SuiteHubView
+        var hubXaml = System.IO.File.ReadAllText(@"..\..\..\..\MarkSmith.Desktop\Views\SuiteHubView.xaml");
+        Assert.Contains("AuditWorkspaceDocumentAnchorSlugsItem", hubXaml);
+        var hubCs = System.IO.File.ReadAllText(@"..\..\..\..\MarkSmith.Desktop\Views\SuiteHubView.xaml.cs");
+        Assert.Contains("OnAuditWorkspaceDocumentAnchorSlugsClick", hubCs);
+    }
+
 }

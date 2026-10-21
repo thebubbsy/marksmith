@@ -859,6 +859,9 @@
                                     <MenuFlyoutItem x:Name="SelectionAuditDiagramZIndexStackingItem" Text="Audit Diagram Z-Index Stacking Normalization &amp; Layer Occlusion" Click="OnSelectionAuditDiagramZIndexStackingClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="SelectionAuditDiagramTextContrastItem" Text="Audit Diagram Text Contrast &amp; Label Contrast Ratio" Click="OnSelectionAuditDiagramTextContrastClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem x:Name="SelectionAuditShapeOcclusionAndStackingOrderItem" Text="Audit Shape Z-Index Stacking Order &amp; Visual Occlusion" Click="OnSelectionAuditShapeOcclusionAndStackingOrderClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

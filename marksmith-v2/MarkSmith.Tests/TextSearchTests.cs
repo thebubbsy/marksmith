@@ -4296,4 +4296,46 @@ public class TextSearchTests
         Assert.Contains("missing '!' prefix", flawedAudit.Summary);
     }
 
+    [Fact]
+    public void Run218_AuditMarkdownTaskListPriorities_ValidatesPriorityTagsAndDeadlines()
+    {
+        // 1. Clean Baseline (no tasks)
+        var emptyAudit = TextSearch.AuditMarkdownTaskListPriorities(string.Empty);
+        Assert.Equal(0, emptyAudit.TotalTasks);
+        Assert.Equal(100.0, emptyAudit.TaskComplianceScore);
+        Assert.Contains("No tasks present", emptyAudit.Summary);
+
+        // 2. Valid prioritized tasks with deadlines
+        var cleanMd = string.Join("\n",
+            "# Sprint Tasks",
+            "- [ ] [#A] Implement core architecture @due(2026-10-31)",
+            "- [x] [#high] Deploy release artifact @due(2026-10-25)",
+            "- [ ] [#p1] Hotfix security advisory",
+            "- [ ] 1. [#normal] Regular maintenance task @deadline(2026-11-05)"
+        );
+        var cleanAudit = TextSearch.AuditMarkdownTaskListPriorities(cleanMd);
+        Assert.Equal(4, cleanAudit.TotalTasks);
+        Assert.Equal(4, cleanAudit.ValidPrioritizedTasks);
+        Assert.Equal(3, cleanAudit.ValidDeadlines);
+        Assert.Equal(0, cleanAudit.MalformedPriorities);
+        Assert.Equal(0, cleanAudit.MalformedDeadlines);
+        Assert.Equal(100.0, cleanAudit.TaskComplianceScore);
+        Assert.Equal("Optimal · Standardized Task Tags", cleanAudit.Category);
+
+        // 3. Flawed tasks with invalid priorities and bad dates
+        var flawedMd = string.Join("\n",
+            "# Broken Tasks",
+            "- [ ] [#invalid_priority_tag] Bad priority name",
+            "- [ ] [#B Unclosed priority bracket",
+            "- [ ] Task with invalid date @due(2026-13-45)",
+            "- [ ] Task with unclosed deadline @due(2026-10-21"
+        );
+        var flawedAudit = TextSearch.AuditMarkdownTaskListPriorities(flawedMd);
+        Assert.True(flawedAudit.TotalTasks >= 4);
+        Assert.True(flawedAudit.MalformedPriorities >= 1);
+        Assert.True(flawedAudit.MalformedDeadlines >= 1);
+        Assert.True(flawedAudit.TaskComplianceScore <= 60.0);
+        Assert.Contains("invalid priority", flawedAudit.Summary);
+    }
+
 }

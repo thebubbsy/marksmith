@@ -3827,4 +3827,35 @@ public class SmartArtStudioPolishTests
         Assert.Contains("overloaded", flawedAudit.Summary);
     }
 
+    [Fact]
+    public void Run218_AuditSegmentedCycleAngleSlicing_ValidatesSectorAnglesAndChordLengths()
+    {
+        // 1. Clean Baseline (no steps)
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditSegmentedCycleAngleSlicing(string.Empty);
+        Assert.Equal(0, emptyAudit.TotalSteps);
+        Assert.Equal(100.0, emptyAudit.CycleSymmetryScore);
+
+        // 2. Symmetric 4-stage cycle
+        var symmetricMd = string.Join("\n",
+            "- Discover",
+            "- Design",
+            "- Develop",
+            "- Deploy"
+        );
+        var cleanAudit = SmartArtDesignStudioViewModel.AuditSegmentedCycleAngleSlicing(symmetricMd);
+        Assert.Equal(4, cleanAudit.TotalSteps);
+        Assert.Equal(90.0, cleanAudit.IdealSectorAngleDegrees);
+        Assert.Equal(0, cleanAudit.DegenerateStepsCount);
+        Assert.Equal(100.0, cleanAudit.CycleSymmetryScore);
+        Assert.Equal("Optimal · Perfect Radial Cycle Symmetry", cleanAudit.Category);
+
+        // 3. Degenerate cycle with only 1 step
+        var singleStepMd = "- Single Lone Stage";
+        var degenerateAudit = SmartArtDesignStudioViewModel.AuditSegmentedCycleAngleSlicing(singleStepMd);
+        Assert.Equal(1, degenerateAudit.TotalSteps);
+        Assert.Equal(1, degenerateAudit.DegenerateStepsCount);
+        Assert.True(degenerateAudit.CycleSymmetryScore <= 60.0);
+        Assert.Contains("degenerate", degenerateAudit.Summary);
+    }
+
 }

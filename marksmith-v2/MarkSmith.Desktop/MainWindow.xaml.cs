@@ -12303,6 +12303,19 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             AnnounceStatus(summary);
         };
         menu.Items.Add(auditBlockquoteAlertCalloutsItem);
+        var auditTaskListPrioritiesItem = new MenuFlyoutItem
+        {
+            Text = "Audit Markdown Task List Priority Tags & Deadline Syntax",
+            Icon = new FontIcon { Glyph = "\uE8B9" }
+        };
+        auditTaskListPrioritiesItem.Click += (_, _) =>
+        {
+            var docText = EditorDocument();
+            var summary = MarkSmith.Services.TextSearch.AuditMarkdownTaskListPriorities(docText).Summary;
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditTaskListPrioritiesItem);
 
 
 

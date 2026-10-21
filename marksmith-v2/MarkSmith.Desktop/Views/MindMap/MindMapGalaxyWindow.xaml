@@ -412,6 +412,9 @@
                                     <MenuFlyoutItem x:Name="AuditGraphRadialClusteringItem" Text="Audit Graph Radial Clustering &amp; Angular Centroid Separation" Click="OnAuditGraphRadialClusteringClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditGraphOrthogonalGridAlignmentItem" Text="Audit Graph Orthogonal Tree Grid Alignment &amp; Branch Level Spacing" Click="OnAuditGraphOrthogonalGridAlignmentClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem x:Name="AuditGraphColorContrastAccessibilityItem" Text="Audit Graph Node Color Contrast &amp; Cognitive Accessibility" Click="OnAuditGraphColorContrastAccessibilityClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

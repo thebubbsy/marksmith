@@ -15586,11 +15586,12 @@ public static class TextSearch
                         string nextLine = lines[j].Trim();
                         if (string.IsNullOrWhiteSpace(nextLine)) break;
                         var nextQ = quoteStartRegex.Match(lines[j]);
-                        if (nextQ.Success && !string.IsNullOrWhiteSpace(nextQ.Groups[1].Value))
+                        if (!nextQ.Success) break;
+                        if (!string.IsNullOrWhiteSpace(nextQ.Groups[1].Value))
                         {
                             hasBody = true;
+                            break;
                         }
-                        break;
                     }
                 }
 
@@ -15704,6 +15705,200 @@ public static class TextSearch
 
         string details = string.Join(" · ", parts);
         return $"Markdown alert callout audit ({details} · {category} · {score:0.#}% grammar score)";
+    }
+
+
+    public static MarkdownTaskListPrioritiesAudit AuditMarkdownTaskListPriorities(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            string emptySummary = FormatMarkdownTaskListPrioritiesSummary(0, 0, 0, 0, 0, 0, 100.0, "Clean Baseline · No Tasks");
+            return new MarkdownTaskListPrioritiesAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<MarkdownTaskListPriorityItem>(),
+                "Clean Baseline · No Tasks", emptySummary);
+        }
+
+        var lines = markdownText.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        var items = new List<MarkdownTaskListPriorityItem>();
+
+        int totalTasks = 0;
+        int validPriorities = 0;
+        int validDeadlines = 0;
+        int malformedPriorities = 0;
+        int malformedDeadlines = 0;
+        int untaggedTasks = 0;
+
+        var validPriorityKeywords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "A", "B", "C", "D", "HIGH", "MEDIUM", "LOW", "URGENT", "CRITICAL", "NORMAL", "P0", "P1", "P2", "P3", "P4"
+        };
+
+        bool inCodeBlock = false;
+        var taskRegex = new System.Text.RegularExpressions.Regex(@"^\s*(?:[-*+]|\d+\.)\s+\[([ xX])\]\s*(.*)$", System.Text.RegularExpressions.RegexOptions.Compiled);
+        var priorityTagRegex = new System.Text.RegularExpressions.Regex(@"\[#([A-Za-z0-9_-]+)\](?![\(\[])", System.Text.RegularExpressions.RegexOptions.Compiled);
+        var deadlineRegex = new System.Text.RegularExpressions.Regex(@"(?:@due|@deadline|due:)\s*(?:\(\s*([^)]*?)\s*\)|([0-9\-\/]{8,10}))", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            int lineNum = i + 1;
+            string line = lines[i];
+            string trimmed = line.Trim();
+
+            if (trimmed.StartsWith("```", System.StringComparison.Ordinal) || trimmed.StartsWith("~~~", System.StringComparison.Ordinal))
+            {
+                inCodeBlock = !inCodeBlock;
+                continue;
+            }
+
+            if (inCodeBlock) continue;
+
+            var tMatch = taskRegex.Match(line);
+            if (!tMatch.Success) continue;
+
+            totalTasks++;
+            string taskContent = tMatch.Groups[2].Value.Trim();
+
+            bool hasPriority = false;
+            bool hasDeadline = false;
+
+            // Check priority tags
+            var pMatches = priorityTagRegex.Matches(taskContent);
+            if (pMatches.Count > 0)
+            {
+                foreach (System.Text.RegularExpressions.Match pm in pMatches)
+                {
+                    string tag = pm.Groups[1].Value;
+                    if (validPriorityKeywords.Contains(tag))
+                    {
+                        validPriorities++;
+                        hasPriority = true;
+                        items.Add(new MarkdownTaskListPriorityItem(
+                            lineNum, pm.Value, tag.ToUpperInvariant(), "", "ValidPriorityTag", "Valid",
+                            line.Length > 80 ? line.Substring(0, 77) + "..." : line,
+                            $"Valid task priority marker '{pm.Value}'."));
+                    }
+                    else
+                    {
+                        malformedPriorities++;
+                        hasPriority = true;
+                        items.Add(new MarkdownTaskListPriorityItem(
+                            lineNum, pm.Value, tag, "", "UnrecognizedPriorityTag", "Warning",
+                            line.Length > 80 ? line.Substring(0, 77) + "..." : line,
+                            $"Unrecognized priority tag '{pm.Value}'. Use canonical priorities like [#A], [#B], [#high], [#medium], [#low], or [#p1]."));
+                    }
+                }
+            }
+            else if (taskContent.Contains("[#") && !taskContent.Contains("]"))
+            {
+                malformedPriorities++;
+                hasPriority = true;
+                items.Add(new MarkdownTaskListPriorityItem(
+                    lineNum, "[#...", "Malformed", "", "UnclosedPriorityBracket", "Hazard",
+                    line.Length > 80 ? line.Substring(0, 77) + "..." : line,
+                    "Unclosed priority tag '[#...'. Close with ']' bracket."));
+            }
+
+            // Check deadline tags
+            var dMatches = deadlineRegex.Matches(taskContent);
+            if (dMatches.Count > 0)
+            {
+                foreach (System.Text.RegularExpressions.Match dm in dMatches)
+                {
+                    string rawDate = dm.Groups[1].Success && !string.IsNullOrWhiteSpace(dm.Groups[1].Value)
+                        ? dm.Groups[1].Value.Trim()
+                        : dm.Groups[2].Value.Trim();
+
+                    bool validDate = false;
+                    string[] formats = new[] { "yyyy-MM-dd", "yyyy/MM/dd", "yyyy-M-d", "yyyy/M/d" };
+                    if (System.DateTime.TryParseExact(rawDate, formats, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var dt))
+                    {
+                        validDate = true;
+                    }
+
+                    if (validDate)
+                    {
+                        validDeadlines++;
+                        hasDeadline = true;
+                        items.Add(new MarkdownTaskListPriorityItem(
+                            lineNum, dm.Value, "", rawDate, "ValidDeadlineDate", "Valid",
+                            line.Length > 80 ? line.Substring(0, 77) + "..." : line,
+                            $"Valid ISO-8601 deadline tag '{dm.Value}'."));
+                    }
+                    else
+                    {
+                        malformedDeadlines++;
+                        hasDeadline = true;
+                        items.Add(new MarkdownTaskListPriorityItem(
+                            lineNum, dm.Value, "", rawDate, "MalformedDeadlineDate", "Hazard",
+                            line.Length > 80 ? line.Substring(0, 77) + "..." : line,
+                            $"Invalid deadline date '{rawDate}' in tag '{dm.Value}'. Use valid ISO format '@due(YYYY-MM-DD)'."));
+                    }
+                }
+            }
+            else if (taskContent.Contains("@due(") && !taskContent.Contains(")"))
+            {
+                malformedDeadlines++;
+                hasDeadline = true;
+                items.Add(new MarkdownTaskListPriorityItem(
+                    lineNum, "@due(...", "", "Unclosed", "UnclosedDeadlineParenthesis", "Hazard",
+                    line.Length > 80 ? line.Substring(0, 77) + "..." : line,
+                    "Unclosed deadline tag '@due(...'. Ensure closing parenthesis ')' is present."));
+            }
+
+            if (!hasPriority && !hasDeadline)
+            {
+                untaggedTasks++;
+            }
+        }
+
+        if (totalTasks == 0)
+        {
+            string emptySummary = FormatMarkdownTaskListPrioritiesSummary(0, 0, 0, 0, 0, 0, 100.0, "Clean Baseline · No Tasks");
+            return new MarkdownTaskListPrioritiesAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<MarkdownTaskListPriorityItem>(),
+                "Clean Baseline · No Tasks", emptySummary);
+        }
+
+        double penalty = (malformedPriorities * 25.0) + (malformedDeadlines * 20.0);
+        double score = Math.Max(0.0, Math.Min(100.0, 100.0 - penalty));
+
+        string category = score switch
+        {
+            >= 95.0 => "Optimal · Standardized Task Tags",
+            >= 80.0 => "Good · Minor Task Metadata Warnings",
+            >= 60.0 => "Caution · Malformed Priorities & Deadlines",
+            _ => "Hazardous · Severe Task Syntax Errors"
+        };
+
+        string summary = FormatMarkdownTaskListPrioritiesSummary(
+            totalTasks, validPriorities, validDeadlines, malformedPriorities, malformedDeadlines, untaggedTasks, score, category);
+
+        return new MarkdownTaskListPrioritiesAudit(
+            totalTasks, validPriorities, validDeadlines, malformedPriorities, malformedDeadlines, untaggedTasks,
+            score, items, category, summary);
+    }
+
+    public static string FormatMarkdownTaskListPrioritiesSummary(string? markdownText)
+        => AuditMarkdownTaskListPriorities(markdownText).Summary;
+
+    public static string FormatMarkdownTaskListPrioritiesSummary(
+        int totalTasks, int validPriorities, int validDeadlines, int malformedPriorities, int malformedDeadlines, int untagged, double score, string category)
+    {
+        if (totalTasks == 0)
+            return "Markdown task list priority audit: Clean document · No tasks present";
+
+        var parts = new List<string>();
+        parts.Add($"{totalTasks} task{(totalTasks == 1 ? "" : "s")}");
+        if (validPriorities > 0) parts.Add($"✓ {validPriorities} prioritized");
+        if (validDeadlines > 0) parts.Add($"⏱ {validDeadlines} deadline{(validDeadlines == 1 ? "" : "s")}");
+        if (malformedPriorities > 0) parts.Add($"🚨 {malformedPriorities} invalid priority");
+        if (malformedDeadlines > 0) parts.Add($"🚨 {malformedDeadlines} malformed date");
+        if (untagged > 0) parts.Add($"ℹ {untagged} untagged");
+
+        string details = string.Join(" · ", parts);
+        return $"Markdown task list priority audit ({details} · {category} · {score:0.#}% compliance score)";
     }
 
 }
@@ -17530,5 +17725,27 @@ public sealed record MarkdownBlockquoteAlertCalloutsAudit(
     int EmptyCalloutCount,
     double AlertGrammarScore,
     IReadOnlyList<MarkdownBlockquoteAlertCalloutItem> Items,
+    string Category,
+    string Summary);
+
+public sealed record MarkdownTaskListPriorityItem(
+    int LineNumber,
+    string RawTag,
+    string PriorityLevel,
+    string DeadlineDate,
+    string IssueType,
+    string Severity,
+    string Excerpt,
+    string Recommendation);
+
+public sealed record MarkdownTaskListPrioritiesAudit(
+    int TotalTasks,
+    int ValidPrioritizedTasks,
+    int ValidDeadlines,
+    int MalformedPriorities,
+    int MalformedDeadlines,
+    int UntaggedTasks,
+    double TaskComplianceScore,
+    IReadOnlyList<MarkdownTaskListPriorityItem> Items,
     string Category,
     string Summary);

@@ -3980,4 +3980,55 @@ public class HistoryPolishTests : IDisposable
         Assert.Contains("Diff LINQ enumeration audit", flawedAudit.Summary);
     }
 
+    [Fact]
+    public void Run218_AuditExceptionSwallowingHazards_DetectsEmptyCatchAndStackTraceLoss()
+    {
+        // 1. Clean Baseline (no added lines)
+        var emptyAudit = LineDiff.AuditExceptionSwallowingHazards(string.Empty, string.Empty);
+        Assert.Equal(0, emptyAudit.TotalAddedLines);
+        Assert.Equal(100.0, emptyAudit.ErrorHandlingHygieneScore);
+
+        // 2. Clean error handling (logging & rethrow)
+        var cleanBefore = "public void Test() { }";
+        var cleanAfter = string.Join("\n",
+            "public void Test()",
+            "{",
+            "    try",
+            "    {",
+            "        DoOperation();",
+            "    }",
+            "    catch (Exception ex)",
+            "    {",
+            "        _logger.LogError(ex, \"Operation failed\");",
+            "        throw;",
+            "    }",
+            "}"
+        );
+        var cleanAudit = LineDiff.AuditExceptionSwallowingHazards(cleanBefore, cleanAfter);
+        Assert.Equal(0, cleanAudit.EmptyCatchCount);
+        Assert.Equal(0, cleanAudit.StackTraceLossThrowCount);
+        Assert.Equal(0, cleanAudit.SwallowedExceptionCount);
+        Assert.Equal(100.0, cleanAudit.ErrorHandlingHygieneScore);
+        Assert.Equal("Optimal · Robust Exception Hygiene", cleanAudit.Category);
+
+        // 3. Flawed error handling: empty catch and throw ex;
+        var flawedBefore = "public void Test() { }";
+        var flawedAfter = string.Join("\n",
+            "public void Test()",
+            "{",
+            "    try { A(); }",
+            "    catch (InvalidOperationException) { }",
+            "    try { B(); }",
+            "    catch (ArgumentException ex)",
+            "    {",
+            "        throw ex;",
+            "    }",
+            "}"
+        );
+        var flawedAudit = LineDiff.AuditExceptionSwallowingHazards(flawedBefore, flawedAfter);
+        Assert.True(flawedAudit.EmptyCatchCount >= 1 || flawedAudit.StackTraceLossThrowCount >= 1);
+        Assert.True(flawedAudit.ErrorHandlingHygieneScore <= 60.0);
+        Assert.Contains("empty catch", flawedAudit.Summary);
+    }
+
 }

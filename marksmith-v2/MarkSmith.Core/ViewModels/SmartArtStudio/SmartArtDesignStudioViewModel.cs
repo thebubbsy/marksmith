@@ -13118,6 +13118,161 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         return $"SmartArt hierarchy span audit ({details} · {category} · {score:0.#}% balance score)";
     }
 
+
+    public SmartArtSegmentedCycleAudit AuditSegmentedCycleAngleSlicing(string? markdown = null, string? layoutName = null)
+    {
+        string md = markdown ?? MarkdownText;
+        string layout = layoutName ?? SelectedLayout?.DisplayName ?? "SegmentedCycle";
+        return AuditSegmentedCycleAngleSlicing(md, layout, isStatic: false);
+    }
+
+    public static SmartArtSegmentedCycleAudit AuditSegmentedCycleAngleSlicing(
+        string? markdown,
+        string? layoutName = null,
+        bool isStatic = true)
+    {
+        string layout = layoutName ?? "SegmentedCycle";
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            string emptySummary = FormatSegmentedCycleSummary(0, 0.0, 0, 0, 0, 100.0, "Clean Baseline · No Cycle Steps");
+            return new SmartArtSegmentedCycleAudit(
+                0, 0.0, 0, 0, 0, 100.0,
+                Array.Empty<SmartArtSegmentedCycleItem>(), "Clean Baseline · No Cycle Steps", emptySummary);
+        }
+
+        var lines = markdown.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        var parsedSteps = new List<string>();
+
+        foreach (var rawLine in lines)
+        {
+            string trimmed = rawLine.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed)) continue;
+            if (trimmed.StartsWith("```") || trimmed.StartsWith(":::") || trimmed.StartsWith("<!--")) continue;
+
+            int indent = 0;
+            while (indent < rawLine.Length && (rawLine[indent] == ' ' || rawLine[indent] == '\t'))
+            {
+                indent += (rawLine[indent] == '\t' ? 4 : 1);
+            }
+
+            if (indent <= 1)
+            {
+                string title = trimmed.TrimStart('-', '*', '+', '#').Trim();
+                if (!string.IsNullOrEmpty(title))
+                {
+                    parsedSteps.Add(title);
+                }
+            }
+        }
+
+        int totalSteps = parsedSteps.Count;
+        if (totalSteps == 0)
+        {
+            string emptySummary = FormatSegmentedCycleSummary(0, 0.0, 0, 0, 0, 100.0, "Clean Baseline · No Cycle Steps");
+            return new SmartArtSegmentedCycleAudit(
+                0, 0.0, 0, 0, 0, 100.0,
+                Array.Empty<SmartArtSegmentedCycleItem>(), "Clean Baseline · No Cycle Steps", emptySummary);
+        }
+
+        var items = new List<SmartArtSegmentedCycleItem>();
+        int degenerateCount = 0;
+        int overcrowdedCount = 0;
+        int asymmetricCount = 0;
+
+        if (totalSteps < 2)
+        {
+            degenerateCount = totalSteps;
+            items.Add(new SmartArtSegmentedCycleItem(
+                1, parsedSteps[0], 360.0, 0.0, "DegenerateCycleStep", "Hazard",
+                "A cycle layout requires at least 2 steps (ideally 3-7). Add additional progression steps."));
+        }
+        else
+        {
+            double idealAngle = 360.0 / totalSteps;
+            double radius = 100.0;
+            double halfAngleRad = (idealAngle / 2.0) * (Math.PI / 180.0);
+            double idealChord = 2.0 * radius * Math.Sin(halfAngleRad);
+
+            bool isOvercrowded = totalSteps > 8;
+            if (isOvercrowded)
+            {
+                overcrowdedCount = totalSteps;
+            }
+
+            double averageWordLength = parsedSteps.Average(s => s.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length);
+
+            for (int i = 0; i < parsedSteps.Count; i++)
+            {
+                string step = parsedSteps[i];
+                int words = step.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length;
+                bool isAsymmetric = Math.Abs(words - averageWordLength) > 5;
+
+                string status;
+                string severity;
+                string rec;
+
+                if (isOvercrowded)
+                {
+                    status = "OvercrowdedCycleSector";
+                    severity = "Warning";
+                    rec = $"Cycle has {totalSteps} steps (>8 maximum recommended). Sector angle is narrow ({idealAngle:0.#}°), risking label collision.";
+                }
+                else if (isAsymmetric)
+                {
+                    asymmetricCount++;
+                    status = "AsymmetricTextDensity";
+                    severity = "Caution";
+                    rec = $"Step text density ({words} words vs {averageWordLength:0.#} avg) creates visual weight imbalance across cycle sectors.";
+                }
+                else
+                {
+                    status = "SymmetricCycleSector";
+                    severity = "Valid";
+                    rec = $"Optimal sector slicing ({idealAngle:0.#}°) and chord length ({idealChord:0.#}px).";
+                }
+
+                items.Add(new SmartArtSegmentedCycleItem(
+                    i + 1, step, idealAngle, idealChord, status, severity, rec));
+            }
+        }
+
+        double idealSectorAngle = totalSteps >= 2 ? 360.0 / totalSteps : 360.0;
+        double penalty = (degenerateCount * 40.0) + (overcrowdedCount > 0 ? 25.0 : 0.0) + (asymmetricCount * 10.0);
+        double score = Math.Max(0.0, Math.Min(100.0, 100.0 - penalty));
+
+        string category = score switch
+        {
+            >= 95.0 => "Optimal · Perfect Radial Cycle Symmetry",
+            >= 80.0 => "Good · Minor Cycle Sector Warnings",
+            >= 60.0 => "Caution · Sector Overcrowding & Label Collisions",
+            _ => "Hazardous · Degenerate or Distorted Cycle Geometry"
+        };
+
+        string summary = FormatSegmentedCycleSummary(
+            totalSteps, idealSectorAngle, degenerateCount, overcrowdedCount, asymmetricCount, score, category);
+
+        return new SmartArtSegmentedCycleAudit(
+            totalSteps, idealSectorAngle, degenerateCount, overcrowdedCount, asymmetricCount,
+            score, items, category, summary);
+    }
+
+    public static string FormatSegmentedCycleSummary(
+        int steps, double idealAngle, int degenerate, int overcrowded, int asymmetric, double score, string category)
+    {
+        if (steps == 0)
+            return "SmartArt radial cycle audit: Clean outline · 0 cycle steps evaluated";
+
+        var parts = new List<string>();
+        parts.Add($"{steps} step{(steps == 1 ? "" : "s")}");
+        parts.Add($"sector angle {idealAngle:0.#}°");
+        if (degenerate > 0) parts.Add($"🚨 {degenerate} degenerate (<2 steps)");
+        if (overcrowded > 0) parts.Add($"⚠ overcrowded (>8 steps)");
+        if (asymmetric > 0) parts.Add($"⚡ {asymmetric} asymmetric label weight");
+
+        string details = string.Join(" · ", parts);
+        return $"SmartArt radial cycle audit ({details} · {category} · {score:0.#}% symmetry score)";
+    }
+
 }
 
 
@@ -14823,5 +14978,25 @@ public sealed record SmartArtHierarchyTreeFanOutAudit(
     int BalancedSpanCount,
     double HierarchyBalanceScore,
     IReadOnlyList<SmartArtHierarchyFanOutItem> Items,
+    string Category,
+    string Summary);
+
+public sealed record SmartArtSegmentedCycleItem(
+    int StepIndex,
+    string StepTitle,
+    double SectorAngleDegrees,
+    double ChordLength,
+    string Status,
+    string Severity,
+    string Recommendation);
+
+public sealed record SmartArtSegmentedCycleAudit(
+    int TotalSteps,
+    double IdealSectorAngleDegrees,
+    int DegenerateStepsCount,
+    int OvercrowdedStepsCount,
+    int AsymmetricStepsCount,
+    double CycleSymmetryScore,
+    IReadOnlyList<SmartArtSegmentedCycleItem> Items,
     string Category,
     string Summary);
