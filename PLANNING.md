@@ -14160,3 +14160,7 @@ delete those contract tests along with the menu change). All tests for files tou
 2. Blueprint items 1 and 3 from run #220 (Diagnostics duplicate pruning; eye-check of the
    status-bar pill right-click menus and History's timeline menu).
 3. The three "noticed" items above.
+
+**Release (same run):** tagged **v3.37.0** on `85c8ccb2`; Release workflow run 39692673653 succeeded
+(x64 + arm64 builds, publish). User-facing notes were added above the generated body:
+https://github.com/thebubbsy/marksmith/releases/tag/v3.37.0. MarksmithBaseVersion is now 3.38.0.
