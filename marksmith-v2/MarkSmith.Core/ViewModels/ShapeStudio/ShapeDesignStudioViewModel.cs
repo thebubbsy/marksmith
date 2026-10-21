@@ -14224,6 +14224,179 @@ public static string FormatGroupNestingSummary(
         string details = string.Join(" · ", parts);
         return $"Diagram shape aspect ratio audit ({scope}{details} · {category} · {score:0.#}% proportion score)";
     }
+    public DiagramOrthogonalConnectorWaypointsAudit AuditOrthogonalConnectorWaypoints(bool selectionOnly = false)
+    {
+        var selected = SelectedItems.ToList();
+        var targetShapes = (selectionOnly && selected.Count > 0) ? selected : Shapes.ToList();
+        bool isSelection = selectionOnly && selected.Count > 0;
+        var audit = AuditOrthogonalConnectorWaypoints(targetShapes, isSelection);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static DiagramOrthogonalConnectorWaypointsAudit AuditOrthogonalConnectorWaypoints(
+        IEnumerable<ShapeCanvasItemViewModel>? targetShapes,
+        bool isSelection = false)
+    {
+        var targetList = (targetShapes ?? Enumerable.Empty<ShapeCanvasItemViewModel>()).Where(s => s != null).ToList();
+        var connectors = targetList.Where(s => s.IsLine ||
+            s.Prst.Contains("connector", StringComparison.OrdinalIgnoreCase) ||
+            s.Prst.Contains("line", StringComparison.OrdinalIgnoreCase) ||
+            s.ShapeType.Contains("connector", StringComparison.OrdinalIgnoreCase) ||
+            (s.PathPoints != null && s.PathPoints.Count >= 2)).ToList();
+
+        int totalConnectors = connectors.Count;
+        if (totalConnectors == 0)
+        {
+            string emptySummary = FormatOrthogonalWaypointsSummary(0, 0, 0, 0, 0, 100.0, "Clean Baseline · No Connectors", isSelection);
+            return new DiagramOrthogonalConnectorWaypointsAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<ShapeOrthogonalConnectorWaypointsItem>(), "Clean Baseline · No Connectors", isSelection, emptySummary);
+        }
+
+        var items = new List<ShapeOrthogonalConnectorWaypointsItem>();
+        int fullyOrthogonalCount = 0;
+        int totalNonOrthogonalSegments = 0;
+        int totalRedundantWaypoints = 0;
+        int totalHairpinBends = 0;
+
+        foreach (var conn in connectors)
+        {
+            var pts = ConnectorPoints(conn);
+            if (pts.Count < 2)
+            {
+                pts = new List<(double X, double Y)>
+                {
+                    (conn.X, conn.Y),
+                    (conn.X + conn.Width, conn.Y + conn.Height)
+                };
+            }
+
+            int nonOrthogonalSegs = 0;
+            int redundantPts = 0;
+            int hairpinBends = 0;
+
+            for (int i = 0; i < pts.Count - 1; i++)
+            {
+                double dx = Math.Abs(pts[i + 1].X - pts[i].X);
+                double dy = Math.Abs(pts[i + 1].Y - pts[i].Y);
+
+                if (dx > 1.5 && dy > 1.5)
+                {
+                    nonOrthogonalSegs++;
+                }
+            }
+
+            for (int i = 1; i < pts.Count - 1; i++)
+            {
+                var pPrev = pts[i - 1];
+                var pCur = pts[i];
+                var pNext = pts[i + 1];
+
+                double dx1 = pCur.X - pPrev.X;
+                double dy1 = pCur.Y - pPrev.Y;
+                double dx2 = pNext.X - pCur.X;
+                double dy2 = pNext.Y - pCur.Y;
+
+                bool bothH = Math.Abs(dy1) <= 1.5 && Math.Abs(dy2) <= 1.5 && Math.Sign(dx1) == Math.Sign(dx2);
+                bool bothV = Math.Abs(dx1) <= 1.5 && Math.Abs(dx2) <= 1.5 && Math.Sign(dy1) == Math.Sign(dy2);
+                if (bothH || bothV)
+                {
+                    redundantPts++;
+                }
+
+                double dot = (dx1 * dx2) + (dy1 * dy2);
+                double mag1 = Math.Sqrt((dx1 * dx1) + (dy1 * dy1));
+                double mag2 = Math.Sqrt((dx2 * dx2) + (dy2 * dy2));
+                if (mag1 > 1.0 && mag2 > 1.0)
+                {
+                    double cosAngle = dot / (mag1 * mag2);
+                    if (cosAngle < -0.7)
+                    {
+                        hairpinBends++;
+                    }
+                }
+            }
+
+            bool isFullyOrthogonal = nonOrthogonalSegs == 0 && redundantPts == 0 && hairpinBends == 0;
+            if (isFullyOrthogonal)
+            {
+                fullyOrthogonalCount++;
+            }
+
+            totalNonOrthogonalSegments += nonOrthogonalSegs;
+            totalRedundantWaypoints += redundantPts;
+            totalHairpinBends += hairpinBends;
+
+            string statusDesc;
+            if (isFullyOrthogonal)
+            {
+                statusDesc = "Clean orthogonal routing · No redundant waypoints";
+            }
+            else
+            {
+                var issues = new List<string>();
+                if (nonOrthogonalSegs > 0) issues.Add($"{nonOrthogonalSegs} slanted/non-orthogonal segment(s)");
+                if (redundantPts > 0) issues.Add($"{redundantPts} redundant collinear waypoint(s)");
+                if (hairpinBends > 0) issues.Add($"{hairpinBends} hairpin bend(s)");
+                statusDesc = string.Join("; ", issues);
+            }
+
+            string rec = isFullyOrthogonal
+                ? "Optimal connector waypoint routing."
+                : "Snap connector waypoints to 90-degree orthogonal axes and remove redundant intermediary collinear points.";
+
+            items.Add(new ShapeOrthogonalConnectorWaypointsItem(
+                conn.Id,
+                string.IsNullOrWhiteSpace(conn.Name) ? "Connector" : conn.Name,
+                pts.Count,
+                nonOrthogonalSegs,
+                redundantPts,
+                hairpinBends,
+                isFullyOrthogonal,
+                $"{conn.Name ?? "Connector"} ({pts.Count} pts): {statusDesc}",
+                rec));
+        }
+
+        double penalty = (totalNonOrthogonalSegments * 15.0) + (totalRedundantWaypoints * 8.0) + (totalHairpinBends * 12.0);
+        double score = Math.Max(0.0, Math.Min(100.0, 100.0 - penalty));
+
+        string category = score switch
+        {
+            >= 95.0 => "Optimal · Strict Orthogonal Routing",
+            >= 80.0 => "Good · Minor Waypoint Drift",
+            >= 60.0 => "Caution · Non-Orthogonal Segments & Redundancies",
+            _ => "Hazardous · Severe Connector Routing Chaos"
+        };
+
+        string summary = FormatOrthogonalWaypointsSummary(
+            totalConnectors, fullyOrthogonalCount, totalNonOrthogonalSegments, totalRedundantWaypoints, totalHairpinBends,
+            score, category, isSelection);
+
+        return new DiagramOrthogonalConnectorWaypointsAudit(
+            totalConnectors, fullyOrthogonalCount, totalNonOrthogonalSegments, totalRedundantWaypoints, totalHairpinBends,
+            score, items, category, isSelection, summary);
+    }
+
+    public static string FormatOrthogonalWaypointsSummary(
+        int total, int fullyOrthogonal, int nonOrthogonal, int redundant, int hairpins,
+        double score, string category, bool isSelection)
+    {
+        string scope = isSelection ? "Selection · " : "";
+        if (total == 0)
+            return $"Diagram orthogonal connector waypoints audit ({scope}Clean artboard · 0 connectors evaluated)";
+
+        var parts = new List<string>();
+        parts.Add($"{total} connector{(total == 1 ? "" : "s")}");
+        parts.Add($"{fullyOrthogonal} fully orthogonal");
+        if (nonOrthogonal > 0) parts.Add($"⚡ {nonOrthogonal} slanted segment{(nonOrthogonal == 1 ? "" : "s")}");
+        if (redundant > 0) parts.Add($"ℹ {redundant} redundant point{(redundant == 1 ? "" : "s")}");
+        if (hairpins > 0) parts.Add($"🚨 {hairpins} hairpin bend{(hairpins == 1 ? "" : "s")}");
+
+        string details = string.Join(" · ", parts);
+        return $"Diagram orthogonal connector waypoints audit ({scope}{details} · {category} · {score:0.#}% routing score)";
+    }
+
 
 }
 
@@ -16070,6 +16243,29 @@ public sealed record DiagramAspectRatioDistortionAudit(
     int DegenerateCount,
     double ProportionScore,
     IReadOnlyList<ShapeAspectRatioDistortionItem> Items,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);
+
+public sealed record ShapeOrthogonalConnectorWaypointsItem(
+    string ConnectorId,
+    string Name,
+    int WaypointCount,
+    int NonOrthogonalSegmentCount,
+    int RedundantCollinearPointCount,
+    int HairpinBendCount,
+    bool IsFullyOrthogonal,
+    string Excerpt,
+    string Recommendation);
+
+public sealed record DiagramOrthogonalConnectorWaypointsAudit(
+    int TotalConnectors,
+    int FullyOrthogonalCount,
+    int NonOrthogonalSegmentCount,
+    int RedundantWaypointCount,
+    int HairpinBendCount,
+    double RoutingHygieneScore,
+    IReadOnlyList<ShapeOrthogonalConnectorWaypointsItem> Items,
     string Category,
     bool IsSelectionScope,
     string Summary);

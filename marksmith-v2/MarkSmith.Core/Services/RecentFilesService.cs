@@ -12091,6 +12091,173 @@ public sealed class RecentFilesService
         string details = string.Join(" · ", parts);
         return $"Workspace relative links audit ({details} · {category} · {score:0.#}% connectivity score)";
     }
+    public static WorkspaceMediaAssetsAudit AuditWorkspaceMediaAssetsExistence(
+        IReadOnlyList<string>? explicitFiles = null,
+        Func<string, bool>? fileExistsProvider = null,
+        Func<string, long>? fileSizeProvider = null,
+        Func<string, string>? contentReader = null)
+    {
+        var files = (explicitFiles ?? Array.Empty<string>())
+            .Where(f => !string.IsNullOrWhiteSpace(f))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var exists = fileExistsProvider ?? (p => File.Exists(p));
+        var sizeProvider = fileSizeProvider ?? (p =>
+        {
+            try { return File.Exists(p) ? new FileInfo(p).Length : 0; }
+            catch { return 0; }
+        });
+        var readContent = contentReader ?? (p =>
+        {
+            try { return File.Exists(p) ? File.ReadAllText(p) : string.Empty; }
+            catch { return string.Empty; }
+        });
+
+        int totalDocs = files.Count;
+        if (totalDocs == 0)
+        {
+            string emptySummary = FormatWorkspaceMediaAssetsSummary(0, 0, 0, 0, 0, 0, 100.0, "Clean Baseline · No Documents");
+            return new WorkspaceMediaAssetsAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<WorkspaceMediaAssetItem>(), "Clean Baseline · No Documents", emptySummary);
+        }
+
+        var items = new List<WorkspaceMediaAssetItem>();
+        int totalMedia = 0;
+        int missingLocal = 0;
+        int oversized = 0;
+        int externalUrls = 0;
+        int validLocal = 0;
+
+        var mdImgRegex = new System.Text.RegularExpressions.Regex(@"!\[([^\]]*)\]\(([^)]+)\)", System.Text.RegularExpressions.RegexOptions.Compiled);
+        var htmlImgRegex = new System.Text.RegularExpressions.Regex(@"<img\s+[^>]*src=[""']([^""']+)[""']", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        foreach (var docPath in files)
+        {
+            string content = readContent(docPath);
+            if (string.IsNullOrWhiteSpace(content)) continue;
+
+            string docDir = Path.GetDirectoryName(docPath) ?? string.Empty;
+            var lines = content.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+
+            for (int i = 0; i < lines.Length; i++)
+            {
+                int lineNum = i + 1;
+                string line = lines[i];
+
+                var targets = new List<string>();
+
+                foreach (System.Text.RegularExpressions.Match m in mdImgRegex.Matches(line))
+                {
+                    string target = m.Groups[2].Value.Trim();
+                    int titleIdx = target.IndexOf(' ');
+                    if (titleIdx > 0) target = target.Substring(0, titleIdx).Trim();
+                    targets.Add(target);
+                }
+
+                foreach (System.Text.RegularExpressions.Match m in htmlImgRegex.Matches(line))
+                {
+                    targets.Add(m.Groups[1].Value.Trim());
+                }
+
+                foreach (var rawTarget in targets)
+                {
+                    if (string.IsNullOrWhiteSpace(rawTarget)) continue;
+                    totalMedia++;
+
+                    if (rawTarget.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                        rawTarget.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+                        rawTarget.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
+                    {
+                        externalUrls++;
+                        items.Add(new WorkspaceMediaAssetItem(
+                            docPath, rawTarget, lineNum, "ExternalUrl", true, 0,
+                            "ExternalReference", "Remote media asset reference. Verify network connectivity for rendering."));
+                        continue;
+                    }
+
+                    string cleanPath = rawTarget.Split('#')[0].Split('?')[0].Trim();
+                    try
+                    {
+                        cleanPath = Uri.UnescapeDataString(cleanPath);
+                    }
+                    catch { }
+
+                    string resolvedPath = Path.IsPathRooted(cleanPath)
+                        ? cleanPath
+                        : Path.GetFullPath(Path.Combine(docDir, cleanPath));
+
+                    bool fileFound = exists(resolvedPath);
+                    long fileSize = fileFound ? sizeProvider(resolvedPath) : 0;
+
+                    if (!fileFound)
+                    {
+                        missingLocal++;
+                        items.Add(new WorkspaceMediaAssetItem(
+                            docPath, rawTarget, lineNum, "LocalImage", false, 0,
+                            "MissingLocalAsset",
+                            $"Referenced image file '{rawTarget}' was not found on disk at '{resolvedPath}'. Fix path or restore image asset."));
+                    }
+                    else
+                    {
+                        validLocal++;
+                        if (fileSize > 5 * 1024 * 1024)
+                        {
+                            oversized++;
+                            double mb = fileSize / (1024.0 * 1024.0);
+                            items.Add(new WorkspaceMediaAssetItem(
+                                docPath, rawTarget, lineNum, "LocalImage", true, fileSize,
+                                "OversizedMediaAsset",
+                                $"Image asset is {mb:0.1}MB, exceeding recommended 5MB limit. Compress or downsample to avoid document bloat."));
+                        }
+                        else
+                        {
+                            items.Add(new WorkspaceMediaAssetItem(
+                                docPath, rawTarget, lineNum, "LocalImage", true, fileSize,
+                                "ValidAsset", "Local media asset resolved and verified."));
+                        }
+                    }
+                }
+            }
+        }
+
+        double penalty = (missingLocal * 25.0) + (oversized * 10.0);
+        double score = Math.Max(0.0, Math.Min(100.0, 100.0 - penalty));
+
+        string category = score switch
+        {
+            >= 95.0 => "Optimal · All Media Assets Verified",
+            >= 80.0 => "Good · Minor Media Warnings",
+            >= 60.0 => "Caution · Missing Local Media Assets",
+            _ => "Hazardous · Broken Media Asset References"
+        };
+
+        string summary = FormatWorkspaceMediaAssetsSummary(
+            totalDocs, totalMedia, missingLocal, oversized, externalUrls, validLocal, score, category);
+
+        return new WorkspaceMediaAssetsAudit(
+            totalDocs, totalMedia, missingLocal, oversized, externalUrls, validLocal, score, items, category, summary);
+    }
+
+    public static string FormatWorkspaceMediaAssetsSummary(
+        int totalDocs, int totalMedia, int missingLocal, int oversized, int externalUrls, int validLocal, double score, string category)
+    {
+        if (totalDocs == 0 || totalMedia == 0)
+            return $"Workspace media assets audit: Clean baseline · {totalDocs} document(s) evaluated · 0 media references";
+
+        var parts = new List<string>();
+        parts.Add($"{totalDocs} doc{(totalDocs == 1 ? "" : "s")}");
+        parts.Add($"{totalMedia} media ref{(totalMedia == 1 ? "" : "s")}");
+        parts.Add($"{validLocal} valid local");
+        if (externalUrls > 0) parts.Add($"🌐 {externalUrls} external");
+        if (missingLocal > 0) parts.Add($"🚨 {missingLocal} missing local");
+        if (oversized > 0) parts.Add($"⚠ {oversized} oversized (>5MB)");
+
+        string details = string.Join(" · ", parts);
+        return $"Workspace media assets audit ({details} · {category} · {score:0.#}% integrity score)";
+    }
+
 
 }
 
@@ -13705,5 +13872,27 @@ public sealed record WorkspaceRelativeLinksAudit(
     int OrphanDocumentCount,
     double ConnectivityScore,
     IReadOnlyList<WorkspaceRelativeLinkItem> Items,
+    string Category,
+    string Summary);
+
+public sealed record WorkspaceMediaAssetItem(
+    string DocumentPath,
+    string AssetPath,
+    int LineNumber,
+    string AssetType,
+    bool Exists,
+    long FileSizeBytes,
+    string IssueType,
+    string Recommendation);
+
+public sealed record WorkspaceMediaAssetsAudit(
+    int TotalDocumentsEvaluated,
+    int TotalMediaReferences,
+    int MissingLocalAssetCount,
+    int OversizedAssetCount,
+    int ExternalUrlCount,
+    int ValidLocalAssetCount,
+    double MediaIntegrityScore,
+    IReadOnlyList<WorkspaceMediaAssetItem> Items,
     string Category,
     string Summary);

@@ -3992,6 +3992,18 @@ var auditResourceDisposalLeaksItem = new MenuFlyoutItem
                     _vm.ShowNotice($"\u2713 {audit.Summary}");
                 };
                 menu.Items.Add(auditMemoryAllocationBoxingItem);
+                var auditStringConcatenationItem = new MenuFlyoutItem
+                {
+                    Text = "Audit Diff String Concatenation & StringBuilder Allocation Efficiency",
+                    Icon = new FontIcon { Glyph = "\uE8B9" }
+                };
+                auditStringConcatenationItem.Click += (_, _) =>
+                {
+                    var audit = MarkSmith.Services.LineDiff.AuditStringConcatenationAllocations(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+                    _vm.ShowNotice($"\u2713 {audit.Summary}");
+                };
+                menu.Items.Add(auditStringConcatenationItem);
 
 
 

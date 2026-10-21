@@ -15032,6 +15032,168 @@ namespace MarkSmith.ViewModels.MindMap
             string details = string.Join(" · ", parts);
             return $"Graph disconnected islands audit ({scope}{details} · {category} · {score:0.#}% cohesion score)";
         }
+        public GraphDegreeDistributionAndHubsAudit AuditGraphDegreeDistributionAndHubs(bool selectionOnly = false)
+        {
+            var selected = Nodes.Where(n => n.IsSelected).ToList();
+            var targetNodes = (selectionOnly && selected.Count > 0) ? selected : Nodes.ToList();
+            bool isSelection = selectionOnly && selected.Count > 0;
+            var audit = AuditGraphDegreeDistributionAndHubs(targetNodes.Select(n => n.Model), Document.Links, isSelection);
+            StatusMessage = audit.Summary;
+            return audit;
+        }
+
+        public static GraphDegreeDistributionAndHubsAudit AuditGraphDegreeDistributionAndHubs(
+            IEnumerable<MindMapNode>? nodes,
+            IEnumerable<MindMapLink>? links = null,
+            bool isSelection = false)
+        {
+            var nodeList = nodes?.ToList() ?? new List<MindMapNode>();
+            int totalNodes = nodeList.Count;
+            var allLinks = links?.ToList() ?? new List<MindMapLink>();
+
+            if (totalNodes == 0)
+            {
+                string emptySummary = FormatDegreeDistributionSummary(0, 0, 0, 0, 0, 0, 0, 100.0, "Clean Baseline · No Nodes", isSelection);
+                return new GraphDegreeDistributionAndHubsAudit(
+                    0, 0, 0, 0, 0, 0, 0, 100.0,
+                    Array.Empty<GraphNodeDegreeDistributionItem>(), "Clean Baseline · No Nodes", isSelection, emptySummary);
+            }
+
+            var nodeSet = new HashSet<string>(nodeList.Select(n => n.Id));
+            var inDegreeMap = new Dictionary<string, int>();
+            var outDegreeMap = new Dictionary<string, int>();
+            foreach (var id in nodeSet)
+            {
+                inDegreeMap[id] = 0;
+                outDegreeMap[id] = 0;
+            }
+
+            var countedEdges = new HashSet<(string, string)>();
+
+            foreach (var node in nodeList)
+            {
+                if (!string.IsNullOrEmpty(node.ParentId) && nodeSet.Contains(node.ParentId))
+                {
+                    if (countedEdges.Add((node.ParentId, node.Id)))
+                    {
+                        outDegreeMap[node.ParentId]++;
+                        inDegreeMap[node.Id]++;
+                    }
+                }
+                if (node.ChildIds != null)
+                {
+                    foreach (var cid in node.ChildIds)
+                    {
+                        if (nodeSet.Contains(cid) && countedEdges.Add((node.Id, cid)))
+                        {
+                            outDegreeMap[node.Id]++;
+                            inDegreeMap[cid]++;
+                        }
+                    }
+                }
+            }
+
+            foreach (var l in allLinks)
+            {
+                if (nodeSet.Contains(l.SourceNodeId) && nodeSet.Contains(l.TargetNodeId))
+                {
+                    if (countedEdges.Add((l.SourceNodeId, l.TargetNodeId)))
+                    {
+                        outDegreeMap[l.SourceNodeId]++;
+                        inDegreeMap[l.TargetNodeId]++;
+                    }
+                }
+            }
+
+            int totalEdges = countedEdges.Count;
+
+            var items = new List<GraphNodeDegreeDistributionItem>();
+            int maxDegree = 0;
+            int leafCount = 0;
+            int isolatedCount = 0;
+            int hubCount = 0;
+            double avgDegree = totalNodes > 0 ? (double)totalEdges * 2.0 / totalNodes : 0.0;
+
+            foreach (var node in nodeList)
+            {
+                int inDeg = inDegreeMap[node.Id];
+                int outDeg = outDegreeMap[node.Id];
+                int totalDeg = inDeg + outDeg;
+                if (totalDeg > maxDegree) maxDegree = totalDeg;
+
+                double centrality = totalEdges > 0 ? (double)totalDeg / (2.0 * totalEdges) : 0.0;
+                string status = "Balanced";
+                string recommendation = "Node degree is well-proportioned within the topology.";
+
+                if (totalDeg == 0)
+                {
+                    isolatedCount++;
+                    status = "Isolated";
+                    recommendation = "Node has 0 links. Connect it to a parent topic or related cluster.";
+                }
+                else if (totalDeg == 1)
+                {
+                    leafCount++;
+                    status = "Leaf";
+                    recommendation = "Terminal leaf node. Ideal depth endpoint.";
+                }
+                else if (totalDeg > 8 || (totalNodes > 6 && totalDeg >= 3.0 * avgDegree && totalDeg >= 5))
+                {
+                    hubCount++;
+                    status = "HyperHub";
+                    recommendation = $"Node is a hyper-connected hub ({totalDeg} links). Consider grouping subtopics into intermediate cluster hubs to reduce edge congestion.";
+                }
+
+                items.Add(new GraphNodeDegreeDistributionItem(
+                    node.Id,
+                    string.IsNullOrWhiteSpace(node.Title) ? "Untitled Node" : node.Title,
+                    inDeg, outDeg, totalDeg, centrality, status, recommendation));
+            }
+
+            double penalty = (hubCount * 12.0) + (isolatedCount * 15.0);
+            if (totalNodes > 10 && leafCount > totalNodes * 0.85)
+            {
+                penalty += 10.0;
+            }
+            double score = Math.Max(0.0, Math.Min(100.0, 100.0 - penalty));
+
+            string category = score switch
+            {
+                >= 95.0 => "Optimal · Well-Distributed Graph Topology",
+                >= 80.0 => "Good · Balanced Degree Distribution",
+                >= 60.0 => "Caution · Hub Congestion & Isolated Nodes",
+                _ => "Spaghetti Hazard · Severe Hub Skewness"
+            };
+
+            string summary = FormatDegreeDistributionSummary(
+                totalNodes, totalEdges, avgDegree, maxDegree, hubCount, leafCount, isolatedCount, score, category, isSelection);
+
+            return new GraphDegreeDistributionAndHubsAudit(
+                totalNodes, totalEdges, avgDegree, maxDegree, hubCount, leafCount, isolatedCount, score,
+                items, category, isSelection, summary);
+        }
+
+        public static string FormatDegreeDistributionSummary(
+            int totalNodes, int totalEdges, double avgDegree, int maxDegree, int hubs, int leaves, int isolated,
+            double score, string category, bool isSelection = false)
+        {
+            string scope = isSelection ? "Selection · " : "";
+            if (totalNodes == 0)
+                return $"Graph degree distribution audit ({scope}Clean graph · 0 nodes evaluated)";
+
+            var parts = new List<string>();
+            parts.Add($"{totalNodes} node{(totalNodes == 1 ? "" : "s")}");
+            parts.Add($"{totalEdges} edge{(totalEdges == 1 ? "" : "s")}");
+            parts.Add($"avg degree {avgDegree:0.1}");
+            parts.Add($"max degree {maxDegree}");
+            if (hubs > 0) parts.Add($"⚡ {hubs} hub{(hubs == 1 ? "" : "s")}");
+            if (leaves > 0) parts.Add($"🌿 {leaves} leaf/leaves");
+            if (isolated > 0) parts.Add($"🚨 {isolated} isolated");
+
+            string details = string.Join(" · ", parts);
+            return $"Graph degree distribution audit ({scope}{details} · {category} · {score:0.#}% balance score)";
+        }
+
 
     }
 
@@ -16750,3 +16912,27 @@ namespace MarkSmith.ViewModels.MindMap
         string Category,
         bool IsSelectionScope,
         string Summary);
+
+public sealed record GraphNodeDegreeDistributionItem(
+    string NodeId,
+    string Title,
+    int InDegree,
+    int OutDegree,
+    int TotalDegree,
+    double CentralityRatio,
+    string Status,
+    string Recommendation);
+
+public sealed record GraphDegreeDistributionAndHubsAudit(
+    int TotalNodes,
+    int TotalEdges,
+    double AverageDegree,
+    int MaxDegree,
+    int HyperConnectedHubCount,
+    int LeafNodeCount,
+    int IsolatedNodeCount,
+    double DegreeBalanceScore,
+    IReadOnlyList<GraphNodeDegreeDistributionItem> Items,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);

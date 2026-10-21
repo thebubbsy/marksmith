@@ -3888,4 +3888,50 @@ public class HistoryPolishTests : IDisposable
         Assert.True(hazardAudit.HeapAllocationLoopCount >= 1);
         Assert.True(hazardAudit.LowAllocationScore <= 60.0);
     }
+
+    [Fact]
+    public void Run216_AuditStringConcatenationAllocations_DetectsLoopConcatAndStringBuilderAntiPatterns()
+    {
+        // 1. Clean Baseline (empty diff)
+        var emptyAudit = LineDiff.AuditStringConcatenationAllocations(null);
+        Assert.Equal(0, emptyAudit.TotalAddedLines);
+        Assert.Equal(100.0, emptyAudit.StringAllocationScore);
+        Assert.Contains("Clean Baseline", emptyAudit.Summary);
+
+        // 2. Clean optimal StringBuilder code
+        var cleanDiff = string.Join("\n",
+            "var sb = new StringBuilder();",
+            "for (int i = 0; i < list.Count; i++)",
+            "{",
+            "    sb.Append(list[i]);",
+            "    sb.Append(\", \");",
+            "}"
+        );
+        var cleanAudit = LineDiff.AuditStringConcatenationAllocations(string.Empty, cleanDiff);
+        Assert.Equal(6, cleanAudit.TotalAddedLines);
+        Assert.Equal(0, cleanAudit.ConcatenationInLoopCount);
+        Assert.Equal(0, cleanAudit.StringBuilderAntiPatternCount);
+        Assert.Equal(0, cleanAudit.MultiOperandConcatenationCount);
+        Assert.Equal(100.0, cleanAudit.StringAllocationScore);
+
+        // 3. Flawed code with loop concat, sb.Append(+), multi-operand, and redundant .ToString()
+        var flawedDiff = string.Join("\n",
+            "string result = \"\";",
+            "for (int i = 0; i < count; i++)",
+            "{",
+            "    result += items[i];",
+            "}",
+            "sb.Append(header + \" : \" + result);",
+            "var fullMsg = prefix + \" [\" + code + \"] \" + detail;",
+            "var title = doc.Title.ToString();"
+        );
+        var flawedAudit = LineDiff.AuditStringConcatenationAllocations(string.Empty, flawedDiff);
+        Assert.Equal(8, flawedAudit.TotalAddedLines);
+        Assert.Equal(1, flawedAudit.ConcatenationInLoopCount);
+        Assert.Equal(1, flawedAudit.StringBuilderAntiPatternCount);
+        Assert.Equal(1, flawedAudit.MultiOperandConcatenationCount);
+        Assert.Equal(1, flawedAudit.RedundantToStringCount);
+        Assert.True(flawedAudit.StringAllocationScore < 60.0);
+        Assert.Contains("loop concat", flawedAudit.Summary);
+    }
 }

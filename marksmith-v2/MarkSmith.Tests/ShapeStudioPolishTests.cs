@@ -4025,4 +4025,55 @@ public class ShapeStudioPolishTests
         var degenAudit = ShapeDesignStudioViewModel.AuditShapeAspectRatioDistortion(new[] { sDegenerate });
         Assert.Equal(1, degenAudit.DegenerateCount);
     }
+
+    [Fact]
+    public void Run216_AuditOrthogonalConnectorWaypoints_DetectsSlantedSegmentsAndRedundantPoints()
+    {
+        // 1. Clean Baseline (no connectors)
+        var emptyAudit = ShapeDesignStudioViewModel.AuditOrthogonalConnectorWaypoints(null);
+        Assert.Equal(0, emptyAudit.TotalConnectors);
+        Assert.Equal(100.0, emptyAudit.RoutingHygieneScore);
+        Assert.Contains("0 connectors evaluated", emptyAudit.Summary);
+
+        // 2. Strictly orthogonal connector (3 points forming 90 degree elbow: (0,0) -> (100,0) -> (100,200))
+        var orthoConn = new ShapeCanvasItemViewModel
+        {
+            Name = "ElbowConnector",
+            Prst = "bentConnector3",
+            PathPoints = new List<(double X, double Y)>
+            {
+                (0, 0),
+                (100, 0),
+                (100, 200)
+            }
+        };
+        var cleanAudit = ShapeDesignStudioViewModel.AuditOrthogonalConnectorWaypoints(new[] { orthoConn });
+        Assert.Equal(1, cleanAudit.TotalConnectors);
+        Assert.Equal(1, cleanAudit.FullyOrthogonalCount);
+        Assert.Equal(0, cleanAudit.NonOrthogonalSegmentCount);
+        Assert.Equal(0, cleanAudit.RedundantWaypointCount);
+        Assert.Equal(0, cleanAudit.HairpinBendCount);
+        Assert.Equal(100.0, cleanAudit.RoutingHygieneScore);
+
+        // 3. Flawed connector with slanted segment and redundant collinear point
+        var flawedConn = new ShapeCanvasItemViewModel
+        {
+            Name = "MessyConnector",
+            Prst = "connector",
+            PathPoints = new List<(double X, double Y)>
+            {
+                (0, 0),
+                (50, 0),
+                (100, 0),
+                (150, 80)
+            }
+        };
+        var flawedAudit = ShapeDesignStudioViewModel.AuditOrthogonalConnectorWaypoints(new[] { flawedConn });
+        Assert.Equal(1, flawedAudit.TotalConnectors);
+        Assert.Equal(0, flawedAudit.FullyOrthogonalCount);
+        Assert.Equal(1, flawedAudit.NonOrthogonalSegmentCount);
+        Assert.Equal(1, flawedAudit.RedundantWaypointCount);
+        Assert.True(flawedAudit.RoutingHygieneScore < 85.0);
+        Assert.Contains("slanted segment", flawedAudit.Summary);
+    }
 }

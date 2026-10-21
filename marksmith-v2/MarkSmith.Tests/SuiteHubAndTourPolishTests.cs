@@ -7580,4 +7580,86 @@ Some paragraph in between.
         Assert.Contains("OnAuditWorkspaceRelativeLinksClick", suiteCs);
         Assert.Contains("AuditWorkspaceRelativeLinks", suiteCs);
     }
+
+    [Fact]
+    public void Run216_AuditWorkspaceMediaAssets_DetectsMissingAndOversizedAssets()
+    {
+        // 1. Clean Baseline (no files)
+        var emptyAudit = RecentFilesService.AuditWorkspaceMediaAssetsExistence(null);
+        Assert.Equal(0, emptyAudit.TotalDocumentsEvaluated);
+        Assert.Equal(0, emptyAudit.TotalMediaReferences);
+        Assert.Equal(100.0, emptyAudit.MediaIntegrityScore);
+
+        // 2. Mix of valid local, remote URL, missing local, and oversized image
+        var doc1 = "C:\\Docs\\guide.md";
+        var content = string.Join("\n",
+            "# Guide",
+            "![Valid Icon](assets/icon.png)",
+            "![Remote Hero](https://cdn.example.com/hero.jpg)",
+            "![Missing Chart](charts/q3_sales.png)",
+            "![Huge Photo](photos/raw_scan.png)"
+        );
+
+        var mockFiles = new Dictionary<string, (bool Exists, long Size)>
+        {
+            { "C:\\Docs\\assets\\icon.png", (true, 45_000) },
+            { "C:\\Docs\\charts\\q3_sales.png", (false, 0) },
+            { "C:\\Docs\\photos\\raw_scan.png", (true, 8_500_000) }
+        };
+
+        var audit = RecentFilesService.AuditWorkspaceMediaAssetsExistence(
+            explicitFiles: new[] { doc1 },
+            fileExistsProvider: path => mockFiles.TryGetValue(path, out var info) && info.Exists,
+            fileSizeProvider: path => mockFiles.TryGetValue(path, out var info) ? info.Size : 0,
+            contentReader: _ => content
+        );
+
+        Assert.Equal(1, audit.TotalDocumentsEvaluated);
+        Assert.Equal(4, audit.TotalMediaReferences);
+        Assert.Equal(2, audit.ValidLocalAssetCount);
+        Assert.Equal(1, audit.ExternalUrlCount);
+        Assert.Equal(1, audit.MissingLocalAssetCount);
+        Assert.Equal(1, audit.OversizedAssetCount);
+        Assert.True(audit.MediaIntegrityScore <= 65.0);
+        Assert.Contains("missing local", audit.Summary);
+        Assert.Contains("oversized", audit.Summary);
+    }
+
+    [Fact]
+    public void Run216_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // 1. MainWindow
+        var mainCs = System.IO.File.ReadAllText(@"..\..\..\..\MarkSmith.Desktop\MainWindow.xaml.cs");
+        Assert.Contains("AuditMarkdownFootnoteSequentialNumbering", mainCs);
+        Assert.Contains("auditFootnoteSequentialNumberingItem", mainCs);
+
+        // 2. MindMapGalaxyWindow
+        var mindMapXaml = System.IO.File.ReadAllText(@"..\..\..\..\MarkSmith.Desktop\Views\MindMap\MindMapGalaxyWindow.xaml");
+        Assert.Contains("AuditGraphDegreeDistributionAndHubsItem", mindMapXaml);
+        var mindMapCs = System.IO.File.ReadAllText(@"..\..\..\..\MarkSmith.Desktop\Views\MindMap\MindMapGalaxyWindow.xaml.cs");
+        Assert.Contains("OnAuditGraphDegreeDistributionAndHubsClick", mindMapCs);
+
+        // 3. ShapeDesignStudioWindow
+        var shapeXaml = System.IO.File.ReadAllText(@"..\..\..\..\MarkSmith.Desktop\Views\ShapeStudio\ShapeDesignStudioWindow.xaml");
+        Assert.Contains("SelectionAuditOrthogonalConnectorWaypointsItem", shapeXaml);
+        var shapeCs = System.IO.File.ReadAllText(@"..\..\..\..\MarkSmith.Desktop\Views\ShapeStudio\ShapeDesignStudioWindow.xaml.cs");
+        Assert.Contains("OnSelectionAuditOrthogonalConnectorWaypointsClick", shapeCs);
+
+        // 4. SmartArtDesignStudioWindow
+        var smartArtXaml = System.IO.File.ReadAllText(@"..\..\..\..\MarkSmith.Desktop\Views\SmartArtStudio\SmartArtDesignStudioWindow.xaml");
+        Assert.Contains("OutlineStatsAuditChevronProcessMilestoneProgressionItem", smartArtXaml);
+        var smartArtCs = System.IO.File.ReadAllText(@"..\..\..\..\MarkSmith.Desktop\Views\SmartArtStudio\SmartArtDesignStudioWindow.xaml.cs");
+        Assert.Contains("OnOutlineStatsAuditChevronProcessMilestoneProgressionClick", smartArtCs);
+
+        // 5. HistoryWindow
+        var historyCs = System.IO.File.ReadAllText(@"..\..\..\..\MarkSmith.Desktop\Views\History\HistoryWindow.xaml.cs");
+        Assert.Contains("AuditStringConcatenationAllocations", historyCs);
+        Assert.Contains("auditStringConcatenationItem", historyCs);
+
+        // 6. SuiteHubView
+        var hubXaml = System.IO.File.ReadAllText(@"..\..\..\..\MarkSmith.Desktop\Views\SuiteHubView.xaml");
+        Assert.Contains("AuditWorkspaceMediaAssetsItem", hubXaml);
+        var hubCs = System.IO.File.ReadAllText(@"..\..\..\..\MarkSmith.Desktop\Views\SuiteHubView.xaml.cs");
+        Assert.Contains("OnAuditWorkspaceMediaAssetsClick", hubCs);
+    }
 }

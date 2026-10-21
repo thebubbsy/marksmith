@@ -4773,5 +4773,53 @@ namespace MarkSmith.Tests
         Assert.Equal(2, clusterAudit.TotalComponents);
         Assert.Equal(1, clusterAudit.DisconnectedIslandCount);
     }
+
+    [Fact]
+    public void Run216_AuditGraphDegreeDistributionAndHubs_DetectsHubsAndLeaves()
+    {
+        // 1. Clean Baseline (empty graph)
+        var emptyAudit = MindMapStudioViewModel.AuditGraphDegreeDistributionAndHubs(null, null);
+        Assert.Equal(0, emptyAudit.TotalNodes);
+        Assert.Equal(0, emptyAudit.TotalEdges);
+        Assert.Equal(100.0, emptyAudit.DegreeBalanceScore);
+        Assert.Contains("0 nodes evaluated", emptyAudit.Summary);
+
+        // 2. Balanced graph (root + 3 children with balanced connections)
+        var root = new MindMapNode { Id = "root", Title = "Main Topic" };
+        var child1 = new MindMapNode { Id = "c1", Title = "Branch 1", ParentId = "root" };
+        var child2 = new MindMapNode { Id = "c2", Title = "Branch 2", ParentId = "root" };
+        var child3 = new MindMapNode { Id = "c3", Title = "Branch 3", ParentId = "root" };
+        var balancedNodes = new List<MindMapNode> { root, child1, child2, child3 };
+
+        var balancedAudit = MindMapStudioViewModel.AuditGraphDegreeDistributionAndHubs(balancedNodes, null);
+        Assert.Equal(4, balancedAudit.TotalNodes);
+        Assert.Equal(3, balancedAudit.TotalEdges);
+        Assert.Equal(3, balancedAudit.LeafNodeCount);
+        Assert.Equal(0, balancedAudit.IsolatedNodeCount);
+        Assert.Equal(0, balancedAudit.HyperConnectedHubCount);
+        Assert.Equal(100.0, balancedAudit.DegreeBalanceScore);
+
+        // 3. Graph with hyper-connected hub (> 8 links) and an isolated node
+        var hubNode = new MindMapNode { Id = "hub", Title = "Hyper Central Hub" };
+        var nodes = new List<MindMapNode> { hubNode };
+        var links = new List<MindMapLink>();
+        for (int i = 1; i <= 10; i++)
+        {
+            var leaf = new MindMapNode { Id = $"leaf{i}", Title = $"Leaf {i}" };
+            nodes.Add(leaf);
+            links.Add(new MindMapLink { SourceNodeId = "hub", TargetNodeId = $"leaf{i}" });
+        }
+        var isolated = new MindMapNode { Id = "iso", Title = "Orphan Node" };
+        nodes.Add(isolated);
+
+        var skewedAudit = MindMapStudioViewModel.AuditGraphDegreeDistributionAndHubs(nodes, links);
+        Assert.Equal(12, skewedAudit.TotalNodes);
+        Assert.Equal(10, skewedAudit.TotalEdges);
+        Assert.Equal(1, skewedAudit.HyperConnectedHubCount);
+        Assert.Equal(1, skewedAudit.IsolatedNodeCount);
+        Assert.True(skewedAudit.DegreeBalanceScore < 80.0);
+        Assert.Contains("hub", skewedAudit.Summary);
+        Assert.Contains("isolated", skewedAudit.Summary);
+    }
 }
 }

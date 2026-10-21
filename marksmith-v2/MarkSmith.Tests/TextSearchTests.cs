@@ -4181,4 +4181,59 @@ public class TextSearchTests
         Assert.Equal(0, noTablesAudit.TotalTables);
         Assert.Equal(100.0, noTablesAudit.TableFidelityScore);
     }
+
+    [Fact]
+    public void Run216_AuditMarkdownFootnoteSequentialNumbering_DetectsSequencingGapsAndOrphanDefs()
+    {
+        // 1. Clean Baseline (no footnotes)
+        var emptyAudit = TextSearch.AuditMarkdownFootnoteSequentialNumbering(string.Empty);
+        Assert.Equal(0, emptyAudit.TotalReferences);
+        Assert.Equal(0, emptyAudit.TotalDefinitions);
+        Assert.Equal(100.0, emptyAudit.FootnoteIntegrityScore);
+        Assert.Contains("No footnotes present", emptyAudit.Summary);
+
+        // 2. Optimal sequential footnotes
+        var cleanMarkdown = string.Join("\n",
+            "# Chapter 1",
+            "This is the first statement[^1].",
+            "This is the second statement[^2].",
+            "This is the third statement[^3].",
+            "",
+            "[^1]: Definition of one.",
+            "[^2]: Definition of two.",
+            "[^3]: Definition of three."
+        );
+        var cleanAudit = TextSearch.AuditMarkdownFootnoteSequentialNumbering(cleanMarkdown);
+        Assert.Equal(3, cleanAudit.TotalReferences);
+        Assert.Equal(3, cleanAudit.TotalDefinitions);
+        Assert.Equal(3, cleanAudit.SequentialNumericCount);
+        Assert.Equal(0, cleanAudit.OrphanReferenceCount);
+        Assert.Equal(0, cleanAudit.UnreferencedDefinitionCount);
+        Assert.Equal(0, cleanAudit.DuplicateDefinitionCount);
+        Assert.Equal(0, cleanAudit.DisorderedSequenceCount);
+        Assert.Equal(100.0, cleanAudit.FootnoteIntegrityScore);
+        Assert.Equal("Optimal · Perfect Footnote Hygiene", cleanAudit.Category);
+
+        // 3. Flawed footnotes with orphan reference, unreferenced def, duplicate def, and sequence gap
+        var flawedMarkdown = string.Join("\n",
+            "# Flawed Document",
+            "Statement referencing missing def[^99].",
+            "First valid reference[^1].",
+            "Skipping to four[^4].",
+            "",
+            "[^1]: Valid first definition.",
+            "[^1]: Duplicate first definition.",
+            "[^4]: Fourth definition.",
+            "[^unused]: Never referenced."
+        );
+        var flawedAudit = TextSearch.AuditMarkdownFootnoteSequentialNumbering(flawedMarkdown);
+        Assert.Equal(3, flawedAudit.TotalReferences);
+        Assert.Equal(4, flawedAudit.TotalDefinitions);
+        Assert.Equal(1, flawedAudit.OrphanReferenceCount);
+        Assert.Equal(1, flawedAudit.UnreferencedDefinitionCount);
+        Assert.Equal(1, flawedAudit.DuplicateDefinitionCount);
+        Assert.True(flawedAudit.DisorderedSequenceCount >= 1);
+        Assert.True(flawedAudit.FootnoteIntegrityScore < 60.0);
+        Assert.Contains("orphan ref", flawedAudit.Summary);
+    }
 }

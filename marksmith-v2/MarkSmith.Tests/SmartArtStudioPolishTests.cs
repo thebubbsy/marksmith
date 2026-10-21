@@ -3744,4 +3744,42 @@ public class SmartArtStudioPolishTests
         var imbalancedAudit = SmartArtDesignStudioViewModel.AuditVennDiagramSetIntersection(imbalancedMd, "Venn");
         Assert.True(imbalancedAudit.HasCardinalityImbalance);
     }
+
+    [Fact]
+    public void Run216_AuditChevronProcessMilestoneProgression_DetectsSkipsAndReversals()
+    {
+        // 1. Clean Baseline (empty)
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditChevronProcessMilestoneProgression(string.Empty);
+        Assert.Equal(0, emptyAudit.TotalSteps);
+        Assert.Equal(100.0, emptyAudit.MonotonicProgressionScore);
+        Assert.Contains("0 process steps evaluated", emptyAudit.Summary);
+
+        // 2. Strict monotonic progression
+        var cleanMarkdown = string.Join("\n",
+            "- Phase 1: Inception & Discovery",
+            "- Phase 2: Architecture & Prototype",
+            "- Phase 3: Production Hardening",
+            "- Phase 4: Release & Handover"
+        );
+        var cleanAudit = SmartArtDesignStudioViewModel.AuditChevronProcessMilestoneProgression(cleanMarkdown);
+        Assert.Equal(4, cleanAudit.TotalSteps);
+        Assert.Equal(4, cleanAudit.OrderedStepsCount);
+        Assert.Equal(0, cleanAudit.SequenceReversalCount);
+        Assert.Equal(0, cleanAudit.MissingStepSkipCount);
+        Assert.Equal(100.0, cleanAudit.MonotonicProgressionScore);
+        Assert.Equal("Optimal · Strict Monotonic Milestone Progression", cleanAudit.Category);
+
+        // 3. Out of order with reversal and skip
+        var flawedMarkdown = string.Join("\n",
+            "- Step 1: Initiate Project",
+            "- Step 4: Final Validation",
+            "- Step 2: Intermediate Review"
+        );
+        var flawedAudit = SmartArtDesignStudioViewModel.AuditChevronProcessMilestoneProgression(flawedMarkdown);
+        Assert.Equal(3, flawedAudit.TotalSteps);
+        Assert.Equal(1, flawedAudit.MissingStepSkipCount);
+        Assert.Equal(1, flawedAudit.SequenceReversalCount);
+        Assert.True(flawedAudit.MonotonicProgressionScore < 70.0);
+        Assert.Contains("reversal", flawedAudit.Summary);
+    }
 }

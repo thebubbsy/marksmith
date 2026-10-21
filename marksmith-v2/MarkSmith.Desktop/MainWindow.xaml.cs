@@ -12277,6 +12277,19 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             AnnounceStatus(summary);
         };
         menu.Items.Add(auditTableColumnAlignmentStrictnessItem);
+        var auditFootnoteSequentialNumberingItem = new MenuFlyoutItem
+        {
+            Text = "Audit Markdown Footnote Sequential Numbering & Identifier Integrity",
+            Icon = new FontIcon { Glyph = "\uE8B9" }
+        };
+        auditFootnoteSequentialNumberingItem.Click += (_, _) =>
+        {
+            var docText = EditorDocument();
+            var summary = MarkSmith.Services.TextSearch.AuditMarkdownFootnoteSequentialNumbering(docText).Summary;
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditFootnoteSequentialNumberingItem);
 
 
 

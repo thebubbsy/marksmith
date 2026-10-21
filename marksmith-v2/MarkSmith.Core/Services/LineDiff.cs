@@ -13904,7 +13904,7 @@ public static class LineDiff
 
                 "Clean Baseline",
 
-                "Diff variable scope locality audit: 0 variable declarations in diff · Clean baseline");
+                "Diff variable scope locality audit: 0 variable declarations in diff · Clean Baseline");
 
         }
 
@@ -14066,7 +14066,7 @@ public static class LineDiff
 
         if (totalVars == 0)
 
-            return "Diff variable scope locality audit: 0 variable declarations in diff · Clean baseline";
+            return "Diff variable scope locality audit: 0 variable declarations in diff · Clean Baseline";
 
 
 
@@ -14114,7 +14114,7 @@ public static class LineDiff
 
                 "Clean Baseline",
 
-                "Diff closure capture & scope escape audit: 0 variable declarations in diff · Clean baseline");
+                "Diff closure capture & scope escape audit: 0 variable declarations in diff · Clean Baseline");
 
         }
 
@@ -14456,7 +14456,7 @@ public static class LineDiff
 
                 "Clean Baseline",
 
-                "Diff closure capture & scope escape audit: 0 variable declarations in diff · Clean baseline");
+                "Diff closure capture & scope escape audit: 0 variable declarations in diff · Clean Baseline");
 
         }
 
@@ -14536,7 +14536,7 @@ public static class LineDiff
 
         if (totalVars == 0)
 
-            return "Diff closure capture & scope escape audit: 0 variable declarations in diff · Clean baseline";
+            return "Diff closure capture & scope escape audit: 0 variable declarations in diff · Clean Baseline";
 
 
 
@@ -14604,7 +14604,7 @@ public static class LineDiff
 
                 "Clean Baseline",
 
-                "Diff control flow & guard clause audit: 0 conditionals in diff · Clean baseline");
+                "Diff control flow & guard clause audit: 0 conditionals in diff · Clean Baseline");
 
         }
 
@@ -16924,7 +16924,7 @@ public static class LineDiff
 
     {
 
-        if (totalLines == 0) return "Semantic diff method inlining audit: Clean baseline · 0 modified lines";
+        if (totalLines == 0) return "Semantic diff method inlining audit: Clean Baseline · 0 modified lines";
 
 
 
@@ -17200,7 +17200,7 @@ public static class LineDiff
 
     {
 
-        if (totalLines == 0) return "Semantic diff exception handling audit: Clean baseline · 0 modified lines";
+        if (totalLines == 0) return "Semantic diff exception handling audit: Clean Baseline · 0 modified lines";
 
 
 
@@ -17387,7 +17387,7 @@ public static class LineDiff
         int totalLines, int totalHazards, int closures, int boxing, int loopAllocs,
         int linqOps, int paramsArrays, double score, string category)
     {
-        if (totalLines == 0) return "Semantic diff memory allocation audit: Clean baseline \u00B7 0 modified lines";
+        if (totalLines == 0) return "Semantic diff memory allocation audit: Clean Baseline \u00B7 0 modified lines";
 
         string lineStr = totalLines == 1 ? "1 modified line" : $"{totalLines} modified lines";
         var parts = new List<string>();
@@ -17668,7 +17668,7 @@ public static class LineDiff
         int awaitInLock, int nestedLocks, double score, string category)
     {
         if (totalHazards == 0)
-            return $"Semantic diff concurrency audit: Clean baseline · {modifiedLines} modified lines · 0 synchronization hazards";
+            return $"Semantic diff concurrency audit: Clean Baseline · {modifiedLines} modified lines · 0 synchronization hazards";
 
         var parts = new List<string>
         {
@@ -17829,7 +17829,7 @@ public static class LineDiff
         int unmanagedLeaks, int spanEscaping, double score, string category)
     {
         if (totalHazards == 0)
-            return $"Semantic diff memory safety audit: Clean baseline · {modifiedLines} modified lines · 0 memory safety hazards";
+            return $"Semantic diff memory safety audit: Clean Baseline · {modifiedLines} modified lines · 0 memory safety hazards";
 
         var parts = new List<string>
         {
@@ -17991,9 +17991,9 @@ public static class LineDiff
         int loopConcatCount, int logInterpolationCount, int caseConversionCount,
         double score, string category)
     {
-        if (totalLines == 0) return "Semantic diff string allocation audit: 0 modified lines · Clean baseline";
+        if (totalLines == 0) return "Semantic diff string allocation audit: 0 modified lines · Clean Baseline";
         if (totalHazards == 0)
-            return $"Semantic diff string allocation audit ({totalLines} lines): 0 allocation hazards · Clean baseline · 100% score";
+            return $"Semantic diff string allocation audit ({totalLines} lines): 0 allocation hazards · Clean Baseline · 100% score";
 
         string hazardSuffix = totalHazards == 1 ? string.Empty : "s";
         var parts = new List<string>
@@ -18221,9 +18221,9 @@ public static class LineDiff
         int totalLines, int totalHazards, int unhandledSwitch, int wildcardTraps,
         int missingDefault, int missingNull, double score, string category)
     {
-        if (totalLines == 0) return "Semantic diff pattern matching audit: 0 modified lines · Clean baseline";
+        if (totalLines == 0) return "Semantic diff pattern matching audit: 0 modified lines · Clean Baseline";
         if (totalHazards == 0)
-            return $"Semantic diff pattern matching audit ({totalLines} lines): 0 pattern hazards · Clean baseline · 100% score";
+            return $"Semantic diff pattern matching audit ({totalLines} lines): 0 pattern hazards · Clean Baseline · 100% score";
 
         string hazardSuffix = totalHazards == 1 ? string.Empty : "s";
         var parts = new List<string>
@@ -18978,7 +18978,7 @@ public static class LineDiff
         int unhandledWaitAll, int fireAndForgetDiscards, double score, string category)
     {
         if (totalModified == 0)
-            return "Semantic diff Task.WhenAll & AggregateException audit: Clean baseline · 0 modified lines";
+            return "Semantic diff Task.WhenAll & AggregateException audit: Clean Baseline · 0 modified lines";
 
         var parts = new List<string>();
         parts.Add($"{totalModified} modified line{(totalModified == 1 ? "" : "s")}");
@@ -19391,11 +19391,11 @@ public static class LineDiff
         int totalModified, int inLoop, int boxing, int formattable, int loggingEager,
         double score, string category)
     {
-        if (totalModified == 0) return "Semantic diff string allocation audit: 0 modified lines · Clean baseline";
+        if (totalModified == 0) return "Semantic diff string allocation audit: 0 modified lines · Clean Baseline";
 
         int totalHazards = inLoop + boxing + formattable + loggingEager;
         if (totalHazards == 0)
-            return $"Semantic diff string allocation audit ({totalModified} lines): 0 allocation hazards · Clean baseline · 100% score";
+            return $"Semantic diff string allocation audit ({totalModified} lines): 0 allocation hazards · Clean Baseline · 100% score";
 
         var parts = new List<string>();
         parts.Add($"{totalHazards} allocation hazard{(totalHazards == 1 ? "" : "s")}");
@@ -19412,7 +19412,7 @@ public static class LineDiff
         int totalLines, int totalHazards, int falseSharing, int multiDimArrays,
         int pointerChasing, int unpaddedStructs, double score, string category)
     {
-        if (totalLines == 0) return "Semantic diff CPU cache locality audit: Clean baseline \u00B7 0 modified lines";
+        if (totalLines == 0) return "Semantic diff CPU cache locality audit: Clean Baseline \u00B7 0 modified lines";
 
         string lineStr = totalLines == 1 ? "1 modified line" : $"{totalLines} modified lines";
         var parts = new List<string>();
@@ -20026,6 +20026,154 @@ public static class LineDiff
         string details = string.Join(" · ", parts);
         return $"Semantic diff memory allocation audit ({details} · {category} · {score:0.#}% discipline score)";
     }
+    public static DiffStringConcatenationAllocationAudit AuditStringConcatenationAllocations(string? beforeText, string? afterText)
+    {
+        var d = Diff(beforeText ?? string.Empty, afterText ?? string.Empty);
+        var unified = BuildUnified(d);
+        return AuditStringConcatenationAllocations(unified);
+    }
+
+    public static DiffStringConcatenationAllocationAudit AuditStringConcatenationAllocations(IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows == null)
+        {
+            string emptySummary = FormatStringConcatenationSummary(0, 0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new DiffStringConcatenationAllocationAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<DiffStringConcatenationAllocationItem>(),
+                "Clean Baseline", emptySummary);
+        }
+
+        var addedRows = unifiedRows.Where(r => !r.IsGap && r.Kind == Kind.Added && !string.IsNullOrWhiteSpace(r.Text)).ToList();
+        int totalAddedLines = addedRows.Count;
+
+        if (totalAddedLines == 0)
+        {
+            string emptySummary = FormatStringConcatenationSummary(0, 0, 0, 0, 0, 100.0, "Clean Baseline · No Added Code");
+            return new DiffStringConcatenationAllocationAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<DiffStringConcatenationAllocationItem>(),
+                "Clean Baseline · No Added Code", emptySummary);
+        }
+
+        var items = new List<DiffStringConcatenationAllocationItem>();
+        int concatInLoops = 0;
+        int multiOperands = 0;
+        int redundantToString = 0;
+        int sbAntiPatterns = 0;
+
+        bool inLoopContext = false;
+        int loopBraceDepth = 0;
+
+        var loopRegex = new System.Text.RegularExpressions.Regex(@"\b(?:for|foreach|while)\s*\(", System.Text.RegularExpressions.RegexOptions.Compiled);
+        var concatAssignRegex = new System.Text.RegularExpressions.Regex(@"\b(?!\+\+)[A-Za-z0-9_]+\s*\+=", System.Text.RegularExpressions.RegexOptions.Compiled);
+        var sbAppendPlusRegex = new System.Text.RegularExpressions.Regex(@"\b(?:sb|builder|stringBuilder)\.Append(?:Line)?\s*\([^;]*\+[^;]*\)", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
+        var redundantToStringRegex = new System.Text.RegularExpressions.Regex(@"(?:""[^""]*""|[A-Za-z0-9_]+)\.ToString\(\)", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        foreach (var row in addedRows)
+        {
+            string line = row.Text ?? string.Empty;
+            string trimmed = line.Trim();
+            int lineNum = row.NewNumber ?? row.OldNumber ?? 0;
+
+            if (trimmed.StartsWith("//") || trimmed.StartsWith("/*") || trimmed.StartsWith("*"))
+                continue;
+
+            if (loopRegex.IsMatch(trimmed))
+            {
+                inLoopContext = true;
+                loopBraceDepth = 0;
+            }
+
+            if (inLoopContext)
+            {
+                loopBraceDepth += trimmed.Count(c => c == '{') - trimmed.Count(c => c == '}');
+                if (loopBraceDepth < 0 || (trimmed.EndsWith(";") && !trimmed.Contains("{") && loopBraceDepth == 0 && !loopRegex.IsMatch(trimmed)))
+                {
+                    inLoopContext = false;
+                }
+            }
+
+            if (inLoopContext || (loopRegex.IsMatch(trimmed) && trimmed.Contains("+=")))
+            {
+                if (concatAssignRegex.IsMatch(trimmed))
+                {
+                    concatInLoops++;
+                    items.Add(new DiffStringConcatenationAllocationItem(
+                        lineNum, "LoopConcatenation", "Hazard",
+                        line.Length > 80 ? line.Substring(0, 77) + "..." : line,
+                        "String concatenation ('+=') inside loop causes O(N^2) memory allocations and LOH churn. Replace with StringBuilder or string.Create."));
+                }
+            }
+
+            if (sbAppendPlusRegex.IsMatch(trimmed))
+            {
+                sbAntiPatterns++;
+                items.Add(new DiffStringConcatenationAllocationItem(
+                    lineNum, "StringBuilderPlusConcat", "Caution",
+                    line.Length > 80 ? line.Substring(0, 77) + "..." : line,
+                    "StringBuilder.Append contains '+' concatenation which allocates a temporary string before appending. Use chained .Append() calls."));
+            }
+
+            int plusCount = trimmed.Count(c => c == '+') - (trimmed.Contains("++") ? 2 : 0);
+            if (plusCount >= 3 && !trimmed.Contains("++") && !trimmed.Contains("+= 1") && trimmed.Contains('"'))
+            {
+                multiOperands++;
+                items.Add(new DiffStringConcatenationAllocationItem(
+                    lineNum, "MultiOperandConcatenation", "Warning",
+                    line.Length > 80 ? line.Substring(0, 77) + "..." : line,
+                    "Multi-operand '+' string concatenation detected. Use string interpolation ($\"...\") or string.Concat for cleaner readability and allocation efficiency."));
+            }
+
+            var tsMatch = redundantToStringRegex.Match(trimmed);
+            if (tsMatch.Success && !trimmed.Contains("int") && !trimmed.Contains("double") && !trimmed.Contains("DateTime"))
+            {
+                if (tsMatch.Value.StartsWith('"') || tsMatch.Value.Contains("Name") || tsMatch.Value.Contains("Title") || tsMatch.Value.Contains("Text") || tsMatch.Value.Contains("Path"))
+                {
+                    redundantToString++;
+                    items.Add(new DiffStringConcatenationAllocationItem(
+                        lineNum, "RedundantToString", "Info",
+                        line.Length > 80 ? line.Substring(0, 77) + "..." : line,
+                        $"Redundant .ToString() call detected ('{tsMatch.Value}'). The operand is already a string or interpolated."));
+                }
+            }
+        }
+
+        double penalty = (concatInLoops * 20.0) + (sbAntiPatterns * 12.0) + (multiOperands * 8.0) + (redundantToString * 5.0);
+        double score = Math.Max(0.0, Math.Min(100.0, 100.0 - penalty));
+
+        string category = score switch
+        {
+            >= 95.0 => "Optimal · Zero String Allocation Hazards",
+            >= 80.0 => "Good · Minor String Concatenation Warnings",
+            >= 60.0 => "Caution · Suboptimal String Allocations",
+            _ => "Hazardous · Severe Loop Concatenation & Heap Churn"
+        };
+
+        string summary = FormatStringConcatenationSummary(
+            totalAddedLines, concatInLoops, multiOperands, redundantToString, sbAntiPatterns, score, category);
+
+        return new DiffStringConcatenationAllocationAudit(
+            totalAddedLines, concatInLoops, multiOperands, redundantToString, sbAntiPatterns, score, items, category, summary);
+    }
+
+    public static string FormatStringConcatenationSummary(
+        int totalAddedLines, int concatInLoops, int multiOperands, int redundantToString, int sbAntiPatterns, double score, string category)
+    {
+        if (totalAddedLines == 0)
+            return "Diff string allocation audit: Clean Baseline · 0 added lines evaluated";
+
+        var parts = new List<string>();
+        parts.Add($"{totalAddedLines} added line{(totalAddedLines == 1 ? "" : "s")}");
+        if (concatInLoops > 0) parts.Add($"🚨 {concatInLoops} loop concat{(concatInLoops == 1 ? "" : "s")}");
+        if (sbAntiPatterns > 0) parts.Add($"⚠ {sbAntiPatterns} sb.Append(+)");
+        if (multiOperands > 0) parts.Add($"⚡ {multiOperands} multi-plus concat{(multiOperands == 1 ? "" : "s")}");
+        if (redundantToString > 0) parts.Add($"ℹ {redundantToString} redundant .ToString()");
+
+        string details = string.Join(" · ", parts);
+        return $"Diff string allocation audit ({details} · {category} · {score:0.#}% allocation score)";
+    }
+
 
 }
 
@@ -22299,5 +22447,23 @@ public sealed record DiffMemoryAllocationBoxingAudit(
     int HeapAllocationLoopCount,
     double LowAllocationScore,
     IReadOnlyList<DiffMemoryAllocationBoxingItem> Hazards,
+    string Category,
+    string Summary);
+
+public sealed record DiffStringConcatenationAllocationItem(
+    int LineNumber,
+    string HazardType,
+    string Severity,
+    string Excerpt,
+    string Recommendation);
+
+public sealed record DiffStringConcatenationAllocationAudit(
+    int TotalAddedLines,
+    int ConcatenationInLoopCount,
+    int MultiOperandConcatenationCount,
+    int RedundantToStringCount,
+    int StringBuilderAntiPatternCount,
+    double StringAllocationScore,
+    IReadOnlyList<DiffStringConcatenationAllocationItem> Items,
     string Category,
     string Summary);

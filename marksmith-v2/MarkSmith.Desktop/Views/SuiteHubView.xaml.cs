@@ -5349,6 +5349,25 @@ private async void OnAuditWorkspaceMarkdownTableAutoAlignAndExportClick(object s
         }
     }
 
+    private async void OnAuditWorkspaceMediaAssetsClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var files = App.RecentFiles?.Load() ?? new List<string>();
+            var result = RecentFilesService.AuditWorkspaceMediaAssetsExistence(explicitFiles: files);
+            await Services.ClipboardWriter.TrySetTextAsync(result.Summary);
+            SetNotification(result.Summary, success: true);
+            if (RecentDocsActionBtn != null)
+            {
+                RecentDocsActionBtn.Flyout?.Hide();
+            }
+        }
+        catch (Exception ex)
+        {
+            SetNotification($"Media asset audit failed: {ex.Message}", success: false);
+        }
+    }
+
     private async void OnAuditWorkspaceCodeBlockLanguageTagsClick(object sender, RoutedEventArgs e)
 
     {

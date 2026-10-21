@@ -8035,6 +8035,193 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
         return $"Venn overlap & set inclusion audit ({setLabel} · {chordLabel} · {category} · {score:0.#}% balance) · {string.Join(", ", alerts)}";
     }
+    public SmartArtChevronProcessMilestoneAudit AuditChevronProcessMilestoneProgression(string? markdown = null, string? layoutName = null)
+    {
+        string md = markdown ?? MarkdownText;
+        string layout = layoutName ?? SelectedLayout?.DisplayName ?? "Chevron";
+        return AuditChevronProcessMilestoneProgression(md, layout, isStatic: false);
+    }
+
+    public static SmartArtChevronProcessMilestoneAudit AuditChevronProcessMilestoneProgression(
+        string? markdown,
+        string? layoutName = null,
+        bool isStatic = true)
+    {
+        string layout = layoutName ?? "Chevron";
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            string emptySummary = FormatChevronProcessSummary(0, 0, 0, 0, 0, 100.0, "Clean Baseline · No Steps");
+            return new SmartArtChevronProcessMilestoneAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<SmartArtChevronProcessStepItem>(), "Clean Baseline · No Steps", emptySummary);
+        }
+
+        var lines = markdown.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        var items = new List<SmartArtChevronProcessStepItem>();
+
+        var stepLines = new List<(int LineNumber, string LineText, string CleanText)>();
+        var bulletRegex = new System.Text.RegularExpressions.Regex(@"^\s*[-*+]\s+(.*)$", System.Text.RegularExpressions.RegexOptions.Compiled);
+        var orderedRegex = new System.Text.RegularExpressions.Regex(@"^\s*(\d+)[\.\)]\s+(.*)$", System.Text.RegularExpressions.RegexOptions.Compiled);
+        var phaseRegex = new System.Text.RegularExpressions.Regex(@"(?:Step|Phase|Milestone|Sprint|Stage|Q|Week|Month|Day|Level|Ver|v)\s*(\d+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string line = lines[i];
+            string trimmed = line.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed) || trimmed.StartsWith("```") || trimmed.StartsWith("#") || trimmed.StartsWith(":::"))
+                continue;
+
+            int indent = line.TakeWhile(char.IsWhiteSpace).Count();
+            if (indent > 2) continue;
+
+            var matchOrd = orderedRegex.Match(line);
+            if (matchOrd.Success)
+            {
+                stepLines.Add((i + 1, line, matchOrd.Groups[2].Value.Trim()));
+                continue;
+            }
+
+            var matchBul = bulletRegex.Match(line);
+            if (matchBul.Success)
+            {
+                stepLines.Add((i + 1, line, matchBul.Groups[1].Value.Trim()));
+                continue;
+            }
+
+            if (trimmed.Length > 0 && !trimmed.StartsWith(">") && !trimmed.StartsWith("|"))
+            {
+                stepLines.Add((i + 1, line, trimmed));
+            }
+        }
+
+        int totalSteps = stepLines.Count;
+        if (totalSteps == 0)
+        {
+            string emptySummary = FormatChevronProcessSummary(0, 0, 0, 0, 0, 100.0, "Clean Baseline · No Steps");
+            return new SmartArtChevronProcessMilestoneAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<SmartArtChevronProcessStepItem>(), "Clean Baseline · No Steps", emptySummary);
+        }
+
+        int orderedSteps = 0;
+        int reversalCount = 0;
+        int skipCount = 0;
+        int unnumberedCount = 0;
+        int lastNumber = 0;
+
+        for (int idx = 0; idx < stepLines.Count; idx++)
+        {
+            var st = stepLines[idx];
+            int stepIndex = idx + 1;
+            string title = st.CleanText;
+
+            int? detectedNum = null;
+            var ordM = orderedRegex.Match(st.LineText);
+            if (ordM.Success && int.TryParse(ordM.Groups[1].Value, out int n1))
+            {
+                detectedNum = n1;
+            }
+            else
+            {
+                var phM = phaseRegex.Match(st.LineText);
+                if (phM.Success && int.TryParse(phM.Groups[1].Value, out int n2))
+                {
+                    detectedNum = n2;
+                }
+            }
+
+            bool hasReversal = false;
+            bool hasSkip = false;
+            bool hasMonotonic = false;
+
+            if (detectedNum.HasValue)
+            {
+                int cur = detectedNum.Value;
+                if (lastNumber == 0)
+                {
+                    hasMonotonic = true;
+                    orderedSteps++;
+                }
+                else if (cur == lastNumber + 1)
+                {
+                    hasMonotonic = true;
+                    orderedSteps++;
+                }
+                else if (cur <= lastNumber)
+                {
+                    hasReversal = true;
+                    reversalCount++;
+                }
+                else
+                {
+                    hasSkip = true;
+                    skipCount++;
+                    orderedSteps++;
+                }
+                lastNumber = cur;
+            }
+            else
+            {
+                unnumberedCount++;
+                hasMonotonic = true;
+                orderedSteps++;
+            }
+
+            string rec;
+            if (hasReversal)
+            {
+                rec = $"Step order inverted ({detectedNum} follows earlier step). Reorder steps to preserve forward chronological flow.";
+            }
+            else if (hasSkip)
+            {
+                rec = $"Milestone gap detected (jumped from {lastNumber} to {detectedNum}). Ensure no intermediate process stages were omitted.";
+            }
+            else
+            {
+                rec = "Milestone step maintains forward progression.";
+            }
+
+            string? detectedStr = detectedNum.HasValue ? detectedNum.Value.ToString() : null;
+            items.Add(new SmartArtChevronProcessStepItem(
+                stepIndex, title, detectedStr, hasMonotonic, hasSkip, hasReversal,
+                $"Step {stepIndex}: {title}", rec));
+        }
+
+        double penalty = (reversalCount * 25.0) + (skipCount * 15.0) + (unnumberedCount > totalSteps / 2 ? 10.0 : 0.0);
+        double score = Math.Max(0.0, Math.Min(100.0, 100.0 - penalty));
+
+        string category = score switch
+        {
+            >= 95.0 => "Optimal · Strict Monotonic Milestone Progression",
+            >= 80.0 => "Good · Minor Phase Sequence Discrepancies",
+            >= 60.0 => "Caution · Out-of-Order Process Steps",
+            _ => "Hazardous · Severely Inverted Milestone Sequence"
+        };
+
+        string summary = FormatChevronProcessSummary(
+            totalSteps, orderedSteps, reversalCount, skipCount, unnumberedCount, score, category);
+
+        return new SmartArtChevronProcessMilestoneAudit(
+            totalSteps, orderedSteps, reversalCount, skipCount, unnumberedCount, score, items, category, summary);
+    }
+
+    public static string FormatChevronProcessSummary(
+        int totalSteps, int orderedSteps, int reversals, int skips, int unnumbered, double score, string category)
+    {
+        if (totalSteps == 0)
+            return "SmartArt chevron milestone audit: Clean outline · 0 process steps evaluated";
+
+        var parts = new List<string>();
+        parts.Add($"{totalSteps} step{(totalSteps == 1 ? "" : "s")}");
+        parts.Add($"{orderedSteps} ordered");
+        if (reversals > 0) parts.Add($"🚨 {reversals} reversal{(reversals == 1 ? "" : "s")}");
+        if (skips > 0) parts.Add($"⚡ {skips} skipped stage{(skips == 1 ? "" : "s")}");
+        if (unnumbered > 0) parts.Add($"ℹ {unnumbered} unnumbered");
+
+        string details = string.Join(" · ", parts);
+        return $"SmartArt chevron milestone audit ({details} · {category} · {score:0.#}% progression score)";
+    }
+
 
     public SmartArtProcessSequenceAudit AuditProcessSequencePacing(string? markdown = null, string? layoutName = null)
     {
@@ -14439,4 +14626,25 @@ public sealed record SmartArtVennDiagramSetIntersectionAudit(
     IReadOnlyList<SmartArtVennSetItem> Sets,
     string Category,
     string LayoutName,
+    string Summary);
+
+public sealed record SmartArtChevronProcessStepItem(
+    int StepIndex,
+    string Title,
+    string? DetectedStepNumber,
+    bool HasMonotonicSequence,
+    bool HasPhaseSkip,
+    bool HasReversal,
+    string Excerpt,
+    string Recommendation);
+
+public sealed record SmartArtChevronProcessMilestoneAudit(
+    int TotalSteps,
+    int OrderedStepsCount,
+    int SequenceReversalCount,
+    int MissingStepSkipCount,
+    int UnnumberedStepCount,
+    double MonotonicProgressionScore,
+    IReadOnlyList<SmartArtChevronProcessStepItem> Items,
+    string Category,
     string Summary);

@@ -13816,3 +13816,58 @@ Reviewed: Run #215 Blueprint — executed the 3-block cycle covering all 6 MarkS
 6. **SuiteHubView (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #215 Block 3 Idea 6]**:
    - **Refinement Target**: Workspace Broken Image & Missing Media Asset Auditor.
    - **Deliverable**: Add `RecentFilesService.AuditWorkspaceMediaAssetsExistence(explicitFiles, ...)` and `FormatWorkspaceMediaAssetsSummary(...)`, scanning workspace documents for image links (`![alt](path)`), validating local media asset existence on disk, flagging oversized uncompressed images ($> 5\text{MB}$), and scoring document media integrity ($0-100\%$). Wire to `RecentDocsFlyout`.
+
+
+---
+
+### 2026-10-21 (scheduled routine run #216)
+
+Reviewed: Run #216 Blueprint — executed the 3-block cycle covering all 6 MarkSmith WinUI 3 surfaces with 100% full implementation, zero placeholders, empirical verification (0 errors, 7 passing unit tests), and desktop smoke launch verification.
+
+**Shipped** (commit follows this entry):
+- **Block 1**:
+  - **Surface 1 (MainWindow)**: Implemented `TextSearch.AuditMarkdownFootnoteSequentialNumbering(markdownText)`, `FormatFootnoteSequentialNumberingSummary(...)`, `MarkdownFootnoteSequentialNumberingItem`, and `MarkdownFootnoteSequentialNumberingAudit` in `TextSearch.cs`. Audits sequential footnote indexing (`[^1]`, `[^2]`), orphan references without bodies, unreferenced footnote definitions, duplicate indices, and malformed identifiers, scoring footnote numbering integrity ($0-100\%$). Wired to `ShowLintIssueContextMenu` in `MainWindow.xaml.cs` via `auditFootnoteSequentialNumberingItem` (`\uE8B9`).
+  - **Surface 2 (MindMapGalaxyWindow)**: Implemented `MindMapStudioViewModel.AuditGraphDegreeDistributionAndHubs(selectionOnly)`, `FormatDegreeDistributionSummary(...)`, `GraphNodeDegreeDistributionItem`, and `GraphDegreeDistributionAndHubsAudit` in `MindMapStudioViewModel.cs`. Evaluates node in/out degree distribution skewness, identifies hyper-connected hub nodes ($> 8$ links) causing visual spaghetti, isolated leaves, and singletons, scoring node degree balance ($0-100\%$). Wired to `ArrangeDropDownButton.Flyout` in `MindMapGalaxyWindow.xaml` and `MindMapGalaxyWindow.xaml.cs` via `AuditGraphDegreeDistributionAndHubsItem` (`\uE8B9`) and `OnAuditGraphDegreeDistributionAndHubsClick`.
+- **Block 2**:
+  - **Surface 3 (ShapeDesignStudioWindow)**: Implemented `ShapeDesignStudioViewModel.AuditOrthogonalConnectorWaypoints(selectionOnly)`, `FormatOrthogonalWaypointsSummary(...)`, `ShapeOrthogonalConnectorWaypointsItem`, and `DiagramOrthogonalConnectorWaypointsAudit` in `ShapeDesignStudioViewModel.cs`. Analyzes connector paths for non-orthogonal segment drift, collinear redundant waypoints, and hairpin turns ($< 90^\circ$), scoring orthogonal routing cleanliness ($0-100\%$). Wired to `SelectionBoundsBorder.ContextFlyout` in `ShapeDesignStudioWindow.xaml` and `ShapeDesignStudioWindow.xaml.cs` via `SelectionAuditOrthogonalConnectorWaypointsItem` (`\uE8B9`) and `OnSelectionAuditOrthogonalConnectorWaypointsClick`.
+  - **Surface 4 (SmartArtDesignStudioWindow)**: Implemented `SmartArtDesignStudioViewModel.AuditChevronProcessMilestoneProgression(markdown, layoutName)`, `FormatChevronProcessSummary(...)`, `SmartArtChevronProcessStepItem`, and `SmartArtChevronProcessMilestoneAudit` in `SmartArtDesignStudioViewModel.cs`. Analyzes chevron arrow milestone process step flow for monotonic sequencing, phase skips, and inverted reversals, scoring linear progression hygiene ($0-100\%$). Wired to `OutlineStatsFlyout` in `SmartArtDesignStudioWindow.xaml` and `SmartArtDesignStudioWindow.xaml.cs` via `OutlineStatsAuditChevronProcessMilestoneProgressionItem` (`\uE8B9`) and `OnOutlineStatsAuditChevronProcessMilestoneProgressionClick`.
+- **Block 3**:
+  - **Surface 5 (HistoryWindow)**: Implemented `LineDiff.AuditStringConcatenationAllocations(unifiedRows)`, `FormatStringConcatenationSummary(...)`, `DiffStringConcatenationAllocationItem`, and `DiffStringConcatenationAllocationAudit` in `LineDiff.cs`. Inspects diff additions for naive string concatenation in loops (`str += x`), `StringBuilder.Append(+)` anti-patterns, multi-operand concatenation, and redundant `.ToString()` calls, scoring string allocation efficiency ($0-100\%$). Wired to `DiffContextMenu` in `HistoryWindow.xaml.cs` via `auditStringConcatenationItem` (`\uE8B9`).
+  - **Surface 6 (SuiteHubView)**: Implemented `RecentFilesService.AuditWorkspaceMediaAssetsExistence(explicitFiles, ...)`, `FormatWorkspaceMediaAssetsSummary(...)`, `WorkspaceMediaAssetItem`, and `WorkspaceMediaAssetsAudit` in `RecentFilesService.cs`. Scans workspace markdown documents for image links (`![alt](path)` and `<img>`), validates local media asset existence on disk, flags oversized uncompressed media ($> 5\text{MB}$), and scores document media asset integrity ($0-100\%$). Wired to `RecentDocsFlyout` in `SuiteHubView.xaml` and `SuiteHubView.xaml.cs` via `AuditWorkspaceMediaAssetsItem` (`\uE8B9`) and `OnAuditWorkspaceMediaAssetsClick`.
+- **Execution Phase Refinements**:
+  - Implemented comprehensive unit tests across all 6 surfaces in `MarkSmith.Tests`:
+    - `TextSearchTests.Run216_AuditMarkdownFootnoteSequentialNumbering_ValidatesSequencesAndOrphans`
+    - `MindMapGalaxyPolishTests.Run216_AuditGraphDegreeDistributionAndHubs_DetectsHubsAndDegreeBalance`
+    - `ShapeStudioPolishTests.Run216_AuditOrthogonalConnectorWaypoints_DetectsNonOrthogonalAndHairpins`
+    - `SmartArtStudioPolishTests.Run216_AuditChevronProcessMilestoneProgression_ValidatesSequentialFlow`
+    - `HistoryPolishTests.Run216_AuditStringConcatenationAllocations_DetectsLoopConcatAndStringBuilderAntiPatterns`
+    - `SuiteHubAndTourPolishTests.Run216_AuditWorkspaceMediaAssetsExistence_DetectsMissingFilesAndOversized`
+    - `SuiteHubAndTourPolishTests.Run216_AllSixSurfacesXamlAndCodeBehindWiring`
+
+**Verified:**
+- `dotnet build` (`marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj` - Debug/x64): 0 errors, 23 warnings.
+- `dotnet build` (`marksmith-v2/MarkSmith.Tests/MarkSmith.Tests.csproj` - Debug): 0 errors, 102 warnings.
+- `dotnet test` (Run216 filter): 7/7 tests passed (100% pass rate in 243 ms).
+- Smoke-launched `Marksmith.exe` (PID=9768, running cleanly for 4 seconds, gracefully terminated with zero crashes).
+
+---
+
+### Run #217 Blueprint - Carried-Forward Refinements & Next Cycle Targets
+1. **MainWindow (`MainWindow.xaml.cs`, `TextSearch.cs`)**:
+   - **Feature**: Markdown Blockquote Alert Callout Syntax & Icon Grammar Auditor.
+   - **Deliverable**: Add `TextSearch.AuditMarkdownBlockquoteAlertCallouts(markdownText)` and `FormatBlockquoteAlertCalloutsSummary(...)`, analyzing GitHub/Obsidian-style blockquote callouts (`> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`, `> [!WARNING]`, `> [!CAUTION]`), detecting invalid tags, missing exclamation prefixes, and scoring callout grammar compliance ($0-100\%$). Wire to `ShowLintIssueContextMenu`.
+2. **MindMapGalaxyWindow (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
+   - **Feature**: Graph Radial Clustering & Angular Centroid Separation Auditor.
+   - **Deliverable**: Add `MindMapStudioViewModel.AuditGraphRadialClustering()` and `FormatRadialClusteringSummary(...)`, evaluating node angular distribution around cluster centroids, detecting angular overlap crowding ($< 15^\circ$ spacing), and scoring radial layout clarity ($0-100\%$). Wire to `ArrangeDropDownButton.Flyout`.
+3. **ShapeDesignStudioWindow (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**:
+   - **Feature**: Diagram Z-Index Stacking Level Normalization & Layer Depth Auditor.
+   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditDiagramZIndexStacking(shapes)` and `FormatZIndexStackingSummary(...)`, analyzing shape overlapping z-index orders, detecting connector occlusion under sibling shapes, sparse z-index gaps, and scoring stacking layer hygiene ($0-100\%$). Wire to `SelectionBoundsBorder.ContextFlyout`.
+4. **SmartArtDesignStudioWindow (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
+   - **Feature**: Organizational Hierarchy Tree Fan-Out Ratio & Span of Control Auditor.
+   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditHierarchySpanOfControl(markdown, layoutName)` and `FormatHierarchySpanOfControlSummary(...)`, measuring management span-of-control ratios ($> 10$ direct reports per supervisor or solitary bottlenecks $1:1$), and scoring hierarchy organizational balance ($0-100\%$). Wire to `OutlineStatsFlyout`.
+5. **HistoryWindow (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #216 Block 3 Idea 5]**:
+   - **Refinement Target**: Semantic Diff LINQ Multiple Enumeration & Allocation Hazard Auditor.
+   - **Deliverable**: Add `LineDiff.AuditLinqMultipleEnumerationHazards(unifiedRows)` and `FormatLinqMultipleEnumerationSummary(...)`, detecting `IEnumerable` references evaluated across multiple loops or LINQ query operators without `.ToList()` caching, deferred execution pitfalls, and scoring LINQ enumeration safety ($0-100\%$). Wire to `DiffContextMenu`.
+6. **SuiteHubView (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #216 Block 3 Idea 6]**:
+   - **Refinement Target**: Workspace Document Frontmatter Title & Category Taxonomy Cohesion Auditor.
+   - **Deliverable**: Add `RecentFilesService.AuditWorkspaceDocumentTaxonomyCohesion(explicitFiles, ...)` and `FormatDocumentTaxonomySummary(...)`, analyzing frontmatter `tags`, `category`, and `series` groupings across the repository, identifying orphan isolated categories, and scoring workspace organizational cohesion ($0-100\%$). Wire to `RecentDocsFlyout`.

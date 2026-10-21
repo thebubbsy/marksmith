@@ -15291,6 +15291,224 @@ public static class TextSearch
         string details = string.Join(" · ", parts);
         return $"Markdown table column alignment audit ({details} · {category} · {score:0.#}% fidelity score)";
     }
+    public static MarkdownFootnoteSequentialNumberingAudit AuditMarkdownFootnoteSequentialNumbering(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            string emptySummary = FormatFootnoteSequentialNumberingSummary(0, 0, 0, 0, 0, 0, 0, 100.0, "Clean Baseline · No Footnotes");
+            return new MarkdownFootnoteSequentialNumberingAudit(
+                0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<MarkdownFootnoteSequentialNumberingItem>(),
+                "Clean Baseline · No Footnotes", emptySummary);
+        }
+
+        var lines = markdownText.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        var items = new List<MarkdownFootnoteSequentialNumberingItem>();
+
+        var defs = new Dictionary<string, List<(int LineNumber, string Excerpt)>>(StringComparer.OrdinalIgnoreCase);
+        var refs = new List<(string Label, int LineNumber, string Excerpt)>();
+        var defLabelsInOrder = new List<string>();
+        var refLabelsInOrder = new List<string>();
+
+        bool inCodeBlock = false;
+        var defRegex = new System.Text.RegularExpressions.Regex(@"^\s{0,3}\[\^([^\]]+)\]:\s*(.*)$", System.Text.RegularExpressions.RegexOptions.Compiled);
+        var refRegex = new System.Text.RegularExpressions.Regex(@"\[\^([^\]]+)\](?!\:)", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            int lineNum = i + 1;
+            string line = lines[i];
+            string trimmed = line.Trim();
+
+            if (trimmed.StartsWith("```", StringComparison.Ordinal) || trimmed.StartsWith("~~~", StringComparison.Ordinal))
+            {
+                inCodeBlock = !inCodeBlock;
+                continue;
+            }
+
+            if (inCodeBlock) continue;
+
+            var defMatch = defRegex.Match(line);
+            if (defMatch.Success)
+            {
+                string label = defMatch.Groups[1].Value.Trim();
+                string excerpt = line.Length > 80 ? line.Substring(0, 77) + "..." : line;
+
+                if (!defs.TryGetValue(label, out var list))
+                {
+                    list = new List<(int, string)>();
+                    defs[label] = list;
+                    defLabelsInOrder.Add(label);
+                }
+                list.Add((lineNum, excerpt));
+            }
+            else
+            {
+                var matches = refRegex.Matches(line);
+                foreach (System.Text.RegularExpressions.Match match in matches)
+                {
+                    string label = match.Groups[1].Value.Trim();
+                    string excerpt = line.Length > 80 ? line.Substring(0, 77) + "..." : line;
+                    refs.Add((label, lineNum, excerpt));
+                    refLabelsInOrder.Add(label);
+                }
+            }
+        }
+
+        int totalRefs = refs.Count;
+        int totalDefs = defs.Values.Sum(list => list.Count);
+
+        if (totalRefs == 0 && totalDefs == 0)
+        {
+            string emptySummary = FormatFootnoteSequentialNumberingSummary(0, 0, 0, 0, 0, 0, 0, 100.0, "Clean Baseline · No Footnotes");
+            return new MarkdownFootnoteSequentialNumberingAudit(
+                0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<MarkdownFootnoteSequentialNumberingItem>(),
+                "Clean Baseline · No Footnotes", emptySummary);
+        }
+
+        int orphanRefCount = 0;
+        int unreferencedDefCount = 0;
+        int duplicateDefCount = 0;
+        int disorderedSequenceCount = 0;
+        int sequentialNumericCount = 0;
+
+        foreach (var kvp in defs)
+        {
+            if (kvp.Value.Count > 1)
+            {
+                duplicateDefCount += kvp.Value.Count - 1;
+                foreach (var occ in kvp.Value.Skip(1))
+                {
+                    items.Add(new MarkdownFootnoteSequentialNumberingItem(
+                        kvp.Key, occ.LineNumber, "DuplicateDefinition", "Warning", occ.Excerpt,
+                        $"Footnote definition '[^{kvp.Key}]' is declared multiple times. Remove redundant duplicate declarations."));
+                }
+            }
+        }
+
+        foreach (var r in refs)
+        {
+            if (!defs.ContainsKey(r.Label))
+            {
+                orphanRefCount++;
+                items.Add(new MarkdownFootnoteSequentialNumberingItem(
+                    r.Label, r.LineNumber, "OrphanReference", "Hazard", r.Excerpt,
+                    $"Footnote reference '[^{r.Label}]' has no matching definition '[^{r.Label}]: ...'. Add the missing footnote definition."));
+            }
+        }
+
+        var referencedLabelSet = new HashSet<string>(refs.Select(r => r.Label), StringComparer.OrdinalIgnoreCase);
+        foreach (var kvp in defs)
+        {
+            if (!referencedLabelSet.Contains(kvp.Key))
+            {
+                unreferencedDefCount += kvp.Value.Count;
+                foreach (var occ in kvp.Value)
+                {
+                    items.Add(new MarkdownFootnoteSequentialNumberingItem(
+                        kvp.Key, occ.LineNumber, "UnreferencedDefinition", "Warning", occ.Excerpt,
+                        $"Footnote definition '[^{kvp.Key}]: ...' is never referenced in document body. Remove orphan definition or link it."));
+                }
+            }
+        }
+
+        int lastNumeric = 0;
+        foreach (var r in refs)
+        {
+            if (int.TryParse(r.Label, out int currentNum))
+            {
+                if (lastNumeric == 0)
+                {
+                    if (currentNum == 1)
+                    {
+                        sequentialNumericCount++;
+                    }
+                    else
+                    {
+                        disorderedSequenceCount++;
+                        items.Add(new MarkdownFootnoteSequentialNumberingItem(
+                            r.Label, r.LineNumber, "DisorderedSequence", "Caution", r.Excerpt,
+                            $"First numeric footnote is '[^{currentNum}]' instead of '[^1]'. Start numeric footnotes from 1."));
+                    }
+                }
+                else if (currentNum == lastNumeric + 1)
+                {
+                    sequentialNumericCount++;
+                }
+                else if (currentNum <= lastNumeric)
+                {
+                    disorderedSequenceCount++;
+                    items.Add(new MarkdownFootnoteSequentialNumberingItem(
+                        r.Label, r.LineNumber, "SequenceReversal", "Hazard", r.Excerpt,
+                        $"Numeric footnote '[^{currentNum}]' appears after '[^{lastNumeric}]'. Footnote references should follow ascending order."));
+                }
+                else
+                {
+                    disorderedSequenceCount++;
+                    items.Add(new MarkdownFootnoteSequentialNumberingItem(
+                        r.Label, r.LineNumber, "SequenceGap", "Caution", r.Excerpt,
+                        $"Numeric footnote jumps from '[^{lastNumeric}]' to '[^{currentNum}]', skipping intervening numbers. Renumber monotonically."));
+                }
+                lastNumeric = currentNum;
+            }
+            else
+            {
+                if (r.Label.Any(c => char.IsWhiteSpace(c) || c == ':' || c == '^' || c == '[' || c == ']'))
+                {
+                    items.Add(new MarkdownFootnoteSequentialNumberingItem(
+                        r.Label, r.LineNumber, "MalformedIdentifier", "Hazard", r.Excerpt,
+                        $"Footnote identifier '[^{r.Label}]' contains invalid characters. Use alphanumeric characters, hyphens, or underscores."));
+                }
+            }
+        }
+
+        double penalty = (orphanRefCount * 25.0) +
+                         (unreferencedDefCount * 15.0) +
+                         (duplicateDefCount * 15.0) +
+                         (disorderedSequenceCount * 10.0);
+        double score = Math.Max(0.0, Math.Min(100.0, 100.0 - penalty));
+
+        string category = score switch
+        {
+            >= 95.0 => "Optimal · Perfect Footnote Hygiene",
+            >= 80.0 => "Good · Minor Footnote Warnings",
+            >= 60.0 => "Caution · Footnote Reference Anomalies",
+            _ => "Hazardous · Severely Desynchronized Footnotes"
+        };
+
+        string summary = FormatFootnoteSequentialNumberingSummary(
+            totalRefs, totalDefs, sequentialNumericCount, orphanRefCount, unreferencedDefCount,
+            duplicateDefCount, disorderedSequenceCount, score, category);
+
+        return new MarkdownFootnoteSequentialNumberingAudit(
+            totalRefs, totalDefs, sequentialNumericCount, orphanRefCount, unreferencedDefCount,
+            duplicateDefCount, disorderedSequenceCount, score, items, category, summary);
+    }
+
+    public static string FormatFootnoteSequentialNumberingSummary(string? markdownText)
+        => AuditMarkdownFootnoteSequentialNumbering(markdownText).Summary;
+
+    public static string FormatFootnoteSequentialNumberingSummary(
+        int totalRefs, int totalDefs, int sequentialCount, int orphanRefs, int unreferencedDefs,
+        int duplicateDefs, int disorderedSeq, double score, string category)
+    {
+        if (totalRefs == 0 && totalDefs == 0)
+            return "Markdown footnote sequential numbering audit: Clean document · No footnotes present";
+
+        var parts = new List<string>();
+        parts.Add($"{totalRefs} ref{(totalRefs == 1 ? "" : "s")}");
+        parts.Add($"{totalDefs} def{(totalDefs == 1 ? "" : "s")}");
+        if (sequentialCount > 0) parts.Add($"✓ {sequentialCount} sequential");
+        if (orphanRefs > 0) parts.Add($"🚨 {orphanRefs} orphan ref{(orphanRefs == 1 ? "" : "s")}");
+        if (unreferencedDefs > 0) parts.Add($"⚠ {unreferencedDefs} unreferenced def{(unreferencedDefs == 1 ? "" : "s")}");
+        if (duplicateDefs > 0) parts.Add($"🚨 {duplicateDefs} duplicate def{(duplicateDefs == 1 ? "" : "s")}");
+        if (disorderedSeq > 0) parts.Add($"⚡ {disorderedSeq} disordered/gap{(disorderedSeq == 1 ? "" : "s")}");
+
+        string details = string.Join(" · ", parts);
+        return $"Markdown footnote sequential numbering audit ({details} · {category} · {score:0.#}% integrity score)";
+    }
+
 
 }
 
@@ -17073,5 +17291,26 @@ public sealed record MarkdownTableColumnAlignmentStrictnessAudit(
     int MissingOuterPipeCount,
     double TableFidelityScore,
     IReadOnlyList<MarkdownTableColumnAlignmentStrictnessItem> Items,
+    string Category,
+    string Summary);
+
+public sealed record MarkdownFootnoteSequentialNumberingItem(
+    string Label,
+    int LineNumber,
+    string IssueType,
+    string Severity,
+    string Excerpt,
+    string Recommendation);
+
+public sealed record MarkdownFootnoteSequentialNumberingAudit(
+    int TotalReferences,
+    int TotalDefinitions,
+    int SequentialNumericCount,
+    int OrphanReferenceCount,
+    int UnreferencedDefinitionCount,
+    int DuplicateDefinitionCount,
+    int DisorderedSequenceCount,
+    double FootnoteIntegrityScore,
+    IReadOnlyList<MarkdownFootnoteSequentialNumberingItem> Items,
     string Category,
     string Summary);
