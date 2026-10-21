@@ -14245,3 +14245,7 @@ caused by the other session's uncommitted Shape Studio edit; none involve a file
 4. Eye-check Insert dialogs and the Command Palette at the default 1220×800 window.
 
 **Total user-visible improvements: 6.**
+
+**Release (same run):** tagged **v3.38.0** on `d6bf6398`; Release workflow run 39695376087 succeeded
+(8m25s); user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.38.0). `MarksmithBaseVersion` is now 3.39.0.
