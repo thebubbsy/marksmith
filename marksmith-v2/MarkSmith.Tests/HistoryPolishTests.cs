@@ -265,6 +265,23 @@ public class HistoryPolishTests : IDisposable
         Assert.False(vm.RestoreCommand.CanExecute(null));
     }
 
+    // Run #221: with no history there is no timeline to pick from, so the diff pane explains how
+    // history starts instead of asking for a selection.
+    [Fact]
+    public async Task DiffPlaceholder_ExplainsHowHistoryStarts_WhenThereIsNone()
+    {
+        var empty = NewVm(NewService(), "");
+        await empty.LoadCommand.ExecuteAsync(null);
+        Assert.StartsWith("Nothing to compare yet", empty.DiffPlaceholderText);
+
+        var service = NewService();
+        const string file = @"C:\docs\ph.md";
+        await service.CaptureAsync(file, "one", "opened");
+        var vm = NewVm(service, file);
+        await vm.LoadCommand.ExecuteAsync(null);
+        Assert.Equal("Select a version on the timeline to see what changed in it.", vm.DiffPlaceholderText);
+    }
+
     [Fact]
     public async Task ScratchText_IsListedAsUnsavedText()
     {

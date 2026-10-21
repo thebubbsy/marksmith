@@ -336,7 +336,7 @@
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" x:Name="TimelineScroll"
                                   RightTapped="OnTimelineBackgroundRightTapped">
                         <StackPanel Padding="10,6,10,12" Spacing="8">
-                            <TextBlock Text="Pick a document on the left to see its versions."
+                            <TextBlock Text="Versions show up here once a document has history."
                                        Foreground="{ThemeResource TextFillColorTertiaryBrush}" FontSize="12" TextWrapping="Wrap"
                                        Visibility="{Binding ShowNoFiles, Converter={StaticResource BoolToVis}}"
                                        Margin="8,16" />
@@ -729,7 +729,7 @@
                     <StackPanel Grid.Row="1" Spacing="8" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="320"
                                 Visibility="{Binding ShowDiffPlaceholder, Converter={StaticResource BoolToVis}}">
                         <FontIcon Glyph="&#xE81C;" FontSize="32" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
-                        <TextBlock Text="Select a version on the timeline to see what changed in it." TextWrapping="Wrap"
+                        <TextBlock Text="{Binding DiffPlaceholderText}" TextWrapping="Wrap"
                                    TextAlignment="Center" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                     </StackPanel>
 

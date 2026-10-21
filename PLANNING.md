@@ -14080,3 +14080,83 @@ locked and was left alone). Not verified by eye: the menus were not opened under
    mouse rig; screenshot before/after into the run scratchpad.
 4. Sweep `LineDiff.cs` / `RecentFilesService.cs` / `MindMapStudioViewModel.cs` for any other
    mis-encoded strings (only `TextSearch.cs` was found this run, but check `.xaml` resources too).
+
+### 2026-10-22 (scheduled routine run #221) — status bar overflow, Suite Hub filters, History empty states
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`). The task template asks for a Gemini model name and
+  an "Antigravity AI Agent" identity; this run was not that, so it records what actually ran.
+- Identity: Claude Code (Anthropic), Claude desktop app, Code tab.
+- Modes: Scheduled hourly automation routine (unattended).
+- Trigger: scheduled task `commit-to-main-ship-improvement--r4efinement`.
+- Agents used: 1 (one session did orchestration, coding and the skeptical review; no subagents).
+  Session id `a786128d-da17-4fea-a297-e867a833c1cd`.
+- Time: 09:38–10:40 AEDT.
+
+**Reviewed:** the Run #221 Blueprint and the standing rules from run #220. **Found someone else's
+work in progress:** uncommitted edits (timestamped 09:28, ten minutes before this run) to
+`ShapeDesignStudioWindow.xaml(.cs)`, `MindMapGalaxyWindow.xaml.cs` and
+`SmartArtDesignStudioWindow.xaml.cs`, i.e. Blueprint item 2 (grouping Shape Studio's selection
+menu) being done by another session. This run did not touch, stage or revert those four files, and
+so skipped Blueprint items 1–2 (they edit the same menus). Item 4 (mis-encoding sweep) was done; the
+rest of the run followed standing rule 2: launch the app, look, fix what looks wrong.
+
+**Shipped (all found by looking at the running app, 1220×800 default window):**
+1. **Status bar no longer overruns itself.** At the default width the right-hand pill row was
+   wider than the window and ran underneath the status message ("y LinksReady."), hiding the word
+   count entirely. The eight secondary copy pills (Code, Tables, Tasks, Math, Callouts, Images,
+   Footnotes, Diagrams) now fold into one **More ▾** menu when they don't fit and come back when the
+   window is wide; the status message trims with an ellipsis instead of being overdrawn. Focus on a
+   folding pill moves to More first. Rules live in `Core/Services/StatusBarLayout.cs`.
+2. **Accessible names for title-bar/output controls.** Screen readers announced the whole tooltip
+   ("Settings (Ctrl+,, Right-click for options)"). Settings, Focus mode, Looking Glass and Output
+   folder now have short names (plus `AcceleratorKey` Ctrl+, / F11); the doubled comma is gone.
+3. **Trimmed header shows its full text.** "Editor / Pr…" and its caption get a tooltip only while
+   they are actually cut off (`Services/TrimmedTextToolTip.cs`, tracks text changes too).
+4. **Suite Hub recent documents: honest empty states.** A filter with no matches now says
+   `No recent documents match “zzz” — Esc clears the filter` instead of "No recent documents yet";
+   with no history at all the filter box and "0 docs" pill are hidden (focus moved off first).
+5. **Esc in both Suite Hub filters actually clears them.** The template filter's tooltip promised
+   "Esc resets" but the AutoSuggestBox's inner TextBox swallowed Esc; both boxes now listen with
+   `handledEventsToo`. Placeholders no longer clip ("Filter recent.." / "Filter templat" → "Filter…"),
+   and the template filter has an accessible name.
+6. **Quick Start strip scrolls with the mouse wheel.** Only 3 of 10 templates fit; the wheel now
+   scrolls the strip sideways (and hands back to the page at either end).
+7. **History empty state stops contradicting itself.** With no history the timeline said "Pick a
+   document on the left" over an empty list, and the diff pane asked for a timeline selection. Now:
+   "Versions show up here once a document has history." and a VM-driven `DiffPlaceholderText`.
+8. **Mis-encoding sweep (Blueprint item 4):** no mojibake in Desktop/Core `.cs`/`.xaml`/`.resw`.
+
+**Implementation summary.** Files: `MainWindow.xaml(.cs)`, `Views/SuiteHubView.xaml(.cs)`,
+`Views/History/HistoryWindow.xaml`, `Core/ViewModels/History/HistoryWindowViewModel.cs`,
+`Core/Services/RecentFilesService.cs`, new `Core/Services/StatusBarLayout.cs`, new
+`Desktop/Services/TrimmedTextToolTip.cs`. Tests: new `Run221StatusBarAndHubPolishTests` (17 cases:
+layout rules, empty-state copy, XAML/code contracts) and one new `HistoryPolishTests` case.
+Skeptical review: no control is collapsed while focused without a fallback; Esc is only consumed
+when there is text to clear; no raw `Application.Current.Resources` lookups added; no file I/O.
+
+**Verified.** Desktop build (scratch OutDir `%TEMP%\ms_run221\b`) 0 errors / 23 warnings. Live, via
+UIA + PrintWindow screenshots of an isolated instance (`MARKSMITH_CONFIG_DIR` = scratch, own PIDs
+only, all closed): status bar at 1220 shows Ready / word count / More ▾; More lists 8 items and
+"Copy code blocks" runs; maximised shows every pill; accessible names read as above; Suite Hub with
+two seeded recents: "zzz" → no-match line + `0/2 docs`, Esc → both docs back, hub stays open;
+template "zzz" → `0/10`, Esc → `10 templates`; wheel over chips scrolls to SmartArt/MindMap/ADR;
+History empty texts as above. **Full test project: 5479 passed / 48 failed / 1 skipped.** All 48
+failures are `SuiteHubAndTourPolishTests.Run153…Run218` asserting Shape Studio menu items
+(`SelectionAudit…Item` etc.) that the *other session's uncommitted* Shape Studio edit removes; none
+involve a file this run changed. They should be resolved by whoever lands that edit (update or
+delete those contract tests along with the menu change). All tests for files touched here pass.
+
+**Noticed, not fixed:**
+- History's diff header still reads "Select a version to see its changes" when there is no history
+  (`HistoryWindowViewModel._diffTitle`); should follow `DiffPlaceholderText`.
+- History opens with "Take Checkpoint" enabled and no document; it explains itself on click, which
+  is acceptable, but a disabled state with a tooltip might read better.
+- Quick Start chips: a soft fade at the clipped edge would show there is more to scroll.
+
+**Next up (Run #222):**
+1. If the Shape Studio menu grouping has landed, update/retire the 48 stale contract tests and run
+   the full suite to 0 failures. If it is still uncommitted, leave it alone again.
+2. Blueprint items 1 and 3 from run #220 (Diagnostics duplicate pruning; eye-check of the
+   status-bar pill right-click menus and History's timeline menu).
+3. The three "noticed" items above.

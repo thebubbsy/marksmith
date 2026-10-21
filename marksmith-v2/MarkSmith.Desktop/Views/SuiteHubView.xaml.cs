@@ -96,6 +96,26 @@ public sealed partial class SuiteHubView : UserControl
 
         InitializeComponent();
 
+        // Only three of the ten starter templates fit across the strip; let the mouse wheel
+
+        // scroll it sideways instead of leaving the rest reachable only by the thin scrollbar.
+
+        StarterTemplatesScroller.AddHandler(UIElement.PointerWheelChangedEvent,
+
+            new PointerEventHandler(OnStarterTemplatesWheel), handledEventsToo: true);
+
+        // The AutoSuggestBox's inner TextBox marks Esc (and Enter) handled before KeyDown reaches
+
+        // these handlers, so the advertised "Esc clears" never fired. Listen to handled keys too.
+
+        RecentSearchBox.AddHandler(UIElement.KeyDownEvent,
+
+            new KeyEventHandler(OnRecentSearchBoxKeyDown), handledEventsToo: true);
+
+        TemplateSearchBox.AddHandler(UIElement.KeyDownEvent,
+
+            new KeyEventHandler(OnTemplateSearchKeyDown), handledEventsToo: true);
+
         _apiPort = apiPort > 0 ? apiPort : 47821;
 
         _turnOnApi = turnOnApi;
@@ -2014,9 +2034,13 @@ public sealed partial class SuiteHubView : UserControl
 
                 RecentFilesPanel.Visibility = Visibility.Collapsed;
 
+                NoRecentDocsText.Text = RecentFilesService.FormatRecentFilesEmptyState(existingFiles.Count, _recentDocsFilter);
+
                 NoRecentDocsText.Visibility = Visibility.Visible;
 
             }
+
+            SetRecentFilterChromeVisible(existingFiles.Count > 0);
 
         }
 
@@ -2028,11 +2052,51 @@ public sealed partial class SuiteHubView : UserControl
 
             RecentFilesPanel.Visibility = Visibility.Collapsed;
 
+            NoRecentDocsText.Text = RecentFilesService.FormatRecentFilesEmptyState(0, null);
+
             NoRecentDocsText.Visibility = Visibility.Visible;
 
             if (RecentDocsCountText != null) RecentDocsCountText.Text = "0 docs";
 
+            SetRecentFilterChromeVisible(false);
+
         }
+
+    }
+
+
+
+    // With no history at all, the filter box and the "0 docs" pill are just noise next to the
+
+    // empty line. Hide them, moving focus on first if the filter box had it.
+
+    private void SetRecentFilterChromeVisible(bool visible)
+
+    {
+
+        var target = visible ? Visibility.Visible : Visibility.Collapsed;
+
+        if (RecentSearchBox.Visibility == target) return;
+
+        if (!visible && XamlRoot is { } root &&
+
+            Microsoft.UI.Xaml.Input.FocusManager.GetFocusedElement(root) is DependencyObject focused)
+
+        {
+
+            for (var d = focused; d is not null; d = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(d))
+
+            {
+
+                if (ReferenceEquals(d, RecentSearchBox)) { RecentDocsActionBtn.Focus(FocusState.Programmatic); break; }
+
+            }
+
+        }
+
+        RecentSearchBox.Visibility = target;
+
+        RecentDocsCountPill.Visibility = target;
 
     }
 
@@ -2280,11 +2344,53 @@ public sealed partial class SuiteHubView : UserControl
 
 
 
+    private void OnStarterTemplatesWheel(object sender, PointerRoutedEventArgs e)
+
+    {
+
+        var sv = StarterTemplatesScroller;
+
+        if (sv.ScrollableWidth <= 0) return;
+
+        var delta = e.GetCurrentPoint(sv).Properties.MouseWheelDelta;
+
+        var target = Math.Clamp(sv.HorizontalOffset - delta, 0, sv.ScrollableWidth);
+
+        // At either end the wheel goes back to scrolling the hub itself.
+
+        if (Math.Abs(target - sv.HorizontalOffset) < 0.5) return;
+
+        sv.ChangeView(target, null, null);
+
+        e.Handled = true;
+
+    }
+
+
+
     private void OnRecentSearchBoxTextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
 
     {
 
         LoadRecentFiles(sender.Text);
+
+    }
+
+
+
+    // Esc clears a non-empty filter (the empty-state line promises it); with nothing typed it is
+
+    // left alone so the dialog's own Esc still closes the hub.
+
+    private void OnRecentSearchBoxKeyDown(object sender, KeyRoutedEventArgs e)
+
+    {
+
+        if (e.Key != Windows.System.VirtualKey.Escape || string.IsNullOrEmpty(RecentSearchBox.Text)) return;
+
+        RecentSearchBox.Text = "";
+
+        e.Handled = true;
 
     }
 

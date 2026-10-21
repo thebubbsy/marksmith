@@ -196,10 +196,18 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
     public bool IsLoading => !IsLoaded;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowNoFiles))]
+    [NotifyPropertyChangedFor(nameof(ShowNoFiles), nameof(DiffPlaceholderText))]
     private bool _hasFiles;
 
     public bool ShowNoFiles => IsLoaded && !HasFiles && string.IsNullOrEmpty(LoadError);
+
+    /// <summary>
+    /// The diff pane's empty line. With no history at all there is no timeline to pick from, so
+    /// it says how history starts instead of asking for a selection that can't be made.
+    /// </summary>
+    public string DiffPlaceholderText => HasFiles
+        ? "Select a version on the timeline to see what changed in it."
+        : "Nothing to compare yet. Open, edit or export a document and its versions will appear on the timeline.";
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowNoFiles), nameof(HasLoadError))]

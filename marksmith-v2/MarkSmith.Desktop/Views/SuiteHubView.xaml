@@ -160,8 +160,9 @@
                         <TextBlock Text="Recent Documents" FontWeight="SemiBold" FontSize="12.5" VerticalAlignment="Center" />
                     </StackPanel>
                     <AutoSuggestBox x:Name="RecentSearchBox" Grid.Column="1" QueryIcon="Find"
-                                    PlaceholderText="Filter recent…" Width="120" Height="28" FontSize="11"
+                                    PlaceholderText="Filter…" Width="120" Height="28" FontSize="11"
                                     TextChanged="OnRecentSearchBoxTextChanged"
+                                    ToolTipService.ToolTip="Filter recent documents by name or folder · Esc clears"
                                     AutomationProperties.Name="Filter recent documents" />
                     <StackPanel x:Name="RecentFilesPanel" Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" />
                     <TextBlock x:Name="NoRecentDocsText" Grid.Column="2" Text="No recent documents yet — start writing in MarkSmith"
@@ -507,12 +508,12 @@
                         <TextBlock Text="Quick Start" FontWeight="SemiBold" FontSize="12.5" VerticalAlignment="Center" />
                     </StackPanel>
                     <AutoSuggestBox x:Name="TemplateSearchBox" Grid.Column="1" QueryIcon="Find"
-                                    PlaceholderText="Filter templates…" Width="140"
+                                    PlaceholderText="Filter…" Width="140"
+                                    AutomationProperties.Name="Filter starter templates"
                                     VerticalAlignment="Center"
                                     TextChanged="OnTemplateSearchTextChanged"
-                                    KeyDown="OnTemplateSearchKeyDown"
                                     ToolTipService.ToolTip="Filter starter templates (Type to filter · Enter launches first match · Esc resets)" />
-                    <ScrollViewer Grid.Column="2" HorizontalScrollBarVisibility="Auto" HorizontalScrollMode="Auto" VerticalScrollBarVisibility="Disabled">
+                    <ScrollViewer x:Name="StarterTemplatesScroller" Grid.Column="2" HorizontalScrollBarVisibility="Auto" HorizontalScrollMode="Auto" VerticalScrollBarVisibility="Disabled">
                         <StackPanel x:Name="StarterTemplatesPanel" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                             <Button x:Name="TemplateMeetingNotesBtn" Style="{StaticResource DefaultButtonStyle}" Padding="10,4"
                                     Click="OnTemplateMeetingNotesClick" ToolTipService.ToolTip="Create a structured meeting minutes document with agenda and action items"

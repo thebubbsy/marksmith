@@ -84,6 +84,19 @@ public sealed class RecentFilesService
     }
 
     /// <summary>
+    /// The Suite Hub's recent-documents empty line. An empty filter result is not the same as
+    /// having no history, so it names the filter instead of claiming there is nothing yet.
+    /// </summary>
+    public static string FormatRecentFilesEmptyState(int totalCount, string? filter)
+    {
+        if (totalCount > 0 && !string.IsNullOrWhiteSpace(filter))
+        {
+            return $"No recent documents match “{filter.Trim()}” — Esc clears the filter";
+        }
+        return "No recent documents yet — documents you open or save appear here";
+    }
+
+    /// <summary>
     /// Extracts file names only (without directory path) from a sequence of full file paths.
     /// </summary>
     public static List<string> ExtractFileNames(IEnumerable<string>? files)

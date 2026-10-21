@@ -254,6 +254,16 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         Services.HoverPolish.FocusFallback = root =>
             root == Content.XamlRoot && PasteTextBox.Visibility == Visibility.Visible ? PasteTextBox : null;
 
+        // The centre header trims at the default width ("Editor / Pr…"); show the full text on hover.
+        Services.TrimmedTextToolTip.Attach(EditorStepTitle, EditorStepCaption);
+
+        // Status-bar pieces that come and go (detected-source badge, export links, split sync,
+        // section breadcrumb) change how much room the copy pills have, so re-fit the row.
+        foreach (var piece in new FrameworkElement[] { DetectedBadge, StatusOutputLinks, StatusSplitSyncButton, StatusSectionBreadcrumbButton })
+        {
+            piece.RegisterPropertyChangedCallback(UIElement.VisibilityProperty, (_, _) => UpdateStatusBarOverflow());
+        }
+
         // Wire the ambient OCR observer so any OCR operation (Import Document, Open File, or
         // dragging a scanned PDF/image onto the window) launches the standalone OCR Inspection Studio.
         Ocr.OcrTrace.DefaultObserver = new AmbientStudioOcrObserver(this);
@@ -12356,6 +12366,72 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         }
 
         return results;
+    }
+
+    private void OnStatusBarGridSizeChanged(object sender, SizeChangedEventArgs e) => UpdateStatusBarOverflow();
+
+    // At the default 1220px width the full pill row is wider than the window and used to run
+    // underneath the status message. Fold the eight secondary copy pills into "More" when they
+    // don't fit, and cap the message so it trims with an ellipsis instead of being overdrawn.
+    private void UpdateStatusBarOverflow()
+    {
+        if (StatusBarGrid is null || StatusSecondaryCopyPills is null) return;
+        var available = StatusBarGrid.ActualWidth;
+        if (available <= 0) return;
+
+        var infinite = new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity);
+        bool wasFolded = StatusSecondaryCopyPills.Visibility == Visibility.Collapsed;
+        StatusSecondaryCopyPills.Visibility = Visibility.Visible;
+        StatusMoreCopyButton.Visibility = Visibility.Collapsed;
+        StatusRightPanel.Measure(infinite);
+        bool fold = StatusBarLayout.ShouldFoldSecondaryPills(available, StatusRightPanel.DesiredSize.Width);
+
+        if (fold)
+        {
+            // Never collapse the pill that holds keyboard focus without handing focus on.
+            bool pillHadFocus = !wasFolded && Content?.XamlRoot is { } root &&
+                Microsoft.UI.Xaml.Input.FocusManager.GetFocusedElement(root) is DependencyObject focused &&
+                IsDescendantOf(focused, StatusSecondaryCopyPills);
+            StatusSecondaryCopyPills.Visibility = Visibility.Collapsed;
+            StatusMoreCopyButton.Visibility = Visibility.Visible;
+            if (pillHadFocus) StatusMoreCopyButton.Focus(FocusState.Keyboard);
+        }
+
+        StatusRightPanel.Measure(infinite);
+        StatusLeftPanel.Measure(infinite);
+        var otherLeft = Math.Max(0, StatusLeftPanel.DesiredSize.Width - StatusMsgText.DesiredSize.Width);
+        StatusMsgText.MaxWidth = StatusBarLayout.MessageMaxWidth(available, StatusRightPanel.DesiredSize.Width, otherLeft);
+    }
+
+    private static bool IsDescendantOf(DependencyObject node, DependencyObject ancestor)
+    {
+        for (var d = node; d is not null; d = VisualTreeHelper.GetParent(d))
+        {
+            if (ReferenceEquals(d, ancestor)) return true;
+        }
+        return false;
+    }
+
+    // The folded copy pills, in the order they appear when the window is wide enough.
+    private void OnStatusMoreCopyButtonClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement anchor) return;
+        var menu = new MenuFlyout { Placement = Microsoft.UI.Xaml.Controls.Primitives.FlyoutPlacementMode.TopEdgeAlignedRight };
+        void Add(string text, string glyph, RoutedEventHandler handler)
+        {
+            var item = new MenuFlyoutItem { Text = text, Icon = new FontIcon { Glyph = glyph } };
+            item.Click += handler;
+            menu.Items.Add(item);
+        }
+        Add("Copy code blocks", "", OnStatusCopyCodeButtonClick);
+        Add("Copy tables", "", OnStatusCopyTablesButtonClick);
+        Add("Copy tasks", "", OnStatusCopyTasksButtonClick);
+        Add("Copy math", "", OnStatusCopyMathButtonClick);
+        Add("Copy callouts", "", OnStatusCopyCalloutsButtonClick);
+        Add("Copy images", "", OnStatusCopyImagesButtonClick);
+        Add("Copy footnotes", "", OnStatusCopyFootnotesButtonClick);
+        Add("Copy diagrams", "", OnStatusCopyDiagramsButtonClick);
+        menu.ShowAt(anchor);
     }
 
     private void OnStatusCopyCodeButtonClick(object sender, RoutedEventArgs e)
