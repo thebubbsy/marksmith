@@ -15195,6 +15195,163 @@ namespace MarkSmith.ViewModels.MindMap
         }
 
 
+        public GraphRadialClusteringAudit AuditGraphRadialClustering(bool selectionOnly = false)
+        {
+            var selected = Nodes.Where(n => n.IsSelected).ToList();
+            var targetNodes = (selectionOnly && selected.Count > 0) ? selected : Nodes.ToList();
+            bool isSelection = selectionOnly && selected.Count > 0;
+            var audit = AuditGraphRadialClustering(targetNodes.Select(n => n.Model), Document.Links, isSelection);
+            StatusMessage = audit.Summary;
+            return audit;
+        }
+
+        public static GraphRadialClusteringAudit AuditGraphRadialClustering(
+            IEnumerable<MindMapNode>? nodes,
+            IEnumerable<MindMapLink>? links = null,
+            bool isSelection = false)
+        {
+            var nodeList = nodes?.ToList() ?? new List<MindMapNode>();
+            int totalNodes = nodeList.Count;
+            if (totalNodes == 0)
+            {
+                string emptySummary = FormatRadialClusteringSummary(0, 0, 0, 0, 0, 100.0, "Clean Baseline · No Nodes", isSelection);
+                return new GraphRadialClusteringAudit(
+                    0, 0, 0, 0, 0, 100.0,
+                    Array.Empty<GraphRadialClusterItem>(), "Clean Baseline · No Nodes", isSelection, emptySummary);
+            }
+
+            var nodeMap = nodeList.ToDictionary(n => n.Id, n => n);
+            var parentToChildren = new Dictionary<string, List<MindMapNode>>();
+
+            foreach (var node in nodeList)
+            {
+                string pId = !string.IsNullOrEmpty(node.ParentId) && nodeMap.ContainsKey(node.ParentId)
+                    ? node.ParentId
+                    : "__root__";
+                if (!parentToChildren.TryGetValue(pId, out var chList))
+                {
+                    chList = new List<MindMapNode>();
+                    parentToChildren[pId] = chList;
+                }
+                chList.Add(node);
+            }
+
+            double originX = nodeList.Average(n => n.X);
+            double originY = nodeList.Average(n => n.Y);
+
+            var items = new List<GraphRadialClusterItem>();
+            int parentsEvaluated = 0;
+            int angularCrowding = 0;
+            int tightSpacing = 0;
+            int wellSeparated = 0;
+
+            foreach (var kvp in parentToChildren)
+            {
+                string pId = kvp.Key;
+                var children = kvp.Value;
+                if (children.Count < 2) continue;
+
+                parentsEvaluated++;
+                MindMapNode? parentNode = null;
+                if (pId != "__root__")
+                {
+                    nodeMap.TryGetValue(pId, out parentNode);
+                }
+                double px = parentNode != null ? parentNode.X : originX;
+                double py = parentNode != null ? parentNode.Y : originY;
+
+                var radialChildren = new List<(MindMapNode Node, double Angle, double Dist)>();
+                foreach (var ch in children)
+                {
+                    double dx = ch.X - px;
+                    double dy = ch.Y - py;
+                    double dist = Math.Sqrt(dx * dx + dy * dy);
+                    double rad = Math.Atan2(dy, dx);
+                    double deg = (rad * (180.0 / Math.PI) + 360.0) % 360.0;
+                    radialChildren.Add((ch, deg, dist));
+                }
+
+                radialChildren.Sort((a, b) => a.Angle.CompareTo(b.Angle));
+
+                for (int i = 0; i < radialChildren.Count; i++)
+                {
+                    var cur = radialChildren[i];
+                    var next = radialChildren[(i + 1) % radialChildren.Count];
+
+                    double angleDiff = Math.Abs(next.Angle - cur.Angle);
+                    if (angleDiff > 180.0) angleDiff = 360.0 - angleDiff;
+
+                    string status;
+                    string rec;
+
+                    if (angleDiff < 15.0 && cur.Dist > 10.0)
+                    {
+                        angularCrowding++;
+                        status = "AngularCrowding";
+                        rec = $"Node has very tight angular clearance ({angleDiff:0.1}°) with adjacent node '{next.Node.Title}'. Spread children evenly around parent.";
+                    }
+                    else if (angleDiff < 25.0 && cur.Dist > 10.0)
+                    {
+                        tightSpacing++;
+                        status = "TightSpacing";
+                        rec = $"Angular spacing ({angleDiff:0.1}°) is narrow. Consider increasing orbital radius or sector allocation.";
+                    }
+                    else
+                    {
+                        wellSeparated++;
+                        status = "WellSeparated";
+                        rec = "Optimal angular separation maintained.";
+                    }
+
+                    items.Add(new GraphRadialClusterItem(
+                        pId, cur.Node.Id,
+                        string.IsNullOrWhiteSpace(cur.Node.Title) ? "Untitled Node" : cur.Node.Title,
+                        cur.Angle, cur.Dist, angleDiff, status, rec));
+                }
+            }
+
+            if (parentsEvaluated == 0)
+            {
+                wellSeparated = totalNodes;
+            }
+
+            double penalty = (angularCrowding * 25.0) + (tightSpacing * 10.0);
+            double score = Math.Max(0.0, Math.Min(100.0, 100.0 - penalty));
+
+            string category = score switch
+            {
+                >= 95.0 => "Optimal · Clear Radial Dispersion",
+                >= 80.0 => "Good · Minor Radial Crowding",
+                >= 60.0 => "Caution · Angular Overlaps & Visual Clutter",
+                _ => "Spaghetti Hazard · Severe Radial Clumping"
+            };
+
+            string summary = FormatRadialClusteringSummary(
+                parentsEvaluated, totalNodes, angularCrowding, tightSpacing, wellSeparated, score, category, isSelection);
+
+            return new GraphRadialClusteringAudit(
+                parentsEvaluated, totalNodes, angularCrowding, tightSpacing, wellSeparated, score,
+                items, category, isSelection, summary);
+        }
+
+        public static string FormatRadialClusteringSummary(
+            int parents, int nodes, int crowding, int tight, int wellSeparated, double score, string category, bool isSelection = false)
+        {
+            string scope = isSelection ? "Selection · " : "";
+            if (nodes == 0)
+                return $"Graph radial clustering audit ({scope}Clean graph · 0 nodes evaluated)";
+
+            var parts = new List<string>();
+            parts.Add($"{parents} cluster{(parents == 1 ? "" : "s")}");
+            parts.Add($"{nodes} node{(nodes == 1 ? "" : "s")}");
+            if (wellSeparated > 0) parts.Add($"✓ {wellSeparated} separated");
+            if (crowding > 0) parts.Add($"🚨 {crowding} angular crowding (<15°)");
+            if (tight > 0) parts.Add($"⚡ {tight} tight spacing (<25°)");
+
+            string details = string.Join(" · ", parts);
+            return $"Graph radial clustering audit ({scope}{details} · {category} · {score:0.#}% clarity score)";
+        }
+
     }
 
 
@@ -16933,6 +17090,28 @@ public sealed record GraphDegreeDistributionAndHubsAudit(
     int IsolatedNodeCount,
     double DegreeBalanceScore,
     IReadOnlyList<GraphNodeDegreeDistributionItem> Items,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);
+
+public sealed record GraphRadialClusterItem(
+    string ParentId,
+    string NodeId,
+    string Title,
+    double AngleDegrees,
+    double Distance,
+    double AngularSpacingDegrees,
+    string Status,
+    string Recommendation);
+
+public sealed record GraphRadialClusteringAudit(
+    int TotalParentsEvaluated,
+    int TotalNodesEvaluated,
+    int AngularCrowdingCount,
+    int TightSpacingCount,
+    int WellSeparatedCount,
+    double RadialClarityScore,
+    IReadOnlyList<GraphRadialClusterItem> Items,
     string Category,
     bool IsSelectionScope,
     string Summary);

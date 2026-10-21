@@ -4076,4 +4076,31 @@ public class ShapeStudioPolishTests
         Assert.True(flawedAudit.RoutingHygieneScore < 85.0);
         Assert.Contains("slanted segment", flawedAudit.Summary);
     }
+
+    [Fact]
+    public void Run217_AuditDiagramZIndexStacking_DetectsOccludedConnectorsAndInvertedContainers()
+    {
+        // 1. Clean Baseline (no shapes)
+        var emptyAudit = ShapeDesignStudioViewModel.AuditDiagramZIndexStacking(null);
+        Assert.Equal(0, emptyAudit.TotalShapes);
+        Assert.Equal(100.0, emptyAudit.StackingHygieneScore);
+
+        // 2. Optimal stacking (container at back [0], card in middle [1], connector on top [2])
+        var container = new ShapeCanvasItemViewModel { Id = "BOX", Name = "Panel", X = 50, Y = 50, Width = 400, Height = 400 };
+        var card = new ShapeCanvasItemViewModel { Id = "CARD", Name = "SubCard", X = 100, Y = 100, Width = 100, Height = 80 };
+        var conn = new ShapeCanvasItemViewModel { Id = "CONN", Name = "Link", Prst = "connector", X = 80, Y = 80, Width = 150, Height = 100 };
+
+        var cleanAudit = ShapeDesignStudioViewModel.AuditDiagramZIndexStacking(new[] { container, card, conn });
+        Assert.Equal(3, cleanAudit.TotalShapes);
+        Assert.Equal(0, cleanAudit.OccludedConnectorCount);
+        Assert.Equal(0, cleanAudit.InvertedContainerCount);
+        Assert.Equal(100.0, cleanAudit.StackingHygieneScore);
+
+        // 3. Inverted stacking: connector at index 0 (under shape at index 1), container at index 2 (above child at index 1)
+        var invertedAudit = ShapeDesignStudioViewModel.AuditDiagramZIndexStacking(new[] { conn, card, container });
+        Assert.True(invertedAudit.OccludedConnectorCount >= 1 || invertedAudit.InvertedContainerCount >= 1);
+        Assert.True(invertedAudit.StackingHygieneScore <= 80.0);
+        Assert.Contains("Diagram z-index stacking audit", invertedAudit.Summary);
+    }
+
 }

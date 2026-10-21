@@ -12962,6 +12962,162 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         return $"SmartArt Venn diagram audit ({layout} · {details} · {category} · {score:0.#}% balance score)";
     }
 
+    public SmartArtHierarchyTreeFanOutAudit AuditHierarchyTreeFanOutRatio(string? markdown = null, string? layoutName = null)
+    {
+        string md = markdown ?? MarkdownText;
+        string layout = layoutName ?? SelectedLayout?.DisplayName ?? "Hierarchy";
+        return AuditHierarchyTreeFanOutRatio(md, layout, isStatic: false);
+    }
+
+    public static SmartArtHierarchyTreeFanOutAudit AuditHierarchyTreeFanOutRatio(
+        string? markdown,
+        string? layoutName = null,
+        bool isStatic = true)
+    {
+        string layout = layoutName ?? "Hierarchy";
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            string emptySummary = FormatHierarchyFanOutSummary(0, 0, 0, 0, 0, 0, 100.0, "Clean Baseline · No Nodes");
+            return new SmartArtHierarchyTreeFanOutAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<SmartArtHierarchyFanOutItem>(), "Clean Baseline · No Nodes", emptySummary);
+        }
+
+        var lines = markdown.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        var parsedNodes = new List<(int Level, string Title)>();
+
+        foreach (var rawLine in lines)
+        {
+            string trimmed = rawLine.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed)) continue;
+            if (trimmed.StartsWith("```") || trimmed.StartsWith(":::") || trimmed.StartsWith("<!--")) continue;
+
+            int indent = 0;
+            while (indent < rawLine.Length && (rawLine[indent] == ' ' || rawLine[indent] == '\t'))
+            {
+                indent += (rawLine[indent] == '\t' ? 4 : 1);
+            }
+
+            int level = indent / 2;
+            string title = trimmed.TrimStart('-', '*', '+', '#').Trim();
+            if (!string.IsNullOrEmpty(title))
+            {
+                parsedNodes.Add((level, title));
+            }
+        }
+
+        int totalNodes = parsedNodes.Count;
+        if (totalNodes == 0)
+        {
+            string emptySummary = FormatHierarchyFanOutSummary(0, 0, 0, 0, 0, 0, 100.0, "Clean Baseline · No Nodes");
+            return new SmartArtHierarchyTreeFanOutAudit(
+                0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<SmartArtHierarchyFanOutItem>(), "Clean Baseline · No Nodes", emptySummary);
+        }
+
+        var items = new List<SmartArtHierarchyFanOutItem>();
+        int totalSupervisors = 0;
+        int totalReports = 0;
+        int maxFanOut = 0;
+        int excessiveFanOut = 0;
+        int solitaryBottlenecks = 0;
+        int balancedSpan = 0;
+
+        for (int i = 0; i < parsedNodes.Count; i++)
+        {
+            var current = parsedNodes[i];
+            int childCount = 0;
+            bool childHasChildren = false;
+
+            for (int j = i + 1; j < parsedNodes.Count; j++)
+            {
+                var next = parsedNodes[j];
+                if (next.Level <= current.Level) break;
+                if (next.Level == current.Level + 1)
+                {
+                    childCount++;
+                    if (j + 1 < parsedNodes.Count && parsedNodes[j + 1].Level > next.Level)
+                    {
+                        childHasChildren = true;
+                    }
+                }
+            }
+
+            if (childCount > 0)
+            {
+                totalSupervisors++;
+                totalReports += childCount;
+                if (childCount > maxFanOut) maxFanOut = childCount;
+
+                string status;
+                string severity;
+                string rec;
+
+                if (childCount > 10)
+                {
+                    excessiveFanOut++;
+                    status = "ExcessiveFanOut";
+                    severity = "Hazard";
+                    rec = $"Supervisor has {childCount} direct reports (>10 maximum recommended). Delegate reports to sub-team leads to improve span of control.";
+                }
+                else if (childCount == 1 && childHasChildren)
+                {
+                    solitaryBottlenecks++;
+                    status = "SolitaryBottleneck";
+                    severity = "Warning";
+                    rec = "Single direct report creates a 1:1 hierarchy bottleneck. Merge hierarchy tiers or broaden reporting structure.";
+                }
+                else
+                {
+                    balancedSpan++;
+                    status = "BalancedSpan";
+                    severity = "Valid";
+                    rec = $"Healthy team span of control ({childCount} direct reports).";
+                }
+
+                items.Add(new SmartArtHierarchyFanOutItem(
+                    current.Title, childCount, current.Level, status, severity,
+                    $"{current.Title} ({childCount} reports, L{current.Level})", rec));
+            }
+        }
+
+        double penalty = (excessiveFanOut * 20.0) + (solitaryBottlenecks * 15.0);
+        double score = Math.Max(0.0, Math.Min(100.0, 100.0 - penalty));
+
+        string category = score switch
+        {
+            >= 95.0 => "Optimal · Balanced Span of Control",
+            >= 80.0 => "Good · Minor Hierarchy Imbalances",
+            >= 60.0 => "Caution · Management Bottlenecks & Overload",
+            _ => "Hazardous · Severely Distorted Org Hierarchy"
+        };
+
+        string summary = FormatHierarchyFanOutSummary(
+            totalSupervisors, totalReports, maxFanOut, excessiveFanOut, solitaryBottlenecks, balancedSpan, score, category);
+
+        return new SmartArtHierarchyTreeFanOutAudit(
+            totalSupervisors, totalReports, maxFanOut, excessiveFanOut, solitaryBottlenecks, balancedSpan,
+            score, items, category, summary);
+    }
+
+    public static string FormatHierarchyFanOutSummary(
+        int supervisors, int reports, int maxFanOut, int excessive, int solitary, int balanced, double score, string category)
+    {
+        if (supervisors == 0 && reports == 0)
+            return "SmartArt hierarchy span audit: Clean outline · 0 supervisors evaluated";
+
+        var parts = new List<string>();
+        parts.Add($"{supervisors} supervisor{(supervisors == 1 ? "" : "s")}");
+        parts.Add($"{reports} direct report{(reports == 1 ? "" : "s")}");
+        parts.Add($"max fan-out {maxFanOut}");
+        if (balanced > 0) parts.Add($"✓ {balanced} balanced");
+        if (excessive > 0) parts.Add($"🚨 {excessive} overloaded (>10)");
+        if (solitary > 0) parts.Add($"⚡ {solitary} 1:1 bottleneck{(solitary == 1 ? "" : "s")}");
+
+        string details = string.Join(" · ", parts);
+        return $"SmartArt hierarchy span audit ({details} · {category} · {score:0.#}% balance score)";
+    }
+
 }
 
 
@@ -14646,5 +14802,26 @@ public sealed record SmartArtChevronProcessMilestoneAudit(
     int UnnumberedStepCount,
     double MonotonicProgressionScore,
     IReadOnlyList<SmartArtChevronProcessStepItem> Items,
+    string Category,
+    string Summary);
+
+public sealed record SmartArtHierarchyFanOutItem(
+    string SupervisorTitle,
+    int DirectReportCount,
+    int HierarchyLevel,
+    string Status,
+    string Severity,
+    string Excerpt,
+    string Recommendation);
+
+public sealed record SmartArtHierarchyTreeFanOutAudit(
+    int TotalSupervisors,
+    int TotalReports,
+    int MaxFanOut,
+    int ExcessiveFanOutCount,
+    int SolitaryBottleneckCount,
+    int BalancedSpanCount,
+    double HierarchyBalanceScore,
+    IReadOnlyList<SmartArtHierarchyFanOutItem> Items,
     string Category,
     string Summary);

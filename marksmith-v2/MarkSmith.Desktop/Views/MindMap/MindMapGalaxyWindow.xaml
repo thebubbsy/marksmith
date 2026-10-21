@@ -409,6 +409,9 @@
                                     <MenuFlyoutItem x:Name="AuditGraphDegreeDistributionAndHubsItem" Text="Audit Graph Degree Distribution &amp; Hyper-Connected Hub Skewness" Click="OnAuditGraphDegreeDistributionAndHubsClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditGraphRadialClusteringItem" Text="Audit Graph Radial Clustering &amp; Angular Centroid Separation" Click="OnAuditGraphRadialClusteringClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem x:Name="AuditGraphColorContrastAccessibilityItem" Text="Audit Graph Node Color Contrast &amp; Cognitive Accessibility" Click="OnAuditGraphColorContrastAccessibilityClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

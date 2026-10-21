@@ -4004,6 +4004,18 @@ var auditResourceDisposalLeaksItem = new MenuFlyoutItem
                     _vm.ShowNotice($"\u2713 {audit.Summary}");
                 };
                 menu.Items.Add(auditStringConcatenationItem);
+                var auditLinqMultipleEnumerationItem = new MenuFlyoutItem
+                {
+                    Text = "Audit Diff LINQ Multiple Enumeration & Allocation Hazards",
+                    Icon = new FontIcon { Glyph = "\uE8B9" }
+                };
+                auditLinqMultipleEnumerationItem.Click += (_, _) =>
+                {
+                    var audit = MarkSmith.Services.LineDiff.AuditLinqMultipleEnumerationHazards(_vm.UnifiedDiffRows);
+                    _ = Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
+                    _vm.ShowNotice($"\u2713 {audit.Summary}");
+                };
+                menu.Items.Add(auditLinqMultipleEnumerationItem);
 
 
 

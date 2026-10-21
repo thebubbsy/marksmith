@@ -4236,4 +4236,64 @@ public class TextSearchTests
         Assert.True(flawedAudit.FootnoteIntegrityScore < 60.0);
         Assert.Contains("orphan ref", flawedAudit.Summary);
     }
+
+    [Fact]
+    public void Run217_AuditMarkdownBlockquoteAlertCallouts_ValidatesGrammarAndDetectsErrors()
+    {
+        // 1. Clean Baseline (no callouts)
+        var emptyAudit = TextSearch.AuditMarkdownBlockquoteAlertCallouts(string.Empty);
+        Assert.Equal(0, emptyAudit.TotalCallouts);
+        Assert.Equal(100.0, emptyAudit.AlertGrammarScore);
+        Assert.Contains("No alert callouts present", emptyAudit.Summary);
+
+        // 2. Canonical callouts
+        var cleanMd = string.Join("\n",
+            "# Document",
+            "> [!NOTE] Essential Note",
+            "> This is a valid note callout.",
+            "",
+            "> [!TIP] Pro Tip",
+            "> Here is a valuable tip.",
+            "",
+            "> [!IMPORTANT]",
+            "> Critical instructions.",
+            "",
+            "> [!WARNING]",
+            "> Watch out for this pitfall.",
+            "",
+            "> [!CAUTION]",
+            "> High risk action ahead."
+        );
+        var cleanAudit = TextSearch.AuditMarkdownBlockquoteAlertCallouts(cleanMd);
+        Assert.Equal(5, cleanAudit.TotalCallouts);
+        Assert.Equal(5, cleanAudit.ValidCanonicalCount);
+        Assert.Equal(0, cleanAudit.MissingExclamationCount);
+        Assert.Equal(0, cleanAudit.UnrecognizedTagCount);
+        Assert.Equal(0, cleanAudit.MalformedSyntaxCount);
+        Assert.Equal(0, cleanAudit.EmptyCalloutCount);
+        Assert.Equal(100.0, cleanAudit.AlertGrammarScore);
+        Assert.Equal("Optimal · Perfect Callout Grammar", cleanAudit.Category);
+
+        // 3. Flawed callouts
+        var flawedMd = string.Join("\n",
+            "# Flawed",
+            "> [NOTE] Missing bang",
+            "> Body text here.",
+            "",
+            "> [!MYCUSTOMTAG] Unrecognized custom tag",
+            "> Some custom body.",
+            "",
+            "> [!WARNING Missing close bracket",
+            "",
+            "> [!TIP]",
+            ""
+        );
+        var flawedAudit = TextSearch.AuditMarkdownBlockquoteAlertCallouts(flawedMd);
+        Assert.True(flawedAudit.TotalCallouts >= 3);
+        Assert.True(flawedAudit.MissingExclamationCount >= 1);
+        Assert.True(flawedAudit.UnrecognizedTagCount >= 1);
+        Assert.True(flawedAudit.AlertGrammarScore < 60.0);
+        Assert.Contains("missing '!' prefix", flawedAudit.Summary);
+    }
+
 }

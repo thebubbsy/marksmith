@@ -4821,5 +4821,36 @@ namespace MarkSmith.Tests
         Assert.Contains("hub", skewedAudit.Summary);
         Assert.Contains("isolated", skewedAudit.Summary);
     }
+
+    [Fact]
+    public void Run217_AuditGraphRadialClustering_DetectsAngularCrowdingAndDispersion()
+    {
+        // 1. Clean Baseline (no nodes)
+        var emptyAudit = MindMapStudioViewModel.AuditGraphRadialClustering(null);
+        Assert.Equal(0, emptyAudit.TotalNodesEvaluated);
+        Assert.Equal(100.0, emptyAudit.RadialClarityScore);
+
+        // 2. Dispersed nodes around parent (90-degree cardinal separation)
+        var parent = new MindMapNode { Id = "P1", Title = "Root Topic", X = 200, Y = 200 };
+        var c1 = new MindMapNode { Id = "C1", Title = "North", ParentId = "P1", X = 200, Y = 100 };
+        var c2 = new MindMapNode { Id = "C2", Title = "East", ParentId = "P1", X = 300, Y = 200 };
+        var c3 = new MindMapNode { Id = "C3", Title = "South", ParentId = "P1", X = 200, Y = 300 };
+        var c4 = new MindMapNode { Id = "C4", Title = "West", ParentId = "P1", X = 100, Y = 200 };
+
+        var cleanAudit = MindMapStudioViewModel.AuditGraphRadialClustering(new[] { parent, c1, c2, c3, c4 });
+        Assert.Equal(5, cleanAudit.TotalNodesEvaluated);
+        Assert.Equal(0, cleanAudit.AngularCrowdingCount);
+        Assert.Equal(100.0, cleanAudit.RadialClarityScore);
+        Assert.Equal("Optimal · Clear Radial Dispersion", cleanAudit.Category);
+
+        // 3. Angular crowding (< 15 degrees)
+        var crowdedA = new MindMapNode { Id = "CR1", Title = "Crowd 1", ParentId = "P1", X = 300, Y = 200 }; // ~0 deg
+        var crowdedB = new MindMapNode { Id = "CR2", Title = "Crowd 2", ParentId = "P1", X = 300, Y = 210 }; // ~5.7 deg
+        var crowdedAudit = MindMapStudioViewModel.AuditGraphRadialClustering(new[] { parent, crowdedA, crowdedB });
+        Assert.True(crowdedAudit.AngularCrowdingCount >= 1);
+        Assert.True(crowdedAudit.RadialClarityScore <= 75.0);
+        Assert.Contains("angular crowding", crowdedAudit.Summary);
+    }
+
 }
 }

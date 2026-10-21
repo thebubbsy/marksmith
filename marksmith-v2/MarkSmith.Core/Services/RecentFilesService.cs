@@ -12259,6 +12259,214 @@ public sealed class RecentFilesService
     }
 
 
+    public static WorkspaceDocumentTaxonomyCohesionAudit AuditWorkspaceDocumentTaxonomyCohesion(
+        IReadOnlyList<string>? explicitFiles = null,
+        Func<string, string>? contentReader = null)
+    {
+        var files = (explicitFiles ?? Array.Empty<string>())
+            .Where(f => !string.IsNullOrWhiteSpace(f))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var readContent = contentReader ?? (p =>
+        {
+            try { return File.Exists(p) ? File.ReadAllText(p) : string.Empty; }
+            catch { return string.Empty; }
+        });
+
+        int totalDocs = files.Count;
+        if (totalDocs == 0)
+        {
+            string emptySummary = FormatDocumentTaxonomySummary(0, 0, 0, 0, 0, 0, 0, 100.0, "Clean Baseline · No Documents");
+            return new WorkspaceDocumentTaxonomyCohesionAudit(
+                0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<WorkspaceTaxonomyItem>(), "Clean Baseline · No Documents", emptySummary);
+        }
+
+        var items = new List<WorkspaceTaxonomyItem>();
+        int categorizedDocs = 0;
+        int missingCategory = 0;
+        int missingTitle = 0;
+        int untaggedDocs = 0;
+
+        var categoryDocCount = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var tagCasingMap = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+
+        var docInfos = new List<(string Path, string Title, string? Category, List<string> Tags)>();
+
+        var titleRegex = new System.Text.RegularExpressions.Regex(@"^title:\s*(.*)$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
+        var catRegex = new System.Text.RegularExpressions.Regex(@"^categor(?:y|ies):\s*(.*)$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
+        var tagRegex = new System.Text.RegularExpressions.Regex(@"^tags:\s*(?:\[(.*)\]|(.*))$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        foreach (var docPath in files)
+        {
+            string content = readContent(docPath);
+            if (string.IsNullOrWhiteSpace(content)) continue;
+
+            string? title = null;
+            string? category = null;
+            var tags = new List<string>();
+
+            var lines = content.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+            if (lines.Length > 0 && lines[0].Trim() == "---")
+            {
+                for (int i = 1; i < lines.Length; i++)
+                {
+                    string l = lines[i].Trim();
+                    if (l == "---" || l == "...") break;
+
+                    var tm = titleRegex.Match(l);
+                    if (tm.Success && title == null)
+                    {
+                        title = tm.Groups[1].Value.Trim().Trim('"', '\'');
+                    }
+
+                    var cm = catRegex.Match(l);
+                    if (cm.Success && category == null)
+                    {
+                        category = cm.Groups[1].Value.Trim().Trim('"', '\'');
+                    }
+
+                    var tagM = tagRegex.Match(l);
+                    if (tagM.Success)
+                    {
+                        string rawTags = tagM.Groups[1].Success ? tagM.Groups[1].Value : tagM.Groups[2].Value;
+                        foreach (var part in rawTags.Split(',', StringSplitOptions.RemoveEmptyEntries))
+                        {
+                            string t = part.Trim().Trim('"', '\'');
+                            if (!string.IsNullOrEmpty(t)) tags.Add(t);
+                        }
+                    }
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(title))
+            {
+                // Fallback to first H1
+                foreach (var l in lines)
+                {
+                    if (l.StartsWith("# "))
+                    {
+                        title = l.Substring(2).Trim();
+                        break;
+                    }
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(title))
+            {
+                missingTitle++;
+                title = Path.GetFileNameWithoutExtension(docPath);
+                items.Add(new WorkspaceTaxonomyItem(
+                    docPath, 1, title, category, tags, "MissingDocumentTitle", "Warning",
+                    Path.GetFileName(docPath), "Document has no explicit title in frontmatter or top-level H1."));
+            }
+
+            if (!string.IsNullOrWhiteSpace(category))
+            {
+                categorizedDocs++;
+                if (!categoryDocCount.TryGetValue(category, out int c)) c = 0;
+                categoryDocCount[category] = c + 1;
+            }
+            else
+            {
+                missingCategory++;
+                items.Add(new WorkspaceTaxonomyItem(
+                    docPath, 1, title, null, tags, "MissingCategory", "Caution",
+                    Path.GetFileName(docPath), "Document has no 'category' tag in frontmatter."));
+            }
+
+            if (tags.Count == 0)
+            {
+                untaggedDocs++;
+            }
+            else
+            {
+                foreach (var t in tags)
+                {
+                    if (!tagCasingMap.TryGetValue(t, out var set))
+                    {
+                        set = new HashSet<string>();
+                        tagCasingMap[t] = set;
+                    }
+                    set.Add(t);
+                }
+            }
+
+            docInfos.Add((docPath, title, category, tags));
+        }
+
+        int orphanCategories = 0;
+        if (totalDocs > 3)
+        {
+            foreach (var kvp in categoryDocCount)
+            {
+                if (kvp.Value == 1)
+                {
+                    orphanCategories++;
+                    var doc = docInfos.FirstOrDefault(d => string.Equals(d.Category, kvp.Key, StringComparison.OrdinalIgnoreCase));
+                    if (doc.Path != null)
+                    {
+                        items.Add(new WorkspaceTaxonomyItem(
+                            doc.Path, 1, doc.Title, doc.Category, doc.Tags, "OrphanCategory", "Info",
+                            $"Category '{kvp.Key}' used by only 1 document.",
+                            $"Consider grouping document into an established repository category or expanding '{kvp.Key}'."));
+                    }
+                }
+            }
+        }
+
+        int tagCaseMismatches = 0;
+        foreach (var kvp in tagCasingMap)
+        {
+            if (kvp.Value.Count > 1)
+            {
+                tagCaseMismatches++;
+                items.Add(new WorkspaceTaxonomyItem(
+                    "GLOBAL", 1, "Tag Taxonomy", null, kvp.Value.ToList(), "TagCaseMismatch", "Info",
+                    $"Inconsistent casing for tag '{kvp.Key}': {string.Join(", ", kvp.Value)}",
+                    "Normalize tag capitalization across workspace frontmatter."));
+            }
+        }
+
+        double penalty = (missingCategory * 15.0) + (missingTitle * 20.0) + (orphanCategories * 10.0) + (tagCaseMismatches * 5.0) + (untaggedDocs * 5.0);
+        double score = Math.Max(0.0, Math.Min(100.0, 100.0 - penalty));
+
+        string categoryAssessment = score switch
+        {
+            >= 95.0 => "Optimal · Unified Document Taxonomy",
+            >= 80.0 => "Good · Minor Frontmatter Inconsistencies",
+            >= 60.0 => "Caution · Missing Categories & Titles",
+            _ => "Hazardous · Severely Fragmented Workspace Taxonomy"
+        };
+
+        string summary = FormatDocumentTaxonomySummary(
+            totalDocs, categorizedDocs, missingCategory, missingTitle, orphanCategories, tagCaseMismatches, untaggedDocs, score, categoryAssessment);
+
+        return new WorkspaceDocumentTaxonomyCohesionAudit(
+            totalDocs, categorizedDocs, missingCategory, missingTitle, orphanCategories, tagCaseMismatches, untaggedDocs,
+            score, items, categoryAssessment, summary);
+    }
+
+    public static string FormatDocumentTaxonomySummary(
+        int totalDocs, int categorized, int missingCat, int missingTitle, int orphans, int tagMismatches, int untagged, double score, string category)
+    {
+        if (totalDocs == 0)
+            return "Workspace document taxonomy audit: Clean baseline · 0 documents evaluated";
+
+        var parts = new List<string>();
+        parts.Add($"{totalDocs} doc{(totalDocs == 1 ? "" : "s")}");
+        parts.Add($"{categorized} categorized");
+        if (missingCat > 0) parts.Add($"⚠ {missingCat} missing category");
+        if (missingTitle > 0) parts.Add($"🚨 {missingTitle} missing title");
+        if (orphans > 0) parts.Add($"ℹ {orphans} orphan category");
+        if (tagMismatches > 0) parts.Add($"⚡ {tagMismatches} tag case mismatch{(tagMismatches == 1 ? "" : "es")}");
+        if (untagged > 0) parts.Add($"ℹ {untagged} untagged");
+
+        string details = string.Join(" · ", parts);
+        return $"Workspace document taxonomy audit ({details} · {category} · {score:0.#}% cohesion score)";
+    }
+
 }
 
 
@@ -13894,5 +14102,29 @@ public sealed record WorkspaceMediaAssetsAudit(
     int ValidLocalAssetCount,
     double MediaIntegrityScore,
     IReadOnlyList<WorkspaceMediaAssetItem> Items,
+    string Category,
+    string Summary);
+
+public sealed record WorkspaceTaxonomyItem(
+    string DocumentPath,
+    int LineNumber,
+    string DocumentTitle,
+    string? Category,
+    IReadOnlyList<string> Tags,
+    string IssueType,
+    string Severity,
+    string Excerpt,
+    string Recommendation);
+
+public sealed record WorkspaceDocumentTaxonomyCohesionAudit(
+    int TotalDocumentsEvaluated,
+    int CategorizedDocumentsCount,
+    int MissingCategoryCount,
+    int MissingTitleCount,
+    int OrphanCategoryCount,
+    int TagCaseMismatchCount,
+    int UntaggedDocumentCount,
+    double TaxonomyCohesionScore,
+    IReadOnlyList<WorkspaceTaxonomyItem> Items,
     string Category,
     string Summary);

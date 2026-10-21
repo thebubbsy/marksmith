@@ -483,6 +483,9 @@
                                     <MenuFlyoutItem x:Name="OutlineStatsAuditChevronProcessMilestoneProgressionItem" Text="Audit Chevron Process Milestone Monotonic Progression &amp; Phase Skips" Click="OnOutlineStatsAuditChevronProcessMilestoneProgressionClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="OutlineStatsAuditHierarchyTreeFanOutRatioItem" Text="Audit Hierarchy Tree Fan-Out Ratio &amp; Management Span of Control" Click="OnOutlineStatsAuditHierarchyTreeFanOutRatioClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem x:Name="OutlineStatsAuditPyramidFunnelHierarchyInversionItem" Text="Audit Pyramid / Funnel Inverted Geometry &amp; Hierarchy Inversion" Click="OnOutlineStatsAuditPyramidFunnelHierarchyInversionClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

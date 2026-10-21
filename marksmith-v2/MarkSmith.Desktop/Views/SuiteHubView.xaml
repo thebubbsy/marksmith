@@ -447,6 +447,9 @@
                                     <MenuFlyoutItem x:Name="AuditWorkspaceMediaAssetsItem" Text="Audit Workspace Referenced Media Assets &amp; Oversized Images" Click="OnAuditWorkspaceMediaAssetsClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="AuditWorkspaceDocumentTaxonomyCohesionItem" Text="Audit Workspace Document Frontmatter Taxonomy &amp; Category Cohesion" Click="OnAuditWorkspaceDocumentTaxonomyCohesionClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
                                     <MenuFlyoutItem x:Name="AuditWorkspaceCodeBlockLanguageTagsItem" Text="Audit Workspace Code Block Syntax Highlighting &amp; Language Tags" Click="OnAuditWorkspaceCodeBlockLanguageTagsClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>

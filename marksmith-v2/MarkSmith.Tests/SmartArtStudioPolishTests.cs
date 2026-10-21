@@ -3782,4 +3782,49 @@ public class SmartArtStudioPolishTests
         Assert.True(flawedAudit.MonotonicProgressionScore < 70.0);
         Assert.Contains("reversal", flawedAudit.Summary);
     }
+
+    [Fact]
+    public void Run217_AuditHierarchyTreeFanOutRatio_DetectsExcessiveFanOutAndBottlenecks()
+    {
+        // 1. Clean Baseline (empty outline)
+        var emptyAudit = SmartArtDesignStudioViewModel.AuditHierarchyTreeFanOutRatio(string.Empty);
+        Assert.Equal(0, emptyAudit.TotalSupervisors);
+        Assert.Equal(0, emptyAudit.TotalReports);
+        Assert.Equal(100.0, emptyAudit.HierarchyBalanceScore);
+
+        // 2. Balanced hierarchy (VP supervises 3 leads, each supervises 3 engineers)
+        var balancedMd = string.Join("\n",
+            "- CEO",
+            "  - VP Engineering",
+            "    - Team Lead A",
+            "      - Engineer 1",
+            "      - Engineer 2",
+            "    - Team Lead B",
+            "      - Engineer 3",
+            "      - Engineer 4"
+        );
+        var cleanAudit = SmartArtDesignStudioViewModel.AuditHierarchyTreeFanOutRatio(balancedMd);
+        Assert.True(cleanAudit.TotalSupervisors >= 3);
+        Assert.Equal(0, cleanAudit.ExcessiveFanOutCount);
+        Assert.True(cleanAudit.HierarchyBalanceScore >= 85.0);
+
+        // 3. Excessive fan-out (>10 direct reports) & 1:1 bottleneck
+        var lines = new List<string>
+        {
+            "- Top Exec",
+            "  - Solitary Manager",
+            "    - Lead With Too Many Reports"
+        };
+        for (int i = 1; i <= 12; i++)
+        {
+            lines.Add($"      - Worker {i}");
+        }
+        var flawedMd = string.Join("\n", lines);
+        var flawedAudit = SmartArtDesignStudioViewModel.AuditHierarchyTreeFanOutRatio(flawedMd);
+        Assert.True(flawedAudit.ExcessiveFanOutCount >= 1);
+        Assert.True(flawedAudit.SolitaryBottleneckCount >= 1);
+        Assert.True(flawedAudit.HierarchyBalanceScore < 70.0);
+        Assert.Contains("overloaded", flawedAudit.Summary);
+    }
+
 }

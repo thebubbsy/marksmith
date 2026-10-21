@@ -3934,4 +3934,50 @@ public class HistoryPolishTests : IDisposable
         Assert.True(flawedAudit.StringAllocationScore < 60.0);
         Assert.Contains("loop concat", flawedAudit.Summary);
     }
+
+    [Fact]
+    public void Run217_AuditLinqMultipleEnumerationHazards_DetectsMultipleLoopsAndCountVsAny()
+    {
+        // 1. Clean Baseline (no changes)
+        var emptyAudit = LineDiff.AuditLinqMultipleEnumerationHazards(string.Empty, string.Empty);
+        Assert.Equal(0, emptyAudit.TotalAddedLines);
+        Assert.Equal(100.0, emptyAudit.LinqSafetyScore);
+
+        // 2. Clean code: materialized with .ToList(), uses .Any()
+        var cleanBefore = "public void Test() { }";
+        var cleanAfter = string.Join("\n",
+            "public void Test()",
+            "{",
+            "    var items = source.Where(x => x.IsActive).ToList();",
+            "    if (items.Any())",
+            "    {",
+            "        foreach (var item in items) { Process(item); }",
+            "    }",
+            "}"
+        );
+        var cleanAudit = LineDiff.AuditLinqMultipleEnumerationHazards(cleanBefore, cleanAfter);
+        Assert.Equal(0, cleanAudit.MultipleEnumerationCount);
+        Assert.Equal(0, cleanAudit.CountVsAnyCount);
+        Assert.Equal(100.0, cleanAudit.LinqSafetyScore);
+
+        // 3. Flawed diff with unmaterialized query enumerated twice, .Count() > 0, and chained .ToList()
+        var flawedBefore = "public void Test() { }";
+        var flawedAfter = string.Join("\n",
+            "public void Test()",
+            "{",
+            "    var query = source.Where(x => x.IsActive);",
+            "    if (items.Count() > 0)",
+            "    {",
+            "        foreach (var q in query) { Process1(q); }",
+            "        foreach (var q in query) { Process2(q); }",
+            "    }",
+            "    var extra = items.ToList().Select(x => x.Id).ToList();",
+            "}"
+        );
+        var flawedAudit = LineDiff.AuditLinqMultipleEnumerationHazards(flawedBefore, flawedAfter);
+        Assert.True(flawedAudit.MultipleEnumerationCount >= 1 || flawedAudit.CountVsAnyCount >= 1);
+        Assert.True(flawedAudit.LinqSafetyScore <= 75.0);
+        Assert.Contains("Diff LINQ enumeration audit", flawedAudit.Summary);
+    }
+
 }

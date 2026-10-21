@@ -12290,6 +12290,19 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             AnnounceStatus(summary);
         };
         menu.Items.Add(auditFootnoteSequentialNumberingItem);
+        var auditBlockquoteAlertCalloutsItem = new MenuFlyoutItem
+        {
+            Text = "Audit Markdown Blockquote Alert Callout Syntax & Grammar",
+            Icon = new FontIcon { Glyph = "\uE8B9" }
+        };
+        auditBlockquoteAlertCalloutsItem.Click += (_, _) =>
+        {
+            var docText = EditorDocument();
+            var summary = MarkSmith.Services.TextSearch.AuditMarkdownBlockquoteAlertCallouts(docText).Summary;
+            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            AnnounceStatus(summary);
+        };
+        menu.Items.Add(auditBlockquoteAlertCalloutsItem);
 
 
 

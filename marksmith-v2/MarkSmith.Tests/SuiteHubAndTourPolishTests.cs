@@ -7662,4 +7662,100 @@ Some paragraph in between.
         var hubCs = System.IO.File.ReadAllText(@"..\..\..\..\MarkSmith.Desktop\Views\SuiteHubView.xaml.cs");
         Assert.Contains("OnAuditWorkspaceMediaAssetsClick", hubCs);
     }
+
+    [Fact]
+    public void Run217_AuditWorkspaceDocumentTaxonomyCohesion_DetectsMissingCategoriesAndOrphans()
+    {
+        // 1. Clean Baseline (no files)
+        var emptyAudit = RecentFilesService.AuditWorkspaceDocumentTaxonomyCohesion(null);
+        Assert.Equal(0, emptyAudit.TotalDocumentsEvaluated);
+        Assert.Equal(100.0, emptyAudit.TaxonomyCohesionScore);
+
+        // 2. Unified repository taxonomy
+        var doc1 = "C:\\Docs\\Architecture.md";
+        var doc2 = "C:\\Docs\\Security.md";
+        var doc3 = "C:\\Docs\\Testing.md";
+        var doc4 = "C:\\Docs\\Deployment.md";
+
+        var contents = new Dictionary<string, string>
+        {
+            { doc1, "---\ntitle: Architecture\ncategory: Engineering\ntags: [core, arch]\n---\n# Architecture" },
+            { doc2, "---\ntitle: Security\ncategory: Engineering\ntags: [security, core]\n---\n# Security" },
+            { doc3, "---\ntitle: Testing\ncategory: Quality\ntags: [tests, ci]\n---\n# Testing" },
+            { doc4, "---\ntitle: Deployment\ncategory: Quality\ntags: [deploy, ci]\n---\n# Deployment" },
+        };
+
+        var cleanAudit = RecentFilesService.AuditWorkspaceDocumentTaxonomyCohesion(
+            explicitFiles: new[] { doc1, doc2, doc3, doc4 },
+            contentReader: path => contents.TryGetValue(path, out var c) ? c : string.Empty
+        );
+
+        Assert.Equal(4, cleanAudit.TotalDocumentsEvaluated);
+        Assert.Equal(4, cleanAudit.CategorizedDocumentsCount);
+        Assert.Equal(0, cleanAudit.MissingCategoryCount);
+        Assert.Equal(0, cleanAudit.MissingTitleCount);
+        Assert.Equal(0, cleanAudit.OrphanCategoryCount);
+        Assert.Equal(100.0, cleanAudit.TaxonomyCohesionScore);
+        Assert.Equal("Optimal · Unified Document Taxonomy", cleanAudit.Category);
+
+        // 3. Flawed taxonomy: missing title, missing category, orphan category, untagged doc
+        var flawed1 = "C:\\Docs\\Untagged.md";
+        var flawed2 = "C:\\Docs\\NoTitle.md";
+        var flawed3 = "C:\\Docs\\SoloCategory.md";
+        var flawedContents = new Dictionary<string, string>
+        {
+            { flawed1, "---\ncategory: Engineering\n---\nNo title here" },
+            { flawed2, "---\ntitle: No Cat\n---\n# No Cat" },
+            { flawed3, "---\ntitle: Solo\ncategory: UltraUniqueIsolatedCategory\ntags: [rare]\n---\n# Solo" },
+            { doc1, contents[doc1] }
+        };
+
+        var flawedAudit = RecentFilesService.AuditWorkspaceDocumentTaxonomyCohesion(
+            explicitFiles: new[] { flawed1, flawed2, flawed3, doc1 },
+            contentReader: path => flawedContents.TryGetValue(path, out var c) ? c : string.Empty
+        );
+
+        Assert.True(flawedAudit.MissingTitleCount >= 1 || flawedAudit.MissingCategoryCount >= 1);
+        Assert.True(flawedAudit.TaxonomyCohesionScore < 80.0);
+        Assert.Contains("Workspace document taxonomy audit", flawedAudit.Summary);
+    }
+
+    [Fact]
+    public void Run217_AllSixSurfacesXamlAndCodeBehindWiring()
+    {
+        // 1. MainWindow
+        var mainCs = System.IO.File.ReadAllText(@"..\..\..\..\MarkSmith.Desktop\MainWindow.xaml.cs");
+        Assert.Contains("AuditMarkdownBlockquoteAlertCallouts", mainCs);
+        Assert.Contains("auditBlockquoteAlertCalloutsItem", mainCs);
+
+        // 2. MindMapGalaxyWindow
+        var mindMapXaml = System.IO.File.ReadAllText(@"..\..\..\..\MarkSmith.Desktop\Views\MindMap\MindMapGalaxyWindow.xaml");
+        Assert.Contains("AuditGraphRadialClusteringItem", mindMapXaml);
+        var mindMapCs = System.IO.File.ReadAllText(@"..\..\..\..\MarkSmith.Desktop\Views\MindMap\MindMapGalaxyWindow.xaml.cs");
+        Assert.Contains("OnAuditGraphRadialClusteringClick", mindMapCs);
+
+        // 3. ShapeDesignStudioWindow
+        var shapeXaml = System.IO.File.ReadAllText(@"..\..\..\..\MarkSmith.Desktop\Views\ShapeStudio\ShapeDesignStudioWindow.xaml");
+        Assert.Contains("SelectionAuditDiagramZIndexStackingItem", shapeXaml);
+        var shapeCs = System.IO.File.ReadAllText(@"..\..\..\..\MarkSmith.Desktop\Views\ShapeStudio\ShapeDesignStudioWindow.xaml.cs");
+        Assert.Contains("OnSelectionAuditDiagramZIndexStackingClick", shapeCs);
+
+        // 4. SmartArtDesignStudioWindow
+        var smartArtXaml = System.IO.File.ReadAllText(@"..\..\..\..\MarkSmith.Desktop\Views\SmartArtStudio\SmartArtDesignStudioWindow.xaml");
+        Assert.Contains("OutlineStatsAuditHierarchyTreeFanOutRatioItem", smartArtXaml);
+        var smartArtCs = System.IO.File.ReadAllText(@"..\..\..\..\MarkSmith.Desktop\Views\SmartArtStudio\SmartArtDesignStudioWindow.xaml.cs");
+        Assert.Contains("OnOutlineStatsAuditHierarchyTreeFanOutRatioClick", smartArtCs);
+
+        // 5. HistoryWindow
+        var historyCs = System.IO.File.ReadAllText(@"..\..\..\..\MarkSmith.Desktop\Views\History\HistoryWindow.xaml.cs");
+        Assert.Contains("AuditLinqMultipleEnumerationHazards", historyCs);
+        Assert.Contains("auditLinqMultipleEnumerationItem", historyCs);
+
+        // 6. SuiteHubView
+        var hubXaml = System.IO.File.ReadAllText(@"..\..\..\..\MarkSmith.Desktop\Views\SuiteHubView.xaml");
+        Assert.Contains("AuditWorkspaceDocumentTaxonomyCohesionItem", hubXaml);
+        var hubCs = System.IO.File.ReadAllText(@"..\..\..\..\MarkSmith.Desktop\Views\SuiteHubView.xaml.cs");
+        Assert.Contains("OnAuditWorkspaceDocumentTaxonomyCohesionClick", hubCs);
+    }
+
 }

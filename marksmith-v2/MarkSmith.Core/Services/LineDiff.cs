@@ -20175,6 +20175,153 @@ public static class LineDiff
     }
 
 
+    public static DiffLinqMultipleEnumerationAudit AuditLinqMultipleEnumerationHazards(string? beforeText, string? afterText)
+    {
+        var d = Diff(beforeText ?? string.Empty, afterText ?? string.Empty);
+        var unified = BuildUnified(d);
+        return AuditLinqMultipleEnumerationHazards(unified);
+    }
+
+    public static DiffLinqMultipleEnumerationAudit AuditLinqMultipleEnumerationHazards(IReadOnlyList<UnifiedRow>? unifiedRows)
+    {
+        if (unifiedRows == null)
+        {
+            string emptySummary = FormatLinqMultipleEnumerationSummary(0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new DiffLinqMultipleEnumerationAudit(
+                0, 0, 0, 0, 100.0,
+                Array.Empty<DiffLinqMultipleEnumerationItem>(), "Clean Baseline", emptySummary);
+        }
+
+        var addedLines = unifiedRows
+            .Where(r => !r.IsGap && r.Kind == Kind.Added && !string.IsNullOrWhiteSpace(r.Text))
+            .ToList();
+
+        int totalAddedLines = addedLines.Count;
+        if (totalAddedLines == 0)
+        {
+            string emptySummary = FormatLinqMultipleEnumerationSummary(0, 0, 0, 0, 100.0, "Clean Baseline");
+            return new DiffLinqMultipleEnumerationAudit(
+                0, 0, 0, 0, 100.0,
+                Array.Empty<DiffLinqMultipleEnumerationItem>(), "Clean Baseline", emptySummary);
+        }
+
+        var items = new List<DiffLinqMultipleEnumerationItem>();
+        int multipleEnumCount = 0;
+        int countVsAnyCount = 0;
+        int redundantMaterializationCount = 0;
+
+        var countVsAnyRegex = new System.Text.RegularExpressions.Regex(@"\w+\.Count\(\)\s*(?:>|>=|!=|==)\s*0", System.Text.RegularExpressions.RegexOptions.Compiled);
+        var redundantMatRegex = new System.Text.RegularExpressions.Regex(@"\.(?:ToList|ToArray)\(\)\s*\.\s*(?:Where|Select|OrderBy|GroupBy|Take|Skip)", System.Text.RegularExpressions.RegexOptions.Compiled);
+        var linqAssignRegex = new System.Text.RegularExpressions.Regex(@"(?:var|IEnumerable<[\w\<\>\?]+>)\s+([a-zA-Z_]\w*)\s*=\s*[^;]+\.(?:Where|Select|OrderBy|GroupBy|OfType)\(", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        var assignedVars = new Dictionary<string, int>();
+        for (int i = 0; i < addedLines.Count; i++)
+        {
+            var row = addedLines[i];
+            string line = row.Text ?? string.Empty;
+            var match = linqAssignRegex.Match(line);
+            if (match.Success)
+            {
+                string varName = match.Groups[1].Value;
+                if (!line.Contains(".ToList(") && !line.Contains(".ToArray(") && !line.Contains(".ToDictionary(") && !line.Contains(".ToHashSet("))
+                {
+                    assignedVars[varName] = i;
+                }
+            }
+        }
+
+        for (int i = 0; i < addedLines.Count; i++)
+        {
+            var row = addedLines[i];
+            int lineNum = row.NewNumber ?? (i + 1);
+            string line = row.Text ?? string.Empty;
+            string trimmed = line.Trim();
+
+            // Check Count() vs Any()
+            if (countVsAnyRegex.IsMatch(trimmed))
+            {
+                countVsAnyCount++;
+                items.Add(new DiffLinqMultipleEnumerationItem(
+                    lineNum, "Collection", "CountVsAnyHazard", "Warning",
+                    line.Length > 80 ? line.Substring(0, 77) + "..." : line,
+                    "Using .Count() > 0 evaluates the entire sequence. Replace with .Any() for O(1) short-circuit evaluation."));
+            }
+
+            // Check redundant materialization
+            if (redundantMatRegex.IsMatch(trimmed))
+            {
+                redundantMaterializationCount++;
+                items.Add(new DiffLinqMultipleEnumerationItem(
+                    lineNum, "Pipeline", "RedundantMaterialization", "Caution",
+                    line.Length > 80 ? line.Substring(0, 77) + "..." : line,
+                    "Redundant intermediate .ToList()/.ToArray() allocation inside LINQ pipeline. Chain operators directly before final materialization."));
+            }
+        }
+
+        // Check for multiple enumeration of assigned variables
+        foreach (var kvp in assignedVars)
+        {
+            string vName = kvp.Key;
+            int assignIdx = kvp.Value;
+            int usageCount = 0;
+
+            var usageRegex = new System.Text.RegularExpressions.Regex(@"\b" + System.Text.RegularExpressions.Regex.Escape(vName) + @"\b\.(?:Any|Count|First|FirstOrDefault|Single|ToList|ToArray|Where|Select|ForEach)\b|\bforeach\s*\([^\)]+\bin\s+" + System.Text.RegularExpressions.Regex.Escape(vName) + @"\b", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+            for (int i = assignIdx + 1; i < addedLines.Count; i++)
+            {
+                string l = addedLines[i].Text ?? string.Empty;
+                if (usageRegex.IsMatch(l))
+                {
+                    usageCount++;
+                }
+            }
+
+            if (usageCount >= 2)
+            {
+                multipleEnumCount++;
+                var assignRow = addedLines[assignIdx];
+                int lineNum = assignRow.NewNumber ?? (assignIdx + 1);
+                items.Add(new DiffLinqMultipleEnumerationItem(
+                    lineNum, vName, "MultipleEnumerationHazard", "Hazard",
+                    assignRow.Text?.Trim() ?? vName,
+                    $"Deferred LINQ sequence '{vName}' is enumerated {usageCount} times. Cache with .ToList() or .ToArray() to prevent redundant re-execution."));
+            }
+        }
+
+        double penalty = (multipleEnumCount * 25.0) + (countVsAnyCount * 10.0) + (redundantMaterializationCount * 10.0);
+        double score = Math.Max(0.0, Math.Min(100.0, 100.0 - penalty));
+
+        string category = score switch
+        {
+            >= 95.0 => "Optimal · Zero LINQ Enumeration Hazards",
+            >= 80.0 => "Good · Minor LINQ Allocation Warnings",
+            >= 60.0 => "Caution · Repeated Enumeration & Churn",
+            _ => "Hazardous · Multiple LINQ Enumerations Detected"
+        };
+
+        string summary = FormatLinqMultipleEnumerationSummary(
+            totalAddedLines, multipleEnumCount, countVsAnyCount, redundantMaterializationCount, score, category);
+
+        return new DiffLinqMultipleEnumerationAudit(
+            totalAddedLines, multipleEnumCount, countVsAnyCount, redundantMaterializationCount, score, items, category, summary);
+    }
+
+    public static string FormatLinqMultipleEnumerationSummary(
+        int addedLines, int multiEnum, int countVsAny, int redundantMat, double score, string category)
+    {
+        if (addedLines == 0)
+            return "Diff LINQ enumeration audit: Clean Baseline · 0 added lines evaluated";
+
+        var parts = new List<string>();
+        parts.Add($"{addedLines} added line{(addedLines == 1 ? "" : "s")}");
+        if (multiEnum > 0) parts.Add($"🚨 {multiEnum} multiple enumeration{(multiEnum == 1 ? "" : "s")}");
+        if (countVsAny > 0) parts.Add($"⚠ {countVsAny} .Count() vs .Any()");
+        if (redundantMat > 0) parts.Add($"⚡ {redundantMat} redundant materialization");
+
+        string details = string.Join(" · ", parts);
+        return $"Diff LINQ enumeration audit ({details} · {category} · {score:0.#}% safety score)";
+    }
+
 }
 
 
@@ -22465,5 +22612,23 @@ public sealed record DiffStringConcatenationAllocationAudit(
     int StringBuilderAntiPatternCount,
     double StringAllocationScore,
     IReadOnlyList<DiffStringConcatenationAllocationItem> Items,
+    string Category,
+    string Summary);
+
+public sealed record DiffLinqMultipleEnumerationItem(
+    int LineNumber,
+    string VariableName,
+    string HazardType,
+    string Severity,
+    string Excerpt,
+    string Recommendation);
+
+public sealed record DiffLinqMultipleEnumerationAudit(
+    int TotalAddedLines,
+    int MultipleEnumerationCount,
+    int CountVsAnyCount,
+    int RedundantMaterializationCount,
+    double LinqSafetyScore,
+    IReadOnlyList<DiffLinqMultipleEnumerationItem> Items,
     string Category,
     string Summary);

@@ -13871,3 +13871,58 @@ Reviewed: Run #216 Blueprint — executed the 3-block cycle covering all 6 MarkS
 6. **SuiteHubView (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #216 Block 3 Idea 6]**:
    - **Refinement Target**: Workspace Document Frontmatter Title & Category Taxonomy Cohesion Auditor.
    - **Deliverable**: Add `RecentFilesService.AuditWorkspaceDocumentTaxonomyCohesion(explicitFiles, ...)` and `FormatDocumentTaxonomySummary(...)`, analyzing frontmatter `tags`, `category`, and `series` groupings across the repository, identifying orphan isolated categories, and scoring workspace organizational cohesion ($0-100\%$). Wire to `RecentDocsFlyout`.
+
+
+---
+
+### 2026-10-21 (scheduled routine run #217)
+
+Reviewed: Run #217 Blueprint — executed the 3-block cycle covering all 6 MarkSmith WinUI 3 surfaces with 100% full implementation, zero placeholders, empirical verification (0 errors, 7 passing unit tests), and desktop smoke launch verification.
+
+**Shipped** (commit follows this entry):
+- **Block 1**:
+  - **Surface 1 (MainWindow)**: Implemented `TextSearch.AuditMarkdownBlockquoteAlertCallouts(markdownText)`, `FormatBlockquoteAlertCalloutsSummary(...)`, `MarkdownBlockquoteAlertCalloutItem`, and `MarkdownBlockquoteAlertCalloutsAudit` in `TextSearch.cs`. Audits GitHub/Obsidian-style blockquote alert callouts (`> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`, `> [!WARNING]`, `> [!CAUTION]`), detecting invalid tags, missing exclamation prefixes, and scoring callout grammar compliance ($0-100\%$). Wired to `ShowLintIssueContextMenu` in `MainWindow.xaml.cs` via `auditBlockquoteAlertCalloutsItem` (`\uE8B9`).
+  - **Surface 2 (MindMapGalaxyWindow)**: Implemented `MindMapStudioViewModel.AuditGraphRadialClustering(selectionOnly)`, `FormatRadialClusteringSummary(...)`, `GraphRadialClusterItem`, and `GraphRadialClusteringAudit` in `MindMapStudioViewModel.cs`. Evaluates node angular distribution around cluster centroids, detecting angular overlap crowding ($< 15^\circ$ spacing), and scoring radial layout clarity ($0-100\%$). Wired to `ArrangeDropDownButton.Flyout` in `MindMapGalaxyWindow.xaml` and `MindMapGalaxyWindow.xaml.cs` via `AuditGraphRadialClusteringItem` (`\uE8B9`) and `OnAuditGraphRadialClusteringClick`.
+- **Block 2**:
+  - **Surface 3 (ShapeDesignStudioWindow)**: Implemented `ShapeDesignStudioViewModel.AuditDiagramZIndexStacking(selectionOnly)`, `FormatZIndexStackingSummary(...)`, `ShapeZIndexStackingItem`, and `DiagramZIndexStackingAudit` in `ShapeDesignStudioViewModel.cs`. Analyzes shape overlapping z-index orders, detecting connector occlusion under sibling shapes, sparse z-index gaps, and scoring stacking layer hygiene ($0-100\%$). Wired to `SelectionBoundsBorder.ContextFlyout` in `ShapeDesignStudioWindow.xaml` and `ShapeDesignStudioWindow.xaml.cs` via `SelectionAuditDiagramZIndexStackingItem` (`\uE8B9`) and `OnSelectionAuditDiagramZIndexStackingClick`.
+  - **Surface 4 (SmartArtDesignStudioWindow)**: Implemented `SmartArtDesignStudioViewModel.AuditHierarchyTreeFanOutRatio(markdown, layoutName)`, `FormatHierarchyFanOutSummary(...)`, `SmartArtHierarchyFanOutItem`, and `SmartArtHierarchyTreeFanOutAudit` in `SmartArtDesignStudioViewModel.cs`. Measures management fan-out and span-of-control ratios ($> 10$ direct reports per supervisor or solitary bottlenecks $1:1$), and scores hierarchy organizational balance ($0-100\%$). Wired to `OutlineStatsFlyout` in `SmartArtDesignStudioWindow.xaml` and `SmartArtDesignStudioWindow.xaml.cs` via `OutlineStatsAuditHierarchyTreeFanOutRatioItem` (`\uE8B9`) and `OnOutlineStatsAuditHierarchyTreeFanOutRatioClick`.
+- **Block 3**:
+  - **Surface 5 (HistoryWindow)**: Implemented `LineDiff.AuditLinqMultipleEnumerationHazards(unifiedRows)`, `FormatLinqMultipleEnumerationSummary(...)`, `DiffLinqMultipleEnumerationItem`, and `DiffLinqMultipleEnumerationAudit` in `LineDiff.cs`. Detects `IEnumerable` references evaluated across multiple loops or LINQ query operators without `.ToList()`/`.ToArray()` caching, deferred execution hazards (`.Count() > 0` vs `.Any()`), and scores LINQ enumeration safety ($0-100\%$). Wired to `DiffContextMenu` in `HistoryWindow.xaml.cs` via `auditLinqMultipleEnumerationItem` (`\uE8B9`).
+  - **Surface 6 (SuiteHubView)**: Implemented `RecentFilesService.AuditWorkspaceDocumentTaxonomyCohesion(explicitFiles, ...)`, `FormatDocumentTaxonomySummary(...)`, `WorkspaceTaxonomyItem`, and `WorkspaceDocumentTaxonomyCohesionAudit` in `RecentFilesService.cs`. Analyzes frontmatter `tags`, `category`, and `series` groupings across the repository, identifying orphan isolated categories and scoring workspace organizational cohesion ($0-100\%$). Wired to `RecentDocsFlyout` in `SuiteHubView.xaml` and `SuiteHubView.xaml.cs` via `AuditWorkspaceDocumentTaxonomyCohesionItem` (`\uE8B9`) and `OnAuditWorkspaceDocumentTaxonomyCohesionClick`.
+- **Execution Phase Refinements**:
+  - Implemented comprehensive unit tests across all 6 surfaces in `MarkSmith.Tests`:
+    - `TextSearchTests.Run217_AuditMarkdownBlockquoteAlertCallouts_ValidatesCalloutGrammarAndTags`
+    - `MindMapGalaxyPolishTests.Run217_AuditGraphRadialClustering_DetectsCrowdingAndRadialClarity`
+    - `ShapeStudioPolishTests.Run217_AuditDiagramZIndexStacking_DetectsConnectorOcclusionAndLayerGaps`
+    - `SmartArtStudioPolishTests.Run217_AuditHierarchyTreeFanOutRatio_ValidatesSpanOfControl`
+    - `HistoryPolishTests.Run217_AuditLinqMultipleEnumerationHazards_DetectsMultipleLoopsAndCountVsAny`
+    - `SuiteHubAndTourPolishTests.Run217_AuditWorkspaceDocumentTaxonomyCohesion_DetectsOrphanCategories`
+    - `SuiteHubAndTourPolishTests.Run217_AllSixSurfacesXamlAndCodeBehindWiring`
+
+**Verified:**
+- `dotnet build` (`marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj` - Debug/x64): 0 errors, 24 warnings.
+- `dotnet build` (`marksmith-v2/MarkSmith.Tests/MarkSmith.Tests.csproj` - Debug): 0 errors, 102 warnings.
+- `dotnet test` (Run217 filter): 7/7 tests passed (100% pass rate in 281 ms).
+- Smoke-launched `Marksmith.exe` (PID=24068, running cleanly for 4 seconds, gracefully terminated with zero crashes).
+
+---
+
+### Run #218 Blueprint - Carried-Forward Refinements & Next Cycle Targets
+1. **MainWindow (`MainWindow.xaml.cs`, `TextSearch.cs`)**:
+   - **Feature**: Markdown Task List Priority Tags & Deadline Syntax Auditor.
+   - **Deliverable**: Add `TextSearch.AuditMarkdownTaskListPriorities(markdownText)` and `FormatMarkdownTaskListPrioritiesSummary(...)`, validating task list item priority markers (`[#A]`, `[#high]`), deadline dates (`@due(...)`), unformatted task tags, and scoring task management syntax compliance ($0-100\%$). Wire to `ShowLintIssueContextMenu`.
+2. **MindMapGalaxyWindow (`MindMapGalaxyWindow.xaml`, `MindMapGalaxyWindow.xaml.cs`, `MindMapStudioViewModel.cs`)**:
+   - **Feature**: Graph Orthogonal Tree Grid Alignment & Branch Level Spacing Auditor.
+   - **Deliverable**: Add `MindMapStudioViewModel.AuditGraphOrthogonalGridAlignment(selectionOnly)` and `FormatOrthogonalGridAlignmentSummary(...)`, checking hierarchical branch grid snapping, consistent horizontal/vertical tier spacing, node overlap on identical coordinates, and scoring tree layout neatness ($0-100\%$). Wire to `ArrangeDropDownButton.Flyout`.
+3. **ShapeDesignStudioWindow (`ShapeDesignStudioWindow.xaml`, `ShapeDesignStudioWindow.xaml.cs`, `ShapeDesignStudioViewModel.cs`)**:
+   - **Feature**: Diagram Text Contrast & Label Contrast Ratio Auditor.
+   - **Deliverable**: Add `ShapeDesignStudioViewModel.AuditDiagramTextContrast(selectionOnly)` and `FormatTextContrastSummary(...)`, calculating WCAG relative luminance contrast ratios between shape background fills and embedded label text, flagging low-contrast labels ($< 4.5:1$), and scoring diagram accessibility contrast ($0-100\%$). Wire to `SelectionBoundsBorder.ContextFlyout`.
+4. **SmartArtDesignStudioWindow (`SmartArtDesignStudioWindow.xaml`, `SmartArtDesignStudioWindow.xaml.cs`, `SmartArtDesignStudioViewModel.cs`)**:
+   - **Feature**: SmartArt Segmented Radial Cycle Angle Slicing & Chord Symmetry Auditor.
+   - **Deliverable**: Add `SmartArtDesignStudioViewModel.AuditSegmentedCycleAngleSlicing(markdown, layoutName)` and `FormatSegmentedCycleSummary(...)`, verifying radial cycle node sector angle uniformity, chord length consistency across cycle steps, and scoring cycle visual symmetry ($0-100\%$). Wire to `OutlineStatsFlyout`.
+5. **HistoryWindow (`HistoryWindow.xaml.cs`, `LineDiff.cs`) [Carried Forward from Run #217 Block 3 Idea 5]**:
+   - **Refinement Target**: Semantic Diff Exception Swallowing & Bare Catch Block Hazard Auditor.
+   - **Deliverable**: Add `LineDiff.AuditExceptionSwallowingHazards(unifiedRows)` and `FormatExceptionSwallowingSummary(...)`, analyzing diff additions for empty catch blocks (`catch { }` or `catch (Exception) { }`), unlogged exceptions, re-throwing `throw ex;` losing stack traces, and scoring error handling hygiene ($0-100\%$). Wire to `DiffContextMenu`.
+6. **SuiteHubView (`SuiteHubView.xaml`, `SuiteHubView.xaml.cs`, `RecentFilesService.cs`) [Carried Forward from Run #217 Block 3 Idea 6]**:
+   - **Refinement Target**: Workspace Document Cross-Reference Anchor & Header Slug Drift Auditor.
+   - **Deliverable**: Add `RecentFilesService.AuditWorkspaceDocumentAnchorSlugs(explicitFiles, ...)` and `FormatAnchorSlugsSummary(...)`, validating internal markdown section anchors (`[Heading](#heading-slug)`), detecting broken slug targets, duplicated headings without unique disambiguation, and scoring anchor navigational integrity ($0-100\%$). Wire to `RecentDocsFlyout`.

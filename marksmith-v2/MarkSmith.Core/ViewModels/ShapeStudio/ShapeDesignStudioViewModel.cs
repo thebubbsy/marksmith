@@ -14398,6 +14398,158 @@ public static string FormatGroupNestingSummary(
     }
 
 
+    public DiagramZIndexStackingAudit AuditDiagramZIndexStacking(bool selectionOnly = false)
+    {
+        var selected = SelectedItems.ToList();
+        var targetShapes = (selectionOnly && selected.Count > 0) ? selected : Shapes.ToList();
+        bool isSelection = selectionOnly && selected.Count > 0;
+        var audit = AuditDiagramZIndexStacking(targetShapes, isSelection);
+        StatusMessage = audit.Summary;
+        return audit;
+    }
+
+    public static DiagramZIndexStackingAudit AuditDiagramZIndexStacking(
+        IEnumerable<ShapeCanvasItemViewModel>? targetShapes,
+        bool isSelection = false)
+    {
+        var targetList = (targetShapes ?? Enumerable.Empty<ShapeCanvasItemViewModel>()).Where(s => s != null).ToList();
+        int totalShapes = targetList.Count;
+
+        if (totalShapes == 0)
+        {
+            string emptySummary = FormatZIndexStackingSummary(0, 0, 0, 0, 0, 100.0, "Clean Baseline · No Shapes", isSelection);
+            return new DiagramZIndexStackingAudit(
+                0, 0, 0, 0, 0, 100.0,
+                Array.Empty<ShapeZIndexStackingItem>(), "Clean Baseline · No Shapes", isSelection, emptySummary);
+        }
+
+        var shapeZIndex = new Dictionary<ShapeCanvasItemViewModel, int>();
+        for (int i = 0; i < targetList.Count; i++)
+        {
+            var s = targetList[i];
+            shapeZIndex[s] = i;
+        }
+
+        var items = new List<ShapeZIndexStackingItem>();
+        int overlappingPairs = 0;
+        int occludedConnectors = 0;
+        int invertedContainers = 0;
+        int sparseGaps = 0;
+
+        int minZ = shapeZIndex.Values.Min();
+        int maxZ = shapeZIndex.Values.Max();
+        if (totalShapes > 3 && (maxZ - minZ) > totalShapes * 100)
+        {
+            sparseGaps++;
+            items.Add(new ShapeZIndexStackingItem(
+                "GLOBAL", "Artboard Stacking", maxZ - minZ, "SparseZIndexSpan", "Info",
+                $"Z-index range spans from {minZ} to {maxZ} ({maxZ - minZ} span).",
+                "Normalize z-index stacking layers to sequential monotonic integers."));
+        }
+
+        for (int i = 0; i < targetList.Count; i++)
+        {
+            var sA = targetList[i];
+            int zA = shapeZIndex[sA];
+            bool isConnA = sA.IsLine || (sA.Prst ?? "").Contains("connector", StringComparison.OrdinalIgnoreCase);
+            double areaA = Math.Max(1.0, sA.Width * sA.Height);
+
+            for (int j = i + 1; j < targetList.Count; j++)
+            {
+                var sB = targetList[j];
+                int zB = shapeZIndex[sB];
+                bool isConnB = sB.IsLine || (sB.Prst ?? "").Contains("connector", StringComparison.OrdinalIgnoreCase);
+                double areaB = Math.Max(1.0, sB.Width * sB.Height);
+
+                // Check bounding box intersection
+                bool xOverlap = sA.X < (sB.X + sB.Width) && (sA.X + sA.Width) > sB.X;
+                bool yOverlap = sA.Y < (sB.Y + sB.Height) && (sA.Y + sA.Height) > sB.Y;
+
+                if (!xOverlap || !yOverlap) continue;
+
+                overlappingPairs++;
+
+                // Connector occluded under sibling shape
+                if (isConnA && !isConnB && zA < zB)
+                {
+                    occludedConnectors++;
+                    items.Add(new ShapeZIndexStackingItem(
+                        sA.Id, sA.Name ?? "Connector", zA, "ConnectorUnderShape", "Warning",
+                        $"Connector '{sA.Name ?? sA.Id}' (z={zA}) is stacked underneath shape '{sB.Name ?? sB.Id}' (z={zB}).",
+                        "Bring connector to top or route around shape to maintain unobstructed line visibility."));
+                }
+                else if (isConnB && !isConnA && zB < zA)
+                {
+                    occludedConnectors++;
+                    items.Add(new ShapeZIndexStackingItem(
+                        sB.Id, sB.Name ?? "Connector", zB, "ConnectorUnderShape", "Warning",
+                        $"Connector '{sB.Name ?? sB.Id}' (z={zB}) is stacked underneath shape '{sA.Name ?? sA.Id}' (z={zA}).",
+                        "Bring connector to top or route around shape to maintain unobstructed line visibility."));
+                }
+
+                // Inverted container stacking
+                if (!isConnA && !isConnB)
+                {
+                    if (areaA >= 2.5 * areaB && zA > zB &&
+                        sA.X <= sB.X && sA.Y <= sB.Y &&
+                        (sA.X + sA.Width) >= (sB.X + sB.Width) && (sA.Y + sA.Height) >= (sB.Y + sB.Height))
+                    {
+                        invertedContainers++;
+                        items.Add(new ShapeZIndexStackingItem(
+                            sA.Id, sA.Name ?? "Container", zA, "InvertedContainerStacking", "Hazard",
+                            $"Container '{sA.Name ?? sA.Id}' (z={zA}) is stacked above contained child '{sB.Name ?? sB.Id}' (z={zB}).",
+                            "Send container shape to back so child elements remain selectable and visible."));
+                    }
+                    else if (areaB >= 2.5 * areaA && zB > zA &&
+                        sB.X <= sA.X && sB.Y <= sA.Y &&
+                        (sB.X + sB.Width) >= (sA.X + sA.Width) && (sB.Y + sB.Height) >= (sA.Y + sA.Height))
+                    {
+                        invertedContainers++;
+                        items.Add(new ShapeZIndexStackingItem(
+                            sB.Id, sB.Name ?? "Container", zB, "InvertedContainerStacking", "Hazard",
+                            $"Container '{sB.Name ?? sB.Id}' (z={zB}) is stacked above contained child '{sA.Name ?? sA.Id}' (z={zA}).",
+                            "Send container shape to back so child elements remain selectable and visible."));
+                    }
+                }
+            }
+        }
+
+        double penalty = (occludedConnectors * 20.0) + (invertedContainers * 25.0) + (sparseGaps > 0 ? 10.0 : 0.0);
+        double score = Math.Max(0.0, Math.Min(100.0, 100.0 - penalty));
+
+        string category = score switch
+        {
+            >= 95.0 => "Optimal · Strict Stacking Hierarchy",
+            >= 80.0 => "Good · Minor Z-Index Warnings",
+            >= 60.0 => "Caution · Occluded Connectors & Inverted Containers",
+            _ => "Hazardous · Severe Stacking Layer Corruption"
+        };
+
+        string summary = FormatZIndexStackingSummary(
+            totalShapes, overlappingPairs, occludedConnectors, invertedContainers, sparseGaps, score, category, isSelection);
+
+        return new DiagramZIndexStackingAudit(
+            totalShapes, overlappingPairs, occludedConnectors, invertedContainers, sparseGaps, score, items, category, isSelection, summary);
+    }
+
+    public static string FormatZIndexStackingSummary(
+        int total, int overlaps, int occludedConn, int invertedCont, int sparseGaps, double score, string category, bool isSelection)
+    {
+        string scope = isSelection ? "Selection · " : "";
+        if (total == 0)
+            return $"Diagram z-index stacking audit ({scope}Clean artboard · 0 shapes evaluated)";
+
+        var parts = new List<string>();
+        parts.Add($"{total} shape{(total == 1 ? "" : "s")}");
+        parts.Add($"{overlaps} overlapping pair{(overlaps == 1 ? "" : "s")}");
+        if (occludedConn > 0) parts.Add($"⚠ {occludedConn} occluded connector{(occludedConn == 1 ? "" : "s")}");
+        if (invertedCont > 0) parts.Add($"🚨 {invertedCont} inverted container{(invertedCont == 1 ? "" : "s")}");
+        if (sparseGaps > 0) parts.Add($"ℹ {sparseGaps} sparse gap");
+
+        string details = string.Join(" · ", parts);
+        return $"Diagram z-index stacking audit ({scope}{details} · {category} · {score:0.#}% stacking score)";
+    }
+
 }
 
 
@@ -16266,6 +16418,27 @@ public sealed record DiagramOrthogonalConnectorWaypointsAudit(
     int HairpinBendCount,
     double RoutingHygieneScore,
     IReadOnlyList<ShapeOrthogonalConnectorWaypointsItem> Items,
+    string Category,
+    bool IsSelectionScope,
+    string Summary);
+
+public sealed record ShapeZIndexStackingItem(
+    string ShapeId,
+    string ShapeName,
+    int ZIndex,
+    string HazardType,
+    string Severity,
+    string Excerpt,
+    string Recommendation);
+
+public sealed record DiagramZIndexStackingAudit(
+    int TotalShapes,
+    int OverlappingPairs,
+    int OccludedConnectorCount,
+    int InvertedContainerCount,
+    int SparseGapCount,
+    double StackingHygieneScore,
+    IReadOnlyList<ShapeZIndexStackingItem> Items,
     string Category,
     bool IsSelectionScope,
     string Summary);

@@ -15510,6 +15510,202 @@ public static class TextSearch
     }
 
 
+    public static MarkdownBlockquoteAlertCalloutsAudit AuditMarkdownBlockquoteAlertCallouts(string? markdownText)
+    {
+        if (string.IsNullOrWhiteSpace(markdownText))
+        {
+            string emptySummary = FormatBlockquoteAlertCalloutsSummary(0, 0, 0, 0, 0, 0, 0, 100.0, "Clean Baseline · No Alert Callouts");
+            return new MarkdownBlockquoteAlertCalloutsAudit(
+                0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<MarkdownBlockquoteAlertCalloutItem>(),
+                "Clean Baseline · No Alert Callouts", emptySummary);
+        }
+
+        var lines = markdownText.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        var items = new List<MarkdownBlockquoteAlertCalloutItem>();
+
+        int totalCallouts = 0;
+        int validCanonical = 0;
+        int validExtended = 0;
+        int missingExclamation = 0;
+        int unrecognizedTag = 0;
+        int malformedSyntax = 0;
+        int emptyCallouts = 0;
+
+        var canonicalTags = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "NOTE", "TIP", "IMPORTANT", "WARNING", "CAUTION"
+        };
+
+        var extendedKnownTags = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "INFO", "HINT", "SUCCESS", "CHECK", "QUESTION", "FAQ", "HELP", "ATTENTION",
+            "FAILURE", "FAIL", "DANGER", "ERROR", "BUG", "EXAMPLE", "QUOTE", "CITE", "SUMMARY", "ABSTRACT", "TLDR"
+        };
+
+        bool inCodeBlock = false;
+        var quoteStartRegex = new System.Text.RegularExpressions.Regex(@"^\s{0,3}>\s*(.*)$", System.Text.RegularExpressions.RegexOptions.Compiled);
+        var calloutTagRegex = new System.Text.RegularExpressions.Regex(@"^\[!([A-Za-z0-9_-]+)\](?:\s*(.*))?$", System.Text.RegularExpressions.RegexOptions.Compiled);
+        var missingBangRegex = new System.Text.RegularExpressions.Regex(@"^\[([A-Za-z0-9_-]+)\](?!\()(.*)$", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            int lineNum = i + 1;
+            string line = lines[i];
+            string trimmed = line.Trim();
+
+            if (trimmed.StartsWith("```", StringComparison.Ordinal) || trimmed.StartsWith("~~~", StringComparison.Ordinal))
+            {
+                inCodeBlock = !inCodeBlock;
+                continue;
+            }
+
+            if (inCodeBlock) continue;
+
+            var qMatch = quoteStartRegex.Match(line);
+            if (!qMatch.Success) continue;
+
+            string quoteContent = qMatch.Groups[1].Value.Trim();
+            if (string.IsNullOrEmpty(quoteContent)) continue;
+
+            var tagMatch = calloutTagRegex.Match(quoteContent);
+            if (tagMatch.Success)
+            {
+                totalCallouts++;
+                string tag = tagMatch.Groups[1].Value;
+                string title = tagMatch.Groups[2].Success ? tagMatch.Groups[2].Value.Trim() : string.Empty;
+
+                bool isCanonical = canonicalTags.Contains(tag);
+                bool isExtended = extendedKnownTags.Contains(tag);
+
+                bool hasBody = !string.IsNullOrEmpty(title);
+                if (!hasBody && i + 1 < lines.Length)
+                {
+                    for (int j = i + 1; j < lines.Length; j++)
+                    {
+                        string nextLine = lines[j].Trim();
+                        if (string.IsNullOrWhiteSpace(nextLine)) break;
+                        var nextQ = quoteStartRegex.Match(lines[j]);
+                        if (nextQ.Success && !string.IsNullOrWhiteSpace(nextQ.Groups[1].Value))
+                        {
+                            hasBody = true;
+                        }
+                        break;
+                    }
+                }
+
+                if (!hasBody)
+                {
+                    emptyCallouts++;
+                    items.Add(new MarkdownBlockquoteAlertCalloutItem(
+                        lineNum, $"[!{tag}]", tag, "EmptyCalloutBody", "Warning",
+                        line.Length > 80 ? line.Substring(0, 77) + "..." : line,
+                        $"Alert callout '[!{tag}]' has no body content or title. Provide contextual text inside the callout."));
+                }
+
+                if (isCanonical)
+                {
+                    validCanonical++;
+                    items.Add(new MarkdownBlockquoteAlertCalloutItem(
+                        lineNum, $"[!{tag}]", tag.ToUpperInvariant(), "CanonicalCallout", "Valid",
+                        line.Length > 80 ? line.Substring(0, 77) + "..." : line,
+                        $"Standard GFM alert callout '[!{tag.ToUpperInvariant()}]' properly formatted."));
+                }
+                else if (isExtended)
+                {
+                    validExtended++;
+                    items.Add(new MarkdownBlockquoteAlertCalloutItem(
+                        lineNum, $"[!{tag}]", tag, "ExtendedCallout", "Info",
+                        line.Length > 80 ? line.Substring(0, 77) + "..." : line,
+                        $"Extended callout type '[!{tag}]' detected. Compatible with Obsidian/extended renderers."));
+                }
+                else
+                {
+                    unrecognizedTag++;
+                    items.Add(new MarkdownBlockquoteAlertCalloutItem(
+                        lineNum, $"[!{tag}]", tag, "UnrecognizedCalloutTag", "Hazard",
+                        line.Length > 80 ? line.Substring(0, 77) + "..." : line,
+                        $"Unrecognized alert callout '[!{tag}]'. Use standard types: NOTE, TIP, IMPORTANT, WARNING, CAUTION."));
+                }
+            }
+            else
+            {
+                var noBangMatch = missingBangRegex.Match(quoteContent);
+                if (noBangMatch.Success)
+                {
+                    string candidate = noBangMatch.Groups[1].Value;
+                    if (canonicalTags.Contains(candidate) || extendedKnownTags.Contains(candidate))
+                    {
+                        totalCallouts++;
+                        missingExclamation++;
+                        items.Add(new MarkdownBlockquoteAlertCalloutItem(
+                            lineNum, $"[{candidate}]", candidate, "MissingExclamationPrefix", "Hazard",
+                            line.Length > 80 ? line.Substring(0, 77) + "..." : line,
+                            $"Blockquote starts with '[{candidate}]' missing the '!' prefix. Use '[!{candidate.ToUpperInvariant()}]' for alert callouts."));
+                    }
+                }
+                else if (quoteContent.StartsWith("[!", StringComparison.Ordinal) && !quoteContent.Contains("]"))
+                {
+                    totalCallouts++;
+                    malformedSyntax++;
+                    items.Add(new MarkdownBlockquoteAlertCalloutItem(
+                        lineNum, quoteContent, "Unknown", "UnclosedAlertTag", "Hazard",
+                        line.Length > 80 ? line.Substring(0, 77) + "..." : line,
+                        "Unclosed alert callout tag '[!...'. Ensure closing bracket ']' is present."));
+                }
+            }
+        }
+
+        if (totalCallouts == 0)
+        {
+            string emptySummary = FormatBlockquoteAlertCalloutsSummary(0, 0, 0, 0, 0, 0, 0, 100.0, "Clean Baseline · No Alert Callouts");
+            return new MarkdownBlockquoteAlertCalloutsAudit(
+                0, 0, 0, 0, 0, 0, 0, 100.0,
+                Array.Empty<MarkdownBlockquoteAlertCalloutItem>(),
+                "Clean Baseline · No Alert Callouts", emptySummary);
+        }
+
+        double penalty = (missingExclamation * 25.0) + (malformedSyntax * 20.0) + (unrecognizedTag * 15.0) + (emptyCallouts * 10.0);
+        double score = Math.Max(0.0, Math.Min(100.0, 100.0 - penalty));
+
+        string category = score switch
+        {
+            >= 95.0 => "Optimal · Perfect Callout Grammar",
+            >= 80.0 => "Good · Minor Callout Warnings",
+            >= 60.0 => "Caution · Callout Syntax Errors",
+            _ => "Hazardous · Malformed Alert Callouts"
+        };
+
+        string summary = FormatBlockquoteAlertCalloutsSummary(
+            totalCallouts, validCanonical, validExtended, missingExclamation, unrecognizedTag, malformedSyntax, emptyCallouts, score, category);
+
+        return new MarkdownBlockquoteAlertCalloutsAudit(
+            totalCallouts, validCanonical, validExtended, missingExclamation, unrecognizedTag, malformedSyntax, emptyCallouts,
+            score, items, category, summary);
+    }
+
+    public static string FormatBlockquoteAlertCalloutsSummary(string? markdownText)
+        => AuditMarkdownBlockquoteAlertCallouts(markdownText).Summary;
+
+    public static string FormatBlockquoteAlertCalloutsSummary(
+        int totalCallouts, int canonical, int extended, int missingBang, int unrecognized, int malformed, int empty, double score, string category)
+    {
+        if (totalCallouts == 0)
+            return "Markdown alert callout audit: Clean document · No alert callouts present";
+
+        var parts = new List<string>();
+        parts.Add($"{totalCallouts} callout{(totalCallouts == 1 ? "" : "s")}");
+        if (canonical > 0) parts.Add($"✓ {canonical} canonical");
+        if (extended > 0) parts.Add($"ℹ {extended} extended");
+        if (missingBang > 0) parts.Add($"🚨 {missingBang} missing '!' prefix");
+        if (unrecognized > 0) parts.Add($"⚠ {unrecognized} unrecognized tag{(unrecognized == 1 ? "" : "s")}");
+        if (malformed > 0) parts.Add($"🚨 {malformed} malformed syntax");
+        if (empty > 0) parts.Add($"⚡ {empty} empty body");
+
+        string details = string.Join(" · ", parts);
+        return $"Markdown alert callout audit ({details} · {category} · {score:0.#}% grammar score)";
+    }
+
 }
 
 
@@ -17312,5 +17508,27 @@ public sealed record MarkdownFootnoteSequentialNumberingAudit(
     int DisorderedSequenceCount,
     double FootnoteIntegrityScore,
     IReadOnlyList<MarkdownFootnoteSequentialNumberingItem> Items,
+    string Category,
+    string Summary);
+
+public sealed record MarkdownBlockquoteAlertCalloutItem(
+    int LineNumber,
+    string RawTag,
+    string DetectedType,
+    string IssueType,
+    string Severity,
+    string Excerpt,
+    string Recommendation);
+
+public sealed record MarkdownBlockquoteAlertCalloutsAudit(
+    int TotalCallouts,
+    int ValidCanonicalCount,
+    int ValidExtendedCount,
+    int MissingExclamationCount,
+    int UnrecognizedTagCount,
+    int MalformedSyntaxCount,
+    int EmptyCalloutCount,
+    double AlertGrammarScore,
+    IReadOnlyList<MarkdownBlockquoteAlertCalloutItem> Items,
     string Category,
     string Summary);
