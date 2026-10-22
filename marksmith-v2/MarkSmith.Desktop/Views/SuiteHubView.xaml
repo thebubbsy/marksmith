@@ -168,19 +168,22 @@
                     <TextBlock x:Name="NoRecentDocsText" Grid.Column="2" Text="No recent documents yet — start writing in MarkSmith"
                                FontSize="11.5" Foreground="{ThemeResource TextFillColorTertiaryBrush}" FontStyle="Italic"
                                VerticalAlignment="Center" Visibility="Collapsed" />
-                    <Border x:Name="RecentDocsCountPill" Grid.Column="2" HorizontalAlignment="Right"
+                    <!-- A button so Tab reaches it: Enter copies the paths, Shift+F10 opens the recent documents menu.
+                         One action per click: a double-click used to copy the paths and then clear the filter too. -->
+                    <Button x:Name="RecentDocsCountPill" Grid.Column="2" HorizontalAlignment="Right"
                             Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                             BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
-                            CornerRadius="6" Padding="6,2" VerticalAlignment="Center" Margin="0,0,6,0"
-                            Tapped="OnRecentDocsCountPillTapped"
-                            DoubleTapped="OnRecentDocsCountPillDoubleTapped"
+                            CornerRadius="6" Padding="6,2" MinHeight="0" VerticalAlignment="Center" Margin="0,0,6,0"
+                            Click="OnRecentDocsCountPillClick"
                             RightTapped="OnRecentDocsCountPillRightTapped"
-                            ToolTipService.ToolTip="Recent documents count · Tap to copy summary, double-click to clear filter, right-click for options">
+                            AutomationProperties.Name="Copy recent document paths"
+                            AutomationProperties.HelpText="Copies the full path of every recent document. Shift+F10 for recent document options."
+                            ToolTipService.ToolTip="Recent documents count · Click to copy their paths · Right-click or Shift+F10 for options">
                         <StackPanel Orientation="Horizontal" Spacing="4">
                             <FontIcon Glyph="&#xE81C;" FontSize="10" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
                             <TextBlock x:Name="RecentDocsCountText" Text="0 docs" FontSize="11" FontFamily="Cascadia Mono, Consolas, monospace" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         </StackPanel>
-                    </Border>
+                    </Button>
                     <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="4">
                         <Button x:Name="RecentDocsActionBtn" Style="{StaticResource SubtleButtonStyle}" Width="28" Height="28" Padding="0"
                                 Click="OnRecentDocsActionBtnClick"
@@ -489,9 +492,8 @@
                         </Button>
                         <Button x:Name="RefreshRecentDocsButton" Click="OnRefreshRecentDocsClick"
                                 RightTapped="OnRefreshRecentDocsButtonRightTapped"
-                                DoubleTapped="OnRefreshRecentDocsButtonDoubleTapped"
                                 Style="{StaticResource SubtleButtonStyle}" Width="28" Height="28" Padding="0"
-                                ToolTipService.ToolTip="Refresh recent documents (Double-click to refresh, Right-click or Shift+F10 for options)" AutomationProperties.Name="Refresh recent documents">
+                                ToolTipService.ToolTip="Refresh recent documents · Right-click or Shift+F10 for options" AutomationProperties.Name="Refresh recent documents">
                             <FontIcon Glyph="&#xE72C;" FontSize="11" />
                         </Button>
                     </StackPanel>
@@ -529,7 +531,7 @@
                         <StackPanel x:Name="StarterTemplatesPanel" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" SizeChanged="OnStarterTemplatesSizeChanged">
                             <Button x:Name="TemplateMeetingNotesBtn" Style="{StaticResource DefaultButtonStyle}" Padding="10,4"
                                     Click="OnTemplateMeetingNotesClick" ToolTipService.ToolTip="Create a structured meeting minutes document with agenda and action items"
-                                    Tag="meeting notes agenda minutes action items">
+                                    Tag="meeting notes agenda minutes action items planning">
                                 <StackPanel Orientation="Horizontal" Spacing="6">
                                     <FontIcon Glyph="&#xE77B;" FontSize="11" />
                                     <TextBlock Text="Meeting Notes" FontSize="11.5" />
@@ -618,20 +620,21 @@
                     </Button>
                     </Grid>
                     <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                        <Border x:Name="TemplateCountPill" Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                        <!-- A button so Tab reaches it. One action per click: clears a filter, or with none set,
+                             moves to the search box. Shift+F10 opens the category presets. -->
+                        <Button x:Name="TemplateCountPill" Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
-                                CornerRadius="10" Padding="8,2" VerticalAlignment="Center" Margin="4,0,0,0"
-                                IsHitTestVisible="True"
-                                Tapped="OnTemplateCountPillTapped"
-                                DoubleTapped="OnTemplateCountPillDoubleTapped"
+                                CornerRadius="10" Padding="8,2" MinHeight="0" VerticalAlignment="Center" Margin="4,0,0,0"
+                                Click="OnTemplateCountPillClick"
                                 RightTapped="OnTemplateCountPillRightTapped"
-                                ToolTipService.ToolTip="Starter templates count · Click to show all, double-click to focus search, right-click for category presets">
+                                AutomationProperties.Name="Search starter templates"
+                                ToolTipService.ToolTip="Starter templates · Click to search them · Right-click or Shift+F10 for categories">
                             <StackPanel Orientation="Horizontal" Spacing="4">
                                 <FontIcon Glyph="&#xE8A5;" FontSize="10" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
                                 <TextBlock x:Name="TemplateCountText" Text="10 templates" FontSize="11" FontWeight="SemiBold"
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
                             </StackPanel>
-                        </Border>
+                        </Button>
                         <TextBlock x:Name="TemplateSearchStatusText" Text="" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                    VerticalAlignment="Center" Visibility="Collapsed" Margin="2,0,0,0" />
                     </StackPanel>

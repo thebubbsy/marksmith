@@ -14624,23 +14624,8 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         }
     }
 
-    private void OnCursorPosTextDoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
-    {
-        e.Handled = true;
-        if (_viewMode == ViewMode.Split)
-        {
-            if (FindEditorScrollViewer() is { } sv)
-            {
-                var frac = sv.ScrollableHeight > 0 ? Math.Clamp(sv.VerticalOffset / sv.ScrollableHeight, 0.0, 1.0) : 0.0;
-                var fracStr = frac.ToString("0.######", System.Globalization.CultureInfo.InvariantCulture);
-                _ = PreviewWebView.CoreWebView2?.ExecuteScriptAsync($"if(window.__msSyncScrollFromEditor)window.__msSyncScrollFromEditor({fracStr});");
-                AnnounceStatus($"Split View synced: Preview aligned to current position ({CursorPosText?.Text})");
-                return;
-            }
-        }
-        _ = ShowGoToLineDialogAsync();
-    }
-
+    // One action per click: Click opens Go to line. A DoubleTapped handler also opened it (or, in
+    // Split view, realigned the preview behind the dialog). "Align Preview to cursor position" is in the menu.
     private void OnCursorPosButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
     {
         var pos = CursorPosText?.Text ?? "Ln 1, Col 1";

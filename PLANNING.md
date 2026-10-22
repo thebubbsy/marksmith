@@ -14956,3 +14956,160 @@ are the same stale `SuiteHubAndTourPolishTests` cases as runs #221–#227.
 **Release (same run):** tagged **v3.44.0** on `f633d252`; Release workflow run 39780053915 succeeded;
 user-facing notes prepended to the generated body
 (https://github.com/thebubbsy/marksmith/releases/tag/v3.44.0). `MarksmithBaseVersion` is now 3.45.0.
+
+### 2026-10-23 (scheduled routine run #229) — one action per click across History, Suite Hub and the status bar; History menus show the shortcuts that work
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`). The task template asks for a Gemini model name and
+  an "Antigravity AI Agent (Google DeepMind)" identity. This run was neither, so the entry records
+  what actually ran.
+- Identity: Claude Code (Anthropic), Claude desktop app, Code tab.
+- Modes: Scheduled hourly automation routine (unattended).
+- Trigger: scheduled task `commit-to-main-ship-improvement--r4efinement`.
+- Agents used: 1. A single session did the orchestration, coding and skeptical review, with no
+  subagents. Session id `52ae34de-7dcf-4080-b5ec-c3a7fa4c804b`.
+- Time: ~00:00–00:50 AEDT.
+
+**Reviewed:** run #228's Next up and Noticed lists. The other session's Shape Studio, SmartArt and
+Mind Map edits are **still uncommitted**, so Next-up item 1 was skipped again; those four files were
+not touched, staged or reverted. This run took Next-up item 4 (audit History for mouse-only and
+double-action patterns) and two of the Noticed items, then swept the rest of the app for the same
+Click + DoubleTapped pattern run #226 warned about. The sweep found five more, and the History audit
+turned up wrong shortcut hints in four menus.
+
+**Shipped:**
+1. **Take Checkpoint acts once per click.** The button ran its action on Click and again on
+   DoubleTapped, so a double-click asked for a second checkpoint dialog behind the first. The
+   DoubleTapped handler is gone; Click, Ctrl+Shift+S and the Shift+F10 menu remain.
+2. **Restore to Editor acts once per click, and the tooltip no longer says "Double-click to
+   restore".** A double-click ran the restore twice. The second run hit the one-dialog guard and
+   returned at once, then queued its "focus the selected version" step, which pulled keyboard focus
+   off the open confirmation dialog onto the timeline behind it.
+3. **History's menus show the shortcuts that actually work.** Three "Take checkpoint" items said
+   Ctrl+Shift+C, which copies the diff patch; checkpoint is Ctrl+Shift+S, now shown right-aligned in
+   the menu's accelerator column like the other items. "Show starred versions only (Ctrl+Shift+S)"
+   advertised the checkpoint key, and "Copy full file path (Ctrl+Shift+C)" advertised the patch key;
+   neither has a shortcut, so the hints are gone.
+4. **The version title can be copied from the keyboard.** It was double-click only (run #228's
+   noticed item). The version summary menu now has "Copy version title", and Shift+F10 on the
+   version-ID button opens that menu. The summary's tooltip says so.
+5. **The diff search box matches the pills beside it.** Its `Height="26"` was overridden by
+   TextBox's default 32 px MinHeight, so it stood taller than the hunk stepper (run #228's noticed
+   item). `MinHeight="0"` lets the 26 px height apply.
+6. **The status-bar cursor position opens Go to line once.** "Ln 1, Col 1" opened Go to line on
+   Click and again on DoubleTapped (in Split view, the double-click also realigned the preview behind
+   the dialog). The DoubleTapped handler is gone; "Align Preview to cursor position" is still in its
+   Shift+F10 menu in Split view.
+7. **Suite Hub's Refresh recent documents refreshes once per click.** Click plus DoubleTapped meant
+   a double-click reloaded the list three times and posted three notices. The tooltip no longer
+   advertises the double-click.
+8. **Suite Hub's recent-documents count is a keyboard button with one action.** It was a Border:
+   Tapped copied every path, DoubleTapped then cleared the filter, and the keyboard could do neither.
+   It is now a Button named "Copy recent document paths": click or Enter copies the paths, and
+   right-click or Shift+F10 (bridged) opens the recent-documents menu, which already has "Clear recent
+   filter". The "✓ 2 paths" tick now goes back to the count after 1.6 s; it used to stay until the
+   next refresh. It collapses with the filter box when there is no history, so it now hands focus to
+   the actions button the way the box does.
+9. **Suite Hub's template count is a keyboard button with one action.** Tapped cleared the filter
+   and DoubleTapped focused the search box, so a double-click did both and the keyboard did neither.
+   Now one click clears a filter, or with none set, moves to the template search box. Shift+F10 opens
+   the category presets (bridged), anchored at the button. Its spoken name follows the filter
+   ("Search 10 starter templates", "Show all templates, 3 of 10 shown"), like its tooltip.
+10. **The template category menu tells the truth.** "All Templates (10)" was hard-coded; it now
+    counts the templates. "Focus search box (Ctrl+F)" advertised a key that opens the editor's find
+    bar instead; it is now "Search templates". "Product & Planning (PRD, Meeting Notes)" filtered on
+    "planning" but only found the PRD; Meeting Notes now carries the "planning" tag.
+
+**Implementation summary.**
+- `Views/History/HistoryWindow.xaml`: no DoubleTapped on `TakeCheckpointButton` / `RestoreButton`;
+  Restore and summary tooltips; `MinHeight="0"` on `DiffSearchBox`.
+- `Views/History/HistoryWindow.xaml.cs`: removed `OnTakeCheckpointButtonDoubleTapped` and
+  `OnRestoreButtonDoubleTapped`; three checkpoint items use `KeyboardAcceleratorTextOverride =
+  "Ctrl+Shift+S"`; two false hints dropped; new `CopyDiffTitle()` shared by the summary's
+  double-click and a new "Copy version title" item in `ShowDiffAreaContextMenu`.
+- `MainWindow.xaml` / `.xaml.cs`: `CursorPosButton` loses DoubleTapped; `OnCursorPosTextDoubleTapped`
+  removed.
+- `Views/SuiteHubView.xaml`: `RecentDocsCountPill` and `TemplateCountPill` Border → Button
+  (`Click`, `MinHeight="0"`, names); Refresh button loses DoubleTapped; Meeting Notes tag gains
+  "planning".
+- `Views/SuiteHubView.xaml.cs`: both pills added to the `BridgeAll` table;
+  `OnRecentDocsCountPillClick` (async, reverting tick) and `OnTemplateCountPillClick` replace four
+  Tapped/DoubleTapped handlers; `SetRecentFilterChromeVisible` hands focus off the pill too;
+  `FilterTemplates` sets the pill's spoken name; the category menu counts templates, drops the false
+  Ctrl+F and anchors with `KeyboardContextMenu.PointIn`.
+- Tests: new `Run229OneActionPerClickTests` (10 cases): both History action buttons (no DoubleTapped,
+  handler removed, still bridged), menu hints checked against `OnRootKeyDown`'s real bindings, the
+  title copy in the summary menu, the search box MinHeight, the cursor-position button, the Refresh
+  button, both Suite Hub pills (type, Click, no pointer-only handlers, bridge, tick revert, focus
+  hand-off, spoken name, menu count/anchor), and the Planning preset's tags.
+  `SuiteHubAndTourPolishTests` (run #155 case) now looks for `OnRecentDocsCountPillClick`.
+
+**Skeptical review.**
+- Focus traps: the two Suite Hub pills are newly focusable. `RecentDocsCountPill` collapses with
+  the filter box when there is no history, so `SetRecentFilterChromeVisible` now moves focus to the
+  actions button first. `TemplateCountPill` never collapses. Nothing else in the diff collapses or
+  disables a control.
+- Key swallowing: no PreviewKeyDown or KeyDown handlers were added. The two new bridge rows mark only
+  Shift+F10 and the Menu key as handled, on the pills themselves, and Suite Hub's own Shift+F10
+  handler already returns early on `IsFromBridgedControl`.
+- HoverPolish: both pills are now Buttons in the static tree, so the constructor's
+  `HoverPolish.Apply` gives them the lift. The menus are built per open (no stale flyout). Brushes
+  stay ThemeResource. No file I/O was added.
+- Async: `OnRecentDocsCountPillClick` awaits on the UI context, and its revert compares against the
+  exact tick text, so a reload during the 1.6 s window is never overwritten.
+
+**Verified.** Desktop built to `%TEMP%\ms_run229\b` with 0 errors (it includes the other session's
+uncommitted Shape/SmartArt/Mind Map edits, as runs #221–#228 did). Targeted tests:
+`Run229OneActionPerClickTests` 10/10. **Full test project: 5617 passed / 48 failed / 1 skipped**
+(5 m 48 s). All 48 are the same stale `SuiteHubAndTourPolishTests` cases as runs #221–#228.
+Live UIA, scratch `MARKSMITH_CONFIG_DIR` seeded with two recent documents:
+- `RecentDocsCountPill`: Button, keyboard-focusable, named "Copy recent document paths", with its
+  help text. Invoking it copied both paths and showed "✓ 2 paths", which went back to "2 docs" within
+  3 s.
+- `TemplateCountPill`: Button, focusable, "Search 10 starter templates". With "ops" typed into the
+  filter it read "Show all templates, 2 of 10 shown" (count "2/10 templates"). One invoke cleared the
+  filter (count "10 templates", search text empty) and kept focus on the pill.
+- `RefreshRecentDocsButton` invoked once and loaded the seeded list. `CursorPosButton` is still a
+  focusable "Ln 1, Col 1" with its Go to line help.
+- PIDs launched: 3256 (wrong build folder; killed at once), 13276, 9360, 25412. 9360 and 25412 were
+  killed by PID. Another Marksmith (21572, not launched by this run) was left alone.
+- **Incident:** 13276 was minimized after its first checks, and while minimized its UIA tree shrank
+  to two nodes. It then crashed at 00:28 with a fail-fast (0xc0000409) in `Microsoft.UI.Input.dll`,
+  ~15 min after this run's last interaction (dump: `%LOCALAPPDATA%\CrashDumps\Marksmith.exe.13276.dmp`).
+  `dotnet-dump` shows no managed frames involved: the UI thread was idle in `Application.Start`'s
+  message loop, and none of this run's handlers was on any stack. A native stack needs cdb, which is
+  not installed. Repeating the full check sequence on a fresh instance did not crash.
+- **Also unexplained:** during the 9360 session, a Diagram Studio window opened. Repeating the same
+  invoke sequence on 25412, with the window list checked after every step, opened nothing. The user
+  was active at the PC (idle 0–30 s all run) with this window in front, so it was probably their
+  click, but that is unconfirmed.
+- **Clipboard:** the first pill test overwrote the clipboard, and the save/restore line failed
+  (`Set-Clipboard -Value` was rejected inside that session). Whatever the user had copied before 00:13
+  was lost. The later save/restore read an empty clipboard, so it had nothing to put back.
+- **Not verified live:** the History changes (opening History would have put another window in front
+  of an active user), real Shift+F10 / Enter / double-click input (the user was never idle for
+  2 minutes across a 25-minute wait, so no SendKeys or mouse input was sent), and the category menu.
+  PrintWindow returned a blank frame for the WinUI window, so there is no screenshot.
+
+**Noticed, not fixed:**
+- The template filter box tooltip says "Enter launches first match". With the pill now moving focus
+  into that box, a stray Enter opens a template. That is existing behaviour, but worth a look.
+- The Mermaid zoom-level button and Split-sync toggle still pair Click with DoubleTapped. Both
+  actions are idempotent (reset to 100%, or toggle twice plus an align), so they were left alone.
+- SuiteHubView.xaml.cs has a blank line after every line (CRLF CRLF). Multi-line edits must be
+  double-spaced to match.
+- The rig's `Win` matches "*MarkSmith*", so "Diagram Studio - MarkSmith" can shadow the main window
+  once a studio is open. Match on the exact title.
+
+**Next up (Run #230):**
+1. If the Shape Studio grouping has landed, retire the 48 stale tests and bridge Shape/SmartArt/Mind Map.
+2. With the user idle and the session unlocked: Shift+F10 on both Suite Hub pills (menu anchor), a
+   real double-click on Take Checkpoint and Restore (one dialog, focus stays in it), and History's
+   menus showing "Ctrl+Shift+S" in the accelerator column.
+3. Watch for the `Microsoft.UI.Input` fail-fast. If it recurs on a minimized window, get cdb
+   (Windows SDK Debugging Tools) for a native stack.
+4. Continue the double-action sweep in Settings (`OnPdfPagePreviewDoubleTapped`,
+   `OnVersionTextDoubleTapped`), ExtensionSetupView (`OnStatusCardDoubleTapped`) and OCR
+   (`OnFooterBarDoubleTapped`).
+
+**Total user-visible improvements: 10.**

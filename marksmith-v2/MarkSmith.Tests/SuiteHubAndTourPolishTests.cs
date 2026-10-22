@@ -580,8 +580,8 @@ public class SuiteHubAndTourPolishTests
         var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
         Assert.Contains("x:Name=\"RecentDocsCountPill\"", suiteXaml);
         Assert.Contains("x:Name=\"RecentDocsCountText\"", suiteXaml);
-        Assert.Contains("OnRecentDocsCountPillTapped", suiteXaml);
-        Assert.Contains("OnRecentDocsCountPillTapped", suiteCs);
+        Assert.Contains("OnRecentDocsCountPillClick", suiteXaml);
+        Assert.Contains("OnRecentDocsCountPillClick", suiteCs);
         Assert.Contains("FormatRecentFilesCount", suiteCs);
     }
 

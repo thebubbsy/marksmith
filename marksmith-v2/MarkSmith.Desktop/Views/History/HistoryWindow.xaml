@@ -130,7 +130,6 @@
                      its tooltip can still explain why (disabled controls show no tooltip). -->
                 <Button x:Name="TakeCheckpointButton" Grid.Column="3" Click="OnTakeSnapshotClick" Padding="12,6" CornerRadius="6"
                         VerticalAlignment="Center" ToolTipService.ToolTip="{Binding CheckpointTooltip}"
-                        DoubleTapped="OnTakeCheckpointButtonDoubleTapped"
                         RightTapped="OnTakeCheckpointButtonRightTapped"
                         AutomationProperties.Name="Take checkpoint">
                     <StackPanel Orientation="Horizontal" Spacing="6">
@@ -143,10 +142,9 @@
                 <Button x:Name="RestoreButton" Grid.Column="4" Click="OnRestoreClick" Padding="16,6" CornerRadius="6"
                         Style="{ThemeResource AccentButtonStyle}" IsEnabled="{Binding HasSelection}"
                         FontWeight="SemiBold" VerticalAlignment="Center"
-                        DoubleTapped="OnRestoreButtonDoubleTapped"
                         RightTapped="OnRestoreButtonRightTapped"
                         AutomationProperties.Name="Restore to editor"
-                        ToolTipService.ToolTip="Put the selected version's text back in the editor (Ctrl+Enter · Double-click to restore, Right-click or Shift+F10 for options)">
+                        ToolTipService.ToolTip="Put the selected version's text back in the editor (Ctrl+Enter) · Right-click or Shift+F10 for options">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <FontIcon Glyph="&#xE7A7;" FontSize="13" />
                         <TextBlock Text="Restore to Editor" FontSize="12" />
@@ -493,7 +491,7 @@
                                         IsHitTestVisible="True"
                                         DoubleTapped="OnDiffSummaryDoubleTapped"
                                         RightTapped="OnDiffSummaryRightTapped"
-                                        ToolTipService.ToolTip="Version summary · Double-click to copy title, right-click for options">
+                                        ToolTipService.ToolTip="Version summary · Double-click to copy the title · Right-click, or Shift+F10 on the version ID, for options">
                                 <!-- A Grid, not a horizontal StackPanel: in a StackPanel the title never trims and a
                                      long one pushes the version-ID button out of the pane. -->
                                 <Grid ColumnSpacing="6">
@@ -654,7 +652,7 @@
                                     Visibility="{Binding HasDiffStats, Converter={StaticResource BoolToVis}}">
                                 <StackPanel Orientation="Horizontal" Spacing="4">
                                     <FontIcon Glyph="&#xE721;" FontSize="11" Margin="4,0,2,0" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                    <TextBox x:Name="DiffSearchBox" Width="105" Height="26" Padding="4,2" FontSize="11"
+                                    <TextBox x:Name="DiffSearchBox" Width="105" Height="26" MinHeight="0" Padding="4,2" FontSize="11"
                                              PlaceholderText="Find in diff..." BorderThickness="0" Background="Transparent"
                                              AutomationProperties.Name="Find in diff"
                                              AutomationProperties.HelpText="Enter or F3 for the next match, Shift+F3 for the previous one."

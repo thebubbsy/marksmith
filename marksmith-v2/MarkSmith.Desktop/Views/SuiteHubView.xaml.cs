@@ -104,6 +104,10 @@ public sealed partial class SuiteHubView : UserControl
 
             (RefreshRecentDocsButton, OnRefreshRecentDocsButtonRightTapped),
 
+            (RecentDocsCountPill, OnRecentDocsCountPillRightTapped),
+
+            (TemplateCountPill, OnTemplateCountPillRightTapped),
+
             (Card1DiagramButton, OnCard1ButtonRightTapped),
 
             (Card1ShapeButton, OnCard1ButtonRightTapped),
@@ -2126,7 +2130,9 @@ public sealed partial class SuiteHubView : UserControl
 
             {
 
-                if (ReferenceEquals(d, RecentSearchBox)) { RecentDocsActionBtn.Focus(FocusState.Programmatic); break; }
+                // The count pill is a focusable button now too, and it collapses with the filter box.
+
+                if (ReferenceEquals(d, RecentSearchBox) || ReferenceEquals(d, RecentDocsCountPill)) { RecentDocsActionBtn.Focus(FocusState.Programmatic); break; }
 
             }
 
@@ -2140,11 +2146,9 @@ public sealed partial class SuiteHubView : UserControl
 
 
 
-    private void OnRecentDocsCountPillTapped(object sender, TappedRoutedEventArgs e)
+    private async void OnRecentDocsCountPillClick(object sender, RoutedEventArgs e)
 
     {
-
-        e.Handled = true;
 
         var files = App.RecentFiles?.Load() ?? new List<string>();
 
@@ -2160,21 +2164,21 @@ public sealed partial class SuiteHubView : UserControl
 
         ClipboardWriter.Set(dp);
 
-        if (RecentDocsCountText != null) RecentDocsCountText.Text = $"\u2713 {existing.Count} paths";
-
         SetNotification($"Copied {existing.Count} recent document paths to clipboard.", success: true);
 
-    }
+        if (RecentDocsCountText is null) return;
 
+        // A brief tick on the pill, then back to the count: it used to keep saying "3 paths" until the next refresh.
 
+        var before = RecentDocsCountText.Text;
 
-    private void OnRecentDocsCountPillDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        var copied = $"\u2713 {existing.Count} paths";
 
-    {
+        RecentDocsCountText.Text = copied;
 
-        e.Handled = true;
+        await System.Threading.Tasks.Task.Delay(1600);
 
-        OnClearRecentFilterClick(sender, new RoutedEventArgs());
+        if (RecentDocsCountText.Text == copied) RecentDocsCountText.Text = before;
 
     }
 
@@ -6025,18 +6029,6 @@ private void OnClearRecentFilterClick(object sender, RoutedEventArgs e)
 
 
 
-    private void OnRefreshRecentDocsButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-
-    {
-
-        e.Handled = true;
-
-        OnRefreshRecentDocsClick(sender, new RoutedEventArgs());
-
-    }
-
-
-
     private void OnRecentDocsStripRightTapped(object sender, RightTappedRoutedEventArgs e)
 
     {
@@ -6963,9 +6955,15 @@ Renders raw Markdown into an OpenXML or PDF binary document bundle.
 
             ToolTipService.SetToolTip(TemplateCountPill, string.IsNullOrEmpty(query)
 
-                ? $"Starter templates ({total}) · Click to show all, double-click to filter, right-click for options"
+                ? $"Starter templates ({total}) · Click to search them · Right-click or Shift+F10 for categories"
 
-                : $"Filtered templates: {visibleCount} of {total} match '{query}' · Click to clear filter");
+                : $"Filtered templates: {visibleCount} of {total} match '{query}' · Click to show all · Right-click or Shift+F10 for categories");
+
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(TemplateCountPill, string.IsNullOrEmpty(query)
+
+                ? $"Search {total} starter templates"
+
+                : $"Show all templates, {visibleCount} of {total} shown");
 
         }
 
@@ -6997,13 +6995,17 @@ Renders raw Markdown into an OpenXML or PDF binary document bundle.
 
 
 
-    private void OnTemplateCountPillTapped(object sender, TappedRoutedEventArgs e)
+    // One action per click: a filtered list is cleared; an unfiltered one hands off to the search box.
+
+    // (Tapped cleared and DoubleTapped focused, so a double-click did both, and the keyboard could do neither.)
+
+    private void OnTemplateCountPillClick(object sender, RoutedEventArgs e)
 
     {
 
-        e.Handled = true;
+        if (TemplateSearchBox is null) return;
 
-        if (TemplateSearchBox != null && !string.IsNullOrEmpty(TemplateSearchBox.Text))
+        if (!string.IsNullOrEmpty(TemplateSearchBox.Text))
 
         {
 
@@ -7013,17 +7015,13 @@ Renders raw Markdown into an OpenXML or PDF binary document bundle.
 
         }
 
-    }
+        else
 
+        {
 
+            TemplateSearchBox.Focus(FocusState.Keyboard);
 
-    private void OnTemplateCountPillDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-
-    {
-
-        e.Handled = true;
-
-        TemplateSearchBox?.Focus(FocusState.Programmatic);
+        }
 
     }
 
@@ -7043,7 +7041,7 @@ Renders raw Markdown into an OpenXML or PDF binary document bundle.
 
         {
 
-            Text = "All Templates (10)",
+            Text = $"All templates ({StarterTemplatesPanel?.Children.OfType<Button>().Count() ?? 0})",
 
             Icon = new FontIcon { Glyph = "\uE81C" }
 
@@ -7171,7 +7169,7 @@ Renders raw Markdown into an OpenXML or PDF binary document bundle.
 
         {
 
-            Text = "Focus search box (Ctrl+F)",
+            Text = "Search templates",
 
             Icon = new FontIcon { Glyph = "\uE721" }
 
@@ -7183,7 +7181,7 @@ Renders raw Markdown into an OpenXML or PDF binary document bundle.
 
 
 
-        menu.ShowAt(sender as FrameworkElement ?? TemplateCountPill);
+        menu.ShowAt(TemplateCountPill, KeyboardContextMenu.PointIn(e, TemplateCountPill));
 
     }
 

@@ -1916,7 +1916,7 @@ public sealed partial class HistoryWindow : Window
 
         var starToggle = new ToggleMenuFlyoutItem
         {
-            Text = "Show starred versions only (Ctrl+Shift+S)",
+            Text = "Show starred versions only",
             Icon = new FontIcon { Glyph = "\uE734" },
             IsChecked = _vm.IsStarredOnlyFilter
         };
@@ -1928,8 +1928,9 @@ public sealed partial class HistoryWindow : Window
 
         var checkpointItem = new MenuFlyoutItem
         {
-            Text = "Take checkpoint (Ctrl+Shift+C)",
-            Icon = new FontIcon { Glyph = "\uE74E" }
+            Text = "Take checkpoint",
+            Icon = new FontIcon { Glyph = "\uE74E" },
+            KeyboardAcceleratorTextOverride = "Ctrl+Shift+S"
         };
         checkpointItem.Click += (_, _) => OnTakeSnapshotClick(this, new RoutedEventArgs());
         menu.Items.Add(checkpointItem);
@@ -1946,7 +1947,7 @@ public sealed partial class HistoryWindow : Window
 
         var copyPath = new MenuFlyoutItem
         {
-            Text = "Copy full file path (Ctrl+Shift+C)",
+            Text = "Copy full file path",
             Icon = new FontIcon { Glyph = "\uE8C8" }
         };
         copyPath.Click += (_, _) =>
@@ -2032,8 +2033,9 @@ public sealed partial class HistoryWindow : Window
 
         var checkpointItem = new MenuFlyoutItem
         {
-            Text = "Take checkpoint (Ctrl+Shift+C)",
-            Icon = new FontIcon { Glyph = "\uE74E" }
+            Text = "Take checkpoint",
+            Icon = new FontIcon { Glyph = "\uE74E" },
+            KeyboardAcceleratorTextOverride = "Ctrl+Shift+S"
         };
         checkpointItem.Click += (_, _) => OnTakeSnapshotClick(this, new RoutedEventArgs());
         menu.Items.Add(checkpointItem);
@@ -2060,6 +2062,12 @@ public sealed partial class HistoryWindow : Window
         // A double-click on the version-ID button bubbles here after its two Clicks copied the ID;
         // copying the title on top would leave the wrong text on the clipboard.
         if (IsWithin(e.OriginalSource as DependencyObject, CommitShaCopyPill)) return;
+        CopyDiffTitle();
+    }
+
+    // Double-click on the summary, or "Copy version title" in its menu (Shift+F10 on the version ID).
+    private void CopyDiffTitle()
+    {
         var title = _vm.DiffTitle;
         if (!string.IsNullOrWhiteSpace(title))
         {
@@ -2239,6 +2247,18 @@ public sealed partial class HistoryWindow : Window
             copyStats.Click += (_, _) => CopyDiffStats();
             menu.Items.Add(copyStats);
             menu.Items.Add(new MenuFlyoutSeparator());
+        }
+
+        // The summary's double-click copy, reachable from the keyboard: Shift+F10 on the version ID opens this menu.
+        if (_vm.HasSelection && !string.IsNullOrWhiteSpace(_vm.DiffTitle))
+        {
+            var copyTitle = new MenuFlyoutItem
+            {
+                Text = "Copy version title",
+                Icon = new FontIcon { Glyph = "\uE8C8" }
+            };
+            copyTitle.Click += (_, _) => CopyDiffTitle();
+            menu.Items.Add(copyTitle);
         }
 
         var copyPatch = new MenuFlyoutItem
@@ -2658,12 +2678,6 @@ public sealed partial class HistoryWindow : Window
         menu.ShowAt(fe, position);
     }
 
-    private void OnTakeCheckpointButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-    {
-        e.Handled = true;
-        OnTakeSnapshotClick(sender, new RoutedEventArgs());
-    }
-
     private void OnTakeCheckpointButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
     {
         e.Handled = true;
@@ -2671,8 +2685,9 @@ public sealed partial class HistoryWindow : Window
 
         var checkpointItem = new MenuFlyoutItem
         {
-            Text = "Take checkpoint (Ctrl+Shift+C)",
-            Icon = new FontIcon { Glyph = "\uE74E" }
+            Text = "Take checkpoint",
+            Icon = new FontIcon { Glyph = "\uE74E" },
+            KeyboardAcceleratorTextOverride = "Ctrl+Shift+S"
         };
         checkpointItem.Click += (_, _) => OnTakeSnapshotClick(this, new RoutedEventArgs());
         menu.Items.Add(checkpointItem);
@@ -2720,15 +2735,6 @@ public sealed partial class HistoryWindow : Window
 
         if (sender is FrameworkElement fe)
             menu.ShowAt(fe, KeyboardContextMenu.PointIn(e, fe));
-    }
-
-    private void OnRestoreButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-    {
-        e.Handled = true;
-        if (_vm.HasSelection)
-        {
-            OnRestoreClick(sender, new RoutedEventArgs());
-        }
     }
 
     private void OnRestoreButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
