@@ -610,11 +610,14 @@
                             </Border>
 
                             <!-- Delta Meter -->
-                            <Border x:Name="DeltaMeterBorder" Grid.Column="4" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="6" Padding="8,3" VerticalAlignment="Center"
-                                    IsHitTestVisible="True"
-                                    DoubleTapped="OnDeltaMeterDoubleTapped"
+                            <!-- Buttons, not Borders, so Tab reaches the meters: Enter copies, Shift+F10 opens the menu. -->
+                            <Button x:Name="DeltaMeterButton" Grid.Column="4" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="6" Padding="8,3" MinHeight="0" VerticalAlignment="Center"
+                                    BorderThickness="0"
+                                    Click="OnDeltaMeterClick"
                                     RightTapped="OnDeltaMeterRightTapped"
-                                    ToolTipService.ToolTip="Lines added and removed compared with the version before · Double-click to copy stats, right-click for options"
+                                    AutomationProperties.Name="{Binding DiffStats}"
+                                    AutomationProperties.HelpText="Line delta against the version before. Enter copies it, Shift+F10 for options."
+                                    ToolTipService.ToolTip="Lines added and removed compared with the version before · Click to copy, Right-click or Shift+F10 for options"
                                     Visibility="{Binding HasDiffStats, Converter={StaticResource BoolToVis}}">
                                 <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                                     <TextBlock x:Name="DiffStatsText" Text="{Binding DiffStats}" FontSize="11" FontFamily="Cascadia Mono, Consolas, monospace"
@@ -629,30 +632,30 @@
                                         <Rectangle x:Name="DiffRemovedRect" Grid.Column="1" Fill="{ThemeResource SystemFillColorCriticalBrush}" RadiusX="1.5" RadiusY="1.5" />
                                     </Grid>
                                 </StackPanel>
-                            </Border>
+                            </Button>
 
                             <!-- Word Delta Meter Pill -->
-                            <Border x:Name="DiffWordDeltaPill" Grid.Column="5" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="6" Padding="8,3" VerticalAlignment="Center"
-                                    IsHitTestVisible="True"
-                                    Tapped="OnDiffWordDeltaPillTapped"
-                                    DoubleTapped="OnDiffWordDeltaPillDoubleTapped"
+                            <Button x:Name="DiffWordDeltaPill" Grid.Column="5" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="6" Padding="8,3" MinHeight="0" VerticalAlignment="Center"
+                                    BorderThickness="0"
+                                    Click="OnDiffWordDeltaPillClick"
                                     RightTapped="OnDiffWordDeltaPillRightTapped"
-                                    ToolTipService.ToolTip="Prose &amp; code word delta (+added / -removed words) · Click to copy word stats, right-click for options"
+                                    AutomationProperties.Name="Word delta"
+                                    AutomationProperties.HelpText="Words added and removed. Enter copies it, Shift+F10 for the detailed copy and other options."
+                                    ToolTipService.ToolTip="Prose &amp; code word delta (+added / -removed words) · Click to copy, Right-click or Shift+F10 for options"
                                     Visibility="{Binding HasDiffStats, Converter={StaticResource BoolToVis}}">
                                 <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                                     <FontIcon Glyph="&#xE8C1;" FontSize="10" Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
                                     <TextBlock x:Name="DiffWordDeltaText" Text="+0 / -0 words" FontSize="11" FontFamily="Cascadia Mono, Consolas, monospace"
                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
                                 </StackPanel>
-                            </Border>
+                            </Button>
 
                             <!-- Copy Action Button -->
                             <Button x:Name="CopyToolbarButton" Grid.Column="6" Click="OnCopyToolbarButtonClick"
-                                    DoubleTapped="OnCopyToolbarButtonDoubleTapped"
                                     VerticalAlignment="Center" Padding="8,4" CornerRadius="6"
                                     Background="{ThemeResource SubtleFillColorTransparentBrush}"
                                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
-                                    ToolTipService.ToolTip="Copy diff patch (Ctrl+Shift+C · Double-click to copy, Right-click for options)"
+                                    ToolTipService.ToolTip="Copy diff patch (Ctrl+Shift+C) · Right-click or Shift+F10 for options"
                                     AutomationProperties.Name="Copy diff patch (Ctrl+Shift+C)"
                                     Visibility="{Binding HasSelection, Converter={StaticResource BoolToVis}}">
                                 <Button.ContextFlyout>

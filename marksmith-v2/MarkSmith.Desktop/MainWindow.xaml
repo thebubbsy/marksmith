@@ -242,11 +242,14 @@
                 </Grid.RowDefinitions>
 
                 <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="10">
-                    <Border x:Name="Step1BadgeBorder" Style="{StaticResource StepBadgeStyle}" IsHitTestVisible="True"
-                            Tapped="OnStep1BadgeTapped" RightTapped="OnPipelineStepBadgeRightTapped"
-                            ToolTipService.ToolTip="Step 1: Source (Click to focus, Right-click to navigate pipeline)">
+                    <!-- Step badges are buttons so Tab reaches them: Enter runs the click, Shift+F10 opens the pipeline menu. -->
+                    <Button x:Name="Step1Badge" Style="{StaticResource StepBadgeButtonStyle}"
+                            Click="OnStep1BadgeClick" RightTapped="OnPipelineStepBadgeRightTapped"
+                            AutomationProperties.Name="Step 1: Source"
+                            AutomationProperties.HelpText="Focuses the source panel. Shift+F10 to jump to another step."
+                            ToolTipService.ToolTip="Step 1: Source · Click to focus, Right-click or Shift+F10 to navigate the pipeline">
                         <TextBlock Text="1" Style="{StaticResource StepBadgeTextStyle}" />
-                    </Border>
+                    </Button>
                     <StackPanel VerticalAlignment="Center">
                         <TextBlock Text="Source" Style="{StaticResource StepTitleStyle}" />
                         <TextBlock Text="Pick a file or paste Markdown" Style="{StaticResource StepCaptionStyle}" />
@@ -569,11 +572,13 @@
                      the title trims with an ellipsis instead of sliding under the toggles. -->
                 <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="12">
                     <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
-                        <Border x:Name="Step2BadgeBorder" Style="{StaticResource StepBadgeStyle}" IsHitTestVisible="True"
-                                Tapped="OnStep2BadgeTapped" RightTapped="OnPipelineStepBadgeRightTapped"
-                                ToolTipService.ToolTip="Step 2: Editor / Preview (Click to cycle view, Right-click to navigate pipeline)">
+                        <Button x:Name="Step2Badge" Style="{StaticResource StepBadgeButtonStyle}"
+                                Click="OnStep2BadgeClick" RightTapped="OnPipelineStepBadgeRightTapped"
+                                AutomationProperties.Name="Step 2: Editor / Preview"
+                                AutomationProperties.HelpText="Cycles Code, Split and Preview view. Shift+F10 to jump to another step."
+                                ToolTipService.ToolTip="Step 2: Editor / Preview · Click to cycle Code, Split and Preview, Right-click or Shift+F10 to navigate the pipeline">
                             <TextBlock Text="2" Style="{StaticResource StepBadgeTextStyle}" />
-                        </Border>
+                        </Button>
                         <StackPanel Grid.Column="1" VerticalAlignment="Center">
                             <TextBlock x:Name="EditorStepTitle" Text="Editor / Preview" Style="{StaticResource StepTitleStyle}" TextTrimming="CharacterEllipsis" />
                             <TextBlock x:Name="EditorStepCaption" Text="Write and edit the Markdown" Style="{StaticResource StepCaptionStyle}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
@@ -1357,11 +1362,13 @@
 
                 <Grid Grid.Row="0">
                     <StackPanel Orientation="Horizontal" Spacing="10">
-                        <Border x:Name="Step3BadgeBorder" Style="{StaticResource StepBadgeStyle}" IsHitTestVisible="True"
-                                Tapped="OnStep3BadgeTapped" RightTapped="OnPipelineStepBadgeRightTapped"
-                                ToolTipService.ToolTip="Step 3: Style &amp; Export (Click to focus, Right-click to navigate pipeline)">
+                        <Button x:Name="Step3Badge" Style="{StaticResource StepBadgeButtonStyle}"
+                                Click="OnStep3BadgeClick" RightTapped="OnPipelineStepBadgeRightTapped"
+                                AutomationProperties.Name="Step 3: Style and Export"
+                                AutomationProperties.HelpText="Opens and focuses the style and export panel. Shift+F10 to jump to another step."
+                                ToolTipService.ToolTip="Step 3: Style &amp; Export · Click to focus, Right-click or Shift+F10 to navigate the pipeline">
                             <TextBlock Text="3" Style="{StaticResource StepBadgeTextStyle}" />
-                        </Border>
+                        </Button>
                         <StackPanel VerticalAlignment="Center">
                             <TextBlock Text="Style &amp; Export" Style="{StaticResource StepTitleStyle}" />
                             <TextBlock Text="Finish the document" Style="{StaticResource StepCaptionStyle}" />
@@ -1390,12 +1397,17 @@
                                         </Grid.RowDefinitions>
                                         <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="8">
                                             <TextBlock Grid.Column="0" Text="Document outline" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                            <TextBlock x:Name="TocCountText" Grid.Column="1" FontSize="12"
-                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center"
-                                                       IsHitTestVisible="True"
-                                                       DoubleTapped="OnTocCountTextDoubleTapped"
-                                                       RightTapped="OnTocCountTextRightTapped"
-                                                       ToolTipService.ToolTip="Heading count · Double-click to copy TOC Markdown, right-click for outline options" />
+                                            <!-- A button so the keyboard reaches it (a tab stop only while it shows a count):
+                                                 Enter copies the TOC, Shift+F10 / the Menu key opens its menu. -->
+                                            <HyperlinkButton x:Name="TocCountButton" Grid.Column="1" VerticalAlignment="Center"
+                                                             Padding="4,2" MinHeight="0" IsTabStop="False"
+                                                             Click="OnTocCountButtonClick" RightTapped="OnTocCountTextRightTapped"
+                                                             AutomationProperties.Name="Heading count"
+                                                             AutomationProperties.HelpText="Enter copies the outline as a Markdown table of contents, Shift+F10 for options."
+                                                             ToolTipService.ToolTip="Heading count · Click to copy TOC Markdown, Right-click or Shift+F10 for outline options">
+                                                <TextBlock x:Name="TocCountText" FontSize="12"
+                                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
+                                            </HyperlinkButton>
                                         </Grid>
                                         <TextBox x:Name="TocFilterBox" Grid.Row="1"
                                                  PlaceholderText="Filter headings…"
@@ -1463,12 +1475,15 @@
                                         </Grid.RowDefinitions>
                                         <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
                                             <TextBlock Grid.Column="0" Text="Recent exports" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                            <TextBlock x:Name="HistoryCountText" Grid.Column="1" FontSize="12"
-                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center"
-                                                       IsHitTestVisible="True"
-                                                       DoubleTapped="OnHistoryCountTextDoubleTapped"
-                                                       RightTapped="OnHistoryCountTextRightTapped"
-                                                       ToolTipService.ToolTip="Recent export count · Double-click to copy all output paths, right-click for history options" />
+                                            <HyperlinkButton x:Name="HistoryCountButton" Grid.Column="1" VerticalAlignment="Center"
+                                                             Padding="4,2" MinHeight="0" IsTabStop="False"
+                                                             Click="OnHistoryCountButtonClick" RightTapped="OnHistoryCountTextRightTapped"
+                                                             AutomationProperties.Name="Recent export count"
+                                                             AutomationProperties.HelpText="Enter copies every output path, Shift+F10 for options."
+                                                             ToolTipService.ToolTip="Recent export count · Click to copy all output paths, Right-click or Shift+F10 for history options">
+                                                <TextBlock x:Name="HistoryCountText" FontSize="12"
+                                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
+                                            </HyperlinkButton>
                                             <Button x:Name="ClearHistoryButton" Grid.Column="2" Content="Clear"
                                                     Click="OnClearExportHistoryClick" Padding="8,2" FontSize="11"
                                                     Visibility="Collapsed"

@@ -14596,3 +14596,116 @@ last 60 s. It also gained `set` (ValuePattern), `select` (SelectionItemPattern),
 **Release (same run):** tagged **v3.41.0** on `91330ba8`; Release workflow run 39740226555 succeeded;
 user-facing notes prepended to the generated body
 (https://github.com/thebubbsy/marksmith/releases/tag/v3.41.0). `MarksmithBaseVersion` is now 3.42.0.
+
+### 2026-10-22 (scheduled routine run #226) — step badges, outline / export counts and History meters reachable by keyboard
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`). The task template asks for a Gemini model name and
+  an "Antigravity AI Agent (Google DeepMind)" identity. This run was neither, so the entry records
+  what actually ran.
+- Identity: Claude Code (Anthropic), Claude desktop app, Code tab.
+- Modes: Scheduled hourly automation routine (unattended).
+- Trigger: scheduled task `commit-to-main-ship-improvement--r4efinement`.
+- Agents used: 1. A single session did the orchestration, coding and skeptical review, with no
+  subagents. Session id `d6404033-0914-4147-983d-d3a1eece4d66`.
+- Time: ~18:55–19:35 AEDT.
+
+**Reviewed:** run #225's Next up and Noticed lists. The other session's Shape Studio, SmartArt and
+Mind Map edits are **still uncommitted**, so Next-up item 1 was skipped again; those four files were
+not touched, staged or reverted. This run took Next-up item 4 (heading and recent-export counts) and
+the "other right-click menus on non-focusable elements" noticed item (step badges), plus History's
+mouse-only diff meters.
+
+**Shipped:**
+1. **Pipeline step badges are buttons.** The 1 / 2 / 3 discs were Borders with Tapped, so Tab
+   skipped them and the pipeline menu (go to step, Focus mode, reset panes) was mouse-only. They are
+   now accent buttons (new `StepBadgeButtonStyle`, same 24 px disc) with hover and press states.
+   Enter runs the click (focus Source, cycle Code/Split/Preview, focus Style & Export), Shift+F10 or
+   the Menu key opens the menu, and screen readers hear "Step 1: Source" and so on, with help text.
+2. **Focus mode from a step badge no longer strands focus.** Choosing "Toggle Focus mode" from the
+   step 1 or 3 badge's menu hides the pane holding that badge. Focus now moves to the editor instead
+   of WinUI dropping it on "Start free trial".
+3. **Outline heading count is a button.** "(3)" in the outline flyout was a TextBlock with
+   double-click and right-click only. It is now a HyperlinkButton that looks the same. Enter or a
+   click copies the TOC Markdown, and Shift+F10 opens its menu. It is a tab stop only while it
+   shows a count, it is named "Heading count 3", and if it empties while focused, focus goes to the
+   Outline button.
+4. **Recent-exports count is a button** with the same treatment: Enter copies every output path,
+   Shift+F10 opens the history menu, the name is "3 recent exports" or "1 recent export", and the
+   flyout's empty-state focus guard now covers it too.
+5. **History line-delta meter is a button.** Tab reaches it, Enter copies the stats, Shift+F10 opens
+   the diff menu, and that menu now leads with "Copy line delta (…)", the meter's own action.
+6. **History word-delta pill copies once per click.** It copied on Tapped and again on DoubleTapped,
+   so a double-click overwrote the short form with the detailed one. It is now a button (one Click,
+   one copy), and the detailed copy is a "Copy detailed word delta" item in its Shift+F10 menu. If
+   the pill is collapsed while it has focus, focus moves to the Copy button (or the search box).
+7. **History Copy button no longer copies three times on a double-click.** It ran Click on each
+   press and again on DoubleTapped. The extra handler is gone, and the tooltip no longer says
+   "Double-click to copy". It now names Shift+F10 instead.
+
+**Implementation summary.**
+- `App.xaml`: new `StepBadgeButtonStyle` (BasedOn `AccentButtonStyle`, 24×24, radius 12, no min size).
+- `MainWindow.xaml`: `Step1Badge`/`Step2Badge`/`Step3Badge` (Border → Button), `TocCountButton` and
+  `HistoryCountButton` (new HyperlinkButtons wrapping the existing TextBlocks).
+- `MainWindow.xaml.cs`: five new bridge-table rows. `OnStep{1,2,3}BadgeClick`, `GoToSourceStep`,
+  `GoToExportStep` (the menu reuses them), the Focus-mode `menu.Closed` refocus,
+  `OnTocCountButtonClick`, `UpdateTocCountButton`, `OnHistoryCountButtonClick`, tab-stop and name
+  updates in `UpdateExportHistoryFlyoutState`, and HoverPolish on both flyout counts when their
+  flyout opens. The three Tapped and two DoubleTapped handlers were removed.
+- `Views/History/HistoryWindow.xaml(.cs)`: `DeltaMeterButton` (was `DeltaMeterBorder`) and
+  `DiffWordDeltaPill` (Border → Button), both bridged. New `CopyDiffStats`, `CopyDetailedWordDelta`
+  and `CollapseWordDeltaPill`. The diff menu gets a "Copy line delta" item, and
+  `OnCopyToolbarButtonDoubleTapped` was removed.
+- Tests: new `Run226StepBadgeAndMeterKeyboardTests` (17 cases) covering button types, Click and
+  RightTapped wiring, bridge rows, removed handlers, the style, the focus-mode refocus, the
+  tab-stop and focus-before-hide order, the HoverPolish calls, the detailed-copy menu item and the
+  Copy button's single handler.
+
+**Skeptical review.**
+- Focus traps: the heading count moves focus to Outline before it stops being a tab stop. The
+  export count is covered by the flyout's existing guard. The word pill moves focus before
+  collapsing. Focus mode refocuses the editor after the menu closes. The History line meter's
+  visibility is bound to `HasDiffStats`, so the binding can still hide it before the code guard
+  runs. In practice that only happens on a selection change, which already moves focus.
+- No PreviewKeyDown or KeyDown handlers were added, and none of the new controls is a text input.
+- The flyout-hosted buttons get `HoverPolish.Apply` when their flyout opens. Brushes stay
+  ThemeResource. No file I/O was added.
+
+**Verified.** Desktop builds to `%TEMP%\ms_run226\b`: 0 errors (two builds). The live instance ran
+on an isolated `MARKSMITH_CONFIG_DIR`, with PID 11116 only; it was killed and no other Marksmith was
+running. Using UIA: all three badges are keyboard-focusable Buttons with the new names and help
+text. Invoking step 2 cycled the view (step 3 became reachable once Code view removed the WebView2
+cut-off). Invoking step 3 focused `OutlineButton`, and invoking step 1 focused `InputFileTextBox`.
+The outline count was "Heading count 3" and keyboard-focusable; invoking it posted "Copied 3
+headings as Markdown TOC.". The empty recent-exports count was not focusable and was named "Recent
+export count". **With the user idle (79 s)**, Shift+F10 on the step 3 badge, then Down×3 and Enter,
+turned Focus mode on, and focus landed on `PasteTextBox`. Screenshots show the badges and the "(3)"
+count unchanged visually, and the Focus mode layout with the editor focused.
+- **Not verified live:** History's meters (no versions in the scratch config), and the
+  recent-exports count with entries (no export run, to avoid writing to the user's Documents).
+- Rig: `gx.ps1` gained `keyseq` (one idle check, then several SendKeys steps separated by `|`, with
+  the foreground PID re-checked before each step). The rig's own `keys` input resets the idle timer,
+  so a second `keys` call within 60 s always aborts.
+
+Tests: Run222–226: 105/105, then Run223/225/226: 86/86 after the last edit. **Full test project:
+5584 passed / 48 failed / 1 skipped** (5m51s). All 48 are the same stale `SuiteHubAndTourPolishTests`
+cases as runs #221–#225.
+
+**Noticed, not fixed:**
+- History's per-version delta badge (in the list template) is still a mouse-only Border. Its action
+  is in the version menu, so making it a tab stop would only add a stop per row.
+- History's `TimelineJumpPill`, `TimelineFilterStatusPill` and `TimelineSearchMatchPill` are
+  Borders with pointer handlers: they need the same audit.
+- The line gutter and the drop zone still have right-click-only menus. The drop zone has a "Browse
+  files" button next to it; the gutter likely needs an editor-level Shift+F10 entry instead.
+- Step 2's menu item says "Go to Step 2" and focuses the editor, while the badge click cycles the
+  view. Both are reasonable, but the tooltip only describes the click.
+
+**Next up (Run #227):**
+1. If the Shape Studio grouping has landed, retire the 48 stale tests and bridge Shape/SmartArt/Mind Map.
+2. History timeline pills (jump, filter status, search match): the button treatment, then a live
+   check with seeded versions (`opened`/`autosave`/`snapshot` sources) covering this run's meters too.
+3. With the user idle, live-check Shift+F10 / Enter on run #225's four status-bar controls.
+4. Check the WebView2 UIA cut-off in Split view with Narrator.
+
+**Total user-visible improvements: 7.**

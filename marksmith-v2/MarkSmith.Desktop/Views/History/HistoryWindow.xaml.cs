@@ -66,7 +66,9 @@ public sealed partial class HistoryWindow : Window
             (ClearFiltersButton, OnClearFiltersButtonRightTapped),
             (UnifiedToggle, OnDiffModeToggleRightTapped),
             (SplitToggle, OnDiffModeToggleRightTapped),
-            (PreviewToggle, OnDiffModeToggleRightTapped));
+            (PreviewToggle, OnDiffModeToggleRightTapped),
+            (DeltaMeterButton, OnDeltaMeterRightTapped),
+            (DiffWordDeltaPill, OnDiffWordDeltaPillRightTapped));
         Title = "Version History — MarkSmith";
         _main = mainViewModel;
 
@@ -428,7 +430,7 @@ public sealed partial class HistoryWindow : Window
         if (string.IsNullOrWhiteSpace(stats) || !_vm.HasDiffStats)
         {
             DiffVisualStatBar.Visibility = Visibility.Collapsed;
-            if (DiffWordDeltaPill != null) DiffWordDeltaPill.Visibility = Visibility.Collapsed;
+            CollapseWordDeltaPill();
             return;
         }
 
@@ -453,7 +455,7 @@ public sealed partial class HistoryWindow : Window
         if (total == 0)
         {
             DiffVisualStatBar.Visibility = Visibility.Collapsed;
-            if (DiffWordDeltaPill != null) DiffWordDeltaPill.Visibility = Visibility.Collapsed;
+            CollapseWordDeltaPill();
             return;
         }
 
@@ -467,6 +469,20 @@ public sealed partial class HistoryWindow : Window
         if (DiffRemovedRect != null) DiffRemovedRect.Visibility = removed > 0 ? Visibility.Visible : Visibility.Collapsed;
 
         UpdateWordDeltaStats();
+    }
+
+    // The meters are tab stops now: never collapse one that holds focus without first handing
+    // focus to its neighbour, the copy button (or the search box when nothing is selected).
+    private void CollapseWordDeltaPill()
+    {
+        if (DiffWordDeltaPill is null) return;
+        if (DiffWordDeltaPill.FocusState != FocusState.Unfocused
+            || (DeltaMeterButton is not null && DeltaMeterButton.FocusState != FocusState.Unfocused))
+        {
+            if (CopyToolbarButton is { Visibility: Visibility.Visible }) CopyToolbarButton.Focus(FocusState.Programmatic);
+            else SearchBox?.Focus(FocusState.Programmatic);
+        }
+        DiffWordDeltaPill.Visibility = Visibility.Collapsed;
     }
 
     private void UpdateWordDeltaStats()
@@ -500,7 +516,8 @@ public sealed partial class HistoryWindow : Window
         int net = addedWords - removedWords;
         string netSign = net >= 0 ? $"+{net:N0}" : $"{net:N0}";
         DiffWordDeltaText.Text = $"+{addedWords:N0} / -{removedWords:N0} words";
-        ToolTipService.SetToolTip(DiffWordDeltaPill, $"Word delta: +{addedWords:N0} added, -{removedWords:N0} removed (net {netSign} words) · Click to copy, Right-click for options");
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(DiffWordDeltaPill, $"Word delta {DiffWordDeltaText.Text}");
+        ToolTipService.SetToolTip(DiffWordDeltaPill, $"Word delta: +{addedWords:N0} added, -{removedWords:N0} removed (net {netSign} words) · Click to copy, Right-click or Shift+F10 for options");
     }
 
     private static int CountWordsInLine(string? text)
@@ -2026,9 +2043,10 @@ public sealed partial class HistoryWindow : Window
         ShowDiffAreaContextMenu(DiffSummaryPanel, KeyboardContextMenu.PointIn(e, DiffSummaryPanel));
     }
 
-    private void OnDeltaMeterDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    private void OnDeltaMeterClick(object sender, RoutedEventArgs e) => CopyDiffStats();
+
+    private void CopyDiffStats()
     {
-        e.Handled = true;
         var stats = _vm.DiffStats;
         if (!string.IsNullOrWhiteSpace(stats))
         {
@@ -2042,12 +2060,13 @@ public sealed partial class HistoryWindow : Window
     private void OnDeltaMeterRightTapped(object sender, RightTappedRoutedEventArgs e)
     {
         e.Handled = true;
-        ShowDiffAreaContextMenu(DeltaMeterBorder, KeyboardContextMenu.PointIn(e, DeltaMeterBorder));
+        ShowDiffAreaContextMenu(DeltaMeterButton, KeyboardContextMenu.PointIn(e, DeltaMeterButton));
     }
 
-    private void OnDiffWordDeltaPillTapped(object sender, TappedRoutedEventArgs e)
+    // One click, one copy: the pill used to copy on Tapped and again on DoubleTapped, so a
+    // double-click overwrote the short form with the detailed one. The detailed copy is in the menu.
+    private void OnDiffWordDeltaPillClick(object sender, RoutedEventArgs e)
     {
-        e.Handled = true;
         int net = _lastAddedWords - _lastRemovedWords;
         string netSign = net >= 0 ? $"+{net:N0}" : $"{net:N0}";
         string text = $"+{_lastAddedWords:N0} / -{_lastRemovedWords:N0} words (net {netSign})";
@@ -2057,9 +2076,8 @@ public sealed partial class HistoryWindow : Window
         _vm.ShowNotice($"Copied word delta statistics: {text}");
     }
 
-    private void OnDiffWordDeltaPillDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    private void CopyDetailedWordDelta()
     {
-        e.Handled = true;
         int net = _lastAddedWords - _lastRemovedWords;
         string netSign = net >= 0 ? $"+{net:N0}" : $"{net:N0}";
         var target = _vm.Selected;
@@ -2092,6 +2110,14 @@ public sealed partial class HistoryWindow : Window
             _vm.ShowNotice($"Copied word delta: {text}");
         };
         menu.Items.Add(copyWordDelta);
+
+        var copyDetailed = new MenuFlyoutItem
+        {
+            Text = "Copy detailed word delta",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyDetailed.Click += (_, _) => CopyDetailedWordDelta();
+        menu.Items.Add(copyDetailed);
 
         var copyPatch = new MenuFlyoutItem
         {
@@ -2136,6 +2162,19 @@ public sealed partial class HistoryWindow : Window
     private void ShowDiffAreaContextMenu(FrameworkElement anchor, Windows.Foundation.Point position)
     {
         var menu = new MenuFlyout();
+
+        // The line-delta meter opens this menu, so its own copy belongs in it.
+        if (_vm.HasDiffStats && !string.IsNullOrWhiteSpace(_vm.DiffStats))
+        {
+            var copyStats = new MenuFlyoutItem
+            {
+                Text = $"Copy line delta ({_vm.DiffStats})",
+                Icon = new FontIcon { Glyph = "\uE9D2" }
+            };
+            copyStats.Click += (_, _) => CopyDiffStats();
+            menu.Items.Add(copyStats);
+            menu.Items.Add(new MenuFlyoutSeparator());
+        }
 
         var copyPatch = new MenuFlyoutItem
         {
@@ -2231,12 +2270,6 @@ public sealed partial class HistoryWindow : Window
         menu.Items.Add(previewMode);
 
         menu.ShowAt(anchor, position);
-    }
-
-    private void OnCopyToolbarButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-    {
-        e.Handled = true;
-        OnCopyToolbarButtonClick(sender, new RoutedEventArgs());
     }
 
     private void OnStarredFilterToggleRightTapped(object sender, RightTappedRoutedEventArgs e)

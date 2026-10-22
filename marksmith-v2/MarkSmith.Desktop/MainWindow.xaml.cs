@@ -308,6 +308,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             (StatusMsgHost, OnStatusMsgTextRightTapped),
             (FindCountButton, OnFindCountTextRightTapped),
             (PreviewWidthBadge, OnPreviewWidthBadgeRightTapped),
+            (Step1Badge, OnPipelineStepBadgeRightTapped),
+            (Step2Badge, OnPipelineStepBadgeRightTapped),
+            (Step3Badge, OnPipelineStepBadgeRightTapped),
+            (TocCountButton, OnTocCountTextRightTapped),
+            (HistoryCountButton, OnHistoryCountTextRightTapped),
         })
             Services.KeyboardContextMenu.Bridge(pill, handler);
 
@@ -1040,6 +1045,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private void OnExportHistoryFlyoutOpened(object? sender, object e)
     {
         if (ClearHistoryButton is not null) Services.HoverPolish.Apply(ClearHistoryButton);
+        if (HistoryCountButton is not null) Services.HoverPolish.Apply(HistoryCountButton);
         UpdateExportHistoryFlyoutState();
         if (ViewModel.History.Count > 0)
         {
@@ -1053,6 +1059,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var count = ViewModel.History.Count;
         var empty = count == 0;
         if (empty && ((ClearHistoryButton is not null && ClearHistoryButton.FocusState != FocusState.Unfocused)
+                      || (HistoryCountButton is not null && HistoryCountButton.FocusState != FocusState.Unfocused)
                       || HistoryList.FocusState != FocusState.Unfocused))
         {
             MoreMenuButton?.Focus(FocusState.Programmatic);
@@ -1063,6 +1070,14 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             ClearHistoryButton.Visibility = empty ? Visibility.Collapsed : Visibility.Visible;
         if (HistoryCountText is not null)
             HistoryCountText.Text = empty ? string.Empty : $"({count})";
+        if (HistoryCountButton is not null)
+        {
+            // A tab stop only while there is a count; named after it so UIA reads "3 recent exports"
+            // rather than the whole tooltip. Focus already moved to the ⋯ button above when emptied.
+            HistoryCountButton.IsTabStop = !empty;
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(HistoryCountButton,
+                empty ? "Recent export count" : (count == 1 ? "1 recent export" : $"{count:N0} recent exports"));
+        }
     }
 
     private void OnClearExportHistoryClick(object sender, RoutedEventArgs e)
@@ -2655,11 +2670,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             menu.ShowAt(anchor);
     }
 
-    private void OnHistoryCountTextDoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
-    {
-        e.Handled = true;
-        CopyAllExportPaths();
-    }
+    private void OnHistoryCountButtonClick(object sender, RoutedEventArgs e) => CopyAllExportPaths();
 
     private void CopyAllExportPaths()
     {
@@ -2766,7 +2777,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         clearItem.Click += (_, _) => OnClearExportHistoryClick(sender, new RoutedEventArgs());
         menu.Items.Add(clearItem);
 
-        menu.ShowAt(HistoryCountText, KeyboardContextMenu.PointIn(e, HistoryCountText));
+        menu.ShowAt(HistoryCountButton, KeyboardContextMenu.PointIn(e, HistoryCountButton));
     }
 
     // Every format MarkSmith itself exports. Anything else in a history row is refused rather than
@@ -3010,6 +3021,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private void OnOutlineFlyoutOpened(object? sender, object e)
     {
+        // Flyout content lives in the popup root, outside the window-wide HoverPolish walk.
+        if (TocCountButton is not null) Services.HoverPolish.Apply(TocCountButton);
         UpdateOutlineEmptyState();
         if (TocFilterBox is not null && TocFilterBox.Visibility == Visibility.Visible)
         {
@@ -3241,10 +3254,21 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         CopyTextToStatusBar(sb.ToString().TrimEnd(), $"Copied {entries.Count} headings as Markdown TOC.");
     }
 
-    private void OnTocCountTextDoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
+    private void OnTocCountButtonClick(object sender, RoutedEventArgs e) => CopyAllHeadingsAsToc();
+
+    // The heading count is a tab stop only while it shows a count, and is named after it. When it
+    // empties (no headings) while focused, focus goes back to the Outline button rather than being
+    // left on an invisible, empty button.
+    private void UpdateTocCountButton()
     {
-        e.Handled = true;
-        CopyAllHeadingsAsToc();
+        if (TocCountButton is null || TocCountText is null) return;
+        var text = TocCountText.Text ?? string.Empty;
+        var hasCount = text.Length > 0;
+        if (!hasCount && TocCountButton.FocusState != FocusState.Unfocused)
+            OutlineButton?.Focus(FocusState.Programmatic);
+        TocCountButton.IsTabStop = hasCount;
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(TocCountButton,
+            hasCount ? $"Heading count {text.Trim('(', ')')}" : "Heading count");
     }
 
     private void OnTocCountTextRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
@@ -3327,7 +3351,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(firstHeadingItem);
 
-        menu.ShowAt(TocCountText, KeyboardContextMenu.PointIn(e, TocCountText));
+        menu.ShowAt(TocCountButton, KeyboardContextMenu.PointIn(e, TocCountButton));
     }
 
     private void OnOutlineButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
@@ -7261,9 +7285,10 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             menu.ShowAt(RightSplitter);
     }
 
-    private void OnStep1BadgeTapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
+    private void OnStep1BadgeClick(object sender, RoutedEventArgs e) => GoToSourceStep();
+
+    private void GoToSourceStep()
     {
-        e.Handled = true;
         if (LeftDrawerTab != null && LeftDrawerTab.Visibility == Visibility.Visible)
         {
             LeftDrawerTab.Visibility = Visibility.Collapsed;
@@ -7274,9 +7299,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         AnnounceStatus("Step 1: Source panel focused");
     }
 
-    private void OnStep2BadgeTapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
+    private void OnStep2BadgeClick(object sender, RoutedEventArgs e)
     {
-        e.Handled = true;
         if (CenterViewSelector != null)
         {
             if (CenterViewSelector.SelectedItem == ViewCodeTab)
@@ -7288,9 +7312,10 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
     }
 
-    private void OnStep3BadgeTapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
+    private void OnStep3BadgeClick(object sender, RoutedEventArgs e) => GoToExportStep();
+
+    private void GoToExportStep()
     {
-        e.Handled = true;
         if (RightPaneCol != null && RightPaneCol.Width.Value == 0)
             RightPaneCol.Width = new GridLength(380);
         if (OutlineButton != null) OutlineButton.Focus(FocusState.Programmatic);
@@ -7307,7 +7332,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             Text = "Go to Step 1: Source",
             Icon = new FontIcon { Glyph = "\uE8B7" }
         };
-        step1.Click += (_, _) => OnStep1BadgeTapped(this, new Microsoft.UI.Xaml.Input.TappedRoutedEventArgs());
+        step1.Click += (_, _) => GoToSourceStep();
         menu.Items.Add(step1);
 
         var step2 = new MenuFlyoutItem
@@ -7327,7 +7352,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             Text = "Go to Step 3: Style & Export",
             Icon = new FontIcon { Glyph = "\uE8A5" }
         };
-        step3.Click += (_, _) => OnStep3BadgeTapped(this, new Microsoft.UI.Xaml.Input.TappedRoutedEventArgs());
+        step3.Click += (_, _) => GoToExportStep();
         menu.Items.Add(step3);
 
         menu.Items.Add(new MenuFlyoutSeparator());
@@ -7338,11 +7363,22 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             Icon = new FontIcon { Glyph = "\uE740" },
             KeyboardAcceleratorTextOverride = "F11"
         };
+        // Focus mode collapses the Source and Style & Export panes, and with them the step 1 / 3
+        // badge this menu returns focus to. Hand focus to the editor instead of letting WinUI
+        // drop it on the window's first tab stop.
+        var enteredFocusMode = false;
         focusMode.Click += (_, _) =>
         {
             if (FocusModeToggle != null) FocusModeToggle.IsChecked = !(FocusModeToggle.IsChecked ?? false);
+            enteredFocusMode = FocusModeToggle?.IsChecked == true;
         };
         menu.Items.Add(focusMode);
+        menu.Closed += (_, _) =>
+        {
+            if (!enteredFocusMode || !(ReferenceEquals(sender, Step1Badge) || ReferenceEquals(sender, Step3Badge))) return;
+            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
+                () => PasteTextBox?.Focus(FocusState.Programmatic));
+        };
 
         var resetPanes = new MenuFlyoutItem
         {
@@ -10238,6 +10274,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             TocEmptyText.Visibility = Visibility.Visible;
             TocList.Visibility = Visibility.Collapsed;
             TocList.ItemsSource = ViewModel.TocEntries;
+            UpdateTocCountButton();
             return;
         }
 
@@ -10248,6 +10285,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             if (!ReferenceEquals(TocList.ItemsSource, ViewModel.TocEntries))
                 TocList.ItemsSource = ViewModel.TocEntries;
             if (TocCountText is not null) TocCountText.Text = $"({total})";
+            UpdateTocCountButton();
             TocEmptyText.Visibility = Visibility.Collapsed;
             TocList.Visibility = Visibility.Visible;
         }
@@ -10258,6 +10296,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 .ToList();
             TocList.ItemsSource = filtered;
             if (TocCountText is not null) TocCountText.Text = $"({filtered.Count} of {total})";
+            UpdateTocCountButton();
             bool noMatch = filtered.Count == 0;
             if (noMatch)
             {
