@@ -14592,3 +14592,7 @@ last 60 s. It also gained `set` (ValuePattern), `select` (SelectionItemPattern),
 4. Heading count and recent-export count (TextBlocks with menus): same button treatment.
 
 **Total user-visible improvements: 6.**
+
+**Release (same run):** tagged **v3.41.0** on `91330ba8`; Release workflow run 39740226555 succeeded;
+user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.41.0). `MarksmithBaseVersion` is now 3.42.0.
