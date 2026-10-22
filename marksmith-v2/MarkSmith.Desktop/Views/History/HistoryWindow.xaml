@@ -41,10 +41,14 @@
                     <StackPanel Spacing="1">
                         <TextBlock Text="Version History" FontSize="16" FontWeight="SemiBold"
                                    Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
-                        <TextBlock x:Name="FileNameTextBlock" Text="{Binding FileName}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                   TextTrimming="CharacterEllipsis" MaxWidth="320"
-                                   RightTapped="OnFileNameRightTapped" DoubleTapped="OnFileNameDoubleTapped"
-                                   ToolTipService.ToolTip="Current document · Right-click for path options · Double-click to copy path" />
+                        <HyperlinkButton x:Name="FileNameButton" Padding="0" MinHeight="0" HorizontalAlignment="Left"
+                                         Click="OnFileNameButtonClick" RightTapped="OnFileNameRightTapped"
+                                         AutomationProperties.Name="{Binding FileName}"
+                                         AutomationProperties.HelpText="Current document. Enter copies its full path, Shift+F10 for path options."
+                                         ToolTipService.ToolTip="Current document · Click to copy the full path, Right-click or Shift+F10 for path options">
+                            <TextBlock x:Name="FileNameTextBlock" Text="{Binding FileName}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       TextTrimming="CharacterEllipsis" MaxWidth="320" />
+                        </HyperlinkButton>
                     </StackPanel>
                 </StackPanel>
 
@@ -67,13 +71,15 @@
                             BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                             BorderThickness="1" CornerRadius="6" Padding="6,2" VerticalAlignment="Center"
                             Visibility="{Binding HasSearchQuery, Converter={StaticResource BoolToVis}}"
-                            ToolTipService.ToolTip="Search match count · Click to clear filter">
+                            ToolTipService.ToolTip="Versions matching the search · Clear with the × button or Esc">
                         <StackPanel Orientation="Horizontal" Spacing="4">
                             <TextBlock x:Name="TimelineSearchMatchText" Text="{Binding SearchMatchText}" FontSize="11"
+                                       AutomationProperties.LiveSetting="Polite"
                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
                             <Button x:Name="TimelineClearSearchBtn" Width="18" Height="18" Padding="0"
                                     Style="{StaticResource DefaultButtonStyle}" Background="Transparent" BorderThickness="0"
-                                    Click="OnTimelineClearSearchClick" ToolTipService.ToolTip="Clear search filter (Esc)">
+                                    Click="OnTimelineClearSearchClick" ToolTipService.ToolTip="Clear search filter (Esc)"
+                                    AutomationProperties.Name="Clear search filter">
                                 <FontIcon Glyph="&#xE711;" FontSize="9" />
                             </Button>
                         </StackPanel>
@@ -266,7 +272,7 @@
                             IsHitTestVisible="True"
                             DoubleTapped="OnTimelineHeaderDoubleTapped"
                             RightTapped="OnTimelineHeaderRightTapped"
-                            ToolTipService.ToolTip="Timeline header · Double-click to scroll to latest version, right-click for options">
+                            ToolTipService.ToolTip="Timeline header · Double-click to scroll to latest version, right-click (or Shift+F10 on the timestamp) for options">
                         <Grid ColumnSpacing="8">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
@@ -276,9 +282,15 @@
                             </Grid.ColumnDefinitions>
                             <TextBlock Text="TIMELINE" FontSize="11" FontWeight="Bold" CharacterSpacing="60"
                                        Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
-                            <TextBlock Grid.Column="1" Text="{Binding SelectedHeader}" FontSize="11" HorizontalAlignment="Right"
-                                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
-                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <HyperlinkButton x:Name="SelectedHeaderButton" Grid.Column="1" AutomationProperties.Name="Selected version" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                             Padding="4,1" MinHeight="0"
+                                             Visibility="{Binding HasSelectedHeader, Converter={StaticResource BoolToVis}}"
+                                             Click="OnSelectedHeaderButtonClick" RightTapped="OnTimelineHeaderRightTapped"
+                                             AutomationProperties.HelpText="Selected version's time. Enter copies it, Shift+F10 for version options."
+                                             ToolTipService.ToolTip="Selected version · Click to copy its timestamp, Right-click or Shift+F10 for version options">
+                                <TextBlock Text="{Binding SelectedHeader}" FontSize="11" TextTrimming="CharacterEllipsis"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            </HyperlinkButton>
                             <Border x:Name="TimelineJumpPill" Grid.Column="2" Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                                     CornerRadius="5" Padding="2" VerticalAlignment="Center" Margin="4,0,0,0"
                                     ToolTipService.ToolTip="Timeline quick jump (▲ Latest · ▼ First)">
@@ -297,20 +309,19 @@
                                     </Button>
                                 </StackPanel>
                             </Border>
-                            <Border x:Name="TimelineFilterStatusPill" Grid.Column="3"
-                                    Background="{ThemeResource SubtleFillColorSecondaryBrush}"
-                                    CornerRadius="5" Padding="4,2" VerticalAlignment="Center" Margin="4,0,0,0"
-                                    IsHitTestVisible="True"
-                                    Tapped="OnTimelineFilterStatusPillTapped"
-                                    DoubleTapped="OnTimelineFilterStatusPillDoubleTapped"
+                            <Button x:Name="TimelineFilterStatusPill" Grid.Column="3"
+                                    Background="{ThemeResource SubtleFillColorSecondaryBrush}" BorderThickness="0"
+                                    CornerRadius="5" Padding="6,2" MinHeight="0" VerticalAlignment="Center" Margin="4,0,0,0"
                                     RightTapped="OnTimelineFilterStatusPillRightTapped"
-                                    ToolTipService.ToolTip="Timeline filter mode · Click to filter by version type, double-click to clear all filters, right-click for options">
+                                    AutomationProperties.Name="Timeline filter: All"
+                                    AutomationProperties.HelpText="Enter or Shift+F10 opens the filter menu, which also clears all filters."
+                                    ToolTipService.ToolTip="Timeline filter · Click, Right-click or Shift+F10 to filter by version type or clear all filters">
                                 <StackPanel Orientation="Horizontal" Spacing="4">
                                     <FontIcon Glyph="&#xE71C;" FontSize="10" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                     <TextBlock x:Name="TimelineFilterStatusText" Text="All" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 </StackPanel>
-                                <Border.ContextFlyout>
-                                    <MenuFlyout x:Name="TimelineFilterFlyout">
+                                <Button.Flyout>
+                                    <MenuFlyout x:Name="TimelineFilterFlyout" Placement="BottomEdgeAlignedRight">
                                         <MenuFlyoutItem Text="All Versions" Click="OnFilterAllVersionsClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE81C;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
@@ -331,8 +342,8 @@
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
                                     </MenuFlyout>
-                                </Border.ContextFlyout>
-                            </Border>
+                                </Button.Flyout>
+                            </Button>
                         </Grid>
                     </Border>
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" x:Name="TimelineScroll"
@@ -615,7 +626,7 @@
                                     BorderThickness="0"
                                     Click="OnDeltaMeterClick"
                                     RightTapped="OnDeltaMeterRightTapped"
-                                    AutomationProperties.Name="{Binding DiffStats}"
+                                    AutomationProperties.Name="Line delta"
                                     AutomationProperties.HelpText="Line delta against the version before. Enter copies it, Shift+F10 for options."
                                     ToolTipService.ToolTip="Lines added and removed compared with the version before · Click to copy, Right-click or Shift+F10 for options"
                                     Visibility="{Binding HasDiffStats, Converter={StaticResource BoolToVis}}">

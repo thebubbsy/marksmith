@@ -68,7 +68,10 @@ public sealed partial class HistoryWindow : Window
             (SplitToggle, OnDiffModeToggleRightTapped),
             (PreviewToggle, OnDiffModeToggleRightTapped),
             (DeltaMeterButton, OnDeltaMeterRightTapped),
-            (DiffWordDeltaPill, OnDiffWordDeltaPillRightTapped));
+            (DiffWordDeltaPill, OnDiffWordDeltaPillRightTapped),
+            (FileNameButton, OnFileNameRightTapped),
+            (SelectedHeaderButton, OnTimelineHeaderRightTapped),
+            (TimelineFilterStatusPill, OnTimelineFilterStatusPillRightTapped));
         Title = "Version History — MarkSmith";
         _main = mainViewModel;
 
@@ -261,6 +264,9 @@ public sealed partial class HistoryWindow : Window
         }
         else if (e.PropertyName is nameof(HistoryWindowViewModel.HasDiffStats) or nameof(HistoryWindowViewModel.DiffStats))
         {
+            // A {Binding} on AutomationProperties.Name never resolved here (UIA read the tooltip).
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(DeltaMeterButton,
+                string.IsNullOrWhiteSpace(_vm.DiffStats) ? "Line delta" : $"Line delta {_vm.DiffStats}");
             ResetChangeStepper();
             UpdateVisualDiffStatsBar();
             UpdateDiffSearchMatches();
@@ -268,6 +274,17 @@ public sealed partial class HistoryWindow : Window
         else if (e.PropertyName == nameof(HistoryWindowViewModel.SearchQuery) || e.PropertyName == nameof(HistoryWindowViewModel.IsStarredOnlyFilter))
         {
             UpdateTimelineFilterStatus();
+        }
+        else if (e.PropertyName == nameof(HistoryWindowViewModel.SelectedHeader))
+        {
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(SelectedHeaderButton,
+                _vm.HasSelectedHeader ? $"Selected version {_vm.SelectedHeader}" : "Selected version");
+            if (_vm.HasSelectedHeader) return;
+            // The timestamp button collapses (on HasSelectedHeader, raised next) with the selection;
+            // move focus while it still shows.
+            var focused = Microsoft.UI.Xaml.Input.FocusManager.GetFocusedElement(RootGrid.XamlRoot);
+            if (ReferenceEquals(focused, SelectedHeaderButton))
+                TimelineFilterStatusPill.Focus(FocusState.Programmatic);
         }
         else if (e.PropertyName == nameof(HistoryWindowViewModel.ShowTimeline) && !_vm.ShowTimeline)
         {
@@ -1785,10 +1802,11 @@ public sealed partial class HistoryWindow : Window
 
     private void OnTimelineClearSearchClick(object sender, RoutedEventArgs e)
     {
+        // Move focus first: clearing the query collapses the pill holding this button.
+        SearchBox.Focus(FocusState.Programmatic);
         _vm.SearchQuery = string.Empty;
         SearchBox.Text = string.Empty;
         if (KindFilterLabel != null) KindFilterLabel.Text = "All Kinds";
-        SearchBox.Focus(FocusState.Programmatic);
     }
 
     private void OnKindFilterButtonClick(object sender, RoutedEventArgs e)
@@ -1965,12 +1983,11 @@ public sealed partial class HistoryWindow : Window
             menu.Items.Add(openInEditor);
         }
 
-        menu.ShowAt(FileNameTextBlock, KeyboardContextMenu.PointIn(e, FileNameTextBlock));
+        menu.ShowAt(FileNameButton, KeyboardContextMenu.PointIn(e, FileNameButton));
     }
 
-    private void OnFileNameDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    private void OnFileNameButtonClick(object sender, RoutedEventArgs e)
     {
-        e.Handled = true;
         var filePath = _vm.SelectedFile?.Summary.FilePath ?? _vm.FileName;
         if (!string.IsNullOrWhiteSpace(filePath))
         {
@@ -2948,17 +2965,12 @@ public sealed partial class HistoryWindow : Window
         _vm.SelectLastVersion();
     }
 
-    private void OnTimelineFilterStatusPillTapped(object sender, TappedRoutedEventArgs e)
+    private void OnSelectedHeaderButtonClick(object sender, RoutedEventArgs e)
     {
-        e.Handled = true;
-        TimelineFilterFlyout?.ShowAt(sender as FrameworkElement ?? TimelineFilterStatusPill);
-    }
-
-    private void OnTimelineFilterStatusPillDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-    {
-        e.Handled = true;
-        _vm.ClearFiltersCommand.Execute(null);
-        UpdateTimelineFilterStatus();
+        var header = _vm.SelectedHeader;
+        if (string.IsNullOrWhiteSpace(header)) return;
+        _ = Services.ClipboardWriter.TrySetTextAsync(header);
+        _vm.ShowNotice($"Copied version timestamp: {header}");
     }
 
     private void OnTimelineFilterStatusPillRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -3006,18 +3018,22 @@ public sealed partial class HistoryWindow : Window
     private void UpdateTimelineFilterStatus()
     {
         if (TimelineFilterStatusText is null) return;
+        string spoken;
         if (_vm.IsStarredOnlyFilter)
         {
-            TimelineFilterStatusText.Text = "Starred";
+            TimelineFilterStatusText.Text = spoken = "Starred";
         }
         else if (!string.IsNullOrWhiteSpace(_vm.SearchQuery))
         {
+            spoken = _vm.SearchQuery;
             TimelineFilterStatusText.Text = _vm.SearchQuery.Length > 10 ? _vm.SearchQuery[..9] + "…" : _vm.SearchQuery;
         }
         else
         {
-            TimelineFilterStatusText.Text = "All";
+            TimelineFilterStatusText.Text = spoken = "All";
         }
+        // The pill trims long queries; screen readers get the whole filter.
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(TimelineFilterStatusPill, $"Timeline filter: {spoken}");
     }
 
     private void OnTimelineHeaderRightTapped(object sender, RightTappedRoutedEventArgs e)

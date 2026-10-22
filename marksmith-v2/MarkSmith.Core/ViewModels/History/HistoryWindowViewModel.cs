@@ -188,7 +188,11 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
     private string _fileName = "No document selected";
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSelectedHeader))]
     private string _selectedHeader = "";
+
+    /// <summary>The timeline header's timestamp button shows (and takes a tab stop) only with a selection.</summary>
+    public bool HasSelectedHeader => !string.IsNullOrWhiteSpace(SelectedHeader);
 
     [ObservableProperty]
     private string _previewHtml = "";

@@ -14713,3 +14713,114 @@ cases as runs #221–#225.
 **Release (same run):** tagged **v3.42.0** on `83c8403e`; Release workflow run 39747004454 succeeded;
 user-facing notes prepended to the generated body
 (https://github.com/thebubbsy/marksmith/releases/tag/v3.42.0). `MarksmithBaseVersion` is now 3.43.0.
+
+### 2026-10-22 (scheduled routine run #227) — History header readouts reachable by keyboard, one action per filter-pill click
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`). The task template asks for a Gemini model name and
+  an "Antigravity AI Agent (Google DeepMind)" identity. This run was neither, so the entry records
+  what actually ran.
+- Identity: Claude Code (Anthropic), Claude desktop app, Code tab.
+- Modes: Scheduled hourly automation routine (unattended).
+- Trigger: scheduled task `commit-to-main-ship-improvement--r4efinement`.
+- Agents used: 1. A single session did the orchestration, coding and skeptical review, with no
+  subagents. Session id `82a329bd-9f1c-47dc-adc1-ab746ff3d10e`.
+- Time: ~22:45–23:20 AEDT.
+
+**Reviewed:** run #226's Next up and Noticed lists. The other session's Shape Studio, SmartArt and
+Mind Map edits are **still uncommitted**, so Next-up item 1 was skipped again; those four files were
+not touched, staged or reverted. This run took Next-up item 2 (History's timeline pills, with a live
+check against seeded versions that also covers run #226's meters).
+
+**Shipped:**
+1. **Timeline filter pill is a button, and a double-click no longer does two things.** It was a
+   Border whose Tapped opened the filter menu and whose DoubleTapped cleared every filter, so one
+   double-click opened the menu and wiped the filters under it. It is now a Button whose own Flyout
+   is the filter menu: click, Enter or Space opens it, and Shift+F10 / the Menu key (bridged) or a
+   right-click opens the same menu. "Clear All Filters" is still the menu's last item.
+2. **The filter menu opens below the pill.** As a button flyout it defaulted to opening upward over
+   the title bar; it is now `BottomEdgeAlignedRight`, under the pill (live: menu top 263 px, pill
+   at 240 px).
+3. **The filter pill tells screen readers the whole filter.** The pill trims a long search to nine
+   characters; its name is now "Timeline filter: All / Starred / <full query>", updated with every
+   filter change (live: "Timeline filter: Starred" after picking Starred, "Timeline filter: auto"
+   after typing a search).
+4. **File name under "Version History" is a button.** It was a TextBlock with double-click (copy
+   path) and right-click (path menu) only. It is now a HyperlinkButton that looks the same: click
+   or Enter copies the full path, Shift+F10 opens the path menu (copy path / name, show in Explorer,
+   open in editor).
+5. **The selected version's timestamp in the timeline header is a button.** The header's version
+   menu (copy timestamp, delta, summary card, …) was reachable only by right-clicking the header
+   Border. The timestamp is now a HyperlinkButton: click or Enter copies it (live: "Copied version
+   timestamp: Thursday, 22 October 2026 · 22:58"), Shift+F10 opens the header menu, and screen
+   readers hear "Selected version Thursday, 22 October 2026 · 22:58". It hides with no selection,
+   and if it held focus then, focus moves to the filter pill first.
+6. **Search match pill is honest and announced.** Its tooltip said "Click to clear filter", but the
+   pill itself never reacted to a click; it now says to use the × button or Esc. The match count
+   ("1 match") is a polite live region, the × button is named "Clear search filter", and clearing
+   moves focus to the search box *before* the pill collapses (it used to collapse first, with the ×
+   still focused).
+7. **History's line-delta meter has a real name.** Run #226 bound `AutomationProperties.Name` to
+   `DiffStats`, but the binding never resolved and UIA read the long tooltip instead. The name is
+   now set in code: "Line delta 2 added · 1 removed" (verified live). The timestamp button had the
+   same binding problem and got the same fix.
+
+**Implementation summary.**
+- `MarkSmith.Core/ViewModels/History/HistoryWindowViewModel.cs`: new `HasSelectedHeader` (raised
+  with `SelectedHeader`).
+- `Views/History/HistoryWindow.xaml`: `FileNameButton` wraps `FileNameTextBlock`;
+  `SelectedHeaderButton` replaces the header TextBlock; `TimelineFilterStatusPill` Border → Button
+  with `Button.Flyout` (`Placement="BottomEdgeAlignedRight"`), no Tapped/DoubleTapped; search pill
+  tooltip, `LiveSetting="Polite"` on the count, a name on the × button; `DeltaMeterButton` name is a
+  literal; timeline header tooltip mentions Shift+F10 on the timestamp.
+- `Views/History/HistoryWindow.xaml.cs`: three new bridge rows; `OnFileNameButtonClick` (replaces
+  `OnFileNameDoubleTapped`), `OnSelectedHeaderButtonClick`, the `SelectedHeader` branch (name + focus
+  hand-off), the `DiffStats` branch sets the meter's name, `UpdateTimelineFilterStatus` sets the
+  pill's name, `OnTimelineClearSearchClick` focuses first. `OnTimelineFilterStatusPillTapped` and
+  `…DoubleTapped` removed.
+- Tests: new `Run227HistoryHeaderKeyboardTests` (10 cases): button types, bridge rows, no pointer-only
+  handlers, Shift+F10 in tooltip and help text, literal names, flyout placement and its Clear All
+  item, the untrimmed spoken filter, the hide/focus branch, focus-before-collapse order, the
+  meter's code-set name, and a VM test that `HasSelectedHeader` follows the selection.
+
+**Skeptical review.**
+- Focus traps: the timestamp button moves focus on `SelectedHeader` before `HasSelectedHeader`
+  (raised next) collapses it; the × button moves focus before clearing the query; the file name and
+  filter pill never hide.
+- No PreviewKeyDown or KeyDown handlers were added. The bridge marks Shift+F10 handled at the
+  button, so History's root KeyDown (which opens the version menu on Shift+F10) never sees it.
+- The new buttons sit under `RootGrid`, which `HoverPolish.Track` already covers. Brushes stay
+  ThemeResource. No file I/O was added.
+
+**Verified.** Desktop builds to `%TEMP%\ms_run227\b`: 0 errors (two builds). History was seeded with
+three versions of a scratch `plan.md` (`opened` / `autosave` / starred `snapshot`) through
+`VersionHistoryService` in a scratch `MARKSMITH_CONFIG_DIR`. Instances launched: PID 18796 and then
+PID 25624, each killed by PID; no other Marksmith was running. UIA results are listed under each item
+above. The first launch is where the tooltip-as-name problem (item 7) and the upward menu (item 2)
+showed up; the second confirmed both fixes. The PrintWindow screenshot shows the header unchanged
+apart from the focus rectangle.
+- **Not verified live:** real Shift+F10 / Enter keystrokes. The user was idle for 3.5 h and the
+  session was locked: there was no foreground window and CopyFromScreen failed, so `keyseq` aborted
+  safely. The bridge path is the same `KeyboardContextMenu.Bridge` verified in runs #223–#226.
+  Focus after the × button couldn't be read for the same reason (UIA reports global focus).
+
+Tests: Run22x + `HistoryWindowViewModelTests`: 142/142. **Full test project: 5595 passed / 48 failed
+/ 1 skipped** (6m02s). All 48 are the same stale `SuiteHubAndTourPolishTests` cases as runs
+#221–#226.
+
+**Noticed, not fixed:**
+- The timeline header's timestamp trims to "Thursday, 22 October…" at a 1280 px window. Its name
+  carries the full text, but a shorter format (or a tooltip with the full text) would read better.
+- The diff toolbar's right end cuts off "2 added…" at 1280 px width.
+- `FileNameButton` still binds `AutomationProperties.Name` to `FileName`; it reads correctly, but
+  probably through the content text rather than the binding. Look for other `{Binding}` names
+  that never resolve (grep `AutomationProperties.Name="{Binding`).
+
+**Next up (Run #228):**
+1. If the Shape Studio grouping has landed, retire the 48 stale tests and bridge Shape/SmartArt/Mind Map.
+2. Sweep `AutomationProperties.Name="{Binding …}"` across Desktop and confirm each with UIA.
+3. Timeline header timestamp width / format, and the diff toolbar overflow at 1280 px.
+4. With the user idle *and the session unlocked*, press real Shift+F10 / Enter on this run's three
+   buttons and run #225's status-bar controls.
+
+**Total user-visible improvements: 7.**
