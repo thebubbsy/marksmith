@@ -696,11 +696,16 @@
                                                      AutomationProperties.Name="Find in document"
                                                      Height="30" FontSize="13" KeyDown="OnFindTextBoxKeyDown"
                                                      TextChanged="OnFindTextChanged" RightTapped="OnFindTextBoxRightTapped" />
-                                            <TextBlock x:Name="FindCountText" Grid.Column="1" VerticalAlignment="Center"
-                                                       FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                                       MinWidth="64" TextAlignment="Center" IsHitTestVisible="True"
-                                                       ToolTipService.ToolTip="Search match count · Click or right-click to copy"
-                                                       RightTapped="OnFindCountTextRightTapped" Tapped="OnFindCountTextTapped" />
+                                            <!-- A button so the keyboard reaches it (a tab stop only while it shows a count):
+                                                 Enter copies the count, Shift+F10 / the Menu key opens its menu. -->
+                                            <HyperlinkButton x:Name="FindCountButton" Grid.Column="1" VerticalAlignment="Center"
+                                                             Padding="4,2" MinHeight="0" IsTabStop="False"
+                                                             Click="OnFindCountButtonClick" RightTapped="OnFindCountTextRightTapped"
+                                                             AutomationProperties.HelpText="Search match count. Enter copies it, Shift+F10 for options.">
+                                                <TextBlock x:Name="FindCountText" VerticalAlignment="Center"
+                                                           FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                           MinWidth="56" TextAlignment="Center" />
+                                            </HyperlinkButton>
                                             <ToggleButton x:Name="MatchCaseCheck" Grid.Column="2" Width="32" Height="30" Padding="0"
                                                           AutomationProperties.Name="Match case (Alt+C)"
                                                           ToolTipService.ToolTip="Match case (Alt+C)"
@@ -986,15 +991,19 @@
                                                    Fill="{ThemeResource TextFillColorSecondaryBrush}" Opacity="0.55" />
                                         <Rectangle Width="1" Height="7" HorizontalAlignment="Right" VerticalAlignment="Center"
                                                    Fill="{ThemeResource TextFillColorSecondaryBrush}" Opacity="0.55" />
-                                        <Border x:Name="PreviewWidthBadge" HorizontalAlignment="Center" VerticalAlignment="Center" CornerRadius="4" Padding="8,1"
-                                                Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
-                                                IsHitTestVisible="True"
-                                                Tapped="OnPreviewWidthBadgeTapped"
-                                                DoubleTapped="OnPreviewWidthBadgeDoubleTapped"
-                                                RightTapped="OnPreviewWidthBadgeRightTapped"
-                                                ToolTipService.ToolTip="Preview viewport width · Click or double-click to copy, right-click for options">
-                                            <TextBlock x:Name="PreviewWidthText" Text="— px" FontSize="11"
-                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        <!-- A button so Tab reaches it: Enter copies the width, Shift+F10 / the Menu key
+                                             opens its menu. The Border keeps the ruler's solid label look. -->
+                                        <Border HorizontalAlignment="Center" VerticalAlignment="Center" CornerRadius="4"
+                                                Background="{ThemeResource SolidBackgroundFillColorBaseBrush}">
+                                            <HyperlinkButton x:Name="PreviewWidthBadge" Padding="8,1" MinHeight="0"
+                                                             Click="OnPreviewWidthBadgeClick"
+                                                             RightTapped="OnPreviewWidthBadgeRightTapped"
+                                                             AutomationProperties.Name="{Binding Text, ElementName=PreviewWidthText}"
+                                                             AutomationProperties.HelpText="Preview viewport width. Enter copies it, Shift+F10 for options."
+                                                             ToolTipService.ToolTip="Preview viewport width · Click to copy · Right-click or Shift+F10 for options">
+                                                <TextBlock x:Name="PreviewWidthText" Text="— px" FontSize="11"
+                                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                            </HyperlinkButton>
                                         </Border>
                                     </Grid>
                                     <!-- Preview zoom (persisted): the WebView also honors the browser's native Ctrl+wheel;
@@ -2180,25 +2189,34 @@
                 <StackPanel x:Name="StatusLeftPanel" Orientation="Horizontal" Spacing="12" HorizontalAlignment="Left"
                             VerticalAlignment="Center" Margin="16,5">
                     <ProgressRing IsActive="{Binding IsBusy}" Width="14" Height="14" VerticalAlignment="Center" />
-                    <Border x:Name="DetectedBadge" Visibility="Collapsed" CornerRadius="12" Padding="10,4"
-                            Background="{ThemeResource AccentFillColorSecondaryBrush}" VerticalAlignment="Center"
-                            IsHitTestVisible="True"
-                            Tapped="OnDetectedBadgeTapped"
+                    <!-- A real button so Tab reaches it: Enter/Space opens the source menu (same as a click),
+                         Shift+F10 / the Menu key too. -->
+                    <Button x:Name="DetectedBadge" Visibility="Collapsed" CornerRadius="12" Padding="10,4" MinHeight="0"
+                            Style="{StaticResource AccentButtonStyle}" VerticalAlignment="Center"
+                            Click="OnDetectedBadgeClick"
                             RightTapped="OnDetectedBadgeRightTapped"
-                            ToolTipService.ToolTip="Detected document source (Click to inspect, Right-click for options)">
+                            AutomationProperties.Name="{Binding DetectedSourceText}"
+                            AutomationProperties.HelpText="Detected document source. Opens copy, OCR Studio and clear options."
+                            ToolTipService.ToolTip="Detected document source · Click, Right-click or Shift+F10 for options">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <FontIcon Glyph="&#xE945;" FontSize="12"
                                       Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
                             <TextBlock Text="{Binding DetectedSourceText}" FontSize="12"
                                        Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
                         </StackPanel>
-                    </Border>
-                    <TextBlock x:Name="StatusMsgText" Text="{Binding StatusText}"
-                               VerticalAlignment="Center" FontSize="12" Opacity="0.85"
-                               TextTrimming="CharacterEllipsis" MaxWidth="560"
-                               RightTapped="OnStatusMsgTextRightTapped"
-                               DoubleTapped="OnStatusMsgTextDoubleTapped"
-                               ToolTipService.ToolTip="{Binding StatusText}" />
+                    </Button>
+                    <!-- Focusable host (a tab stop only while there is a message) so the keyboard reaches the
+                         status message's copy menu: Enter, Space, Shift+F10 or the Menu key open it. -->
+                    <ContentControl x:Name="StatusMsgHost" IsTabStop="False" UseSystemFocusVisuals="True" AllowFocusOnInteraction="False"
+                                    VerticalAlignment="Center" KeyDown="OnStatusMsgHostKeyDown"
+                                    AutomationProperties.HelpText="Status message. Enter or Shift+F10 for copy options.">
+                        <TextBlock x:Name="StatusMsgText" Text="{Binding StatusText}"
+                                   VerticalAlignment="Center" FontSize="12" Opacity="0.85"
+                                   TextTrimming="CharacterEllipsis" MaxWidth="560"
+                                   RightTapped="OnStatusMsgTextRightTapped"
+                                   DoubleTapped="OnStatusMsgTextDoubleTapped"
+                                   ToolTipService.ToolTip="{Binding StatusText}" />
+                    </ContentControl>
                     <!-- Shown only while the status line is announcing a finished export (the
                          Windows toast is easy to miss, or switched off entirely). -->
                     <StackPanel x:Name="StatusOutputLinks" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center"

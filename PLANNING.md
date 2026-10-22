@@ -14470,3 +14470,125 @@ caused by the other session's uncommitted Shape Studio edit. None involve a file
 **Release (same run):** tagged **v3.40.0** on `fa28fda0`; Release workflow run 39706956432 succeeded;
 user-facing notes prepended to the generated body
 (https://github.com/thebubbsy/marksmith/releases/tag/v3.40.0). `MarksmithBaseVersion` is now 3.41.0.
+
+### 2026-10-22 (scheduled routine run #225) — last mouse-only readouts reachable by keyboard, one line-count rule
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`). The task template asks for a Gemini model name and
+  an "Antigravity AI Agent (Google DeepMind)" identity. This run was neither, so the entry records
+  what actually ran.
+- Identity: Claude Code (Anthropic), Claude desktop app, Code tab.
+- Modes: Scheduled hourly automation routine (unattended).
+- Trigger: scheduled task `commit-to-main-ship-improvement--r4efinement`.
+- Agents used: 1. A single session did the orchestration, coding and skeptical review, with no
+  subagents. Session id `edc65d94-2972-499f-a05a-a7700d1f1170`.
+- Time: ~17:55–18:50 AEDT.
+
+**Reviewed:** run #224's Next up and Noticed lists. The other session's Shape Studio, SmartArt and
+Mind Map edits are **still uncommitted**, so Next-up item 1 was skipped again. Those four files were
+not touched, staged or reverted. This run took items 2 and 3, plus three of run #224's "Noticed, not
+fixed" items.
+
+**Shipped:**
+1. **Detected-source badge is a real button.** It was a Border with Tapped: Tab skipped it, so its
+   menu (copy source info, OCR Studio, statistics, clear tag) was mouse-only. It now uses the accent
+   button style, with the same pill shape and colours plus proper hover and press states. Tab
+   reaches it, and Enter, Space, Shift+F10 or the Menu key open the menu. Screen readers hear the
+   source text. **Clear source detection tag** collapses the badge, so focus first moves to the
+   editor (or the next status control) rather than being stranded on a hidden button. The same
+   guard applies when anything else clears the source.
+2. **Status message reachable by keyboard.** A focusable host (`StatusMsgHost`) wraps the message.
+   It is a tab stop only while there is a message or an exported file. Enter, Space, Shift+F10 or
+   the Menu key open its copy / open file / show in folder menu, anchored under it. Clicking it
+   still does not take focus from the editor (`AllowFocusOnInteraction=False`). When the message
+   fades away while focused, focus moves to the word count.
+3. **Find bar match count is a button.** Tab reaches it only while it shows a count. Enter copies
+   it, and Shift+F10 opens its inspection menu. Clearing the query while the count has focus hands
+   focus back to the search box. The tooltip said "Right-click to inspect location" and never
+   mentioned that a click copies; it now reads "Click to copy · Alt+Home/End to jump · Right-click
+   or Shift+F10 for options". With no count, the accessible name is "Search match count". Before,
+   UIA read out the whole tooltip.
+4. **Preview width readout ("188 px") is a button.** It keeps its solid ruler label look. Enter
+   copies the width and Shift+F10 opens its menu. The old Tapped and DoubleTapped handlers both
+   copied, so one double-click copied twice; they are now a single Click.
+5. **One line-count rule.** For an empty document, the statistics card said "Lines / Para 0 / 0",
+   the tooltip said "0 lines" and the copy menu said "1 line". For "hello⏎" the menu said 2 while the
+   card said 1. New Core `DocumentStats.DisplayLines` / `LinesText` (at least 1, "1 line" singular,
+   thousands grouped) now feed all three. The menu uses the whole document with folds expanded.
+6. **History: "Copy line delta" is in each version's ⋯ / Shift+F10 menu** (only when the version
+   has a delta). That was the delta badge's one action of its own, and the badge itself is a
+   mouse-only Border. One `CopyVersionDelta` routine now serves the badge's double-click, its
+   menu and the version menu.
+
+**Implementation summary.**
+- `MainWindow.xaml(.cs)`: `DetectedBadge` (Border → Button), `StatusMsgHost` (new ContentControl),
+  `FindCountButton` (new HyperlinkButton around `FindCountText`) and `PreviewWidthBadge` (Border →
+  HyperlinkButton inside a Border). All four were added to the bridge table. The new methods are
+  `UpdateStatusMsgHost`, `OnStatusMsgHostKeyDown`, `MoveFocusOffDetectedBadge`,
+  `OnDetectedBadgeClick`, `OnFindCountButtonClick` and `OnPreviewWidthBadgeClick`. The pointer-only
+  handlers were removed.
+- `Services/KeyboardContextMenu.cs`: new `Invoke(element, handler)`, which runs a RightTapped
+  handler as a keyboard request. `Bridge` now calls it.
+- Core `Services/DocumentStatsService.cs`: `DisplayLines`, `LinesText`, and `DetailText` uses `LinesText`.
+- `Views/History/HistoryWindow.xaml.cs`: `BuildVersionMenu` gets the delta item.
+- Tests: new `Run225StatusReadoutKeyboardTests` (19 cases). It covers the button types, Click and
+  RightTapped wiring, the bridge entries, removed handlers, focus moving before collapse, the
+  tab-stop rules, that Enter/Space handling does not swallow other keys, `Invoke`, the History menu
+  item, and the `LinesText` cases (empty, whitespace, trailing newline, thousands).
+  `Run224…WordCountMenu` was updated to the shared rule.
+
+Skeptical review:
+- No focused control is ever collapsed. The badge, find count and status host all move focus
+  first, and the badge remembers at open time whether it had focus, because focus is in the menu
+  when Clear runs.
+- `OnStatusMsgHostKeyDown` returns before setting Handled for anything except Enter or Space, so
+  arrows, Tab and typing pass through. None of the new controls is a text input.
+- The new menus are built on demand as before. HoverPolish covers the new Buttons through the
+  window-wide walk. Brushes stay ThemeResource / `ThemeBrush.Set`. No file I/O was added.
+
+**Verified.** Desktop builds to `%TEMP%\ms_run225\b`: 0 errors (three builds). The live instance
+ran on an isolated `MARKSMITH_CONFIG_DIR`. This run used only its own PIDs, 364 and 12264, and
+killed both; no other Marksmith was running. **The user was active at the PC the whole run**
+(`gx.ps1 idle` read 0–1 s), so no keystrokes or mouse moves were sent. Every check used UIA
+(focus, invoke, value, selection) and PrintWindow.
+- Find count: "1 of 2" on a two-match document, keyboard-focusable. Invoke posted "Copied search
+  count: 1 of 2". "No results" with no match. Not focusable once the query was cleared, and named
+  "Search match count" (after the fix).
+- Status host: keyboard-focusable, named after the message ("Ready.", "Copied search count…"),
+  with help text.
+- Metrics card: "2 / 1" for a two-line document and **"1 / 0" for an empty one**. Before, the empty
+  document read "0 / 0". Screenshot taken.
+- Preview width: renders as before ("188 px") in Split view (screenshot). Not checked with UIA,
+  because UIA stops walking the tree at the preview WebView2 in Split view, so nothing after it
+  (preview ruler, bottom bar, status bar) can be found.
+- **Not verified live:** Shift+F10 / Enter on the new controls (no keystrokes while the user was
+  active), the detected badge (needs an import) and the History menu item (no versions in scratch).
+
+Tests: Run222–225 + DocumentStats + MenuDiagnostics: 135/135 passed. **Full test project: 5568 passed / 49
+failed / 1 skipped** (6m22s). 48 are the same stale `SuiteHubAndTourPolishTests` cases as runs
+#221–#224, caused by the other session's uncommitted Shape Studio edits. The 49th was
+`Run225…FindCount` running against binaries built before its last edit; it passes after the
+rebuild.
+
+Rig: `gx.ps1` now has `idle` (`GetLastInputInfo`) and `keys` aborts if there was real input in the
+last 60 s. It also gained `set` (ValuePattern), `select` (SelectionItemPattern), `props` and `focused`.
+
+**Noticed, not fixed:**
+- The Document Metrics card can open on top of the Welcome tour (both visible at once).
+- Skipping the tour leaves its "Everything else lives here" tip open, and while that tip is open
+  UIA cannot reach the main window's lower content.
+- UIA stops walking the tree at the preview WebView2 in Split view, so anything after it in tree
+  order is invisible to screen readers too. That is worth checking with Narrator.
+- History's delta *badge* itself is still a mouse-only Border (its action is now in the menu).
+- Other right-click menus on non-focusable elements remain: step badges, drop zone, gutter,
+  heading count, recent-export count.
+
+**Next up (Run #226):**
+1. If the Shape Studio grouping has landed, retire the 48 stale tests and bridge Shape/SmartArt/Mind Map.
+2. With the user idle (check `gx.ps1 idle` first), live-check Shift+F10 / Enter on this run's
+   four controls, and the detected badge after an import.
+3. Check the WebView2 UIA cut-off with Narrator. If the status bar really is unreachable in Split
+   view, look at the WebView's automation peer.
+4. Heading count and recent-export count (TextBlocks with menus): same button treatment.
+
+**Total user-visible improvements: 6.**

@@ -144,7 +144,8 @@ public class Run224StatusBarAndTemplateKeyboardTests
         // DocumentStatsDetail is two lines; splitting on '·' alone left the characters and the
         // line count ("0 characters (0 without spaces)⏎0 lines") in one menu item.
         Assert.Contains(@"summary.Split(new[] { '·', '\n', '\r' }", code);
-        Assert.Contains("var lines = lineCount == 1 ? \"1 line\" : $\"{lineCount:N0} lines\";", code);
+        // Run #225: the singular now comes from the shared DocumentStats.LinesText rule.
+        Assert.Contains("var lines = Services.DocumentStatsService.Analyze(EditorDocument()).LinesText;", code);
         Assert.DoesNotContain("Copy line count ({lineCount:N0} lines)", code);
 
         // The accessible name is the short count, not the two-line tooltip.

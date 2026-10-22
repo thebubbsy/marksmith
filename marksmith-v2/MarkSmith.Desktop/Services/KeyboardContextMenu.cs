@@ -31,11 +31,20 @@ public static class KeyboardContextMenu
         {
             if (!IsContextMenuKey(e.Key)) return;
             e.Handled = true;
-            IsKeyboardInvocation = true;
-            KeyboardSource = element as FrameworkElement;
-            try { handler(element, new RightTappedRoutedEventArgs()); }
-            finally { IsKeyboardInvocation = false; KeyboardSource = null; }
+            Invoke(element, handler);
         }), handledEventsToo: true);
+    }
+
+    /// <summary>
+    /// Runs a RightTapped handler as a keyboard request from <paramref name="element"/>, for
+    /// controls whose Enter/Space also opens their menu (a status message has nothing else to do).
+    /// </summary>
+    public static void Invoke(UIElement element, RightTappedEventHandler handler)
+    {
+        IsKeyboardInvocation = true;
+        KeyboardSource = element as FrameworkElement;
+        try { handler(element, new RightTappedRoutedEventArgs()); }
+        finally { IsKeyboardInvocation = false; KeyboardSource = null; }
     }
 
     /// <summary>

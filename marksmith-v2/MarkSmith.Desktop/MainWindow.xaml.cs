@@ -304,6 +304,10 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             (CancelConversionButton, OnCancelConversionButtonRightTapped),
             (WordCountButton, OnWordCountButtonRightTapped),
             (CursorPosButton, OnCursorPosButtonRightTapped),
+            (DetectedBadge, OnDetectedBadgeRightTapped),
+            (StatusMsgHost, OnStatusMsgTextRightTapped),
+            (FindCountButton, OnFindCountTextRightTapped),
+            (PreviewWidthBadge, OnPreviewWidthBadgeRightTapped),
         })
             Services.KeyboardContextMenu.Bridge(pill, handler);
 
@@ -597,7 +601,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // the modal with trial/upgrade actions (non-UI hosts get only the StatusText fallback).
         ViewModel.ProFeatureAttempted += feature => DispatcherQueue.TryEnqueue(() => _ = ShowProGateAsync(feature));
         UpdatePinFileButton();
-        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(StatusMsgText, ViewModel.StatusText ?? string.Empty);
+        UpdateStatusMsgHost();
         ApplyAutomationSettings();
         UpdateLicenseBanner();
         ExtensionTip.IsOpen = ViewModel.ShowExtensionTip;
@@ -1266,9 +1270,10 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(ViewModels.MainViewModel.StatusText) && StatusMsgText is not null)
+        if (e.PropertyName is nameof(ViewModels.MainViewModel.StatusText) or nameof(ViewModels.MainViewModel.HasStatusOutput)
+            or nameof(ViewModels.MainViewModel.StatusOutputPath) && StatusMsgText is not null)
         {
-            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(StatusMsgText, ViewModel.StatusText ?? string.Empty);
+            UpdateStatusMsgHost();
         }
 
         if (e.PropertyName is nameof(ViewModels.MainViewModel.StatusText) or nameof(ViewModels.MainViewModel.StatusSeverity)
@@ -1307,6 +1312,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         if (e.PropertyName == nameof(ViewModels.MainViewModel.DetectedSourceText))
         {
+            if (string.IsNullOrEmpty(ViewModel.DetectedSourceText) && DetectedBadge.FocusState != FocusState.Unfocused)
+                MoveFocusOffDetectedBadge();
             DetectedBadge.Visibility = string.IsNullOrEmpty(ViewModel.DetectedSourceText)
                 ? Visibility.Collapsed : Visibility.Visible;
         }
@@ -2813,6 +2820,30 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private void OnStatusShowOutputFolderClick(object sender, RoutedEventArgs e) => ShowExportedFileInFolder(ViewModel.StatusOutputPath);
 
+    // The host is a tab stop only while there is a message to copy. Its accessible name is the
+    // message itself, so Tab lands on something a screen reader can read out.
+    private void UpdateStatusMsgHost()
+    {
+        var text = ViewModel.StatusText ?? string.Empty;
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(StatusMsgText, text);
+        if (StatusMsgHost is null) return;
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(StatusMsgHost, text);
+        var hasContent = !string.IsNullOrWhiteSpace(text)
+            || (ViewModel.HasStatusOutput && !string.IsNullOrEmpty(ViewModel.StatusOutputPath));
+        // The message fades away on a timer: don't leave keyboard focus on an empty host.
+        if (!hasContent && StatusMsgHost.FocusState != FocusState.Unfocused)
+            WordCountButton?.Focus(FocusState.Programmatic);
+        StatusMsgHost.IsTabStop = hasContent;
+    }
+
+    // Enter / Space open the same copy menu as a right-click (Shift+F10 goes through the bridge).
+    private void OnStatusMsgHostKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        if (e.Key is not (Windows.System.VirtualKey.Enter or Windows.System.VirtualKey.Space)) return;
+        e.Handled = true;
+        Services.KeyboardContextMenu.Invoke(StatusMsgHost, OnStatusMsgTextRightTapped);
+    }
+
     private void OnStatusMsgTextDoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
     {
         var text = ViewModel.StatusText;
@@ -4116,10 +4147,14 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         else menu.ShowAt(OutputFolderTextBox);
     }
 
-    private void OnDetectedBadgeTapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
+    private void OnDetectedBadgeClick(object sender, RoutedEventArgs e) => ShowDetectedBadgeContextMenu(null);
+
+    // The editor if it is showing, otherwise the next control along (the status message).
+    private void MoveFocusOffDetectedBadge()
     {
-        e.Handled = true;
-        ShowDetectedBadgeContextMenu(null);
+        if (PasteTextBox is { Visibility: Visibility.Visible } && PasteTextBox.Focus(FocusState.Programmatic)) return;
+        if (StatusMsgHost is { IsTabStop: true } && StatusMsgHost.Focus(FocusState.Programmatic)) return;
+        WordCountButton?.Focus(FocusState.Programmatic);
     }
 
     private void OnDetectedBadgeRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
@@ -4131,6 +4166,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private void ShowDetectedBadgeContextMenu(Windows.Foundation.Point? position)
     {
         if (DetectedBadge is null) return;
+        var badgeHadFocus = DetectedBadge.FocusState != FocusState.Unfocused;
         var menu = new MenuFlyout();
         var sourceText = ViewModel.DetectedSourceText;
         bool hasSource = !string.IsNullOrWhiteSpace(sourceText);
@@ -4190,6 +4226,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         clearBadgeItem.Click += (_, _) =>
         {
+            // The badge collapses, and the closing menu would hand focus back to it: send focus to
+            // the editor instead so it isn't stranded on a hidden button.
+            if (badgeHadFocus) MoveFocusOffDetectedBadge();
             ViewModel.DetectedSourceText = string.Empty;
             if (DetectedBadge is not null) DetectedBadge.Visibility = Visibility.Collapsed;
             AnnounceStatus("Cleared source detection tag.");
@@ -8944,12 +8983,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         e.Handled = true;
     }
 
-    private void OnFindCountTextTapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
+    private void OnFindCountButtonClick(object sender, RoutedEventArgs e)
     {
         if (FindCountText is null || string.IsNullOrWhiteSpace(FindCountText.Text)) return;
         _ = Services.ClipboardWriter.TrySetTextAsync(FindCountText.Text);
         AnnounceStatus($"Copied search count: {FindCountText.Text}");
-        e.Handled = true;
     }
 
     private void OnFindCountTextRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
@@ -9732,20 +9770,29 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (!string.IsNullOrEmpty(_regexErrorMessage))
         {
             FindCountText.Text = "Regex error";
-            ToolTipService.SetToolTip(FindCountText, $"Regex syntax error: {_regexErrorMessage}");
+            ToolTipService.SetToolTip(FindCountButton, $"Regex syntax error: {_regexErrorMessage}");
             MarkSmith.Services.ThemeBrush.Set(FindCountText, TextBlock.ForegroundProperty, "SystemFillColorCriticalBrush");
         }
         else
         {
             FindCountText.Text = !hasQuery ? string.Empty
                 : MarkSmith.Services.TextSearch.FormatFindMatchStatus(_findMatchIndex + 1, count, _lastFindWrapped);
-            ToolTipService.SetToolTip(FindCountText, _lastFindWrapped
-                ? "Search match count (navigation wrapped around document) · Alt+Home/End to jump · Right-click to inspect location"
-                : "Search match count · Alt+Home/End to jump · Right-click to inspect location");
+            ToolTipService.SetToolTip(FindCountButton, _lastFindWrapped
+                ? "Search match count (navigation wrapped around document) · Click to copy · Alt+Home/End to jump · Right-click or Shift+F10 for options"
+                : "Search match count · Click to copy · Alt+Home/End to jump · Right-click or Shift+F10 for options");
             MarkSmith.Services.ThemeBrush.Set(FindCountText, TextBlock.ForegroundProperty,
                 hasQuery && count == 0 ? "SystemFillColorCriticalBrush" : "TextFillColorSecondaryBrush");
         }
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(FindCountText, FindCountText.Text);
+
+        // A tab stop only while there is a count to copy. An empty count that still has focus
+        // (the query was cleared) hands focus back to the search box. With no count the name stays
+        // short; left empty, UIA would read out the whole tooltip instead.
+        var hasCount = !string.IsNullOrEmpty(FindCountText.Text);
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(FindCountButton, hasCount ? FindCountText.Text : "Search match count");
+        if (!hasCount && FindCountButton.FocusState != FocusState.Unfocused)
+            FindTextBox?.Focus(FocusState.Programmatic);
+        FindCountButton.IsTabStop = hasCount;
 
         // If a button that is about to be disabled owns focus, move focus to FindTextBox first so
         // WinUI doesn't kick focus to the window's first tab stop ("Start free trial").
@@ -14373,7 +14420,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         grid.Children.Add(StatPill("Characters", $"{stats.Characters:N0}", "\uE8D2", 1, 0));
 
         grid.Children.Add(StatPill("No spaces", $"{stats.CharactersNoSpaces:N0}", "\uE8D2", 0, 1));
-        grid.Children.Add(StatPill("Lines / Para", $"{stats.Lines:N0} / {stats.Paragraphs:N0}", "\uE8BD", 1, 1));
+        grid.Children.Add(StatPill("Lines / Para", $"{stats.DisplayLines:N0} / {stats.Paragraphs:N0}", "\uE8BD", 1, 1));
 
         grid.Children.Add(StatPill("Headings", $"{stats.Headings:N0}", "\uF0E2", 0, 2));
         grid.Children.Add(StatPill("Code blocks", $"{stats.CodeBlocks:N0}", "\uE943", 1, 2));
@@ -14477,14 +14524,9 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
 
         if (PasteTextBox is not null)
         {
-            var text = PasteTextBox.Text ?? string.Empty;
-            var lineCount = 1;
-            for (var i = 0; i < text.Length; i++)
-            {
-                if (IsLineBreak(text[i])) lineCount++;
-            }
-            lineCount = Math.Max(1, _folds.DocumentLine(text, lineCount));
-            var lines = lineCount == 1 ? "1 line" : $"{lineCount:N0} lines";
+            // Same rule as the statistics card and tooltip (DocumentStats.LinesText), over the whole
+            // document with folds expanded, so all three agree.
+            var lines = Services.DocumentStatsService.Analyze(EditorDocument()).LinesText;
             var copyLinesItem = new MenuFlyoutItem
             {
                 Text = $"Copy line count ({lines})",
@@ -15663,17 +15705,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             menu.ShowAt(anchor);
     }
 
-    private void OnPreviewWidthBadgeTapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
-    {
-        CopyPreviewWidthToClipboard();
-        e.Handled = true;
-    }
-
-    private void OnPreviewWidthBadgeDoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
-    {
-        CopyPreviewWidthToClipboard();
-        e.Handled = true;
-    }
+    private void OnPreviewWidthBadgeClick(object sender, RoutedEventArgs e) => CopyPreviewWidthToClipboard();
 
     private void CopyPreviewWidthToClipboard()
     {

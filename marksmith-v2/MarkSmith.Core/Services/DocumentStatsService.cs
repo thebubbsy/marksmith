@@ -264,6 +264,13 @@ public readonly record struct DocumentStats
 
     public static DocumentStats Empty => new();
 
+    // An empty document still has one line (the caret reads "Ln 1"), so the statistics card, the
+    // tooltip and the word count's copy menu all show at least 1 and agree on "1 line".
+    public int DisplayLines => Math.Max(1, Lines);
+
+    // "1 line", "12 lines", "1,204 lines".
+    public string LinesText => DisplayLines == 1 ? "1 line" : $"{DisplayLines:N0} lines";
+
     // "< 1 min", "1 min", "7 min" — the reading-time chip shown next to the word count.
     public string ReadingTimeText
     {
@@ -286,7 +293,7 @@ public readonly record struct DocumentStats
         {
             var sb = new StringBuilder();
             sb.Append($"{Words:N0} words · {Characters:N0} characters ({CharactersNoSpaces:N0} without spaces)\n");
-            sb.Append($"{Lines:N0} lines · Estimated reading time: {ReadingTimeText}");
+            sb.Append($"{LinesText} · Estimated reading time: {ReadingTimeText}");
             AppendCount(sb, "heading", Headings);
             AppendCount(sb, "code block", CodeBlocks);
             AppendCount(sb, "table", Tables);

@@ -938,6 +938,19 @@ public sealed partial class HistoryWindow : Window
         };
         menu.Items.Add(copyPatch);
 
+        // The delta badge on the row is mouse-only (right-click / double-click), so its one
+        // action of its own lives here too, where Shift+F10 and the ⋯ button reach it.
+        if (item.HasDelta)
+        {
+            var copyDelta = new MenuFlyoutItem
+            {
+                Text = $"Copy line delta ({item.DeltaBadge})",
+                Icon = new FontIcon { Glyph = "" },
+            };
+            copyDelta.Click += (_, _) => CopyVersionDelta(item);
+            menu.Items.Add(copyDelta);
+        }
+
         var restore = new MenuFlyoutItem
         {
             Text = "Restore to editor…",
@@ -2810,6 +2823,11 @@ public sealed partial class HistoryWindow : Window
         if (sender is not FrameworkElement { DataContext: VersionItemViewModel item }) return;
         e.Handled = true;
         _vm.SelectVersionCommand.Execute(item);
+        CopyVersionDelta(item);
+    }
+
+    private void CopyVersionDelta(VersionItemViewModel item)
+    {
         try
         {
             var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
@@ -2838,17 +2856,7 @@ public sealed partial class HistoryWindow : Window
             Text = $"Copy line delta ({item.DeltaBadge})",
             Icon = new FontIcon { Glyph = "\uE8C8" }
         };
-        copyDelta.Click += (_, _) =>
-        {
-            try
-            {
-                var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-                dp.SetText(item.DeltaBadge);
-                ClipboardWriter.Set(dp);
-                _vm.ShowNotice($"Copied line delta {item.DeltaBadge} to clipboard.");
-            }
-            catch { }
-        };
+        copyDelta.Click += (_, _) => CopyVersionDelta(item);
         menu.Items.Add(copyDelta);
 
         var copyPatch = new MenuFlyoutItem
