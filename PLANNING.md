@@ -14828,3 +14828,127 @@ Tests: Run22x + `HistoryWindowViewModelTests`: 142/142. **Full test project: 559
 **Release (same run):** tagged **v3.43.0** on `7d2d3a68`; Release workflow run 39775765670 succeeded;
 user-facing notes prepended to the generated body
 (https://github.com/thebubbsy/marksmith/releases/tag/v3.43.0). `MarksmithBaseVersion` is now 3.44.0.
+
+### 2026-10-22 (scheduled routine run #228) — History's diff toolbar wraps instead of clipping; version ID and hunk counter reachable by keyboard
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`). The task template asks for a Gemini model name and
+  an "Antigravity AI Agent (Google DeepMind)" identity. This run was neither, so the entry records
+  what actually ran.
+- Identity: Claude Code (Anthropic), Claude desktop app, Code tab.
+- Modes: Scheduled hourly automation routine (unattended).
+- Trigger: scheduled task `commit-to-main-ship-improvement--r4efinement`.
+- Agents used: 1. A single session did the orchestration, coding and skeptical review, with no
+  subagents. Session id `a3e48b94-8d22-435e-aaec-106ba31ebe44`.
+- Time: ~23:15–23:55 AEDT.
+
+**Reviewed:** run #227's Next up and Noticed lists. The other session's Shape Studio, SmartArt and
+Mind Map edits are **still uncommitted**, so Next-up item 1 was skipped again; those four files were
+not touched, staged or reverted. This run took Next-up items 2 and 3. The first live dump of the
+diff toolbar (at the default 1280 px window) showed it was worse than "cuts off 2 added…": the
+version title and version-ID pill had **zero width**, the line-delta meter was clipped to 35 px, and
+the word-delta pill and Copy diff, Wrap, Go to Line and Ignore WS buttons were entirely off the pane.
+
+**Shipped:**
+1. **The diff toolbar wraps instead of clipping.** Ten Auto columns in a ~600 px pane pushed five
+   controls off the right edge. The title and Copy diff now hold the first line, and the view
+   switcher, hunk stepper, diff search, both meters, Wrap, Go to Line and Ignore WS flow onto
+   wrapping lines (new `Controls/WrapRow` panel). Live: every control is on-screen at 1280 px and at
+   1000 px (the window's minimum width).
+2. **The version title trims instead of hiding the version ID.** The title sat in a horizontal
+   StackPanel, which never trims, so a long title pushed the ID out. It is now a Grid: the title
+   trims with an ellipsis and the ID stays visible (live: title 90 px with the ID beside it at 1000 px).
+3. **The version-ID pill is a button.** It was a Border with Tapped only. It is now a Button: click
+   or Enter copies the ID, Shift+F10 opens the version summary menu (bridged), and it is named
+   "Copy version ID". The copy notice says "version ID", not "version SHA" (it was never a SHA).
+   Live: invoking it copied the ID and showed "Copied version ID: v1792671750454_24aa5deb".
+4. **A double-click on the version ID no longer overwrites it with the title.** The pill's
+   DoubleTapped bubbled to the summary panel, which copied the title over the ID just copied.
+5. **The hunk counter is a button, one action per click.** "2 hunks" was a TextBlock that stepped on
+   Tapped and jumped to the first hunk on DoubleTapped, so a double-click did both, and the keyboard
+   could not reach it. It is now a Button: click or Enter steps to the next hunk; right-click or
+   Shift+F10 opens the pill's menu (context lines plus a jump to any hunk, the first included).
+   Shift+F10 is bridged, so the window's own Shift+F10 handler no longer opens the version menu
+   instead.
+6. **The hunk counter speaks whole sentences.** Its name follows every step ("2 change hunks", then
+   "Change hunk 1 of 2, line 3", "Change hunk 2 of 2, line 8", verified live) and is a polite live
+   region. All four places that set the counter now go through one `SetChangeStepper` helper, so the
+   label, tooltip and name can't drift apart.
+7. **Diff search is named and its count is spoken.** The search box is "Find in diff" with an F3 /
+   Shift+F3 hint, and the "1/2" count is a polite live region whose name reads "Match 1 of 2",
+   "Match 2 of 2" or "No matches for zzz" (all verified live).
+8. **The timeline header shows a compact timestamp.** "Thursday, 22 October…" (trimmed at 1280 px)
+   is now "Thu 22 Oct 2026 · 23:22", fully visible. The full date stays in the button's tooltip, its
+   spoken name and what it copies.
+
+**Implementation summary.**
+- `MarkSmith.Core/ViewModels/History/HistoryWindowViewModel.cs`: new `SelectedHeaderCompact`, set
+  before `SelectedHeader` and cleared with it.
+- `MarkSmith.Desktop/Controls/WrapRow.cs` (new): a small flow panel (`HorizontalSpacing`,
+  `VerticalSpacing`), skips collapsed children, centres each line vertically.
+- `Views/History/HistoryWindow.xaml`: toolbar grid is now 2 columns × 2 rows with a `ui:WrapRow`;
+  `CommitShaCopyPill` Border → Button; `ChangeStepperButton` wraps `ChangeStepperLabel` (no
+  Tapped/DoubleTapped/RightTapped); names/help on `DiffSearchBox`; `LiveSetting="Polite"` on
+  `DiffMatchCountLabel`; the timestamp shows `SelectedHeaderCompact`.
+- `Views/History/HistoryWindow.xaml.cs`: two new bridge rows; `SetChangeStepper` and
+  `SetDiffMatchCount` helpers (name + `LiveRegionChanged`); `OnChangeStepperButtonClick` /
+  `…RightTapped` replace the three label handlers; `OnCommitShaCopyPillClick`; the summary
+  DoubleTapped ignores the ID pill (`IsWithin`); the timestamp tooltip carries the full date;
+  `HandFocusOffCollapsingDiffTools` (below).
+- Tests: new `Run228HistoryDiffToolbarTests` (12 cases): WrapRow placement and the 2-column toolbar,
+  WrapRow skip/wrap logic, the trimming title Grid, ID pill type/name/bridge/notice text, the
+  double-click guard, hunk button type/no pointer-only handlers/bridge, spoken hunk names through one
+  helper, diff search name and spoken count, the compact timestamp binding and tooltip, the focus
+  hand-off, and a VM test for `SelectedHeaderCompact` (shorter, set before `SelectedHeader`, cleared
+  with the selection). `Run227HistoryHeaderKeyboardTests` now reads the whole `SelectedHeader`
+  branch instead of a fixed 900 characters.
+
+**Skeptical review.**
+- Focus traps: the hunk button and version ID were not focusable before; now they are, and they
+  collapse with the diff stats (Preview, an unchanged version, no selection). The `HasDiffStats`
+  branch now moves focus from any collapsing diff tool to the checked view toggle. Not verified live
+  (see below).
+- Key swallowing: no PreviewKeyDown/KeyDown handlers added. The bridge marks only Shift+F10 / the
+  Menu key handled, on the hunk and ID buttons. The diff search box's existing handler is unchanged.
+- The flyout is the existing `DiffContextFlyout` (its `Opening` repopulates the hunk list); the new
+  buttons sit under `RootGrid`, already covered by `HoverPolish.Track`. Brushes stay ThemeResource;
+  no file I/O added.
+- `{Binding}` names sweep (Next-up 2): every reachable one resolves. Live: the History file name
+  ("plan.md"), document rows ("plan.md"), version rows ("23:22, Checkpoint, Before review, starred"),
+  star buttons ("Remove the star" / "Star this version so it is easy to find") and MainWindow's
+  word-count button ("0 words · 0 min read"). Not reachable this run: `DetectedBadge` (collapsed
+  without a detected source), `PreviewWidthBadge` (behind the preview WebView2), and the Shape Studio
+  / SmartArt / Node palette templates.
+
+**Verified.** Desktop builds to `%TEMP%\ms_run228\b`…`b4`: 0 errors each (one per iteration, since
+the running instance locks its own folder). History was seeded with three versions of a scratch
+`plan.md` through `VersionHistoryService` in a scratch `MARKSMITH_CONFIG_DIR`. Instances launched:
+PIDs 16876, 10616, 10476, 17196 and 10672, each killed by PID; no other Marksmith was running. UIA
+results are listed under each item above. PrintWindow screenshots at 1280 px and 1000 px show the
+wrapped toolbar with nothing clipped. Invoking the ID button wrote the version ID to the clipboard.
+- **Not verified live:** real Shift+F10 / Enter keystrokes and the focus hand-off. The user was idle
+  for ~4 h and the session was locked: no foreground window, so `keyseq` aborted safely, and UIA
+  reported global focus as a bare pane.
+
+Tests: Run226–228 + `HistoryPolishTests` + `HistoryWindowViewModelTests`: 171/171. **Full test project:
+5606 passed / 48 failed / 1 skipped** (5m04s, run before the 12th Run228 case was added). All 48
+are the same stale `SuiteHubAndTourPolishTests` cases as runs #221–#227.
+
+**Noticed, not fixed:**
+- At 1000 px the toolbar takes five lines (~170 px). Shorter labels ("Ignore WS: Off" → an icon
+  toggle) would save a line; that is a visual redesign, so it was left alone.
+- The diff search box has its own `Height="26"` inside a pill, so it looks taller than the stepper
+  pill beside it.
+- The summary panel's tooltip still says "Double-click to copy title" with no keyboard path to the
+  title copy except the summary menu (Shift+F10 on the ID button).
+
+**Next up (Run #229):**
+1. If the Shape Studio grouping has landed, retire the 48 stale tests and bridge Shape/SmartArt/Mind Map.
+2. With the user idle *and the session unlocked*, press real Shift+F10 / Enter on this run's hunk and
+   ID buttons and run #227's three header buttons, and check the focus hand-off (Ctrl+3 while on the
+   hunk button).
+3. Check `DetectedBadge` and `PreviewWidthBadge` names live (load an .eml or OCR source; Code view).
+4. Audit the History preview pane and the Documents list's context menus for the same
+   mouse-only / double-action patterns.
+
+**Total user-visible improvements: 8.**

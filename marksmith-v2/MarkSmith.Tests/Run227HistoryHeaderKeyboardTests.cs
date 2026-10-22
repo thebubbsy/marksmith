@@ -113,7 +113,8 @@ public class Run227HistoryHeaderKeyboardTests : IDisposable
         var code = HistoryCode;
         var guard = code.IndexOf("e.PropertyName == nameof(HistoryWindowViewModel.SelectedHeader)", StringComparison.Ordinal);
         Assert.True(guard > 0);
-        var branch = code.Substring(guard, 900);
+        // The whole branch, up to the next property (run #228 added the tooltip to it).
+        var branch = code.Substring(guard, code.IndexOf("else if (e.PropertyName", guard, StringComparison.Ordinal) - guard);
         Assert.Contains("SetName(SelectedHeaderButton", branch);
         Assert.Contains("TimelineFilterStatusPill.Focus(FocusState.Programmatic)", branch);
     }

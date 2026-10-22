@@ -3,6 +3,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:services="using:MarkSmith.Services"
+    xmlns:ui="using:MarkSmith.Controls"
     xmlns:controls="using:Microsoft.UI.Xaml.Controls"
     xmlns:conv="using:MarkSmith.Converters"
     Title="Version History — MarkSmith">
@@ -288,7 +289,7 @@
                                              Click="OnSelectedHeaderButtonClick" RightTapped="OnTimelineHeaderRightTapped"
                                              AutomationProperties.HelpText="Selected version's time. Enter copies it, Shift+F10 for version options."
                                              ToolTipService.ToolTip="Selected version · Click to copy its timestamp, Right-click or Shift+F10 for version options">
-                                <TextBlock Text="{Binding SelectedHeader}" FontSize="11" TextTrimming="CharacterEllipsis"
+                                <TextBlock Text="{Binding SelectedHeaderCompact}" FontSize="11" TextTrimming="CharacterEllipsis"
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             </HyperlinkButton>
                             <Border x:Name="TimelineJumpPill" Grid.Column="2" Background="{ThemeResource SubtleFillColorSecondaryBrush}"
@@ -479,190 +480,50 @@
                     <Border Padding="14,10" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,0,1">
                         <Grid ColumnSpacing="8">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-
-                            <!-- Mode Selector -->
-                            <!-- One segmented control: three loose bordered buttons read as three
-                                  separate actions, not one choice of view. -->
-                            <Border Background="{ThemeResource ControlAltFillColorSecondaryBrush}"
-                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
-                                    CornerRadius="6" Padding="2" VerticalAlignment="Center">
-                                <StackPanel Orientation="Horizontal" Spacing="2">
-                                    <StackPanel.Resources>
-                                        <Style TargetType="ToggleButton" BasedOn="{StaticResource DefaultToggleButtonStyle}">
-                                            <Setter Property="Padding" Value="10,3,10,4" />
-                                            <Setter Property="CornerRadius" Value="4" />
-                                            <Setter Property="FontSize" Value="12" />
-                                            <Setter Property="BorderThickness" Value="0" />
-                                            <Setter Property="Background" Value="{ThemeResource SubtleFillColorTransparentBrush}" />
-                                        </Style>
-                                    </StackPanel.Resources>
-                                    <ToggleButton x:Name="UnifiedToggle" Content="Unified" IsChecked="True"
-                                                  Click="OnUnifiedToggleClick"
-                                                  RightTapped="OnDiffModeToggleRightTapped"
-                                                  AutomationProperties.Name="Unified diff view"
-                                                  ToolTipService.ToolTip="Changes inline: removed lines, then the lines that replaced them (Ctrl+1)" />
-                                    <ToggleButton x:Name="SplitToggle" Content="Side by side"
-                                                  Click="OnSplitToggleClick"
-                                                  RightTapped="OnDiffModeToggleRightTapped"
-                                                  AutomationProperties.Name="Side by side diff view"
-                                                  ToolTipService.ToolTip="The version before on the left, this version on the right (Ctrl+2)" />
-                                    <ToggleButton x:Name="PreviewToggle" Content="Preview"
-                                                  Click="OnPreviewToggleClick"
-                                                  RightTapped="OnDiffModeToggleRightTapped"
-                                                  AutomationProperties.Name="Rendered document preview"
-                                                  ToolTipService.ToolTip="This version rendered as a document (Ctrl+3)" />
-                                </StackPanel>
-                            </Border>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
 
                             <!-- Diff Summary Info -->
-                            <StackPanel x:Name="DiffSummaryPanel" Grid.Column="1" VerticalAlignment="Center" Margin="8,0,0,0"
+                            <StackPanel x:Name="DiffSummaryPanel" VerticalAlignment="Center"
                                         IsHitTestVisible="True"
                                         DoubleTapped="OnDiffSummaryDoubleTapped"
                                         RightTapped="OnDiffSummaryRightTapped"
                                         ToolTipService.ToolTip="Version summary · Double-click to copy title, right-click for options">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                <!-- A Grid, not a horizontal StackPanel: in a StackPanel the title never trims and a
+                                     long one pushes the version-ID button out of the pane. -->
+                                <Grid ColumnSpacing="6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
                                     <TextBlock x:Name="DiffTitleText" Text="{Binding DiffTitle}" FontSize="13" FontWeight="SemiBold"
                                                Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextTrimming="CharacterEllipsis"
                                                AutomationProperties.LiveSetting="Polite" />
-                                    <Border x:Name="CommitShaCopyPill" Background="{ThemeResource SubtleFillColorSecondaryBrush}"
-                                            CornerRadius="4" Padding="6,1" VerticalAlignment="Center"
+                                    <!-- A real button so Tab reaches it: Enter copies the ID, Shift+F10 opens the summary menu. -->
+                                    <Button x:Name="CommitShaCopyPill" Grid.Column="1" Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                            BorderThickness="0" CornerRadius="4" Padding="6,1" MinHeight="0" VerticalAlignment="Center"
                                             Visibility="{Binding HasSelection, Converter={StaticResource BoolToVis}}"
-                                            Tapped="OnCommitShaCopyPillTapped"
-                                            ToolTipService.ToolTip="Click to copy full commit version SHA (Ctrl+C)">
+                                            Click="OnCommitShaCopyPillClick"
+                                            AutomationProperties.Name="Copy version ID"
+                                            AutomationProperties.HelpText="Copies this version's full ID. Shift+F10 for version options."
+                                            ToolTipService.ToolTip="Copy the full version ID · Right-click or Shift+F10 for options">
                                         <StackPanel Orientation="Horizontal" Spacing="4">
                                             <FontIcon Glyph="&#xE8C8;" FontSize="9" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                             <TextBlock x:Name="CommitShaText" Text="{Binding Selected.Id}" FontSize="10" FontFamily="Cascadia Mono, Consolas, monospace" MaxWidth="90" TextTrimming="CharacterEllipsis" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                         </StackPanel>
-                                    </Border>
-                                </StackPanel>
+                                    </Button>
+                                </Grid>
                                 <TextBlock Text="{Binding DiffHeader}" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}"
                                            TextTrimming="CharacterEllipsis" />
                             </StackPanel>
 
-                            <!-- Change Stepper Navigation Pill & Context Filter -->
-                            <Border x:Name="DiffChangeStepperPill" Grid.Column="2"
-                                    Background="{ThemeResource ControlAltFillColorSecondaryBrush}"
-                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
-                                    CornerRadius="6" Padding="2" VerticalAlignment="Center"
-                                    Visibility="{Binding HasDiffStats, Converter={StaticResource BoolToVis}}">
-                                <Border.ContextFlyout>
-                                    <MenuFlyout x:Name="DiffContextFlyout" Opening="OnDiffContextFlyoutOpening">
-                                        <MenuFlyoutItem Text="Changes only (0 context lines)" Click="OnDiffContextChangesOnlyClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE73E;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem Text="Compact (1 context line)" Click="OnDiffContextCompactClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE74E;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem Text="Standard (3 context lines)" Click="OnDiffContextStandardClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE81C;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutSeparator />
-                                        <MenuFlyoutItem Text="Full document (All lines)" Click="OnDiffContextFullClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8A5;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                    </MenuFlyout>
-                                </Border.ContextFlyout>
-                                <StackPanel Orientation="Horizontal" Spacing="2">
-                                    <Button x:Name="PrevChangeButton" Click="OnPrevChangeButtonClick" Style="{StaticResource SubtleButtonStyle}"
-                                            Width="24" Height="24" Padding="0"
-                                            ToolTipService.ToolTip="Previous change hunk (Shift+F7)" AutomationProperties.Name="Previous change">
-                                        <FontIcon Glyph="&#xE70E;" FontSize="10" />
-                                    </Button>
-                                    <TextBlock x:Name="ChangeStepperLabel" Text="Hunks: 0" FontSize="11" VerticalAlignment="Center" Margin="4,0"
-                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                               IsHitTestVisible="True"
-                                               Tapped="OnChangeStepperLabelTapped"
-                                               DoubleTapped="OnChangeStepperLabelDoubleTapped"
-                                               RightTapped="OnChangeStepperLabelRightTapped"
-                                               ToolTipService.ToolTip="Change hunk index · Click to step to next hunk (F7) · Double-click to jump to first · Right-click for diff context" />
-                                    <Button x:Name="NextChangeButton" Click="OnNextChangeButtonClick" Style="{StaticResource SubtleButtonStyle}"
-                                            Width="24" Height="24" Padding="0"
-                                            ToolTipService.ToolTip="Next change hunk (F7)" AutomationProperties.Name="Next change">
-                                        <FontIcon Glyph="&#xE70D;" FontSize="10" />
-                                    </Button>
-                                </StackPanel>
-                            </Border>
-
-                            <!-- Diff Line Search & Match Stepper Pill -->
-                            <Border x:Name="DiffSearchPill" Grid.Column="3"
-                                    Background="{ThemeResource ControlAltFillColorSecondaryBrush}"
-                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
-                                    CornerRadius="6" Padding="4,2" VerticalAlignment="Center"
-                                    Visibility="{Binding HasDiffStats, Converter={StaticResource BoolToVis}}">
-                                <StackPanel Orientation="Horizontal" Spacing="4">
-                                    <FontIcon Glyph="&#xE721;" FontSize="11" Margin="4,0,2,0" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                    <TextBox x:Name="DiffSearchBox" Width="105" Height="26" Padding="4,2" FontSize="11"
-                                             PlaceholderText="Find in diff..." BorderThickness="0" Background="Transparent"
-                                             TextChanged="OnDiffSearchBoxTextChanged" KeyDown="OnDiffSearchBoxKeyDown" />
-                                    <TextBlock x:Name="DiffMatchCountLabel" Text="" FontSize="10.5" VerticalAlignment="Center" Margin="2,0"
-                                               Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
-                                    <Button x:Name="DiffPrevMatchButton" Click="OnDiffPrevMatchClick" Style="{StaticResource SubtleButtonStyle}"
-                                            Width="22" Height="22" Padding="0" ToolTipService.ToolTip="Previous match (Shift+F3)"
-                                            AutomationProperties.Name="Previous search match">
-                                        <FontIcon Glyph="&#xE70E;" FontSize="9" />
-                                    </Button>
-                                    <Button x:Name="DiffNextMatchButton" Click="OnDiffNextMatchClick" Style="{StaticResource SubtleButtonStyle}"
-                                            Width="22" Height="22" Padding="0" ToolTipService.ToolTip="Next match (F3 or Enter)"
-                                            AutomationProperties.Name="Next search match">
-                                        <FontIcon Glyph="&#xE70D;" FontSize="9" />
-                                    </Button>
-                                </StackPanel>
-                            </Border>
-
-                            <!-- Delta Meter -->
-                            <!-- Buttons, not Borders, so Tab reaches the meters: Enter copies, Shift+F10 opens the menu. -->
-                            <Button x:Name="DeltaMeterButton" Grid.Column="4" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="6" Padding="8,3" MinHeight="0" VerticalAlignment="Center"
-                                    BorderThickness="0"
-                                    Click="OnDeltaMeterClick"
-                                    RightTapped="OnDeltaMeterRightTapped"
-                                    AutomationProperties.Name="Line delta"
-                                    AutomationProperties.HelpText="Line delta against the version before. Enter copies it, Shift+F10 for options."
-                                    ToolTipService.ToolTip="Lines added and removed compared with the version before · Click to copy, Right-click or Shift+F10 for options"
-                                    Visibility="{Binding HasDiffStats, Converter={StaticResource BoolToVis}}">
-                                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                                    <TextBlock x:Name="DiffStatsText" Text="{Binding DiffStats}" FontSize="11" FontFamily="Cascadia Mono, Consolas, monospace"
-                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
-                                    <!-- Visual Diff Proportion Bar -->
-                                    <Grid x:Name="DiffVisualStatBar" Width="36" Height="5" CornerRadius="2.5" Background="{ThemeResource CardStrokeColorDefaultBrush}" VerticalAlignment="Center">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition x:Name="DiffAddedCol" Width="*" />
-                                            <ColumnDefinition x:Name="DiffRemovedCol" Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <Rectangle x:Name="DiffAddedRect" Grid.Column="0" Fill="{ThemeResource SystemFillColorSuccessBrush}" RadiusX="1.5" RadiusY="1.5" />
-                                        <Rectangle x:Name="DiffRemovedRect" Grid.Column="1" Fill="{ThemeResource SystemFillColorCriticalBrush}" RadiusX="1.5" RadiusY="1.5" />
-                                    </Grid>
-                                </StackPanel>
-                            </Button>
-
-                            <!-- Word Delta Meter Pill -->
-                            <Button x:Name="DiffWordDeltaPill" Grid.Column="5" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="6" Padding="8,3" MinHeight="0" VerticalAlignment="Center"
-                                    BorderThickness="0"
-                                    Click="OnDiffWordDeltaPillClick"
-                                    RightTapped="OnDiffWordDeltaPillRightTapped"
-                                    AutomationProperties.Name="Word delta"
-                                    AutomationProperties.HelpText="Words added and removed. Enter copies it, Shift+F10 for the detailed copy and other options."
-                                    ToolTipService.ToolTip="Prose &amp; code word delta (+added / -removed words) · Click to copy, Right-click or Shift+F10 for options"
-                                    Visibility="{Binding HasDiffStats, Converter={StaticResource BoolToVis}}">
-                                <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                                    <FontIcon Glyph="&#xE8C1;" FontSize="10" Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
-                                    <TextBlock x:Name="DiffWordDeltaText" Text="+0 / -0 words" FontSize="11" FontFamily="Cascadia Mono, Consolas, monospace"
-                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </Button>
-
                             <!-- Copy Action Button -->
-                            <Button x:Name="CopyToolbarButton" Grid.Column="6" Click="OnCopyToolbarButtonClick"
+                            <Button x:Name="CopyToolbarButton" Grid.Column="1" Click="OnCopyToolbarButtonClick"
                                     VerticalAlignment="Center" Padding="8,4" CornerRadius="6"
                                     Background="{ThemeResource SubtleFillColorTransparentBrush}"
                                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
@@ -698,8 +559,165 @@
                                 </StackPanel>
                             </Button>
 
+                            <!-- Everything else flows onto wrapping lines: in one row of ten columns the right end
+                                 (word delta, copy, wrap, go to line, ignore whitespace) was clipped off a 1280 px window,
+                                 and the version title squeezed to nothing. The title and Copy keep the first line. -->
+                            <ui:WrapRow Grid.Row="1" Grid.ColumnSpan="2" Margin="0,8,0,0" HorizontalSpacing="8" VerticalSpacing="6">
+                            <!-- Mode Selector -->
+                            <!-- One segmented control: three loose bordered buttons read as three
+                                  separate actions, not one choice of view. -->
+                            <Border Background="{ThemeResource ControlAltFillColorSecondaryBrush}"
+                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                                    CornerRadius="6" Padding="2" VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal" Spacing="2">
+                                    <StackPanel.Resources>
+                                        <Style TargetType="ToggleButton" BasedOn="{StaticResource DefaultToggleButtonStyle}">
+                                            <Setter Property="Padding" Value="10,3,10,4" />
+                                            <Setter Property="CornerRadius" Value="4" />
+                                            <Setter Property="FontSize" Value="12" />
+                                            <Setter Property="BorderThickness" Value="0" />
+                                            <Setter Property="Background" Value="{ThemeResource SubtleFillColorTransparentBrush}" />
+                                        </Style>
+                                    </StackPanel.Resources>
+                                    <ToggleButton x:Name="UnifiedToggle" Content="Unified" IsChecked="True"
+                                                  Click="OnUnifiedToggleClick"
+                                                  RightTapped="OnDiffModeToggleRightTapped"
+                                                  AutomationProperties.Name="Unified diff view"
+                                                  ToolTipService.ToolTip="Changes inline: removed lines, then the lines that replaced them (Ctrl+1)" />
+                                    <ToggleButton x:Name="SplitToggle" Content="Side by side"
+                                                  Click="OnSplitToggleClick"
+                                                  RightTapped="OnDiffModeToggleRightTapped"
+                                                  AutomationProperties.Name="Side by side diff view"
+                                                  ToolTipService.ToolTip="The version before on the left, this version on the right (Ctrl+2)" />
+                                    <ToggleButton x:Name="PreviewToggle" Content="Preview"
+                                                  Click="OnPreviewToggleClick"
+                                                  RightTapped="OnDiffModeToggleRightTapped"
+                                                  AutomationProperties.Name="Rendered document preview"
+                                                  ToolTipService.ToolTip="This version rendered as a document (Ctrl+3)" />
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Change Stepper Navigation Pill & Context Filter -->
+                            <Border x:Name="DiffChangeStepperPill"
+                                    Background="{ThemeResource ControlAltFillColorSecondaryBrush}"
+                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                                    CornerRadius="6" Padding="2" VerticalAlignment="Center"
+                                    Visibility="{Binding HasDiffStats, Converter={StaticResource BoolToVis}}">
+                                <Border.ContextFlyout>
+                                    <MenuFlyout x:Name="DiffContextFlyout" Opening="OnDiffContextFlyoutOpening">
+                                        <MenuFlyoutItem Text="Changes only (0 context lines)" Click="OnDiffContextChangesOnlyClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE73E;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="Compact (1 context line)" Click="OnDiffContextCompactClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE74E;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="Standard (3 context lines)" Click="OnDiffContextStandardClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE81C;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutSeparator />
+                                        <MenuFlyoutItem Text="Full document (All lines)" Click="OnDiffContextFullClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8A5;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                    </MenuFlyout>
+                                </Border.ContextFlyout>
+                                <StackPanel Orientation="Horizontal" Spacing="2">
+                                    <Button x:Name="PrevChangeButton" Click="OnPrevChangeButtonClick" Style="{StaticResource SubtleButtonStyle}"
+                                            Width="24" Height="24" Padding="0"
+                                            ToolTipService.ToolTip="Previous change hunk (Shift+F7)" AutomationProperties.Name="Previous change">
+                                        <FontIcon Glyph="&#xE70E;" FontSize="10" />
+                                    </Button>
+                                    <!-- A real button so Tab reaches it: Enter steps to the next hunk; Shift+F10 / right-click
+                                         open the pill's context menu (context lines + a jump to any hunk, the first included). -->
+                                    <Button x:Name="ChangeStepperButton" Style="{StaticResource SubtleButtonStyle}"
+                                            Padding="4,0" MinHeight="0" Height="24" VerticalAlignment="Center"
+                                            Click="OnChangeStepperButtonClick"
+                                            AutomationProperties.Name="Change hunks"
+                                            AutomationProperties.LiveSetting="Polite"
+                                            AutomationProperties.HelpText="Steps to the next change hunk. Shift+F10 to jump to any hunk or change the context lines."
+                                            ToolTipService.ToolTip="Change hunk index · Click to step to next hunk (F7) · Right-click or Shift+F10 to jump to a hunk or change context">
+                                        <TextBlock x:Name="ChangeStepperLabel" Text="0 hunks" FontSize="11"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    </Button>
+                                    <Button x:Name="NextChangeButton" Click="OnNextChangeButtonClick" Style="{StaticResource SubtleButtonStyle}"
+                                            Width="24" Height="24" Padding="0"
+                                            ToolTipService.ToolTip="Next change hunk (F7)" AutomationProperties.Name="Next change">
+                                        <FontIcon Glyph="&#xE70D;" FontSize="10" />
+                                    </Button>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Diff Line Search & Match Stepper Pill -->
+                            <Border x:Name="DiffSearchPill"
+                                    Background="{ThemeResource ControlAltFillColorSecondaryBrush}"
+                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                                    CornerRadius="6" Padding="4,2" VerticalAlignment="Center"
+                                    Visibility="{Binding HasDiffStats, Converter={StaticResource BoolToVis}}">
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <FontIcon Glyph="&#xE721;" FontSize="11" Margin="4,0,2,0" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBox x:Name="DiffSearchBox" Width="105" Height="26" Padding="4,2" FontSize="11"
+                                             PlaceholderText="Find in diff..." BorderThickness="0" Background="Transparent"
+                                             AutomationProperties.Name="Find in diff"
+                                             AutomationProperties.HelpText="Enter or F3 for the next match, Shift+F3 for the previous one."
+                                             TextChanged="OnDiffSearchBoxTextChanged" KeyDown="OnDiffSearchBoxKeyDown" />
+                                    <TextBlock x:Name="DiffMatchCountLabel" Text="" FontSize="10.5" VerticalAlignment="Center" Margin="2,0"
+                                               AutomationProperties.LiveSetting="Polite"
+                                               Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                                    <Button x:Name="DiffPrevMatchButton" Click="OnDiffPrevMatchClick" Style="{StaticResource SubtleButtonStyle}"
+                                            Width="22" Height="22" Padding="0" ToolTipService.ToolTip="Previous match (Shift+F3)"
+                                            AutomationProperties.Name="Previous search match">
+                                        <FontIcon Glyph="&#xE70E;" FontSize="9" />
+                                    </Button>
+                                    <Button x:Name="DiffNextMatchButton" Click="OnDiffNextMatchClick" Style="{StaticResource SubtleButtonStyle}"
+                                            Width="22" Height="22" Padding="0" ToolTipService.ToolTip="Next match (F3 or Enter)"
+                                            AutomationProperties.Name="Next search match">
+                                        <FontIcon Glyph="&#xE70D;" FontSize="9" />
+                                    </Button>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Delta Meter -->
+                            <!-- Buttons, not Borders, so Tab reaches the meters: Enter copies, Shift+F10 opens the menu. -->
+                            <Button x:Name="DeltaMeterButton" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="6" Padding="8,3" MinHeight="0" VerticalAlignment="Center"
+                                    BorderThickness="0"
+                                    Click="OnDeltaMeterClick"
+                                    RightTapped="OnDeltaMeterRightTapped"
+                                    AutomationProperties.Name="Line delta"
+                                    AutomationProperties.HelpText="Line delta against the version before. Enter copies it, Shift+F10 for options."
+                                    ToolTipService.ToolTip="Lines added and removed compared with the version before · Click to copy, Right-click or Shift+F10 for options"
+                                    Visibility="{Binding HasDiffStats, Converter={StaticResource BoolToVis}}">
+                                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                    <TextBlock x:Name="DiffStatsText" Text="{Binding DiffStats}" FontSize="11" FontFamily="Cascadia Mono, Consolas, monospace"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
+                                    <!-- Visual Diff Proportion Bar -->
+                                    <Grid x:Name="DiffVisualStatBar" Width="36" Height="5" CornerRadius="2.5" Background="{ThemeResource CardStrokeColorDefaultBrush}" VerticalAlignment="Center">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition x:Name="DiffAddedCol" Width="*" />
+                                            <ColumnDefinition x:Name="DiffRemovedCol" Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Rectangle x:Name="DiffAddedRect" Grid.Column="0" Fill="{ThemeResource SystemFillColorSuccessBrush}" RadiusX="1.5" RadiusY="1.5" />
+                                        <Rectangle x:Name="DiffRemovedRect" Grid.Column="1" Fill="{ThemeResource SystemFillColorCriticalBrush}" RadiusX="1.5" RadiusY="1.5" />
+                                    </Grid>
+                                </StackPanel>
+                            </Button>
+
+                            <!-- Word Delta Meter Pill -->
+                            <Button x:Name="DiffWordDeltaPill" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="6" Padding="8,3" MinHeight="0" VerticalAlignment="Center"
+                                    BorderThickness="0"
+                                    Click="OnDiffWordDeltaPillClick"
+                                    RightTapped="OnDiffWordDeltaPillRightTapped"
+                                    AutomationProperties.Name="Word delta"
+                                    AutomationProperties.HelpText="Words added and removed. Enter copies it, Shift+F10 for the detailed copy and other options."
+                                    ToolTipService.ToolTip="Prose &amp; code word delta (+added / -removed words) · Click to copy, Right-click or Shift+F10 for options"
+                                    Visibility="{Binding HasDiffStats, Converter={StaticResource BoolToVis}}">
+                                <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                                    <FontIcon Glyph="&#xE8C1;" FontSize="10" Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
+                                    <TextBlock x:Name="DiffWordDeltaText" Text="+0 / -0 words" FontSize="11" FontFamily="Cascadia Mono, Consolas, monospace"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+
                             <!-- Diff Line Soft-Wrap Toggle Button -->
-                            <Button x:Name="DiffWrapButton" Grid.Column="7" Click="OnDiffWrapButtonClick"
+                            <Button x:Name="DiffWrapButton" Click="OnDiffWrapButtonClick"
                                     VerticalAlignment="Center" Padding="8,4" CornerRadius="6"
                                     Background="{ThemeResource SubtleFillColorTransparentBrush}"
                                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
@@ -713,7 +731,7 @@
                             </Button>
 
                             <!-- Diff Line Number Jump Button -->
-                            <Button x:Name="DiffLineJumpButton" Grid.Column="8" Click="OnDiffLineJumpButtonClick"
+                            <Button x:Name="DiffLineJumpButton" Click="OnDiffLineJumpButtonClick"
                                     VerticalAlignment="Center" Padding="8,4" CornerRadius="6"
                                     Background="{ThemeResource SubtleFillColorTransparentBrush}"
                                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
@@ -727,7 +745,7 @@
                             </Button>
 
                             <!-- Diff Ignore Whitespace Toggle Button -->
-                            <Button x:Name="DiffIgnoreWhitespaceButton" Grid.Column="9" Click="OnDiffIgnoreWhitespaceButtonClick"
+                            <Button x:Name="DiffIgnoreWhitespaceButton" Click="OnDiffIgnoreWhitespaceButtonClick"
                                     VerticalAlignment="Center" Padding="8,4" CornerRadius="6"
                                     Background="{ThemeResource SubtleFillColorTransparentBrush}"
                                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
@@ -739,6 +757,7 @@
                                     <TextBlock x:Name="DiffIgnoreWhitespaceLabel" Text="Ignore WS: Off" FontSize="11.5" />
                                 </StackPanel>
                             </Button>
+                            </ui:WrapRow>
                         </Grid>
                     </Border>
 

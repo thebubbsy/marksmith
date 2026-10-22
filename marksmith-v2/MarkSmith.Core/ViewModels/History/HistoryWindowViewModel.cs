@@ -191,6 +191,14 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(HasSelectedHeader))]
     private string _selectedHeader = "";
 
+    /// <summary>
+    /// The timestamp as the timeline header shows it ("Thu 22 Oct 2026 · 22:58"): the full
+    /// <see cref="SelectedHeader"/> trimmed to "Thursday, 22 October…" in a 1280 px window.
+    /// The full form stays in the button's tooltip, its spoken name and what it copies.
+    /// </summary>
+    [ObservableProperty]
+    private string _selectedHeaderCompact = "";
+
     /// <summary>The timeline header's timestamp button shows (and takes a tab stop) only with a selection.</summary>
     public bool HasSelectedHeader => !string.IsNullOrWhiteSpace(SelectedHeader);
 
@@ -523,6 +531,7 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
         DiffRows.Clear();
         UnifiedDiffRows.Clear();
         IsUnchanged = false;
+        SelectedHeaderCompact = "";
         SelectedHeader = "";
         _compareTitle = "Select a version to see its changes";
         _compareHeader = "";
@@ -698,6 +707,8 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
             _loadedDiffVersionId = "";
             item.IsSelected = true;
             var t = item.Entry.CreatedAt.LocalDateTime;
+            // Compact first: the SelectedHeader change handler (name, tooltip) reads both.
+            SelectedHeaderCompact = t.ToString("ddd d MMM yyyy") + " · " + t.ToString("HH:mm");
             SelectedHeader = t.ToString("dddd, d MMMM yyyy") + " · " + t.ToString("HH:mm");
             ApplyHeading();
             _ = RefreshDiffAsync(item, token);

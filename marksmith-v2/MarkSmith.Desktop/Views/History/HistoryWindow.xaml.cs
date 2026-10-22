@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using MarkSmith.Services;
 using MarkSmith.ViewModels;
@@ -71,7 +72,9 @@ public sealed partial class HistoryWindow : Window
             (DiffWordDeltaPill, OnDiffWordDeltaPillRightTapped),
             (FileNameButton, OnFileNameRightTapped),
             (SelectedHeaderButton, OnTimelineHeaderRightTapped),
-            (TimelineFilterStatusPill, OnTimelineFilterStatusPillRightTapped));
+            (TimelineFilterStatusPill, OnTimelineFilterStatusPillRightTapped),
+            (CommitShaCopyPill, OnDiffSummaryRightTapped),
+            (ChangeStepperButton, OnChangeStepperButtonRightTapped));
         Title = "Version History — MarkSmith";
         _main = mainViewModel;
 
@@ -270,6 +273,7 @@ public sealed partial class HistoryWindow : Window
             ResetChangeStepper();
             UpdateVisualDiffStatsBar();
             UpdateDiffSearchMatches();
+            if (!_vm.HasDiffStats) HandFocusOffCollapsingDiffTools();
         }
         else if (e.PropertyName == nameof(HistoryWindowViewModel.SearchQuery) || e.PropertyName == nameof(HistoryWindowViewModel.IsStarredOnlyFilter))
         {
@@ -279,6 +283,10 @@ public sealed partial class HistoryWindow : Window
         {
             Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(SelectedHeaderButton,
                 _vm.HasSelectedHeader ? $"Selected version {_vm.SelectedHeader}" : "Selected version");
+            // The header shows the compact form; the tooltip carries the full date.
+            ToolTipService.SetToolTip(SelectedHeaderButton, _vm.HasSelectedHeader
+                ? $"{_vm.SelectedHeader} · Click to copy, Right-click or Shift+F10 for version options"
+                : "Selected version · Click to copy its timestamp, Right-click or Shift+F10 for version options");
             if (_vm.HasSelectedHeader) return;
             // The timestamp button collapses (on HasSelectedHeader, raised next) with the selection;
             // move focus while it still shows.
@@ -565,13 +573,28 @@ public sealed partial class HistoryWindow : Window
     {
         _currentHunkIndex = -1;
         var hunks = GetChangeHunkIndices();
-        if (ChangeStepperLabel != null)
-        {
-            ChangeStepperLabel.Text = hunks.Count > 0 ? $"{hunks.Count} {(hunks.Count == 1 ? "hunk" : "hunks")}" : "0 hunks";
-            ToolTipService.SetToolTip(ChangeStepperLabel, hunks.Count > 0
-                ? $"{hunks.Count} change {(hunks.Count == 1 ? "hunk" : "hunks")} · Click or F7 to jump to next hunk, Shift+F7 for previous"
-                : "No change hunks in this version");
-        }
+        SetChangeStepper(
+            hunks.Count > 0 ? $"{hunks.Count} {(hunks.Count == 1 ? "hunk" : "hunks")}" : "0 hunks",
+            hunks.Count > 0
+                ? $"{hunks.Count} change {(hunks.Count == 1 ? "hunk" : "hunks")} · Click or F7 to jump to next hunk, Shift+F7 for previous · Right-click or Shift+F10 to pick one"
+                : "No change hunks in this version",
+            hunks.Count > 0 ? $"{hunks.Count} change {(hunks.Count == 1 ? "hunk" : "hunks")}" : "No change hunks",
+            announce: false);
+    }
+
+    /// <summary>
+    /// Updates the hunk counter: its short text ("Hunk 2/5"), its tooltip, and the name screen
+    /// readers hear ("Change hunk 2 of 5"), announced politely when the user stepped.
+    /// </summary>
+    private void SetChangeStepper(string text, string tooltip, string spoken, bool announce = true)
+    {
+        if (ChangeStepperLabel == null || ChangeStepperButton == null) return;
+        ChangeStepperLabel.Text = text;
+        ToolTipService.SetToolTip(ChangeStepperButton, tooltip);
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(ChangeStepperButton, spoken);
+        if (announce)
+            Microsoft.UI.Xaml.Automation.Peers.FrameworkElementAutomationPeer.FromElement(ChangeStepperButton)
+                ?.RaiseAutomationEvent(Microsoft.UI.Xaml.Automation.Peers.AutomationEvents.LiveRegionChanged);
     }
 
     private List<int> GetChangeHunkIndices()
@@ -628,7 +651,7 @@ public sealed partial class HistoryWindow : Window
         var hunks = GetChangeHunkIndices();
         if (hunks.Count == 0)
         {
-            if (ChangeStepperLabel != null) ChangeStepperLabel.Text = "0 hunks";
+            SetChangeStepper("0 hunks", "No change hunks in this version", "No change hunks");
             return;
         }
 
@@ -642,11 +665,9 @@ public sealed partial class HistoryWindow : Window
         }
 
         int targetRow = hunks[_currentHunkIndex];
-        if (ChangeStepperLabel != null)
-        {
-            ChangeStepperLabel.Text = $"Hunk {_currentHunkIndex + 1}/{hunks.Count}";
-            ToolTipService.SetToolTip(ChangeStepperLabel, $"Hunk {_currentHunkIndex + 1} of {hunks.Count} (Line {targetRow + 1}) · F7 next, Shift+F7 prev");
-        }
+        SetChangeStepper($"Hunk {_currentHunkIndex + 1}/{hunks.Count}",
+            $"Hunk {_currentHunkIndex + 1} of {hunks.Count} (Line {targetRow + 1}) · F7 next, Shift+F7 prev · Right-click or Shift+F10 to pick one",
+            $"Change hunk {_currentHunkIndex + 1} of {hunks.Count}, line {targetRow + 1}");
 
         double targetY = Math.Max(0, targetRow * 20.0);
         if (_vm.DiffMode == HistoryDiffMode.Unified)
@@ -669,17 +690,17 @@ public sealed partial class HistoryWindow : Window
         StepToChangeHunk(1);
     }
 
-    private void OnChangeStepperLabelTapped(object sender, TappedRoutedEventArgs e)
-    {
-        e.Handled = true;
-        StepToChangeHunk(1);
-    }
+    // One action per click: the label used to step on Tapped and jump to the first hunk on
+    // DoubleTapped, so a double-click did both. Jumping to any hunk (the first included) is in the
+    // pill's context menu, which right-click and Shift+F10 open.
+    private void OnChangeStepperButtonClick(object sender, RoutedEventArgs e) => StepToChangeHunk(1);
 
-    private void OnChangeStepperLabelDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    // Keyboard only (bridged): a right-click reaches the pill's own ContextFlyout. Without the
+    // bridge, Shift+F10 here would bubble to the window's handler and open the version menu.
+    private void OnChangeStepperButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
     {
         e.Handled = true;
-        _currentHunkIndex = -1;
-        StepToChangeHunk(1);
+        DiffContextFlyout?.ShowAt(DiffChangeStepperPill, new FlyoutShowOptions { Placement = FlyoutPlacementMode.BottomEdgeAlignedLeft });
     }
 
     private void JumpToHunkIndex(int hunkIndex)
@@ -688,11 +709,9 @@ public sealed partial class HistoryWindow : Window
         if (hunkIndex < 0 || hunkIndex >= hunks.Count) return;
         _currentHunkIndex = hunkIndex;
         int targetRow = hunks[_currentHunkIndex];
-        if (ChangeStepperLabel != null)
-        {
-            ChangeStepperLabel.Text = $"Hunk {_currentHunkIndex + 1}/{hunks.Count}";
-            ToolTipService.SetToolTip(ChangeStepperLabel, $"Hunk {_currentHunkIndex + 1} of {hunks.Count} (Line {targetRow + 1}) · F7 next, Shift+F7 prev");
-        }
+        SetChangeStepper($"Hunk {_currentHunkIndex + 1}/{hunks.Count}",
+            $"Hunk {_currentHunkIndex + 1} of {hunks.Count} (Line {targetRow + 1}) · F7 next, Shift+F7 prev · Right-click or Shift+F10 to pick one",
+            $"Change hunk {_currentHunkIndex + 1} of {hunks.Count}, line {targetRow + 1}");
 
         double targetY = Math.Max(0, targetRow * 20.0);
         if (_vm.DiffMode == HistoryDiffMode.Unified)
@@ -747,12 +766,6 @@ public sealed partial class HistoryWindow : Window
         }
     }
 
-    private void OnChangeStepperLabelRightTapped(object sender, RightTappedRoutedEventArgs e)
-    {
-        e.Handled = true;
-        DiffContextFlyout?.ShowAt(sender as FrameworkElement ?? ChangeStepperLabel);
-    }
-
     private void OnDiffContextChangesOnlyClick(object sender, RoutedEventArgs e) => ApplyDiffContext(0);
     private void OnDiffContextCompactClick(object sender, RoutedEventArgs e) => ApplyDiffContext(1);
     private void OnDiffContextStandardClick(object sender, RoutedEventArgs e) => ApplyDiffContext(3);
@@ -763,11 +776,9 @@ public sealed partial class HistoryWindow : Window
         _vm.SetDiffContextLines(contextLines);
         _currentHunkIndex = -1;
         var hunks = GetChangeHunkIndices();
-        if (ChangeStepperLabel != null)
-        {
-            ChangeStepperLabel.Text = hunks.Count > 0 ? $"Hunk 1/{hunks.Count}" : "0 hunks";
-            ToolTipService.SetToolTip(ChangeStepperLabel, $"{_vm.DiffContextLabel} · {hunks.Count} hunk{(hunks.Count == 1 ? "" : "s")} · Click to step (F7), double-click for first, right-click to change context");
-        }
+        SetChangeStepper(hunks.Count > 0 ? $"Hunk 1/{hunks.Count}" : "0 hunks",
+            $"{_vm.DiffContextLabel} · {hunks.Count} hunk{(hunks.Count == 1 ? "" : "s")} · Click to step (F7), right-click or Shift+F10 to jump to a hunk or change context",
+            hunks.Count > 0 ? $"{hunks.Count} change hunk{(hunks.Count == 1 ? "" : "s")}" : "No change hunks");
         if (hunks.Count > 0)
         {
             StepToChangeHunk(1);
@@ -787,7 +798,7 @@ public sealed partial class HistoryWindow : Window
         string query = DiffSearchBox.Text?.Trim() ?? "";
         if (string.IsNullOrEmpty(query))
         {
-            DiffMatchCountLabel.Text = "";
+            SetDiffMatchCount("", "");
             if (DiffSearchPill != null)
                 ToolTipService.SetToolTip(DiffSearchPill, "Search within diff rows (Enter/F3 next, Shift+F3 prev, Esc clear)");
             return;
@@ -820,14 +831,14 @@ public sealed partial class HistoryWindow : Window
 
         if (_diffSearchMatches.Count == 0)
         {
-            DiffMatchCountLabel.Text = "0/0";
+            SetDiffMatchCount("0/0", $"No matches for {query}");
             if (DiffSearchPill != null)
                 ToolTipService.SetToolTip(DiffSearchPill, $"No matches for '{query}'");
         }
         else
         {
             _currentDiffSearchIndex = 0;
-            DiffMatchCountLabel.Text = $"1/{_diffSearchMatches.Count}";
+            SetDiffMatchCount($"1/{_diffSearchMatches.Count}", $"Match 1 of {_diffSearchMatches.Count}");
             if (DiffSearchPill != null)
                 ToolTipService.SetToolTip(DiffSearchPill, $"Match 1 of {_diffSearchMatches.Count} for '{query}' · F3 next, Shift+F3 prev");
             ScrollToDiffRow(_diffSearchMatches[0]);
@@ -842,11 +853,26 @@ public sealed partial class HistoryWindow : Window
         string query = DiffSearchBox?.Text?.Trim() ?? "";
         if (DiffMatchCountLabel != null)
         {
-            DiffMatchCountLabel.Text = $"{_currentDiffSearchIndex + 1}/{_diffSearchMatches.Count}";
+            SetDiffMatchCount($"{_currentDiffSearchIndex + 1}/{_diffSearchMatches.Count}",
+                $"Match {_currentDiffSearchIndex + 1} of {_diffSearchMatches.Count}");
             if (DiffSearchPill != null)
                 ToolTipService.SetToolTip(DiffSearchPill, $"Match {_currentDiffSearchIndex + 1} of {_diffSearchMatches.Count} for '{query}' (Row {targetRow + 1}) · F3 next, Shift+F3 prev");
         }
         ScrollToDiffRow(targetRow);
+    }
+
+    /// <summary>
+    /// Shows the compact "2/5" count and gives the polite live region a spoken form ("Match 2 of 5"),
+    /// so a screen reader announces each step instead of reading "2 slash 5".
+    /// </summary>
+    private void SetDiffMatchCount(string text, string spoken)
+    {
+        if (DiffMatchCountLabel == null) return;
+        DiffMatchCountLabel.Text = text;
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(DiffMatchCountLabel, spoken);
+        if (spoken.Length > 0)
+            Microsoft.UI.Xaml.Automation.Peers.FrameworkElementAutomationPeer.FromElement(DiffMatchCountLabel)
+                ?.RaiseAutomationEvent(Microsoft.UI.Xaml.Automation.Peers.AutomationEvents.LiveRegionChanged);
     }
 
     private void ScrollToDiffRow(int targetRow)
@@ -2031,6 +2057,9 @@ public sealed partial class HistoryWindow : Window
     private void OnDiffSummaryDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
     {
         e.Handled = true;
+        // A double-click on the version-ID button bubbles here after its two Clicks copied the ID;
+        // copying the title on top would leave the wrong text on the clipboard.
+        if (IsWithin(e.OriginalSource as DependencyObject, CommitShaCopyPill)) return;
         var title = _vm.DiffTitle;
         if (!string.IsNullOrWhiteSpace(title))
         {
@@ -2041,16 +2070,35 @@ public sealed partial class HistoryWindow : Window
         }
     }
 
-    private void OnCommitShaCopyPillTapped(object sender, TappedRoutedEventArgs e)
+    // The diff tools collapse with the diff stats (Preview, an unchanged version, no selection).
+    // Before run #228 the hunk counter and version ID were not focusable; now they are, so a
+    // keyboard user on one of them would be left with focus on nothing. Land on the view switcher.
+    private void HandFocusOffCollapsingDiffTools()
     {
-        e.Handled = true;
+        if (Microsoft.UI.Xaml.Input.FocusManager.GetFocusedElement(RootGrid.XamlRoot) is not DependencyObject focused) return;
+        UIElement[] collapsing = { DiffChangeStepperPill, DiffSearchPill, DeltaMeterButton, DiffWordDeltaPill,
+            DiffWrapButton, DiffLineJumpButton, DiffIgnoreWhitespaceButton, CommitShaCopyPill, CopyToolbarButton };
+        if (!collapsing.Any(c => IsWithin(focused, c))) return;
+        var target = PreviewToggle.IsChecked == true ? PreviewToggle : SplitToggle.IsChecked == true ? SplitToggle : UnifiedToggle;
+        target.Focus(FocusState.Programmatic);
+    }
+
+    private static bool IsWithin(DependencyObject? start, DependencyObject ancestor)
+    {
+        for (var d = start; d != null; d = VisualTreeHelper.GetParent(d))
+            if (ReferenceEquals(d, ancestor)) return true;
+        return false;
+    }
+
+    private void OnCommitShaCopyPillClick(object sender, RoutedEventArgs e)
+    {
         var sha = _vm.Selected?.Id;
         if (!string.IsNullOrWhiteSpace(sha))
         {
             var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
             dp.SetText(sha);
             ClipboardWriter.Set(dp);
-            _vm.ShowNotice($"Copied version SHA: {sha}");
+            _vm.ShowNotice($"Copied version ID: {sha}");
         }
     }
 
