@@ -14466,3 +14466,7 @@ caused by the other session's uncommitted Shape Studio edit. None involve a file
 4. Eye-check Insert dialogs and the Command Palette at 1220×800 (carried over).
 
 **Total user-visible improvements: 6.**
+
+**Release (same run):** tagged **v3.40.0** on `fa28fda0`; Release workflow run 39706956432 succeeded;
+user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.40.0). `MarksmithBaseVersion` is now 3.41.0.
