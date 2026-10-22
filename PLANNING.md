@@ -14709,3 +14709,7 @@ cases as runs #221–#225.
 4. Check the WebView2 UIA cut-off in Split view with Narrator.
 
 **Total user-visible improvements: 7.**
+
+**Release (same run):** tagged **v3.42.0** on `83c8403e`; Release workflow run 39747004454 succeeded;
+user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.42.0). `MarksmithBaseVersion` is now 3.43.0.
