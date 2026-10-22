@@ -14952,3 +14952,7 @@ are the same stale `SuiteHubAndTourPolishTests` cases as runs #221–#227.
    mouse-only / double-action patterns.
 
 **Total user-visible improvements: 8.**
+
+**Release (same run):** tagged **v3.44.0** on `f633d252`; Release workflow run 39780053915 succeeded;
+user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.44.0). `MarksmithBaseVersion` is now 3.45.0.
