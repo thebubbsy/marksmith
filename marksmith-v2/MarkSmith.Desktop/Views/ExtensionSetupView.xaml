@@ -103,7 +103,7 @@
                         </TextBox>
                         <Button Grid.Column="1" x:Name="CopyFolderButton" Click="OnCopyFolderClick"
                                 AutomationProperties.Name="Copy folder path (Ctrl+Shift+C)"
-                                ToolTipService.ToolTip="Copy the folder's path (Ctrl+Shift+C) · Right-click for options"
+                                ToolTipService.ToolTip="Copy the folder's path (Ctrl+Shift+C) · Right-click or Shift+F10 for options"
                                 RightTapped="OnCopyFolderButtonRightTapped">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon x:Name="CopyFolderIcon" Glyph="&#xE8C8;" FontSize="14" />
@@ -112,7 +112,7 @@
                         </Button>
                         <Button Grid.Column="2" x:Name="OpenFolderButton" Click="OnOpenFolderClick"
                                 AutomationProperties.Name="Open folder (Ctrl+O)"
-                                ToolTipService.ToolTip="Show the folder in File Explorer (Ctrl+O) · Right-click for options"
+                                ToolTipService.ToolTip="Show the folder in File Explorer (Ctrl+O) · Right-click or Shift+F10 for options"
                                 RightTapped="OnOpenFolderButtonRightTapped">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon Glyph="&#xE838;" FontSize="14" />
@@ -160,7 +160,7 @@
                            AutomationProperties.LiveSetting="Polite" />
                 <Button x:Name="TurnOnButton" Grid.Column="2" Click="OnTurnOnClick" Style="{StaticResource AccentButtonStyle}"
                         VerticalAlignment="Center" Visibility="Collapsed"
-                        ToolTipService.ToolTip="Let the extension reach MarkSmith on this PC (Settings ▸ Automation ▸ Local API) · Right-click for options"
+                        ToolTipService.ToolTip="Let the extension reach MarkSmith on this PC (Settings ▸ Automation ▸ Local API) · Right-click or Shift+F10 for options"
                         RightTapped="OnTurnOnButtonRightTapped">
                     <TextBlock Text="Turn on" />
                 </Button>

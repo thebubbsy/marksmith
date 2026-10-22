@@ -71,6 +71,16 @@ public sealed partial class WelcomeTour : UserControl
     public WelcomeTour(bool editorHasDocument = false)
     {
         InitializeComponent();
+        // "Right-click for options" menus: open them from Shift+F10 / the Menu key too.
+        KeyboardContextMenu.BridgeAll(
+            (Step1Card, OnStepCardRightTapped),
+            (Step2Card, OnStepCardRightTapped),
+            (Step3Card, OnStepCardRightTapped),
+            (SampleCard, OnSampleCardRightTapped),
+            (BlankCard, OnBlankCardRightTapped),
+            (SkipButton, OnSkipButtonRightTapped),
+            (BackButton, OnBackButtonRightTapped),
+            (NextButton, OnNextButtonRightTapped));
         PlanText.Text = $"{ProGate.FreePlanIncludes} {ProGate.ProPlanAdds} {ProGate.TrialSummary}";
         if (editorHasDocument)
         {
@@ -200,6 +210,8 @@ public sealed partial class WelcomeTour : UserControl
 
         if (e.Key == Windows.System.VirtualKey.Application || (shift && !ctrl && !alt && e.Key == Windows.System.VirtualKey.F10))
         {
+            // A focused button with its own menu (Skip, Next, the step cards) already opened it.
+            if (KeyboardContextMenu.IsFromBridgedControl(e)) return;
             ShowTourContextMenu(null);
             e.Handled = true;
             return;
@@ -360,7 +372,7 @@ public sealed partial class WelcomeTour : UserControl
     private void OnTourRightTapped(object sender, RightTappedRoutedEventArgs e)
     {
         e.Handled = true;
-        ShowTourContextMenu(e.GetPosition(this));
+        ShowTourContextMenu(KeyboardContextMenu.PointIn(e, this));
     }
 
     private void ShowTourContextMenu(Windows.Foundation.Point? position)
@@ -488,7 +500,7 @@ public sealed partial class WelcomeTour : UserControl
     private void OnStepBadgeRightTapped(object sender, RightTappedRoutedEventArgs e)
     {
         e.Handled = true;
-        ShowStepBadgeMenu(StepBadgeBorder, e.GetPosition(StepBadgeBorder));
+        ShowStepBadgeMenu(StepBadgeBorder, KeyboardContextMenu.PointIn(e, StepBadgeBorder));
     }
 
     private void ShowStepBadgeMenu(FrameworkElement anchor, Windows.Foundation.Point? position)
@@ -585,7 +597,7 @@ public sealed partial class WelcomeTour : UserControl
         skipItem.Click += OnSkip;
         menu.Items.Add(skipItem);
 
-        menu.ShowAt(btn, e.GetPosition(btn));
+        menu.ShowAt(btn, KeyboardContextMenu.PointIn(e, btn));
     }
 
     private void OnSampleCardRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -633,7 +645,7 @@ public sealed partial class WelcomeTour : UserControl
         skip.Click += OnSkip;
         menu.Items.Add(skip);
 
-        menu.ShowAt(SampleCard, e.GetPosition(SampleCard));
+        menu.ShowAt(SampleCard, KeyboardContextMenu.PointIn(e, SampleCard));
     }
 
     private void OnBlankCardRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -676,7 +688,7 @@ public sealed partial class WelcomeTour : UserControl
         skip.Click += OnSkip;
         menu.Items.Add(skip);
 
-        menu.ShowAt(BlankCard, e.GetPosition(BlankCard));
+        menu.ShowAt(BlankCard, KeyboardContextMenu.PointIn(e, BlankCard));
     }
 
     private void OnSkipButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -714,7 +726,7 @@ public sealed partial class WelcomeTour : UserControl
         };
         menu.Items.Add(copySteps);
 
-        menu.ShowAt(SkipButton, e.GetPosition(SkipButton));
+        menu.ShowAt(SkipButton, KeyboardContextMenu.PointIn(e, SkipButton));
     }
 
     private void OnBackButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -748,7 +760,7 @@ public sealed partial class WelcomeTour : UserControl
         skip.Click += OnSkip;
         menu.Items.Add(skip);
 
-        menu.ShowAt(BackButton, e.GetPosition(BackButton));
+        menu.ShowAt(BackButton, KeyboardContextMenu.PointIn(e, BackButton));
     }
 
     private void OnNextButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -782,6 +794,6 @@ public sealed partial class WelcomeTour : UserControl
         skip.Click += OnSkip;
         menu.Items.Add(skip);
 
-        menu.ShowAt(NextButton, e.GetPosition(NextButton));
+        menu.ShowAt(NextButton, KeyboardContextMenu.PointIn(e, NextButton));
     }
 }

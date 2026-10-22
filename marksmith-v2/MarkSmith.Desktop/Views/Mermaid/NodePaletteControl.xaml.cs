@@ -74,7 +74,7 @@ public sealed partial class NodePaletteControl : UserControl
     {
         if (sender is Microsoft.UI.Xaml.FrameworkElement { DataContext: ViewModels.Mermaid.MermaidPaletteItem item } fe)
         {
-            ShowPaletteItemContextMenu(fe, item, e.GetPosition(fe));
+            ShowPaletteItemContextMenu(fe, item, KeyboardContextMenu.PointIn(e, fe));
             e.Handled = true;
         }
     }
@@ -125,6 +125,16 @@ public sealed partial class NodePaletteControl : UserControl
     public NodePaletteControl()
     {
         InitializeComponent();
+        // "Right-click for options" menus: open them from Shift+F10 / the Menu key too.
+        KeyboardContextMenu.BridgeAll(
+            (CatAll, OnCategoryPillRightTapped),
+            (CatFlowchart, OnCategoryPillRightTapped),
+            (CatSequence, OnCategoryPillRightTapped),
+            (CatClass, OnCategoryPillRightTapped),
+            (CatState, OnCategoryPillRightTapped),
+            (CatGantt, OnCategoryPillRightTapped),
+            (CatER, OnCategoryPillRightTapped),
+            (CatMindmap, OnCategoryPillRightTapped));
         HoverPolish.Track(this);
         DataContextChanged += (_, _) => WatchDiagramType();
     }
@@ -295,7 +305,7 @@ public sealed partial class NodePaletteControl : UserControl
             focusSearchItem.Click += (_, _) => FocusSearchBox();
             menu.Items.Add(focusSearchItem);
 
-            menu.ShowAt(btn, e.GetPosition(btn));
+            menu.ShowAt(btn, KeyboardContextMenu.PointIn(e, btn));
         }
     }
 
@@ -339,7 +349,7 @@ public sealed partial class NodePaletteControl : UserControl
         copySearchItem.Click += (_, _) => SearchTextBox.SelectAll();
         menu.Items.Add(copySearchItem);
 
-        menu.ShowAt(SearchTextBox, e.GetPosition(SearchTextBox));
+        menu.ShowAt(SearchTextBox, KeyboardContextMenu.PointIn(e, SearchTextBox));
     }
 
     private void SelectPill(ToggleButton btn)

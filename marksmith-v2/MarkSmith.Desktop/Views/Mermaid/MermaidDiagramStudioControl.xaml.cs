@@ -51,6 +51,17 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
     public MermaidDiagramStudioControl()
     {
         InitializeComponent();
+        // "Right-click for options" menus: open them from Shift+F10 / the Menu key too.
+        KeyboardContextMenu.BridgeAll(
+            (TemplatesButton, OnTemplatesButtonRightTapped),
+            (AutoLayoutButton, OnAutoLayoutButtonRightTapped),
+            (GridSnapToggle, OnGridSnapToggleRightTapped),
+            (AlignButton, OnAlignButtonRightTapped),
+            (UndoToolbarButton, OnUndoButtonRightTapped),
+            (RedoToolbarButton, OnRedoButtonRightTapped),
+            (ExportSvgButton, OnExportSvgButtonRightTapped),
+            (CopySvgButton, OnCopySvgButtonRightTapped),
+            (SyncToMarkdownButton, OnSyncToMarkdownButtonRightTapped));
 
         _palette = new NodePaletteControl();
         PaletteContainer.Child = _palette;
@@ -824,7 +835,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
         menu.Items.Add(exportSvgItem);
 
         if (sender is FrameworkElement fe)
-            menu.ShowAt(fe, e.GetPosition(fe));
+            menu.ShowAt(fe, KeyboardContextMenu.PointIn(e, fe));
         else
             menu.ShowAt(CodeEditorTextBox);
     }
@@ -901,7 +912,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
         menu.Items.Add(fitItem);
 
         var anchor = sender as FrameworkElement ?? (FrameworkElement)AutoLayoutButton;
-        menu.ShowAt(anchor, e.GetPosition(anchor));
+        menu.ShowAt(anchor, KeyboardContextMenu.PointIn(e, anchor));
     }
 
     private void OnGridSnapToggleRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -947,7 +958,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
         menu.Items.Add(curvedItem);
 
         var anchor = sender as FrameworkElement ?? (FrameworkElement)GridSnapToggle;
-        menu.ShowAt(anchor, e.GetPosition(anchor));
+        menu.ShowAt(anchor, KeyboardContextMenu.PointIn(e, anchor));
     }
 
     private void OnExportSvgButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -980,7 +991,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
         menu.Items.Add(syncItem);
 
         var anchor = sender as FrameworkElement ?? (FrameworkElement)ExportSvgButton;
-        menu.ShowAt(anchor, e.GetPosition(anchor));
+        menu.ShowAt(anchor, KeyboardContextMenu.PointIn(e, anchor));
     }
 
     private void OnCopySvgButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -1020,7 +1031,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
         menu.Items.Add(exportItem);
 
         var anchor = sender as FrameworkElement ?? (FrameworkElement)CopySvgButton;
-        menu.ShowAt(anchor, e.GetPosition(anchor));
+        menu.ShowAt(anchor, KeyboardContextMenu.PointIn(e, anchor));
     }
 
     private void OnSyncToMarkdownButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -1068,7 +1079,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
         menu.Items.Add(exportItem);
 
         var anchor = sender as FrameworkElement ?? (FrameworkElement)SyncToMarkdownButton;
-        menu.ShowAt(anchor, e.GetPosition(anchor));
+        menu.ShowAt(anchor, KeyboardContextMenu.PointIn(e, anchor));
     }
 
     /// <summary>
@@ -1315,21 +1326,21 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
         syncDoc.Click += (s, args) => OnSyncToMarkdownClick(s, new RoutedEventArgs());
         menu.Items.Add(syncDoc);
 
-        menu.ShowAt(fe, new FlyoutShowOptions { Position = e.GetPosition(fe) });
+        menu.ShowAt(fe, new FlyoutShowOptions { Position = KeyboardContextMenu.PointIn(e, fe) });
     }
 
     private void OnUndoButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
     {
         if (sender is not FrameworkElement fe) return;
         e.Handled = true;
-        ShowUndoRedoMenu(fe, e.GetPosition(fe));
+        ShowUndoRedoMenu(fe, KeyboardContextMenu.PointIn(e, fe));
     }
 
     private void OnRedoButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
     {
         if (sender is not FrameworkElement fe) return;
         e.Handled = true;
-        ShowUndoRedoMenu(fe, e.GetPosition(fe));
+        ShowUndoRedoMenu(fe, KeyboardContextMenu.PointIn(e, fe));
     }
 
     private void ShowUndoRedoMenu(FrameworkElement fe, Windows.Foundation.Point pos)
@@ -1383,7 +1394,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
         if (sender is not FrameworkElement fe) return;
         e.Handled = true;
         if (AlignButton.Flyout != null)
-            AlignButton.Flyout.ShowAt(fe, new FlyoutShowOptions { Position = e.GetPosition(fe) });
+            AlignButton.Flyout.ShowAt(fe, new FlyoutShowOptions { Position = KeyboardContextMenu.PointIn(e, fe) });
     }
 
     private void OnTemplatesButtonRightTapped(object sender, RightTappedRoutedEventArgs e)

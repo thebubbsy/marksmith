@@ -96,6 +96,40 @@ public sealed partial class SuiteHubView : UserControl
 
         InitializeComponent();
 
+        // "Right-click for options" menus: open them from Shift+F10 / the Menu key too.
+
+        KeyboardContextMenu.BridgeAll(
+
+            (OpenConfigFolderButton, OnOpenConfigFolderRightTapped),
+
+            (RefreshRecentDocsButton, OnRefreshRecentDocsButtonRightTapped),
+
+            (Card1DiagramButton, OnCard1ButtonRightTapped),
+
+            (Card1ShapeButton, OnCard1ButtonRightTapped),
+
+            (Card1SmartArtButton, OnCard1ButtonRightTapped),
+
+            (Card2CopySetupButton, OnCard2ButtonRightTapped),
+
+            (CopyMcpPathButton, OnCard2ButtonRightTapped),
+
+            (TurnOnApiButton, OnCard3ButtonRightTapped),
+
+            (CopyApiUrlButton, OnCard3ButtonRightTapped),
+
+            (GetExtensionButton, OnCard3ButtonRightTapped),
+
+            (Card4CopyCommandButton, OnCard4ButtonRightTapped),
+
+            (CopyCliPathButton, OnCard4ButtonRightTapped),
+
+            (Card5ExpressButton, OnCard5ButtonRightTapped),
+
+            (CopyExpressUrlButton, OnCard5ButtonRightTapped),
+
+            (Card6GalaxyButton, OnCard6ButtonRightTapped));
+
         // Only three of the ten starter templates fit across the strip; let the mouse wheel
 
         // scroll it sideways instead of leaving the rest reachable only by the thin scrollbar.
@@ -421,6 +455,10 @@ public sealed partial class SuiteHubView : UserControl
         if (e.Key == VirtualKey.Application || (shift && !ctrl && !alt && e.Key == VirtualKey.F10))
 
         {
+
+            // A focused card button with its own menu already opened it.
+
+            if (KeyboardContextMenu.IsFromBridgedControl(e)) return;
 
             var focusedIdx = GetFocusedCardIndex();
 
@@ -1322,7 +1360,7 @@ public sealed partial class SuiteHubView : UserControl
 
         if (sender is FrameworkElement fe)
 
-            ShowCardContextMenu(0, fe, e.GetPosition(fe));
+            ShowCardContextMenu(0, fe, KeyboardContextMenu.PointIn(e, fe));
 
     }
 
@@ -1336,7 +1374,7 @@ public sealed partial class SuiteHubView : UserControl
 
         if (sender is FrameworkElement fe)
 
-            ShowCardContextMenu(1, fe, e.GetPosition(fe));
+            ShowCardContextMenu(1, fe, KeyboardContextMenu.PointIn(e, fe));
 
     }
 
@@ -1350,7 +1388,7 @@ public sealed partial class SuiteHubView : UserControl
 
         if (sender is FrameworkElement fe)
 
-            ShowCardContextMenu(2, fe, e.GetPosition(fe));
+            ShowCardContextMenu(2, fe, KeyboardContextMenu.PointIn(e, fe));
 
     }
 
@@ -1364,7 +1402,7 @@ public sealed partial class SuiteHubView : UserControl
 
         if (sender is FrameworkElement fe)
 
-            ShowCardContextMenu(3, fe, e.GetPosition(fe));
+            ShowCardContextMenu(3, fe, KeyboardContextMenu.PointIn(e, fe));
 
     }
 
@@ -1378,7 +1416,7 @@ public sealed partial class SuiteHubView : UserControl
 
         if (sender is FrameworkElement fe)
 
-            ShowCardContextMenu(4, fe, e.GetPosition(fe));
+            ShowCardContextMenu(4, fe, KeyboardContextMenu.PointIn(e, fe));
 
     }
 
@@ -1392,7 +1430,7 @@ public sealed partial class SuiteHubView : UserControl
 
         if (sender is FrameworkElement fe)
 
-            ShowCardContextMenu(5, fe, e.GetPosition(fe));
+            ShowCardContextMenu(5, fe, KeyboardContextMenu.PointIn(e, fe));
 
     }
 
@@ -1406,7 +1444,7 @@ public sealed partial class SuiteHubView : UserControl
 
         if (sender is FrameworkElement fe)
 
-            ShowCardContextMenu(6, fe, e.GetPosition(fe));
+            ShowCardContextMenu(6, fe, KeyboardContextMenu.PointIn(e, fe));
 
     }
 
@@ -1528,7 +1566,7 @@ public sealed partial class SuiteHubView : UserControl
 
         if (sender is FrameworkElement fe)
 
-            menu.ShowAt(fe, e.GetPosition(fe));
+            menu.ShowAt(fe, KeyboardContextMenu.PointIn(e, fe));
 
         else
 
@@ -1584,7 +1622,7 @@ public sealed partial class SuiteHubView : UserControl
 
         if (HealthStatusBadge != null)
 
-            menu.ShowAt(HealthStatusBadge, e.GetPosition(HealthStatusBadge));
+            menu.ShowAt(HealthStatusBadge, KeyboardContextMenu.PointIn(e, HealthStatusBadge));
 
         else if (sender is FrameworkElement feTarget)
 
@@ -2152,7 +2190,7 @@ public sealed partial class SuiteHubView : UserControl
 
         {
 
-            RecentDocsFlyout.ShowAt(RecentDocsCountPill, e.GetPosition(RecentDocsCountPill));
+            RecentDocsFlyout.ShowAt(RecentDocsCountPill, KeyboardContextMenu.PointIn(e, RecentDocsCountPill));
 
         }
 
@@ -2310,7 +2348,7 @@ public sealed partial class SuiteHubView : UserControl
 
 
 
-        menu.ShowAt(btn, e.GetPosition(btn));
+        menu.ShowAt(btn, KeyboardContextMenu.PointIn(e, btn));
 
     }
 
@@ -5979,7 +6017,7 @@ private void OnClearRecentFilterClick(object sender, RoutedEventArgs e)
 
         {
 
-            RecentDocsFlyout.ShowAt(fe, e.GetPosition(fe));
+            RecentDocsFlyout.ShowAt(fe, KeyboardContextMenu.PointIn(e, fe));
 
         }
 
@@ -6009,7 +6047,7 @@ private void OnClearRecentFilterClick(object sender, RoutedEventArgs e)
 
         {
 
-            RecentDocsFlyout.ShowAt(fe, e.GetPosition(fe));
+            RecentDocsFlyout.ShowAt(fe, KeyboardContextMenu.PointIn(e, fe));
 
         }
 

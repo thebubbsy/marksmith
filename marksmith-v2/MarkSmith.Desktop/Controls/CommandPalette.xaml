@@ -89,7 +89,7 @@
                             VerticalAlignment="Center" Click="OnClearSearchClick" IsTabStop="False"
                             Background="{ThemeResource SubtleFillColorTransparentBrush}"
                             BorderThickness="0"
-                            ToolTipService.ToolTip="Clear search query (Esc) · Right-click for options"
+                            ToolTipService.ToolTip="Clear search query (Esc) · Right-click or Shift+F10 for options"
                             AutomationProperties.Name="Clear search query"
                             RightTapped="OnClearSearchButtonRightTapped">
                         <FontIcon Glyph="&#xE711;" FontSize="10" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
@@ -99,7 +99,7 @@
                             VerticalAlignment="Center" Click="OnEscClick" IsTabStop="False"
                             Background="{ThemeResource SubtleFillColorTransparentBrush}"
                             BorderThickness="0"
-                            ToolTipService.ToolTip="Close (Esc) · Right-click for options"
+                            ToolTipService.ToolTip="Close (Esc) · Right-click or Shift+F10 for options"
                             AutomationProperties.Name="Close command palette"
                             RightTapped="OnEscButtonRightTapped">
                         <Border Style="{StaticResource PaletteKeyCapStyle}">
@@ -198,7 +198,7 @@
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         <Button x:Name="ResetSearchButton" Content="Show all commands" Click="OnClearSearchClick"
                                 HorizontalAlignment="Center" Margin="0,6,0,0" Padding="10,4" FontSize="12"
-                                ToolTipService.ToolTip="Clear search and show all commands (Esc) · Right-click for options"
+                                ToolTipService.ToolTip="Clear search and show all commands (Esc) · Right-click or Shift+F10 for options"
                                 AutomationProperties.Name="Show all commands"
                                 RightTapped="OnResetSearchButtonRightTapped" />
                     </StackPanel>

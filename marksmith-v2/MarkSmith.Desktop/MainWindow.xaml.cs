@@ -274,6 +274,34 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             (StatusCopyFootnotesButton, OnStatusCopyFootnotesButtonRightTapped),
             (StatusCopyDiagramsButton, OnStatusCopyDiagramsButtonRightTapped),
             (StatusShortcutsButton, OnStatusShortcutsButtonRightTapped),
+            (CommandPaletteButton, OnCommandPaletteButtonRightTapped),
+            (ExportPdfTitleButton, OnExportPdfTitleButtonRightTapped),
+            (ExportDocxTitleButton, OnExportDocxTitleButtonRightTapped),
+            (ImportDocumentTitleButton, OnImportDocumentTitleButtonRightTapped),
+            (DiagramStudioTitleButton, OnDiagramStudioTitleButtonRightTapped),
+            (SuiteHubButton, OnSuiteHubButtonRightTapped),
+            (SettingsTitleButton, OnSettingsTitleButtonRightTapped),
+            (FocusModeToggle, OnFocusModeToggleRightTapped),
+            (PinFileButton, OnPinFileButtonRightTapped),
+            (LookingGlassToggle, OnLookingGlassToggleRightTapped),
+            (EmailPreviewToggle, OnEmailPreviewToggleRightTapped),
+            (SplitSyncToggle, OnSplitSyncToggleRightTapped),
+            (EditorFindButton, OnEditorFindButtonRightTapped),
+            (EditorZoomOutButton, OnEditorZoomOutRightTapped),
+            (EditorZoomResetButton, OnEditorZoomResetRightTapped),
+            (EditorZoomInButton, OnEditorZoomInRightTapped),
+            (LineNumbersToggle, OnLineNumbersToggleRightTapped),
+            (WordWrapToggle, OnWordWrapRightTapped),
+            (PreviewFitToggle, OnPreviewFitToggleRightTapped),
+            (PreviewZoomOutButton, OnPreviewZoomOutRightTapped),
+            (PreviewZoomResetButton, OnPreviewZoomResetRightTapped),
+            (PreviewZoomInButton, OnPreviewZoomInRightTapped),
+            (CopyHtmlButton, OnCopyHtmlButtonRightTapped),
+            (PrintDocumentButton, OnPrintButtonRightTapped),
+            (OutlineButton, OnOutlineButtonRightTapped),
+            (MoreMenuButton, OnMoreMenuButtonRightTapped),
+            (ExportSplitButton, OnExportSplitButtonRightTapped),
+            (CancelConversionButton, OnCancelConversionButtonRightTapped),
         })
             Services.KeyboardContextMenu.Bridge(pill, handler);
 
@@ -838,7 +866,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         suiteHubItem.Click += (_, _) => OnSuiteHubClick(this, new RoutedEventArgs());
         menu.Items.Add(suiteHubItem);
 
-        menu.ShowAt(CommandPaletteButton, e.GetPosition(CommandPaletteButton));
+        menu.ShowAt(CommandPaletteButton, KeyboardContextMenu.PointIn(e, CommandPaletteButton));
     }
 
     private void OnEditorFindClick(object sender, RoutedEventArgs e) => ShowFindBar();
@@ -923,7 +951,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             menu.Items.Add(closeItem);
         }
 
-        menu.ShowAt(EditorFindButton, e.GetPosition(EditorFindButton));
+        menu.ShowAt(EditorFindButton, KeyboardContextMenu.PointIn(e, EditorFindButton));
     }
 
     private void OnLineNumbersToggleRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -991,7 +1019,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         selectAllItem.Click += (_, _) => PasteTextBox?.SelectAll();
         menu.Items.Add(selectAllItem);
 
-        menu.ShowAt(LineNumbersToggle, e.GetPosition(LineNumbersToggle));
+        menu.ShowAt(LineNumbersToggle, KeyboardContextMenu.PointIn(e, LineNumbersToggle));
     }
 
     // "Export history" moved into the ⋯ menu but kept its rich ListView flyout: the menu item
@@ -1098,7 +1126,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         coffeeItem.Click += OnBuyCoffeeClick;
         menu.Items.Add(coffeeItem);
 
-        menu.ShowAt(MoreMenuButton, e.GetPosition(MoreMenuButton));
+        menu.ShowAt(MoreMenuButton, KeyboardContextMenu.PointIn(e, MoreMenuButton));
     }
 
     // WebSocket streaming for the local REST API (opt-in via Settings > Local REST API > Enable
@@ -2024,7 +2052,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         shapeItem.Click += (_, _) => OnOpenShapeDesignStudioClick(this, new RoutedEventArgs());
         menu.Items.Add(shapeItem);
 
-        menu.ShowAt(SuiteHubButton, e.GetPosition(SuiteHubButton));
+        menu.ShowAt(SuiteHubButton, KeyboardContextMenu.PointIn(e, SuiteHubButton));
     }
 
     private void OnExportPdfTitleButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
@@ -2077,7 +2105,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(openFolderItem);
 
-        menu.ShowAt(ExportPdfTitleButton, e.GetPosition(ExportPdfTitleButton));
+        menu.ShowAt(ExportPdfTitleButton, KeyboardContextMenu.PointIn(e, ExportPdfTitleButton));
     }
 
     private void OnExportDocxTitleButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
@@ -2130,7 +2158,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(openFolderItem);
 
-        menu.ShowAt(ExportDocxTitleButton, e.GetPosition(ExportDocxTitleButton));
+        menu.ShowAt(ExportDocxTitleButton, KeyboardContextMenu.PointIn(e, ExportDocxTitleButton));
     }
 
     private void OnImportDocumentTitleButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
@@ -2165,7 +2193,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         browseFileItem.Click += (_, _) => OnBrowseFileClick(this, new RoutedEventArgs());
         menu.Items.Add(browseFileItem);
 
-        menu.ShowAt(ImportDocumentTitleButton, e.GetPosition(ImportDocumentTitleButton));
+        menu.ShowAt(ImportDocumentTitleButton, KeyboardContextMenu.PointIn(e, ImportDocumentTitleButton));
     }
 
     private void OnDiagramStudioTitleButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
@@ -2224,7 +2252,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         timelineItem.Click += (_, _) => OnInsertTimelineClick(this, new RoutedEventArgs());
         menu.Items.Add(timelineItem);
 
-        menu.ShowAt(DiagramStudioTitleButton, e.GetPosition(DiagramStudioTitleButton));
+        menu.ShowAt(DiagramStudioTitleButton, KeyboardContextMenu.PointIn(e, DiagramStudioTitleButton));
     }
 
     private void OnSettingsTitleButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
@@ -2275,7 +2303,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         tourItem.Click += (_, _) => OnTakeTourClick(this, new RoutedEventArgs());
         menu.Items.Add(tourItem);
 
-        menu.ShowAt(SettingsTitleButton, e.GetPosition(SettingsTitleButton));
+        menu.ShowAt(SettingsTitleButton, KeyboardContextMenu.PointIn(e, SettingsTitleButton));
     }
 
     // Same setting as Settings ▸ Automation ▸ Local API; the property hook re-applies automation
@@ -2486,7 +2514,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var entry = FindListItemFromSource<Models.HistoryEntry>(e.OriginalSource as DependencyObject, HistoryList);
         if (entry is null) return;
         e.Handled = true;
-        ShowHistoryEntryContextMenu(entry, HistoryList, e.GetPosition(HistoryList));
+        ShowHistoryEntryContextMenu(entry, HistoryList, KeyboardContextMenu.PointIn(e, HistoryList));
     }
 
     private void OnHistoryListKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
@@ -2729,7 +2757,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         clearItem.Click += (_, _) => OnClearExportHistoryClick(sender, new RoutedEventArgs());
         menu.Items.Add(clearItem);
 
-        menu.ShowAt(HistoryCountText, e.GetPosition(HistoryCountText));
+        menu.ShowAt(HistoryCountText, KeyboardContextMenu.PointIn(e, HistoryCountText));
     }
 
     // Every format MarkSmith itself exports. Anything else in a history row is refused rather than
@@ -2841,7 +2869,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         if (menu.Items.Count > 0)
         {
-            menu.ShowAt(StatusMsgText, e.GetPosition(StatusMsgText));
+            menu.ShowAt(StatusMsgText, KeyboardContextMenu.PointIn(e, StatusMsgText));
             e.Handled = true;
         }
     }
@@ -2922,7 +2950,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(copyDirItem);
 
-        menu.ShowAt(StatusOutputLinks, e.GetPosition(StatusOutputLinks));
+        menu.ShowAt(StatusOutputLinks, KeyboardContextMenu.PointIn(e, StatusOutputLinks));
     }
 
     // Document outline (Task 17): scroll the preview to the clicked heading. The anchor is the exact
@@ -3005,7 +3033,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var entry = FindListItemFromSource<Services.TocEntry>(e.OriginalSource as DependencyObject, TocList);
         if (entry is null) return;
         e.Handled = true;
-        ShowTocEntryContextMenu(entry, TocList, e.GetPosition(TocList));
+        ShowTocEntryContextMenu(entry, TocList, KeyboardContextMenu.PointIn(e, TocList));
     }
 
     private void OnTocListKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
@@ -3154,7 +3182,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         copyAllTocItem.Click += (_, _) => CopyAllHeadingsAsToc();
         menu.Items.Add(copyAllTocItem);
 
-        menu.ShowAt(TocFilterBox, e.GetPosition(TocFilterBox));
+        menu.ShowAt(TocFilterBox, KeyboardContextMenu.PointIn(e, TocFilterBox));
     }
 
     private void CopyAllHeadingsAsToc()
@@ -3266,7 +3294,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(firstHeadingItem);
 
-        menu.ShowAt(TocCountText, e.GetPosition(TocCountText));
+        menu.ShowAt(TocCountText, KeyboardContextMenu.PointIn(e, TocCountText));
     }
 
     private void OnOutlineButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
@@ -3341,7 +3369,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(filterItem);
 
-        menu.ShowAt(OutlineButton, e.GetPosition(OutlineButton));
+        menu.ShowAt(OutlineButton, KeyboardContextMenu.PointIn(e, OutlineButton));
     }
 
     private async void OnBrowseWatchFolderClick(object sender, RoutedEventArgs e)
@@ -3820,7 +3848,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             return;
         }
         e.Handled = true;
-        ShowInputFileContextMenu(e.GetPosition(InputFileTextBox));
+        ShowInputFileContextMenu(KeyboardContextMenu.PointIn(e, InputFileTextBox));
     }
 
     private void OnInputFileTextBoxDoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
@@ -3975,7 +4003,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (OutputFolderTextBox is null) return;
         if (!string.IsNullOrEmpty(OutputFolderTextBox.SelectedText)) return;
         e.Handled = true;
-        ShowOutputFolderContextMenu(e.GetPosition(OutputFolderTextBox));
+        ShowOutputFolderContextMenu(KeyboardContextMenu.PointIn(e, OutputFolderTextBox));
     }
 
     private void ShowOutputFolderContextMenu(Windows.Foundation.Point? position)
@@ -4095,7 +4123,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private void OnDetectedBadgeRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
     {
         e.Handled = true;
-        ShowDetectedBadgeContextMenu(e.GetPosition(DetectedBadge));
+        ShowDetectedBadgeContextMenu(KeyboardContextMenu.PointIn(e, DetectedBadge));
     }
 
     private void ShowDetectedBadgeContextMenu(Windows.Foundation.Point? position)
@@ -4292,7 +4320,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         menu.Items.Add(historyItem);
 
         if (sender is FrameworkElement fe)
-            menu.ShowAt(fe, e.GetPosition(fe));
+            menu.ShowAt(fe, KeyboardContextMenu.PointIn(e, fe));
         else if (DropZone != null)
             menu.ShowAt(DropZone);
     }
@@ -6452,7 +6480,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         saveMsgItem.Click += OnSaveOutlookMessageClick;
         menu.Items.Add(saveMsgItem);
 
-        menu.ShowAt(EmailPreviewToggle, e.GetPosition(EmailPreviewToggle));
+        menu.ShowAt(EmailPreviewToggle, KeyboardContextMenu.PointIn(e, EmailPreviewToggle));
     }
 
     private async void OnEmailDraftClick(object sender, RoutedEventArgs e)
@@ -6499,7 +6527,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             flyout.ShowAt(ExportSplitButton, new Microsoft.UI.Xaml.Controls.Primitives.FlyoutShowOptions
             {
                 Placement = Microsoft.UI.Xaml.Controls.Primitives.FlyoutPlacementMode.BottomEdgeAlignedLeft,
-                Position = e.GetPosition(ExportSplitButton)
+                Position = KeyboardContextMenu.PointIn(e, ExportSplitButton)
             });
         }
     }
@@ -6532,7 +6560,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         menu.Items.Add(copyStatusItem);
 
         if (sender is FrameworkElement fe)
-            menu.ShowAt(fe, e.GetPosition(fe));
+            menu.ShowAt(fe, KeyboardContextMenu.PointIn(e, fe));
         else
             menu.ShowAt(ExportSplitButton);
     }
@@ -6643,7 +6671,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(copyStatsItem);
 
-        menu.ShowAt(CopyHtmlButton, e.GetPosition(CopyHtmlButton));
+        menu.ShowAt(CopyHtmlButton, KeyboardContextMenu.PointIn(e, CopyHtmlButton));
     }
 
     private void OnOpenHistoryClick(object sender, RoutedEventArgs e)
@@ -6732,7 +6760,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             menu.Items.Add(rescanItem);
         }
 
-        menu.ShowAt(PinFileButton, e.GetPosition(PinFileButton));
+        menu.ShowAt(PinFileButton, KeyboardContextMenu.PointIn(e, PinFileButton));
     }
 
     private void OnMarkdownFilesComboRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
@@ -6804,7 +6832,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         historyItem.Click += OnOpenHistoryClick;
         menu.Items.Add(historyItem);
 
-        menu.ShowAt(MarkdownFilesCombo, e.GetPosition(MarkdownFilesCombo));
+        menu.ShowAt(MarkdownFilesCombo, KeyboardContextMenu.PointIn(e, MarkdownFilesCombo));
     }
 
     private void OnCenterViewSelectorChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
@@ -6893,7 +6921,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(focusModeItem);
 
-        menu.ShowAt(CenterViewSelector, e.GetPosition(CenterViewSelector));
+        menu.ShowAt(CenterViewSelector, KeyboardContextMenu.PointIn(e, CenterViewSelector));
     }
 
     // Switch the centre "Looking Glass" between Code, Split (editor + preview side by side) and
@@ -7038,7 +7066,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         menu.Items.Add(showPreviewOnly);
 
         if (SplitViewSplitter != null)
-            menu.ShowAt(SplitViewSplitter, e.GetPosition(SplitViewSplitter));
+            menu.ShowAt(SplitViewSplitter, KeyboardContextMenu.PointIn(e, SplitViewSplitter));
     }
 
     private void OnLeftSplitterDoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
@@ -7119,7 +7147,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         menu.Items.Add(focusItem);
 
         if (sender is FrameworkElement fe)
-            menu.ShowAt(fe, e.GetPosition(fe));
+            menu.ShowAt(fe, KeyboardContextMenu.PointIn(e, fe));
         else if (LeftSplitter != null)
             menu.ShowAt(LeftSplitter);
     }
@@ -7187,7 +7215,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         menu.Items.Add(focusItem);
 
         if (sender is FrameworkElement fe)
-            menu.ShowAt(fe, e.GetPosition(fe));
+            menu.ShowAt(fe, KeyboardContextMenu.PointIn(e, fe));
         else if (RightSplitter != null)
             menu.ShowAt(RightSplitter);
     }
@@ -7296,7 +7324,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         menu.Items.Add(resetPanes);
 
         if (sender is FrameworkElement fe)
-            menu.ShowAt(fe, e.GetPosition(fe));
+            menu.ShowAt(fe, KeyboardContextMenu.PointIn(e, fe));
         else if (RootGrid != null)
             menu.ShowAt(RootGrid);
     }
@@ -8834,7 +8862,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         closeItem.Click += (_, _) => CloseFindBar();
         menu.Items.Add(closeItem);
 
-        menu.ShowAt(FindTextBox, e.GetPosition(FindTextBox));
+        menu.ShowAt(FindTextBox, KeyboardContextMenu.PointIn(e, FindTextBox));
         e.Handled = true;
     }
 
@@ -8910,7 +8938,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(closeItem);
 
-        menu.ShowAt(ReplaceTextBox, e.GetPosition(ReplaceTextBox));
+        menu.ShowAt(ReplaceTextBox, KeyboardContextMenu.PointIn(e, ReplaceTextBox));
         e.Handled = true;
     }
 
@@ -9582,7 +9610,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         menu.Items.Add(imageAccessibilityItem);
 
         MenuDiagnostics.Fold(menu);
-        menu.ShowAt(FindCountText, e.GetPosition(FindCountText));
+        menu.ShowAt(FindCountText, KeyboardContextMenu.PointIn(e, FindCountText));
 
         e.Handled = true;
     }
@@ -10010,19 +10038,19 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private void OnEditorZoomResetRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
     {
         e.Handled = true;
-        ShowEditorZoomContextMenu(EditorZoomResetButton, e.GetPosition(EditorZoomResetButton));
+        ShowEditorZoomContextMenu(EditorZoomResetButton, KeyboardContextMenu.PointIn(e, EditorZoomResetButton));
     }
 
     private void OnEditorZoomInRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
     {
         e.Handled = true;
-        ShowEditorZoomContextMenu(sender as FrameworkElement ?? EditorZoomResetButton, e.GetPosition(sender as UIElement));
+        ShowEditorZoomContextMenu(sender as FrameworkElement ?? EditorZoomResetButton, KeyboardContextMenu.PointIn(e, sender as UIElement));
     }
 
     private void OnEditorZoomOutRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
     {
         e.Handled = true;
-        ShowEditorZoomContextMenu(sender as FrameworkElement ?? EditorZoomResetButton, e.GetPosition(sender as UIElement));
+        ShowEditorZoomContextMenu(sender as FrameworkElement ?? EditorZoomResetButton, KeyboardContextMenu.PointIn(e, sender as UIElement));
     }
 
     private void ShowEditorZoomContextMenu(FrameworkElement anchor, Windows.Foundation.Point? position)
@@ -10400,7 +10428,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private void OnLineGutterRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
     {
         if (PasteTextBox is null || LineGutter is null) return;
-        var pt = e.GetPosition(LineNumberCanvas ?? (UIElement)LineGutter);
+        var pt = KeyboardContextMenu.PointIn(e, LineNumberCanvas ?? (UIElement)LineGutter);
         var lineIdx = GetLineFromGutterPoint(pt);
         var label = lineIdx < _gutterLabels.Length ? _gutterLabels[lineIdx] : lineIdx + 1;
         var text = PasteTextBox.Text ?? string.Empty;
@@ -10464,7 +10492,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(hideGutterItem);
 
-        menu.ShowAt(LineGutter, e.GetPosition(LineGutter));
+        menu.ShowAt(LineGutter, KeyboardContextMenu.PointIn(e, LineGutter));
         e.Handled = true;
     }
 
@@ -10519,7 +10547,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         if (WordWrapToggle != null)
         {
-            menu.ShowAt(WordWrapToggle, e.GetPosition(WordWrapToggle));
+            menu.ShowAt(WordWrapToggle, KeyboardContextMenu.PointIn(e, WordWrapToggle));
             e.Handled = true;
         }
     }
@@ -10772,7 +10800,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         menu.Items.Add(resetRevealItem);
 
-        menu.ShowAt(LookingGlassToggle, e.GetPosition(LookingGlassToggle));
+        menu.ShowAt(LookingGlassToggle, KeyboardContextMenu.PointIn(e, LookingGlassToggle));
     }
 
     // Centre pane bottom bar: the editing clusters show whenever the editor is visible or portal
@@ -11416,7 +11444,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var issue = FindListItemFromSource<LintRow>(e.OriginalSource as DependencyObject, LintList);
         if (issue is null) return;
         e.Handled = true;
-        ShowLintIssueContextMenu(issue, LintList, e.GetPosition(LintList));
+        ShowLintIssueContextMenu(issue, LintList, KeyboardContextMenu.PointIn(e, LintList));
     }
 
     private void OnLintListKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
@@ -14519,7 +14547,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
 
         if (menu.Items.Count > 0)
         {
-            menu.ShowAt(WordCountText, e.GetPosition(WordCountText));
+            menu.ShowAt(WordCountText, KeyboardContextMenu.PointIn(e, WordCountText));
             e.Handled = true;
         }
     }
@@ -14733,7 +14761,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
 
         if (menu.Items.Count > 0)
         {
-            menu.ShowAt(CursorPosText, e.GetPosition(CursorPosText));
+            menu.ShowAt(CursorPosText, KeyboardContextMenu.PointIn(e, CursorPosText));
             e.Handled = true;
         }
     }
@@ -15346,7 +15374,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         };
         menu.Items.Add(resetPanesItem);
 
-        menu.ShowAt(FocusModeToggle, e.GetPosition(FocusModeToggle));
+        menu.ShowAt(FocusModeToggle, KeyboardContextMenu.PointIn(e, FocusModeToggle));
     }
 
     // Ctrl+Alt+X: toggle the Looking Glass portal's focus blur — whether the rendered preview
@@ -15512,7 +15540,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         exportDocxItem.Click += (_, _) => OnConvertDocxClick(this, new RoutedEventArgs());
         menu.Items.Add(exportDocxItem);
 
-        menu.ShowAt(PrintDocumentButton, e.GetPosition(PrintDocumentButton));
+        menu.ShowAt(PrintDocumentButton, KeyboardContextMenu.PointIn(e, PrintDocumentButton));
     }
 
     // Open the system print dialog for the rendered preview. The preview is kept current by the
@@ -15557,19 +15585,19 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
     private void OnPreviewZoomResetRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
     {
         e.Handled = true;
-        ShowPreviewZoomContextMenu(PreviewZoomResetButton, e.GetPosition(PreviewZoomResetButton));
+        ShowPreviewZoomContextMenu(PreviewZoomResetButton, KeyboardContextMenu.PointIn(e, PreviewZoomResetButton));
     }
 
     private void OnPreviewZoomInRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
     {
         e.Handled = true;
-        ShowPreviewZoomContextMenu(sender as FrameworkElement ?? PreviewZoomResetButton, e.GetPosition(sender as UIElement));
+        ShowPreviewZoomContextMenu(sender as FrameworkElement ?? PreviewZoomResetButton, KeyboardContextMenu.PointIn(e, sender as UIElement));
     }
 
     private void OnPreviewZoomOutRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
     {
         e.Handled = true;
-        ShowPreviewZoomContextMenu(sender as FrameworkElement ?? PreviewZoomResetButton, e.GetPosition(sender as UIElement));
+        ShowPreviewZoomContextMenu(sender as FrameworkElement ?? PreviewZoomResetButton, KeyboardContextMenu.PointIn(e, sender as UIElement));
     }
 
     private void ShowPreviewZoomContextMenu(FrameworkElement anchor, Windows.Foundation.Point? position)
@@ -15740,7 +15768,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         printItem.Click += (_, _) => OnPrintClick(this, new RoutedEventArgs());
         menu.Items.Add(printItem);
 
-        menu.ShowAt(PreviewWidthBadge, e.GetPosition(PreviewWidthBadge));
+        menu.ShowAt(PreviewWidthBadge, KeyboardContextMenu.PointIn(e, PreviewWidthBadge));
         e.Handled = true;
     }
 
@@ -15757,7 +15785,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
     private void OnPreviewFitToggleRightTapped(object sender, RightTappedRoutedEventArgs e)
     {
         e.Handled = true;
-        ShowPreviewZoomContextMenu(PreviewFitToggle, e.GetPosition(PreviewFitToggle));
+        ShowPreviewZoomContextMenu(PreviewFitToggle, KeyboardContextMenu.PointIn(e, PreviewFitToggle));
     }
 
     private bool _previewFit;

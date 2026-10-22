@@ -57,6 +57,16 @@ public sealed partial class HistoryWindow : Window
     public HistoryWindow(MainViewModel? mainViewModel = null, string? initialFilePath = null)
     {
         InitializeComponent();
+        // "Right-click for options" menus: open them from Shift+F10 / the Menu key too.
+        KeyboardContextMenu.BridgeAll(
+            (StarredFilterToggle, OnStarredFilterToggleRightTapped),
+            (KindFilterButton, OnKindFilterButtonRightTapped),
+            (TakeCheckpointButton, OnTakeCheckpointButtonRightTapped),
+            (RestoreButton, OnRestoreButtonRightTapped),
+            (ClearFiltersButton, OnClearFiltersButtonRightTapped),
+            (UnifiedToggle, OnDiffModeToggleRightTapped),
+            (SplitToggle, OnDiffModeToggleRightTapped),
+            (PreviewToggle, OnDiffModeToggleRightTapped));
         Title = "Version History — MarkSmith";
         _main = mainViewModel;
 
@@ -1850,7 +1860,7 @@ public sealed partial class HistoryWindow : Window
         checkpointItem.Click += (_, _) => OnTakeSnapshotClick(this, new RoutedEventArgs());
         menu.Items.Add(checkpointItem);
 
-        menu.ShowAt(SearchBox, e.GetPosition(SearchBox));
+        menu.ShowAt(SearchBox, KeyboardContextMenu.PointIn(e, SearchBox));
     }
 
     private void OnFileNameRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -1925,7 +1935,7 @@ public sealed partial class HistoryWindow : Window
             menu.Items.Add(openInEditor);
         }
 
-        menu.ShowAt(FileNameTextBlock, e.GetPosition(FileNameTextBlock));
+        menu.ShowAt(FileNameTextBlock, KeyboardContextMenu.PointIn(e, FileNameTextBlock));
     }
 
     private void OnFileNameDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
@@ -1968,7 +1978,7 @@ public sealed partial class HistoryWindow : Window
         };
         menu.Items.Add(clearFilter);
 
-        menu.ShowAt(TimelineScroll, e.GetPosition(TimelineScroll));
+        menu.ShowAt(TimelineScroll, KeyboardContextMenu.PointIn(e, TimelineScroll));
     }
 
     private void OnDiffSummaryDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
@@ -2000,7 +2010,7 @@ public sealed partial class HistoryWindow : Window
     private void OnDiffSummaryRightTapped(object sender, RightTappedRoutedEventArgs e)
     {
         e.Handled = true;
-        ShowDiffAreaContextMenu(DiffSummaryPanel, e.GetPosition(DiffSummaryPanel));
+        ShowDiffAreaContextMenu(DiffSummaryPanel, KeyboardContextMenu.PointIn(e, DiffSummaryPanel));
     }
 
     private void OnDeltaMeterDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
@@ -2019,7 +2029,7 @@ public sealed partial class HistoryWindow : Window
     private void OnDeltaMeterRightTapped(object sender, RightTappedRoutedEventArgs e)
     {
         e.Handled = true;
-        ShowDiffAreaContextMenu(DeltaMeterBorder, e.GetPosition(DeltaMeterBorder));
+        ShowDiffAreaContextMenu(DeltaMeterBorder, KeyboardContextMenu.PointIn(e, DeltaMeterBorder));
     }
 
     private void OnDiffWordDeltaPillTapped(object sender, TappedRoutedEventArgs e)
@@ -2098,7 +2108,7 @@ public sealed partial class HistoryWindow : Window
         };
         menu.Items.Add(copyMarkdown);
 
-        menu.ShowAt(DiffWordDeltaPill, new FlyoutShowOptions { Position = e.GetPosition(DiffWordDeltaPill) });
+        menu.ShowAt(DiffWordDeltaPill, new FlyoutShowOptions { Position = KeyboardContextMenu.PointIn(e, DiffWordDeltaPill) });
     }
 
     private void OnDiffAreaRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -2106,7 +2116,7 @@ public sealed partial class HistoryWindow : Window
         e.Handled = true;
         if (sender is FrameworkElement fe)
         {
-            ShowDiffAreaContextMenu(fe, e.GetPosition(fe));
+            ShowDiffAreaContextMenu(fe, KeyboardContextMenu.PointIn(e, fe));
         }
     }
 
@@ -2275,7 +2285,7 @@ public sealed partial class HistoryWindow : Window
         menu.Items.Add(reload);
 
         if (sender is FrameworkElement fe)
-            menu.ShowAt(fe, e.GetPosition(fe));
+            menu.ShowAt(fe, KeyboardContextMenu.PointIn(e, fe));
     }
 
     private void OnUnifiedDiffRowDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
@@ -2395,7 +2405,7 @@ public sealed partial class HistoryWindow : Window
         };
         menu.Items.Add(restoreItem);
 
-        menu.ShowAt(fe, e.GetPosition(fe));
+        menu.ShowAt(fe, KeyboardContextMenu.PointIn(e, fe));
     }
 
     private void OnUnifiedDiffRepeaterElementPrepared(ItemsRepeater sender, ItemsRepeaterElementPreparedEventArgs args)
@@ -2444,7 +2454,7 @@ public sealed partial class HistoryWindow : Window
         if (sender is not FrameworkElement fe) return;
         if (fe.DataContext is not DiffRowViewModel row || row.IsGap) return;
 
-        var pos = e.GetPosition(fe);
+        var pos = KeyboardContextMenu.PointIn(e, fe);
         bool isLeft = pos.X < (fe.ActualWidth / 2.0);
         var cell = isLeft ? row.Left : row.Right;
         ShowSplitRowContextMenu(fe, pos, cell?.Text, isLeft);
@@ -2598,7 +2608,7 @@ public sealed partial class HistoryWindow : Window
         menu.Items.Add(clearFilter);
 
         if (sender is FrameworkElement fe)
-            menu.ShowAt(fe, e.GetPosition(fe));
+            menu.ShowAt(fe, KeyboardContextMenu.PointIn(e, fe));
     }
 
     private void OnRestoreButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
@@ -2658,7 +2668,7 @@ public sealed partial class HistoryWindow : Window
         menu.Items.Add(copyPatch);
 
         if (sender is FrameworkElement fe)
-            menu.ShowAt(fe, e.GetPosition(fe));
+            menu.ShowAt(fe, KeyboardContextMenu.PointIn(e, fe));
     }
 
     private void OnDiffModeToggleRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -2666,7 +2676,7 @@ public sealed partial class HistoryWindow : Window
         e.Handled = true;
         if (sender is FrameworkElement fe)
         {
-            ShowDiffAreaContextMenu(fe, e.GetPosition(fe));
+            ShowDiffAreaContextMenu(fe, KeyboardContextMenu.PointIn(e, fe));
         }
     }
 
@@ -2723,7 +2733,7 @@ public sealed partial class HistoryWindow : Window
         menu.Items.Add(reloadHistory);
 
         var anchor = sender as FrameworkElement ?? (FrameworkElement)ClearFiltersButton;
-        menu.ShowAt(anchor, e.GetPosition(anchor));
+        menu.ShowAt(anchor, KeyboardContextMenu.PointIn(e, anchor));
     }
 
     private void OnStarButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -2732,7 +2742,7 @@ public sealed partial class HistoryWindow : Window
         e.Handled = true;
         _vm.SelectVersionCommand.Execute(item);
         var menu = BuildStarButtonMenu(item);
-        menu.ShowAt(fe, new FlyoutShowOptions { Position = e.GetPosition(fe) });
+        menu.ShowAt(fe, new FlyoutShowOptions { Position = KeyboardContextMenu.PointIn(e, fe) });
     }
 
     private MenuFlyout BuildStarButtonMenu(VersionItemViewModel item)
@@ -2812,7 +2822,7 @@ public sealed partial class HistoryWindow : Window
         e.Handled = true;
         _vm.SelectVersionCommand.Execute(item);
         var menu = BuildDeltaBadgeMenu(item);
-        menu.ShowAt(fe, new FlyoutShowOptions { Position = e.GetPosition(fe) });
+        menu.ShowAt(fe, new FlyoutShowOptions { Position = KeyboardContextMenu.PointIn(e, fe) });
     }
 
     private MenuFlyout BuildDeltaBadgeMenu(VersionItemViewModel item)
@@ -4122,7 +4132,7 @@ var auditResourceDisposalLeaksItem = new MenuFlyoutItem
         menu.Items.Add(clearFilters);
 
         MenuDiagnostics.Fold(menu);
-        menu.ShowAt(fe, new FlyoutShowOptions { Position = e.GetPosition(fe) });
+        menu.ShowAt(fe, new FlyoutShowOptions { Position = KeyboardContextMenu.PointIn(e, fe) });
     }
 
     private void OnDocumentsHeaderDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
@@ -4183,7 +4193,7 @@ var auditResourceDisposalLeaksItem = new MenuFlyoutItem
             };
             menu.Items.Add(copyPath);
         }
-        menu.ShowAt(fe, new FlyoutShowOptions { Position = e.GetPosition(fe) });
+        menu.ShowAt(fe, new FlyoutShowOptions { Position = KeyboardContextMenu.PointIn(e, fe) });
     }
 }
 

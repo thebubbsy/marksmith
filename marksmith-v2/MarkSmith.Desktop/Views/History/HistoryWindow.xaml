@@ -85,7 +85,7 @@
                     <ToggleButton x:Name="StarredFilterToggle" IsChecked="{Binding IsStarredOnlyFilter, Mode=TwoWay}"
                                    Padding="10,6" CornerRadius="6" VerticalAlignment="Center"
                                    RightTapped="OnStarredFilterToggleRightTapped"
-                                   ToolTipService.ToolTip="Show starred versions only (Right-click for options)"
+                                   ToolTipService.ToolTip="Show starred versions only (Right-click or Shift+F10 for options)"
                                    AutomationProperties.Name="Show starred versions only">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <FontIcon Glyph="&#xE734;" FontSize="13" />
@@ -139,7 +139,7 @@
                         DoubleTapped="OnRestoreButtonDoubleTapped"
                         RightTapped="OnRestoreButtonRightTapped"
                         AutomationProperties.Name="Restore to editor"
-                        ToolTipService.ToolTip="Put the selected version's text back in the editor (Ctrl+Enter · Double-click to restore, Right-click for options)">
+                        ToolTipService.ToolTip="Put the selected version's text back in the editor (Ctrl+Enter · Double-click to restore, Right-click or Shift+F10 for options)">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <FontIcon Glyph="&#xE7A7;" FontSize="13" />
                         <TextBlock Text="Restore to Editor" FontSize="12" />
@@ -352,7 +352,7 @@
                                            AutomationProperties.LiveSetting="Polite" />
                                 <Button x:Name="ClearFiltersButton" Content="Clear filters" Command="{Binding ClearFiltersCommand}" Padding="12,5"
                                         RightTapped="OnClearFiltersButtonRightTapped"
-                                        ToolTipService.ToolTip="Reset search query and starred filter (Right-click for options)" />
+                                        ToolTipService.ToolTip="Reset search query and starred filter (Right-click or Shift+F10 for options)" />
                             </StackPanel>
                             <ItemsControl ItemsSource="{Binding Bands}"
                                           Visibility="{Binding ShowTimeline, Converter={StaticResource BoolToVis}}">

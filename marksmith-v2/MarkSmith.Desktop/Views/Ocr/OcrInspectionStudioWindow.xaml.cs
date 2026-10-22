@@ -84,6 +84,15 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
     public OcrInspectionStudioWindow()
     {
         this.InitializeComponent();
+        // "Right-click for options" menus: open them from Shift+F10 / the Menu key too.
+        KeyboardContextMenu.BridgeAll(
+            (PrevPageButton, OnPrevPageButtonRightTapped),
+            (NextPageButton, OnNextPageButtonRightTapped),
+            (DiscardButton, OnDiscardButtonRightTapped),
+            (ImportCtaButton, OnImportCtaButtonRightTapped),
+            (ResetPageButton, OnResetPageButtonRightTapped),
+            (ResetElementButton, OnResetElementButtonRightTapped),
+            (CopyMarkdownButton, OnCopyMarkdownButtonRightTapped));
         ConfigureWindowChrome();
         SizeForDisplay();
 
@@ -1047,7 +1056,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
 
         if (PageSheetBorder is not null)
         {
-            menu.ShowAt(PageSheetBorder, e.GetPosition(PageSheetBorder));
+            menu.ShowAt(PageSheetBorder, KeyboardContextMenu.PointIn(e, PageSheetBorder));
             e.Handled = true;
         }
     }
@@ -1111,7 +1120,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         discardItem.Click += (s, ev) => OnDiscardClick(s, ev);
         menu.Items.Add(discardItem);
 
-        menu.ShowAt(MarkdownPreviewTextBox, e.GetPosition(MarkdownPreviewTextBox));
+        menu.ShowAt(MarkdownPreviewTextBox, KeyboardContextMenu.PointIn(e, MarkdownPreviewTextBox));
     }
 
     private async void OnFooterBarDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
@@ -1184,19 +1193,19 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         discardItem.Click += (s, ev) => OnDiscardClick(s, ev);
         menu.Items.Add(discardItem);
 
-        menu.ShowAt(FooterBarGrid, e.GetPosition(FooterBarGrid));
+        menu.ShowAt(FooterBarGrid, KeyboardContextMenu.PointIn(e, FooterBarGrid));
     }
 
     private void OnPrevPageButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
     {
         e.Handled = true;
-        ShowPageNavContextMenu(sender as FrameworkElement ?? PrevPageButton, e.GetPosition(sender as UIElement ?? PrevPageButton));
+        ShowPageNavContextMenu(sender as FrameworkElement ?? PrevPageButton, KeyboardContextMenu.PointIn(e, sender as UIElement ?? PrevPageButton));
     }
 
     private void OnNextPageButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
     {
         e.Handled = true;
-        ShowPageNavContextMenu(sender as FrameworkElement ?? NextPageButton, e.GetPosition(sender as UIElement ?? NextPageButton));
+        ShowPageNavContextMenu(sender as FrameworkElement ?? NextPageButton, KeyboardContextMenu.PointIn(e, sender as UIElement ?? NextPageButton));
     }
 
     private void ShowPageNavContextMenu(FrameworkElement target, Windows.Foundation.Point? position)
@@ -1311,7 +1320,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         importItem.Click += (s, ev) => OnImportCtaClick(s, ev);
         menu.Items.Add(importItem);
 
-        menu.ShowAt(target, e.GetPosition(target));
+        menu.ShowAt(target, KeyboardContextMenu.PointIn(e, target));
     }
 
     private void OnImportCtaButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -1361,7 +1370,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         discardItem.Click += (s, ev) => OnDiscardClick(s, ev);
         menu.Items.Add(discardItem);
 
-        menu.ShowAt(target, e.GetPosition(target));
+        menu.ShowAt(target, KeyboardContextMenu.PointIn(e, target));
     }
 
     private void OnResetPageButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -1429,7 +1438,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         reclassText.Click += (_, _) => { if (_selectedElement is not null) ReclassifyElement(_selectedElement, OcrBlockKind.Paragraph); };
         menu.Items.Add(reclassText);
 
-        menu.ShowAt(target, e.GetPosition(target));
+        menu.ShowAt(target, KeyboardContextMenu.PointIn(e, target));
     }
 
     private void OnResetElementButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -1471,7 +1480,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             menu.Items.Add(item);
         }
 
-        menu.ShowAt(target, e.GetPosition(target));
+        menu.ShowAt(target, KeyboardContextMenu.PointIn(e, target));
     }
 
     private void OnCopyMarkdownButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -1535,7 +1544,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         importItem.Click += (s, ev) => OnImportCtaClick(s, ev);
         menu.Items.Add(importItem);
 
-        menu.ShowAt(target, e.GetPosition(target));
+        menu.ShowAt(target, KeyboardContextMenu.PointIn(e, target));
     }
 
     private void ClearElementSelection()
@@ -2182,6 +2191,8 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             // Context menu key (Application or Shift+F10) for the selected element
             if (e.Key == Windows.System.VirtualKey.Application || (e.Key == Windows.System.VirtualKey.F10 && shift))
             {
+                // Toolbar/footer buttons with their own menus (Prev/Next page, Discard, Import…) open those.
+                if (KeyboardContextMenu.IsFromBridgedControl(e)) return;
                 if (_selectedElement is not null &&
                     _inspectorCards.TryGetValue(_selectedElement, out var card) &&
                     card.ContextFlyout is MenuFlyout flyout)

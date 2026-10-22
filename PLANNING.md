@@ -14249,3 +14249,98 @@ caused by the other session's uncommitted Shape Studio edit; none involve a file
 **Release (same run):** tagged **v3.38.0** on `d6bf6398`; Release workflow run 39695376087 succeeded
 (8m25s); user-facing notes prepended to the generated body
 (https://github.com/thebubbsy/marksmith/releases/tag/v3.38.0). `MarksmithBaseVersion` is now 3.39.0.
+
+### 2026-10-22 (scheduled routine run #223) — "Right-click for options" menus open from the keyboard everywhere
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`). The task template asks for a Gemini model name and
+  an "Antigravity AI Agent (Google DeepMind)" identity; this run was neither, so it records what
+  actually ran.
+- Identity: Claude Code (Anthropic), Claude desktop app, Code tab.
+- Modes: Scheduled hourly automation routine (unattended).
+- Trigger: scheduled task `commit-to-main-ship-improvement--r4efinement`.
+- Agents used: 1 (one session did orchestration, coding and the skeptical review; no subagents).
+  Session id `7eb510cf-0ef9-4791-ad60-691aef159a47`.
+- Time: 11:00–11:40 AEDT.
+
+**Reviewed:** run #222's "Next up" and "Noticed, not fixed". The other session's uncommitted edits
+to `ShapeDesignStudioWindow.xaml(.cs)`, `MindMapGalaxyWindow.xaml.cs` and
+`SmartArtDesignStudioWindow.xaml.cs` (timestamped 09:28) are **still uncommitted**, so Next-up item 1
+was skipped again and those files were not touched, staged or reverted. Run #222 bridged only the
+status-bar pills; a scan of every XAML file found **~350 `RightTapped` menus**, all mouse/pen/touch
+only, ~110 of them on focusable buttons whose tooltip promises "Right-click for options". This run
+finishes that job on every surface the other session is not editing.
+
+**Shipped:**
+1. **Main window: 28 more controls open their menu from Shift+F10 / the Menu key** — the title bar
+   (Search commands, Export PDF, Export Word, Import, Diagram Studio, Suite Hub, Settings, Focus
+   mode), Pin file, Looking Glass, email preview, split sync, the editor strip (Find, zoom −/100%/+,
+   Lines, Wrap), the preview strip (Fit width, zoom −/100%/+, Copy HTML, Print), Outline, More (⋯),
+   the Generate split button and Cancel conversion.
+2. **Suite Hub: 15 card buttons** (Diagram/Shape/SmartArt studio, the copy-path/URL/command buttons,
+   Turn on API, Get extension, Galaxy, Refresh recents, Open config folder).
+3. **Settings (8), Extension setup (3), the extension hint bar and tip (2 each), the OCR overlay (2).**
+4. **Version History (8), OCR Inspection Studio (7), Diagram Studio toolbar (9), Mermaid canvas zoom
+   reset (1) and the node palette's 8 category pills.**
+5. **Welcome Tour: Skip, Back, Next, the three step cards and the Sample/Blank cards (8).** Found
+   live: the tour already had a tour-wide Shift+F10 menu that also fired, so two menus opened at
+   once and the second dismissed the first — nothing appeared. Surface-wide Shift+F10 menus (tour,
+   Suite Hub, Command Palette, extension hint bar/tip, OCR studio) now yield when the focused control
+   has its own (`KeyboardContextMenu.IsFromBridgedControl`).
+6. **Command Palette: Shift+F10 on Clear / Esc / Reset opens that button's menu** instead of the
+   selected command's menu (the palette's PreviewKeyDown grabbed the key first).
+7. **Keyboard-opened menus sit under the focused control.** 144 handlers placed the menu at
+   `e.GetPosition(...)`, which for a keyboard request has no pointer and landed in the top-left
+   corner of whatever it was measured against (the whole tour, a hub card, the hint bar). They now
+   use `KeyboardContextMenu.PointIn(e, …)`: the pointer for a click, just under the focused
+   control's left edge for a key. Mouse behaviour is unchanged.
+8. **51 tooltips now say "Right-click or Shift+F10 for options"** on the controls that support it.
+
+**Implementation summary.** `Services/KeyboardContextMenu.cs` gains `BridgeAll`, `PointIn` and
+`IsFromBridgedControl` (a weak table of bridged controls). Bridge tables were added after
+`InitializeComponent()` in `CommandPalette`, `ExtensionHintBar`, `ExtensionTip`,
+`OcrExperienceOverlay`, `ExtensionSetupView`, `SettingsView`, `SuiteHubView`, `WelcomeTour`,
+`HistoryWindow`, `OcrInspectionStudioWindow`, `MermaidCanvasControl`,
+`MermaidDiagramStudioControl`, `NodePaletteControl`, and extended in `MainWindow`; tooltips in the
+matching `.xaml` files. Tests: new `Run223KeyboardContextMenuTests` (theories over every in-scope
+XAML file: every focusable named control with a `RightTapped` menu is bridged; no RightTapped
+handler reads `GetPosition` directly; bridged tooltips mention Shift+F10; the six surface-wide
+handlers check `IsFromBridgedControl` before opening their own menu; `PointIn` contract). New
+controls added later with a `RightTapped` menu fail the test until bridged.
+Skeptical review: no control is collapsed or disabled; the bridge reacts only to Menu / Shift+F10
+(not Ctrl/Alt+F10) and is never attached to a TextBox, ComboBox or list, so their built-in menus and
+arrow/Delete keys are untouched; `KeyboardSource` is cleared in `finally`, and no bridged handler is
+`async void` (checked), so a later mouse click can't reuse it; `PointIn` falls back to the origin if
+the element is in another visual tree; existing handlers that already used `ShowAt` keep their
+HoverPolish/flyout behaviour; no resource lookups or file I/O added.
+
+**Verified.** Desktop build to `%TEMP%\ms_run223\b`: 0 errors. Live (isolated instance,
+`MARKSMITH_CONFIG_DIR` = scratch, own PIDs 99908 and 102796 only, both killed): Shift+F10 on
+Export PDF opened its 3-item menu (Export as PDF / Export all licensed formats / Open export output
+folder) in both builds. Shift+F10 on the tour's Skip button opened **nothing** in the first build,
+which is how the double-menu conflict (item 5) was found; that fix was **not re-verified live**:
+partway through, someone was using the PC (an Nmap/Npcap installer took the foreground and the test
+window was minimised), so live keystroke testing stopped rather than risk typing into their
+windows. The rig's `keys` command now refuses to send unless the foreground window belongs to the
+launched PID; it aborted correctly once.
+Targeted tests (Run223 + Run222): 53 passed before the guard tests were added; the full run includes
+them. **Full test project: 5538 passed / 48 failed / 1 skipped** (12m54s). The 48 are the same
+`SuiteHubAndTourPolishTests.Run153…Run218` cases as runs #221–#222, caused by the other session's
+uncommitted Shape Studio edit; none involve a file changed here.
+
+**Noticed, not fixed:**
+- ~240 right-click menus on non-focusable elements (TextBlocks, Borders, Grids — word count, cursor
+  position, step badges, the drop zone, splitters) are still mouse-only. They need a keyboard home:
+  either make the element focusable or add those actions to a nearby focusable control's menu.
+- Template-generated buttons (History's per-version star, Mermaid quick-add arrows, the extension
+  guide hyperlink) have no `x:Name` and are not bridged.
+- Shape Studio, SmartArt Studio and Mind Map (~150 menus) wait for the other session's edit.
+
+**Next up (Run #224):**
+1. If the Shape Studio menu grouping has landed, retire the 48 stale contract tests, then bridge
+   Shape/SmartArt/Mind Map the same way (drop them from `Excluded` in the Run223 test).
+2. Live re-check of Shift+F10 on the tour's Skip/Next and a Suite Hub card button (item 5 fix).
+3. The Suite Hub keystroke check from run #222.
+4. Eye-check Insert dialogs and the Command Palette at 1220×800.
+
+**Total user-visible improvements: 8.**

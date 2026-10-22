@@ -41,6 +41,10 @@ namespace MarkSmith.Controls
         public ExtensionTip()
         {
             this.InitializeComponent();
+            // "Right-click for options" menus: open them from Shift+F10 / the Menu key too.
+            KeyboardContextMenu.BridgeAll(
+                (DismissButton, OnDismissButtonRightTapped),
+                (GetExtensionButton, OnGetExtensionButtonRightTapped));
             this.Visibility = IsOpen ? Visibility.Visible : Visibility.Collapsed;
             AddHandler(KeyDownEvent, new KeyEventHandler(OnTipKeyDown), true);
             RightTapped += OnTipRightTapped;
@@ -82,6 +86,8 @@ namespace MarkSmith.Controls
 
             if (e.Key == Windows.System.VirtualKey.Application || (shift && !ctrl && !alt && e.Key == Windows.System.VirtualKey.F10))
             {
+                // Get extension / Dismiss have their own menus; don't open a second one over them.
+                if (KeyboardContextMenu.IsFromBridgedControl(e)) return;
                 ShowTipContextMenu(null);
                 e.Handled = true;
                 return;
@@ -122,7 +128,7 @@ namespace MarkSmith.Controls
         private void OnTipRightTapped(object sender, RightTappedRoutedEventArgs e)
         {
             e.Handled = true;
-            ShowTipContextMenu(e.GetPosition(this));
+            ShowTipContextMenu(KeyboardContextMenu.PointIn(e, this));
         }
 
         private void ShowTipContextMenu(Windows.Foundation.Point? position)
@@ -162,13 +168,13 @@ namespace MarkSmith.Controls
         private void OnGetExtensionButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
         {
             e.Handled = true;
-            ShowTipContextMenu(e.GetPosition(this));
+            ShowTipContextMenu(KeyboardContextMenu.PointIn(e, this));
         }
 
         private void OnDismissButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
         {
             e.Handled = true;
-            ShowTipContextMenu(e.GetPosition(this));
+            ShowTipContextMenu(KeyboardContextMenu.PointIn(e, this));
         }
 
         private void CopyExtensionInfo()

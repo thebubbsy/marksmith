@@ -135,7 +135,7 @@
                         CornerRadius="6" Click="OnCommandPaletteClick"
                         RightTapped="OnCommandPaletteButtonRightTapped"
                         AutomationProperties.Name="Command palette"
-                        ToolTipService.ToolTip="Search every command, theme and recent file (Ctrl+K, Right-click for options)">
+                        ToolTipService.ToolTip="Search every command, theme and recent file (Ctrl+K, Right-click or Shift+F10 for options)">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon Glyph="&#xE721;" FontSize="12" />
                         <TextBlock x:Name="CommandPaletteLabel" Text="Search commands" FontSize="12"
@@ -149,7 +149,7 @@
                 <Button x:Name="ExportPdfTitleButton" Height="30" Padding="8,0" Background="Transparent" BorderThickness="0"
                         Click="OnConvertPdfClick" IsEnabled="{Binding IsNotBusy}"
                         RightTapped="OnExportPdfTitleButtonRightTapped"
-                        ToolTipService.ToolTip="Export as PDF (.pdf, Right-click for options)">
+                        ToolTipService.ToolTip="Export as PDF (.pdf, Right-click or Shift+F10 for options)">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <FontIcon Glyph="&#xEA90;" FontSize="12" />
                         <TextBlock Text="Export PDF" FontSize="12" />
@@ -158,7 +158,7 @@
                 <Button x:Name="ExportDocxTitleButton" Height="30" Padding="8,0" Background="Transparent" BorderThickness="0"
                         Click="OnConvertDocxClick" IsEnabled="{Binding IsNotBusy}"
                         RightTapped="OnExportDocxTitleButtonRightTapped"
-                        ToolTipService.ToolTip="Export as Word (.docx, Right-click for options)">
+                        ToolTipService.ToolTip="Export as Word (.docx, Right-click or Shift+F10 for options)">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <FontIcon Glyph="&#xE8A5;" FontSize="12" />
                         <TextBlock Text="Export Word" FontSize="12" />
@@ -172,7 +172,7 @@
                 <Button x:Name="ImportDocumentTitleButton" Height="30" Padding="8,0" Background="Transparent" BorderThickness="0"
                         Click="OnImportDocumentClick" IsEnabled="{Binding IsNotBusy}"
                         RightTapped="OnImportDocumentTitleButtonRightTapped"
-                        ToolTipService.ToolTip="Import a Word, PDF, HTML or email (.eml, .msg) file as a new Markdown document (Right-click for options)">
+                        ToolTipService.ToolTip="Import a Word, PDF, HTML or email (.eml, .msg) file as a new Markdown document (Right-click or Shift+F10 for options)">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <FontIcon Glyph="&#xE8B5;" FontSize="12" />
                         <TextBlock Text="Import" FontSize="12" />
@@ -182,7 +182,7 @@
                 <Button x:Name="DiagramStudioTitleButton" Height="30" Padding="8,0" Background="Transparent" BorderThickness="0"
                         Click="OnOpenMermaidStudioClick"
                         RightTapped="OnDiagramStudioTitleButtonRightTapped"
-                        ToolTipService.ToolTip="Open Diagram Studio (Ctrl+Shift+M, Right-click for options)">
+                        ToolTipService.ToolTip="Open Diagram Studio (Ctrl+Shift+M, Right-click or Shift+F10 for options)">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <FontIcon Glyph="&#xEF90;" FontSize="12" />
                         <TextBlock Text="Diagram Studio" FontSize="12" />
@@ -200,7 +200,7 @@
                 <Button x:Name="SettingsTitleButton" Height="30" Width="34" Padding="0" Background="Transparent" BorderThickness="0"
                         Click="OnSettingsClick"
                         RightTapped="OnSettingsTitleButtonRightTapped"
-                        ToolTipService.ToolTip="Settings (Ctrl+,) · Right-click for options"
+                        ToolTipService.ToolTip="Settings (Ctrl+,) · Right-click or Shift+F10 for options"
                         AutomationProperties.Name="Settings" AutomationProperties.AcceleratorKey="Ctrl+Comma">
                     <FontIcon Glyph="&#xE713;" FontSize="14" />
                 </Button>
@@ -209,7 +209,7 @@
                      action, and the title bar stays visible even while the side panels are hidden. -->
                 <ToggleButton x:Name="FocusModeToggle" Height="30" Width="34" Padding="0"
                               Background="Transparent" BorderThickness="0"
-                              ToolTipService.ToolTip="Focus mode — hide the side panels (F11) · Right-click for options"
+                              ToolTipService.ToolTip="Focus mode — hide the side panels (F11) · Right-click or Shift+F10 for options"
                               AutomationProperties.Name="Focus mode" AutomationProperties.AcceleratorKey="F11"
                               RightTapped="OnFocusModeToggleRightTapped"
                               Checked="OnFocusModeToggled" Unchecked="OnFocusModeToggled">
@@ -607,7 +607,7 @@
                         <ToggleButton x:Name="SplitSyncToggle" Height="32" Width="32" Padding="0" VerticalAlignment="Center"
                                       Visibility="Collapsed" IsChecked="True"
                                       AutomationProperties.Name="Synchronize Split View scroll and selection"
-                                      ToolTipService.ToolTip="Synchronize scrolling and text selection highlighting between Editor and Preview in Split view (Double-click to force instant alignment, Right-click for options)"
+                                      ToolTipService.ToolTip="Synchronize scrolling and text selection highlighting between Editor and Preview in Split view (Double-click to force instant alignment, Right-click or Shift+F10 for options)"
                                       DoubleTapped="OnSplitSyncToggleDoubleTapped"
                                       RightTapped="OnSplitSyncToggleRightTapped"
                                       Checked="OnSplitSyncToggled" Unchecked="OnSplitSyncToggled">
@@ -834,7 +834,7 @@
                                         <FontIcon Glyph="&#xE721;" FontSize="12" />
                                     </Button>
                                     <Border Width="1" Height="14" Background="{ThemeResource CardStrokeColorDefaultBrush}" Margin="4,0" VerticalAlignment="Center" />
-                                    <Button x:Name="EditorZoomOutButton" ToolTipService.ToolTip="Decrease editor font size (Ctrl+wheel down, Right-click for options)" AutomationProperties.Name="Decrease editor font size" Width="28" Height="24" Padding="0" Click="OnEditorZoomOutClick" RightTapped="OnEditorZoomOutRightTapped">
+                                    <Button x:Name="EditorZoomOutButton" ToolTipService.ToolTip="Decrease editor font size (Ctrl+wheel down, Right-click or Shift+F10 for options)" AutomationProperties.Name="Decrease editor font size" Width="28" Height="24" Padding="0" Click="OnEditorZoomOutClick" RightTapped="OnEditorZoomOutRightTapped">
                                         <TextBlock Text="A&#x2212;" FontSize="12" />
                                     </Button>
                                     <Button x:Name="EditorZoomResetButton" Height="24" MinWidth="42" Padding="4,0"
@@ -846,11 +846,11 @@
                                         <TextBlock x:Name="EditorZoomText" Text="100%" VerticalAlignment="Center" FontSize="11"
                                                    Opacity="0.7" TextAlignment="Center" />
                                     </Button>
-                                    <Button x:Name="EditorZoomInButton" ToolTipService.ToolTip="Increase editor font size (Ctrl+wheel up, Right-click for options)" AutomationProperties.Name="Increase editor font size" Width="28" Height="24" Padding="0" Click="OnEditorZoomInClick" RightTapped="OnEditorZoomInRightTapped">
+                                    <Button x:Name="EditorZoomInButton" ToolTipService.ToolTip="Increase editor font size (Ctrl+wheel up, Right-click or Shift+F10 for options)" AutomationProperties.Name="Increase editor font size" Width="28" Height="24" Padding="0" Click="OnEditorZoomInClick" RightTapped="OnEditorZoomInRightTapped">
                                         <TextBlock Text="A+" FontSize="12" />
                                     </Button>
                                     <Border Width="1" Height="14" Background="{ThemeResource CardStrokeColorDefaultBrush}" Margin="4,0" VerticalAlignment="Center" />
-                                    <ToggleButton x:Name="LineNumbersToggle" ToolTipService.ToolTip="Show line numbers (Right-click for options)"
+                                    <ToggleButton x:Name="LineNumbersToggle" ToolTipService.ToolTip="Show line numbers (Right-click or Shift+F10 for options)"
                                                   RightTapped="OnLineNumbersToggleRightTapped"
                                                   Height="24" Padding="6,0" Checked="OnLineNumbersToggled" Unchecked="OnLineNumbersToggled">
                                         <TextBlock Text="Lines" FontSize="11" />
@@ -1001,13 +1001,13 @@
                                          the readout stays in sync via a light poll in code-behind. -->
                                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                                         <ToggleButton x:Name="PreviewFitToggle" Width="24" Height="22" Padding="0"
-                                                      ToolTipService.ToolTip="Fit page width — the page fills the preview and follows it as you resize (zooming turns this off, Right-click for options)"
+                                                      ToolTipService.ToolTip="Fit page width — the page fills the preview and follows it as you resize (zooming turns this off, Right-click or Shift+F10 for options)"
                                                       AutomationProperties.Name="Fit page width"
                                                       Click="OnPreviewFitClick"
                                                       RightTapped="OnPreviewFitToggleRightTapped">
                                             <FontIcon Glyph="&#xE9A6;" FontSize="11" />
                                         </ToggleButton>
-                                        <Button x:Name="PreviewZoomOutButton" ToolTipService.ToolTip="Zoom preview out (Right-click for options)" AutomationProperties.Name="Zoom preview out"
+                                        <Button x:Name="PreviewZoomOutButton" ToolTipService.ToolTip="Zoom preview out (Right-click or Shift+F10 for options)" AutomationProperties.Name="Zoom preview out"
                                                 Width="24" Height="22" Padding="0" Click="OnPreviewZoomOutClick"
                                                 RightTapped="OnPreviewZoomOutRightTapped">
                                             <FontIcon Glyph="&#xE738;" FontSize="11" />
@@ -1023,7 +1023,7 @@
                                             <TextBlock x:Name="PreviewZoomText" Text="100%" FontSize="11"
                                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextAlignment="Center" />
                                         </Button>
-                                        <Button x:Name="PreviewZoomInButton" ToolTipService.ToolTip="Zoom preview in (Right-click for options)" AutomationProperties.Name="Zoom preview in"
+                                        <Button x:Name="PreviewZoomInButton" ToolTipService.ToolTip="Zoom preview in (Right-click or Shift+F10 for options)" AutomationProperties.Name="Zoom preview in"
                                                 Width="24" Height="22" Padding="0" Click="OnPreviewZoomInClick"
                                                 RightTapped="OnPreviewZoomInRightTapped">
                                             <FontIcon Glyph="&#xE710;" FontSize="11" />
@@ -1116,7 +1116,7 @@
                                 AutomationProperties.Name="Copy rendered HTML">
                             <FontIcon Glyph="&#xE8C8;" FontSize="13" />
                         </Button>
-                        <Button x:Name="PrintDocumentButton" ToolTipService.ToolTip="Print the rendered document (Ctrl+P, Right-click for options)" Height="32" Width="32" Padding="0"
+                        <Button x:Name="PrintDocumentButton" ToolTipService.ToolTip="Print the rendered document (Ctrl+P, Right-click or Shift+F10 for options)" Height="32" Width="32" Padding="0"
                                 Click="OnPrintClick" VerticalAlignment="Center"
                                 RightTapped="OnPrintButtonRightTapped"
                                 AutomationProperties.Name="Print rendered document">
@@ -1419,7 +1419,7 @@
                         <Button x:Name="MoreMenuButton"
                                 AutomationProperties.Name="More options"
                                 RightTapped="OnMoreMenuButtonRightTapped"
-                                ToolTipService.ToolTip="More — history, tour, shortcuts, settings, support (Right-click for options)">
+                                ToolTipService.ToolTip="More — history, tour, shortcuts, settings, support (Right-click or Shift+F10 for options)">
                             <FontIcon Glyph="&#xE712;" FontSize="14" />
                             <Button.Flyout>
                                 <MenuFlyout Placement="BottomEdgeAlignedRight">
@@ -2230,7 +2230,7 @@
                     <HyperlinkButton x:Name="StatusSplitSyncButton" Click="OnStatusSplitSyncButtonClick"
                                      RightTapped="OnStatusSplitSyncButtonRightTapped"
                                      Padding="4,1" FontSize="11.5" Opacity="0.85" Visibility="Collapsed"
-                                     ToolTipService.ToolTip="Split View sync: Linked scrolling &amp; highlighting (Click to toggle, Right-click for options)"
+                                     ToolTipService.ToolTip="Split View sync: Linked scrolling &amp; highlighting (Click to toggle, Right-click or Shift+F10 for options)"
                                      AutomationProperties.Name="Split View sync toggle">
                         <StackPanel Orientation="Horizontal" Spacing="4">
                             <FontIcon Glyph="&#xE8AB;" FontSize="11" />

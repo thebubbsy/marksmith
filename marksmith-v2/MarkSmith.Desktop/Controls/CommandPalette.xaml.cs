@@ -79,6 +79,11 @@ public sealed partial class CommandPalette : UserControl
         _commands = commands;
         _recents = recents;
         InitializeComponent();
+        // "Right-click for options" menus: open them from Shift+F10 / the Menu key too.
+        KeyboardContextMenu.BridgeAll(
+            (ClearSearchButton, OnClearSearchButtonRightTapped),
+            (EscButton, OnEscButtonRightTapped),
+            (ResetSearchButton, OnResetSearchButtonRightTapped));
         PreviewKeyDown += OnPreviewKeyDown;
         // While the palette is up the window's shortcuts belong to it: Ctrl+K closes it and the
         // rest (Ctrl+B, Ctrl+E…) must not act on the document behind it.
@@ -363,7 +368,7 @@ public sealed partial class CommandPalette : UserControl
         if (item is null) return;
         Results.SelectedItem = item;
         e.Handled = true;
-        ShowCommandContextMenu(item, Results, e.GetPosition(Results));
+        ShowCommandContextMenu(item, Results, KeyboardContextMenu.PointIn(e, Results));
     }
 
     private static PaletteCommand? FindClickedCommand(DependencyObject? source)
@@ -523,7 +528,7 @@ public sealed partial class CommandPalette : UserControl
         menu.Items.Add(pasteItem);
 
         if (sender is FrameworkElement fe)
-            menu.ShowAt(fe, e.GetPosition(fe));
+            menu.ShowAt(fe, KeyboardContextMenu.PointIn(e, fe));
         else
             menu.ShowAt(SearchBox);
     }
@@ -579,7 +584,7 @@ public sealed partial class CommandPalette : UserControl
         closeItem.Click += (_, _) => Close(null);
         menu.Items.Add(closeItem);
 
-        menu.ShowAt(target, e.GetPosition(target));
+        menu.ShowAt(target, KeyboardContextMenu.PointIn(e, target));
     }
 
     private void OnEscButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -605,7 +610,7 @@ public sealed partial class CommandPalette : UserControl
         clearItem.Click += (s, ev) => OnClearSearchClick(s, ev);
         menu.Items.Add(clearItem);
 
-        menu.ShowAt(target, e.GetPosition(target));
+        menu.ShowAt(target, KeyboardContextMenu.PointIn(e, target));
     }
 
     private void OnResetSearchButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -659,7 +664,7 @@ public sealed partial class CommandPalette : UserControl
         closeItem.Click += (_, _) => Close(null);
         menu.Items.Add(closeItem);
 
-        menu.ShowAt(target, e.GetPosition(target));
+        menu.ShowAt(target, KeyboardContextMenu.PointIn(e, target));
     }
 
     // ---- Keyboard ----
@@ -673,6 +678,8 @@ public sealed partial class CommandPalette : UserControl
 
         if (e.Key == VirtualKey.Application || (shift && !ctrl && e.Key == VirtualKey.F10))
         {
+            // Clear / Esc / Reset have their own menus; let the key reach them.
+            if (KeyboardContextMenu.IsFromBridgedControl(e)) return;
             if (Results.SelectedItem is PaletteCommand contextCmd)
             {
                 ShowCommandContextMenu(contextCmd, Results, null);

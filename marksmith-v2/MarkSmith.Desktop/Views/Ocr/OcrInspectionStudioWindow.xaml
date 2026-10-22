@@ -128,7 +128,7 @@
                     <Button x:Name="DiscardButton" Click="OnDiscardClick"
                             Padding="12,7" CornerRadius="6"
                             AutomationProperties.Name="Cancel and discard"
-                            ToolTipService.ToolTip="Close studio without importing changes into the application (Esc) · Right-click for options"
+                            ToolTipService.ToolTip="Close studio without importing changes into the application (Esc) · Right-click or Shift+F10 for options"
                             RightTapped="OnDiscardButtonRightTapped">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <FontIcon Glyph="&#xE711;" FontSize="12" />
@@ -141,7 +141,7 @@
                             Padding="18,7" CornerRadius="6"
                             FontWeight="SemiBold"
                             AutomationProperties.Name="Import into MarkSmith"
-                            ToolTipService.ToolTip="Finalize import and open assembled Markdown in the main editor (Ctrl+Enter) · Right-click for options"
+                            ToolTipService.ToolTip="Finalize import and open assembled Markdown in the main editor (Ctrl+Enter) · Right-click or Shift+F10 for options"
                             RightTapped="OnImportCtaButtonRightTapped">
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <FontIcon Glyph="&#xE898;" FontSize="13" />
@@ -248,7 +248,7 @@
                                 IsEnabled="False" Padding="6,2" CornerRadius="4" FontSize="10.5"
                                 Content="Reset Page"
                                 AutomationProperties.Name="Reset all elements on page"
-                                ToolTipService.ToolTip="Reset all elements on this page to their original OCR classification (Ctrl+Shift+R) · Right-click for options"
+                                ToolTipService.ToolTip="Reset all elements on this page to their original OCR classification (Ctrl+Shift+R) · Right-click or Shift+F10 for options"
                                 RightTapped="OnResetPageButtonRightTapped" />
                     </Grid>
 
@@ -304,7 +304,7 @@
                                         IsEnabled="False"
                                         Padding="8,5"
                                         AutomationProperties.Name="Reset selected element to original classification"
-                                        ToolTipService.ToolTip="Reset selected element to original engine interpretation (R) · Right-click for options"
+                                        ToolTipService.ToolTip="Reset selected element to original engine interpretation (R) · Right-click or Shift+F10 for options"
                                         RightTapped="OnResetElementButtonRightTapped">
                                     <FontIcon Glyph="&#xE7A7;" FontSize="11" />
                                 </Button>

@@ -109,7 +109,7 @@
 
                 <!-- Left Tools (compact, icon-driven so the full set fits the default window) -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                    <Button x:Name="TemplatesButton" Click="OnTemplatesClick" ToolTipService.ToolTip="Start from a template diagram (Right-click for options)"
+                    <Button x:Name="TemplatesButton" Click="OnTemplatesClick" ToolTipService.ToolTip="Start from a template diagram (Right-click or Shift+F10 for options)"
                             RightTapped="OnTemplatesButtonRightTapped"
                             Background="#2B2D42" BorderBrush="#4CC9F0" BorderThickness="1" Foreground="#EDF2F4">
                         <StackPanel Orientation="Horizontal" Spacing="6">
@@ -130,7 +130,7 @@
                          labelled toggle button in the same family as the rest of the toolbar. -->
                     <ToggleButton x:Name="GridSnapToggle"
                                   IsChecked="{Binding IsGridSnapEnabled, Mode=TwoWay}"
-                                  ToolTipService.ToolTip="Snap nodes to a 10 px grid while dragging (Right-click for options)"
+                                  ToolTipService.ToolTip="Snap nodes to a 10 px grid while dragging (Right-click or Shift+F10 for options)"
                                   AutomationProperties.Name="Snap to grid"
                                   RightTapped="OnGridSnapToggleRightTapped"
                                   Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Foreground="#EDF2F4">
@@ -148,7 +148,7 @@
 
                     <!-- Align & Distribute flyout (draw.io / Whimsical parity). Acts on the
                          current multi-selection; each op is one undo step. -->
-                    <Button x:Name="AlignButton" ToolTipService.ToolTip="Align &amp; distribute — select two or more nodes first (Right-click for options)"
+                    <Button x:Name="AlignButton" ToolTipService.ToolTip="Align &amp; distribute — select two or more nodes first (Right-click or Shift+F10 for options)"
                             AutomationProperties.Name="Align and distribute" IsEnabled="False"
                             RightTapped="OnAlignButtonRightTapped"
                             Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Foreground="#EDF2F4">
@@ -188,13 +188,13 @@
                         </Button.Flyout>
                     </Button>
 
-                    <Button x:Name="UndoToolbarButton" Click="OnUndoClick" IsEnabled="{Binding CanUndo}" ToolTipService.ToolTip="Undo (Ctrl+Z, Right-click for options)" AutomationProperties.Name="Undo"
+                    <Button x:Name="UndoToolbarButton" Click="OnUndoClick" IsEnabled="{Binding CanUndo}" ToolTipService.ToolTip="Undo (Ctrl+Z, Right-click or Shift+F10 for options)" AutomationProperties.Name="Undo"
                             RightTapped="OnUndoButtonRightTapped"
                             Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Foreground="#EDF2F4">
                         <FontIcon Glyph="&#xE7A7;" FontSize="14" Foreground="#4CC9F0" />
                     </Button>
 
-                    <Button x:Name="RedoToolbarButton" Click="OnRedoClick" IsEnabled="{Binding CanRedo}" ToolTipService.ToolTip="Redo (Ctrl+Y, Right-click for options)" AutomationProperties.Name="Redo"
+                    <Button x:Name="RedoToolbarButton" Click="OnRedoClick" IsEnabled="{Binding CanRedo}" ToolTipService.ToolTip="Redo (Ctrl+Y, Right-click or Shift+F10 for options)" AutomationProperties.Name="Redo"
                             RightTapped="OnRedoButtonRightTapped"
                             Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Foreground="#EDF2F4">
                         <FontIcon Glyph="&#xE7A6;" FontSize="14" Foreground="#4CC9F0" />
@@ -232,20 +232,20 @@
 
                 <!-- Right Actions (Export/Copy are icon-only; Sync keeps its label as the primary action) -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                    <Button x:Name="ExportSvgButton" Click="OnExportSvgClick" ToolTipService.ToolTip="Export the canvas as an SVG file (Ctrl+Shift+E, Right-click for options)" AutomationProperties.Name="Export SVG (Ctrl+Shift+E)"
+                    <Button x:Name="ExportSvgButton" Click="OnExportSvgClick" ToolTipService.ToolTip="Export the canvas as an SVG file (Ctrl+Shift+E, Right-click or Shift+F10 for options)" AutomationProperties.Name="Export SVG (Ctrl+Shift+E)"
                             RightTapped="OnExportSvgButtonRightTapped"
                             Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Foreground="#EDF2F4">
                         <FontIcon Glyph="&#xEDE1;" FontSize="14" Foreground="#4CC9F0" />
                     </Button>
 
-                    <Button x:Name="CopySvgButton" Click="OnCopySvgClick" ToolTipService.ToolTip="Copy the diagram as SVG to the clipboard (Ctrl+Shift+C, Right-click for options)" AutomationProperties.Name="Copy SVG (Ctrl+Shift+C)"
+                    <Button x:Name="CopySvgButton" Click="OnCopySvgClick" ToolTipService.ToolTip="Copy the diagram as SVG to the clipboard (Ctrl+Shift+C, Right-click or Shift+F10 for options)" AutomationProperties.Name="Copy SVG (Ctrl+Shift+C)"
                             RightTapped="OnCopySvgButtonRightTapped"
                             Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Foreground="#EDF2F4">
                         <FontIcon x:Name="CopySvgIcon" Glyph="&#xE8C8;" FontSize="14" Foreground="#4CC9F0" />
                     </Button>
 
                     <!-- The window's one primary action: filled in the studio's cyan accent. -->
-                    <Button x:Name="SyncToMarkdownButton" Click="OnSyncToMarkdownClick" ToolTipService.ToolTip="Write the diagram back into the document's Mermaid block (Ctrl+Enter, Right-click for options)"
+                    <Button x:Name="SyncToMarkdownButton" Click="OnSyncToMarkdownClick" ToolTipService.ToolTip="Write the diagram back into the document's Mermaid block (Ctrl+Enter, Right-click or Shift+F10 for options)"
                             RightTapped="OnSyncToMarkdownButtonRightTapped"
                             Style="{StaticResource AccentButtonStyle}" Foreground="#0D1B2A">
                         <StackPanel Orientation="Horizontal" Spacing="6">

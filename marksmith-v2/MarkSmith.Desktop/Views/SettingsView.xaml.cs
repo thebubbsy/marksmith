@@ -23,6 +23,16 @@ public sealed partial class SettingsView : UserControl
     public SettingsView()
     {
         InitializeComponent();
+        // "Right-click for options" menus: open them from Shift+F10 / the Menu key too.
+        KeyboardContextMenu.BridgeAll(
+            (RescanCloudButton, OnRescanCloudButtonRightTapped),
+            (CopyPromptButton, OnCopyPromptButtonRightTapped),
+            (ApplyThemeButton, OnApplyThemeButtonRightTapped),
+            (DeactivateButton, OnDeactivateButtonRightTapped),
+            (BuyButton, OnBuyButtonRightTapped),
+            (StartTrialButton, OnStartTrialButtonRightTapped),
+            (ActivateButton, OnActivateButtonRightTapped),
+            (CheckButton, OnCheckButtonRightTapped));
         DataContext = App.ViewModel;
         VersionText.Text = $"Version {App.Updates.CurrentDisplayVersion}";
         RefreshLicenseUi();
@@ -564,7 +574,7 @@ public sealed partial class SettingsView : UserControl
         };
         menu.Items.Add(licenseItem);
 
-        menu.ShowAt(AboutHeaderGrid, e.GetPosition(AboutHeaderGrid));
+        menu.ShowAt(AboutHeaderGrid, KeyboardContextMenu.PointIn(e, AboutHeaderGrid));
     }
 
     private void OnCheckButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -615,7 +625,7 @@ public sealed partial class SettingsView : UserControl
         };
         menu.Items.Add(reportItem);
 
-        menu.ShowAt(target, e.GetPosition(target));
+        menu.ShowAt(target, KeyboardContextMenu.PointIn(e, target));
     }
 
     private void OnBuyButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -653,7 +663,7 @@ public sealed partial class SettingsView : UserControl
         };
         menu.Items.Add(copyPricingItem);
 
-        menu.ShowAt(target, e.GetPosition(target));
+        menu.ShowAt(target, KeyboardContextMenu.PointIn(e, target));
     }
 
     private void OnStartTrialButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -678,7 +688,7 @@ public sealed partial class SettingsView : UserControl
         buyItem.Click += (s, ev) => OnBuyPro(s, ev);
         menu.Items.Add(buyItem);
 
-        menu.ShowAt(target, e.GetPosition(target));
+        menu.ShowAt(target, KeyboardContextMenu.PointIn(e, target));
     }
 
     private void OnActivateButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -727,7 +737,7 @@ public sealed partial class SettingsView : UserControl
         clearItem.Click += (_, _) => KeyBox.Text = "";
         menu.Items.Add(clearItem);
 
-        menu.ShowAt(target, e.GetPosition(target));
+        menu.ShowAt(target, KeyboardContextMenu.PointIn(e, target));
     }
 
     private void OnDeactivateButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -757,7 +767,7 @@ public sealed partial class SettingsView : UserControl
         };
         menu.Items.Add(copyKeyItem);
 
-        menu.ShowAt(target, e.GetPosition(target));
+        menu.ShowAt(target, KeyboardContextMenu.PointIn(e, target));
     }
 
     private void OnRescanCloudButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -785,7 +795,7 @@ public sealed partial class SettingsView : UserControl
         };
         menu.Items.Add(copySubfolderItem);
 
-        menu.ShowAt(target, e.GetPosition(target));
+        menu.ShowAt(target, KeyboardContextMenu.PointIn(e, target));
     }
 
     private void OnCopyPromptButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -831,7 +841,7 @@ public sealed partial class SettingsView : UserControl
         clearReplyItem.Click += (_, _) => HouseStyleReplyBox.Text = "";
         menu.Items.Add(clearReplyItem);
 
-        menu.ShowAt(target, e.GetPosition(target));
+        menu.ShowAt(target, KeyboardContextMenu.PointIn(e, target));
     }
 
     private void OnApplyThemeButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -882,7 +892,7 @@ public sealed partial class SettingsView : UserControl
         clearReplyItem.Click += (_, _) => HouseStyleReplyBox.Text = "";
         menu.Items.Add(clearReplyItem);
 
-        menu.ShowAt(target, e.GetPosition(target));
+        menu.ShowAt(target, KeyboardContextMenu.PointIn(e, target));
     }
 
     private void OnUpdateStateChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -1082,7 +1092,7 @@ public sealed partial class SettingsView : UserControl
         };
         menu.Items.Add(insertPage);
 
-        menu.ShowAt(PdfPagePreview, e.GetPosition(PdfPagePreview));
+        menu.ShowAt(PdfPagePreview, KeyboardContextMenu.PointIn(e, PdfPagePreview));
     }
 
     // ---- Google ----
@@ -1527,7 +1537,7 @@ public sealed partial class SettingsView : UserControl
         };
         menu.Items.Add(copyName);
 
-        menu.ShowAt(item, new FlyoutShowOptions { Position = e.GetPosition(item) });
+        menu.ShowAt(item, new FlyoutShowOptions { Position = KeyboardContextMenu.PointIn(e, item) });
     }
 }
 

@@ -32,6 +32,11 @@ public sealed partial class ExtensionSetupView : UserControl
         Func<Task<(bool Running, int Port, string? Error)>> turnOnApi)
     {
         InitializeComponent();
+        // "Right-click for options" menus: open them from Shift+F10 / the Menu key too.
+        KeyboardContextMenu.BridgeAll(
+            (CopyFolderButton, OnCopyFolderButtonRightTapped),
+            (OpenFolderButton, OnOpenFolderButtonRightTapped),
+            (TurnOnButton, OnTurnOnButtonRightTapped));
         _apiEnabled = apiEnabled;
         _apiRunning = apiRunning;
         _apiPort = apiPort;
@@ -241,7 +246,7 @@ public sealed partial class ExtensionSetupView : UserControl
             menu.Items.Add(turnOnItem);
         }
 
-        menu.ShowAt(StatusCard, e.GetPosition(StatusCard));
+        menu.ShowAt(StatusCard, KeyboardContextMenu.PointIn(e, StatusCard));
     }
 
     private void OnStep1BadgeTapped(object sender, TappedRoutedEventArgs e)
@@ -303,7 +308,7 @@ public sealed partial class ExtensionSetupView : UserControl
         guideItem.Click += (s, ev) => OnOpenGuideClick(s, ev);
         menu.Items.Add(guideItem);
 
-        menu.ShowAt(target, e.GetPosition(target));
+        menu.ShowAt(target, KeyboardContextMenu.PointIn(e, target));
     }
 
     private static bool IsInside(DependencyObject element, DependencyObject ancestor)
@@ -432,7 +437,7 @@ public sealed partial class ExtensionSetupView : UserControl
             menu.Items.Add(openFolderItem);
         }
 
-        menu.ShowAt(target, e.GetPosition(target));
+        menu.ShowAt(target, KeyboardContextMenu.PointIn(e, target));
     }
 
     private void OnCopyFolderButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -472,7 +477,7 @@ public sealed partial class ExtensionSetupView : UserControl
         guideItem.Click += (s, ev) => OnOpenGuideClick(s, ev);
         menu.Items.Add(guideItem);
 
-        menu.ShowAt(target, e.GetPosition(target));
+        menu.ShowAt(target, KeyboardContextMenu.PointIn(e, target));
     }
 
     private void OnOpenFolderButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -512,7 +517,7 @@ public sealed partial class ExtensionSetupView : UserControl
         guideItem.Click += (s, ev) => OnOpenGuideClick(s, ev);
         menu.Items.Add(guideItem);
 
-        menu.ShowAt(target, e.GetPosition(target));
+        menu.ShowAt(target, KeyboardContextMenu.PointIn(e, target));
     }
 
     private void OnTurnOnButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -547,7 +552,7 @@ public sealed partial class ExtensionSetupView : UserControl
         guideItem.Click += (s, ev) => OnOpenGuideClick(s, ev);
         menu.Items.Add(guideItem);
 
-        menu.ShowAt(target, e.GetPosition(target));
+        menu.ShowAt(target, KeyboardContextMenu.PointIn(e, target));
     }
 
     private void ShowError(string message)

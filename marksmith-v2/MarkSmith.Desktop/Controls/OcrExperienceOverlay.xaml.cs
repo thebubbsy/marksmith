@@ -78,6 +78,10 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
     public OcrExperienceOverlay()
     {
         InitializeComponent();
+        // "Right-click for options" menus: open them from Shift+F10 / the Menu key too.
+        MarkSmith.Services.KeyboardContextMenu.BridgeAll(
+            (SkipButton, OnSkipButtonRightTapped),
+            (CopyFinalMarkdownButton, OnCopyFinalMarkdownButtonRightTapped));
         _dispatcher = DispatcherQueue.GetForCurrentThread();
         Services.HoverPolish.Apply(this);
     }
@@ -1563,7 +1567,7 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
         skipItem.Click += (_, _) => SkipAnimation();
         menu.Items.Add(skipItem);
 
-        menu.ShowAt(FinalMarkdownSheetBorder, e.GetPosition(FinalMarkdownSheetBorder));
+        menu.ShowAt(FinalMarkdownSheetBorder, MarkSmith.Services.KeyboardContextMenu.PointIn(e, FinalMarkdownSheetBorder));
         e.Handled = true;
     }
 
@@ -1588,7 +1592,7 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
         copyItem.Click += (_, _) => CopyFinalMarkdownToClipboard();
         menu.Items.Add(copyItem);
 
-        menu.ShowAt(SkipButton, e.GetPosition(SkipButton));
+        menu.ShowAt(SkipButton, MarkSmith.Services.KeyboardContextMenu.PointIn(e, SkipButton));
     }
 
     private void OnCopyFinalMarkdownButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -1612,7 +1616,7 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
         skipItem.Click += (_, _) => SkipAnimation();
         menu.Items.Add(skipItem);
 
-        menu.ShowAt(CopyFinalMarkdownButton, e.GetPosition(CopyFinalMarkdownButton));
+        menu.ShowAt(CopyFinalMarkdownButton, MarkSmith.Services.KeyboardContextMenu.PointIn(e, CopyFinalMarkdownButton));
     }
 
     private void SkipAnimation()

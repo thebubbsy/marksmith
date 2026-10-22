@@ -62,6 +62,9 @@ public sealed partial class MermaidCanvasControl : UserControl
     public MermaidCanvasControl()
     {
         InitializeComponent();
+        // "Right-click for options" menus: open them from Shift+F10 / the Menu key too.
+        KeyboardContextMenu.BridgeAll(
+            (ZoomResetButton, OnZoomResetRightTapped));
 
         // The minimap mirrors and navigates the main canvas ScrollViewer.
         MinimapControl.TargetScrollViewer = CanvasScrollViewer;
@@ -232,13 +235,13 @@ public sealed partial class MermaidCanvasControl : UserControl
         };
         menu.Items.Add(copyZoomItem);
 
-        menu.ShowAt(anchor, e.GetPosition(anchor));
+        menu.ShowAt(anchor, KeyboardContextMenu.PointIn(e, anchor));
     }
 
     private void OnCanvasRightTapped(object sender, RightTappedRoutedEventArgs e)
     {
         e.Handled = true;
-        ShowContextMenu(e.GetPosition(InfiniteCanvasGrid));
+        ShowContextMenu(KeyboardContextMenu.PointIn(e, InfiniteCanvasGrid));
     }
 
     private void OnZoomFitClick(object sender, RoutedEventArgs e)
@@ -648,7 +651,7 @@ public sealed partial class MermaidCanvasControl : UserControl
         noteItem.Click += (_, _) => SpawnShape("Note", "Subroutine", "Subroutine");
         menu.Items.Add(noteItem);
 
-        menu.ShowAt(btn, e.GetPosition(btn));
+        menu.ShowAt(btn, KeyboardContextMenu.PointIn(e, btn));
     }
 
     // ---- Hover glow + anchor reveal -----------------------------------------------------------

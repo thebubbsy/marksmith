@@ -39,6 +39,10 @@ namespace MarkSmith.Controls
         public ExtensionHintBar()
         {
             this.InitializeComponent();
+            // "Right-click for options" menus: open them from Shift+F10 / the Menu key too.
+            KeyboardContextMenu.BridgeAll(
+                (GetExtensionButton, OnGetExtensionButtonRightTapped),
+                (DismissButton, OnDismissButtonRightTapped));
             this.Visibility = IsOpen ? Visibility.Visible : Visibility.Collapsed;
             AddHandler(KeyDownEvent, new KeyEventHandler(OnBarKeyDown), true);
             RightTapped += OnBarRightTapped;
@@ -81,6 +85,8 @@ namespace MarkSmith.Controls
 
             if (e.Key == Windows.System.VirtualKey.Application || (shift && !ctrl && !alt && e.Key == Windows.System.VirtualKey.F10))
             {
+                // Get extension / Dismiss have their own menus; don't open a second one over them.
+                if (KeyboardContextMenu.IsFromBridgedControl(e)) return;
                 ShowHintContextMenu(null);
                 e.Handled = true;
                 return;
@@ -121,7 +127,7 @@ namespace MarkSmith.Controls
         private void OnBarRightTapped(object sender, RightTappedRoutedEventArgs e)
         {
             e.Handled = true;
-            ShowHintContextMenu(e.GetPosition(this));
+            ShowHintContextMenu(KeyboardContextMenu.PointIn(e, this));
         }
 
         private void ShowHintContextMenu(Windows.Foundation.Point? position)
@@ -161,13 +167,13 @@ namespace MarkSmith.Controls
         private void OnGetExtensionButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
         {
             e.Handled = true;
-            ShowHintContextMenu(e.GetPosition(this));
+            ShowHintContextMenu(KeyboardContextMenu.PointIn(e, this));
         }
 
         private void OnDismissButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
         {
             e.Handled = true;
-            ShowHintContextMenu(e.GetPosition(this));
+            ShowHintContextMenu(KeyboardContextMenu.PointIn(e, this));
         }
 
         private void CopyHintInfo()
