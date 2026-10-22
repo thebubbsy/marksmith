@@ -14824,3 +14824,7 @@ Tests: Run22x + `HistoryWindowViewModelTests`: 142/142. **Full test project: 559
    buttons and run #225's status-bar controls.
 
 **Total user-visible improvements: 7.**
+
+**Release (same run):** tagged **v3.43.0** on `7d2d3a68`; Release workflow run 39775765670 succeeded;
+user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.43.0). `MarksmithBaseVersion` is now 3.44.0.
