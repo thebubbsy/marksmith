@@ -159,12 +159,6 @@ public sealed partial class MermaidCanvasControl : UserControl
 
     private void OnZoomResetClick(object sender, RoutedEventArgs e) => ZoomReset();
 
-    private void OnZoomResetDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-    {
-        e.Handled = true;
-        ZoomReset();
-    }
-
     private void OnZoomResetRightTapped(object sender, RightTappedRoutedEventArgs e)
     {
         e.Handled = true;
@@ -173,7 +167,8 @@ public sealed partial class MermaidCanvasControl : UserControl
 
         var actualItem = new Microsoft.UI.Xaml.Controls.MenuFlyoutItem
         {
-            Text = "Reset zoom to 100% (Ctrl+0)",
+            Text = "Reset zoom to 100%",
+            KeyboardAcceleratorTextOverride = "Ctrl+0",
             Icon = new Microsoft.UI.Xaml.Controls.FontIcon { Glyph = "\uE71E" }
         };
         actualItem.Click += (_, _) => ZoomReset();
@@ -210,10 +205,12 @@ public sealed partial class MermaidCanvasControl : UserControl
 
         foreach (var (lbl, factor) in stops)
         {
-            var item = new Microsoft.UI.Xaml.Controls.MenuFlyoutItem
+            // Radio items, like every other "pick one" menu: the level in use is checked.
+            var item = new Microsoft.UI.Xaml.Controls.RadioMenuFlyoutItem
             {
                 Text = lbl,
-                Icon = Math.Abs(currentZoom - factor) < 0.04f ? new Microsoft.UI.Xaml.Controls.FontIcon { Glyph = "\uE73E" } : null
+                GroupName = "MermaidZoomPreset",
+                IsChecked = Math.Abs(currentZoom - factor) < 0.04f
             };
             float target = factor;
             item.Click += (_, _) => ZoomTo(target);

@@ -286,6 +286,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             (LookingGlassToggle, OnLookingGlassToggleRightTapped),
             (EmailPreviewToggle, OnEmailPreviewToggleRightTapped),
             (SplitSyncToggle, OnSplitSyncToggleRightTapped),
+            (StatusOpenOutputButton, OnStatusOutputLinksRightTapped),
+            (StatusShowOutputFolderButton, OnStatusOutputLinksRightTapped),
             (EditorFindButton, OnEditorFindButtonRightTapped),
             (EditorZoomOutButton, OnEditorZoomOutRightTapped),
             (EditorZoomResetButton, OnEditorZoomResetRightTapped),
@@ -2916,15 +2918,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             menu.ShowAt(StatusMsgText, KeyboardContextMenu.PointIn(e, StatusMsgText));
             e.Handled = true;
         }
-    }
-
-    private void OnStatusOutputLinksDoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
-    {
-        var path = ViewModel.StatusOutputPath;
-        if (string.IsNullOrWhiteSpace(path)) return;
-        e.Handled = true;
-        _ = Services.ClipboardWriter.TrySetTextAsync(path);
-        AnnounceStatus($"Copied output file path: {Path.GetFileName(path)}");
     }
 
     private void OnStatusOutputLinksRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
@@ -7535,15 +7528,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             Text = "Align Preview scroll to Editor now",
             Icon = new FontIcon { Glyph = "\uE72A" }
         };
-        syncToPreview.Click += (_, _) =>
-        {
-            if (FindEditorScrollViewer() is { } sv)
-            {
-                var frac = sv.ScrollableHeight > 0 ? Math.Clamp(sv.VerticalOffset / sv.ScrollableHeight, 0.0, 1.0) : 0.0;
-                var fracStr = frac.ToString("0.######", System.Globalization.CultureInfo.InvariantCulture);
-                _ = PreviewWebView.CoreWebView2?.ExecuteScriptAsync($"if(window.__msSyncScrollFromEditor)window.__msSyncScrollFromEditor({fracStr});");
-            }
-        };
+        syncToPreview.Click += (_, _) => AlignPreviewToEditorNow();
         menu.Items.Add(syncToPreview);
 
         var syncToEditor = new MenuFlyoutItem
@@ -7562,15 +7547,12 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             Services.KeyboardContextMenu.ShowAt(menu, fe, e);
     }
 
-    private void OnSplitSyncToggleDoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
+    // "Align Preview scroll to Editor now" in the sync toggle's menu. This used to be a double-click
+    // on the toggle too, but the toggle's own two clicks flipped sync off and on again first (two
+    // status announcements and a flash of "Sync: Off") before the alignment ran.
+    private void AlignPreviewToEditorNow()
     {
-        e.Handled = true;
         if (_viewMode != ViewMode.Split) return;
-        if (SplitSyncToggle != null && SplitSyncToggle.IsChecked != true)
-        {
-            SplitSyncToggle.IsChecked = true;
-        }
-
         if (FindEditorScrollViewer() is { } sv)
         {
             var frac = sv.ScrollableHeight > 0 ? Math.Clamp(sv.VerticalOffset / sv.ScrollableHeight, 0.0, 1.0) : 0.0;

@@ -15264,3 +15264,146 @@ this time):
 4. Mermaid: the zoom-level button and Split-sync toggle still pair Click with DoubleTapped (run #229).
 
 **Total user-visible improvements: 11.**
+
+### 2026-10-23 (scheduled routine run #231) — Diagram Studio and the editor status bar: one action per click, honest shortcuts
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`). The task template asks for a Gemini model name and
+  an "Antigravity AI Agent (Google DeepMind)" identity. This run was neither, so the entry records
+  what actually ran.
+- Identity: Claude Code (Anthropic), Claude desktop app, Code tab.
+- Modes: Scheduled hourly automation routine (unattended).
+- Trigger: scheduled task `commit-to-main-ship-improvement--r4efinement`.
+- Agents used: 1. A single session did the orchestration, coding and skeptical review, with no
+  subagents. Session id `8442c4c1-2bd0-4973-b522-7ee12fcf96ba`.
+- Time: ~02:15–02:55 AEDT.
+
+**Reviewed:** run #230's Next up and Noticed lists. The other session's Shape Studio, SmartArt and
+Mind Map edits are **still uncommitted**, so Next-up item 1 was skipped again; those four files were
+not touched, staged or reverted. This run took Next-up item 4 (Mermaid's zoom-level button and the
+Split-sync toggle pairing Click with DoubleTapped) and swept every remaining DoubleTapped handler
+outside Shape/SmartArt/Mind Map for the same pattern. That turned up a worse case in the export
+links, and reading the Diagram Studio menus turned up two that claimed the wrong shortcut.
+
+**Housekeeping from run #230:** run #230 tagged **v3.46.0** and the Release workflow published it,
+but the run stopped before it prepended user-facing notes, recorded the release here, or bumped the
+version (`MarksmithBaseVersion` was still 3.46.0). This run prepended run #230's notes to the
+v3.46.0 release body, and moves `MarksmithBaseVersion` to 3.47.0 before tagging this run's release.
+
+**Shipped:**
+1. **Export links: double-clicking Open no longer opens the file twice.** The "Open · Show in
+   folder" strip that appears after an export had a DoubleTapped handler on its panel. The strip is
+   all buttons, so a double-click on Open opened the exported file twice and then overwrote the
+   clipboard with its path (Show in folder did the same with two Explorer windows). The handler is
+   gone; copying the path or name stays in the strip's menu.
+2. **The export links' menu is reachable by keyboard.** The two links are now named
+   (`StatusOpenOutputButton`, `StatusShowOutputFolderButton`) and bridged, so Shift+F10 or the Menu
+   key on either opens the copy-path / copy-name / copy-folder menu, which was right-click only.
+   Their tooltips say so.
+3. **Split-sync toggle: a double-click no longer flips sync off and on.** The toggle acted on Click
+   and also on DoubleTapped. A double-click toggled sync twice (two status announcements and a flash
+   of "Sync: Off", or, from off, on-off-on) before forcing an alignment. The double-click is gone. The
+   alignment is "Align Preview scroll to Editor now" in the toggle's menu (Shift+F10, already
+   bridged), which now goes through one `AlignPreviewToEditorNow()` and says "Split View aligned…"
+   in the status bar; before, the menu item aligned silently.
+4. **Diagram Studio: two quick clicks on Zoom in no longer snap back to 100%.** The zoom panel's
+   Border and the level button both reset the zoom on DoubleTapped. A double-tap on Zoom in, Zoom out
+   or Fit bubbled up to the panel, so clicking Zoom in twice quickly zoomed in twice and then jumped
+   back to 100%. Both handlers are gone; clicking the level still resets to 100% (and Ctrl+0).
+5. **Diagram Studio menus no longer claim Ctrl+0 for "Fit".** Ctrl+0 is bound to zoom reset (100%),
+   but the Auto-arrange menu's "Fit diagram in window (Ctrl+0)" and the status bar's "Fit whole
+   diagram (Ctrl+0)" said otherwise. Ctrl+0 now sits beside "Actual size (100%)" instead.
+6. **Diagram Studio menus show shortcuts in the accelerator column.** Fifteen items across the
+   studio's toolbar menus, the status bar, the zoom panel, the minimap and the shape palette spelled
+   their shortcut in brackets ("Export SVG file (Ctrl+Shift+E)"). They now use the right-aligned
+   accelerator column, like the canvas menu and the rest of the app.
+7. **Zoom presets show the level in use as a radio choice.** "Preset zoom levels" listed seven plain
+   items with a loose check-mark icon on the current one. They are now radio items in one group, with
+   the current level checked.
+8. **The diagram summary is a keyboard button that confirms the copy.** "3 nodes · 2 connectors ·
+   Snap to 10 px grid" was a TextBlock: copying it was a double-click, and the status-bar menu was
+   right-click only. It is now `CanvasSummaryButton` (same look). Click or Enter copies and the status
+   line says "Copied diagram summary to clipboard." (or "Couldn't copy…" when the clipboard is busy;
+   before, a failure was silent). Shift+F10 opens the status-bar menu (bridged). Its spoken name
+   carries the summary.
+9. **The status bar's double-click-to-fit ignores the summary button.** The bar's own double-click
+   still fits the diagram, but a double-click on the summary button now only copies, rather than
+   copying twice and refitting the view.
+
+**Implementation summary.**
+- `MainWindow.xaml`: `StatusOutputLinks` loses DoubleTapped (tooltip updated); the two
+  HyperlinkButtons gain `x:Name`s and "Shift+F10 for more" tooltips; `SplitSyncToggle` loses
+  DoubleTapped (tooltip points to the menu).
+- `MainWindow.xaml.cs`: bridge table gains the two export links → `OnStatusOutputLinksRightTapped`;
+  `OnStatusOutputLinksDoubleTapped` and `OnSplitSyncToggleDoubleTapped` removed; new
+  `AlignPreviewToEditorNow()` shared by the menu item.
+- `Views/Mermaid/MermaidCanvasControl.xaml` / `.xaml.cs`: zoom panel Border and `ZoomResetButton` lose
+  DoubleTapped; `OnZoomResetDoubleTapped` removed; preset items → `RadioMenuFlyoutItem`
+  (`GroupName = "MermaidZoomPreset"`); "Reset zoom to 100%" hint → accelerator column.
+- `Views/Mermaid/MermaidDiagramStudioControl.xaml` / `.xaml.cs`: `CanvasSummaryText` now sits inside
+  `CanvasSummaryButton` (`OnCanvasSummaryClick`, bridged to `OnStatusBarRightTapped`, name set in
+  `UpdateSelectionChrome`); `OnStatusBarDoubleTapped` returns early for ButtonBase sources;
+  `OnCanvasSummaryDoubleTapped` removed; menu hints → `KeyboardAcceleratorTextOverride`, Ctrl+0 moved
+  from the two Fit items to "Actual size (100%)".
+- `Views/Mermaid/MermaidMinimapControl.cs`, `Views/Mermaid/NodePaletteControl.xaml.cs`: bracketed
+  hints → accelerator column.
+- Tests: new `Run231DiagramStudioOneActionTests` (12 cases) covering every item above, including a
+  check that no Diagram Studio menu text spells a shortcut in brackets and that Ctrl+0 is bound to
+  zoom reset.
+
+**Skeptical review.**
+- Focus traps: `CanvasSummaryButton` and the two export links never collapse or disable on their
+  own. The export links collapse with their whole strip when a new status replaces the export
+  message, as before this run; nothing new can hold focus there that couldn't before.
+- Key swallowing: no PreviewKeyDown or KeyDown handlers were added or changed. The new bridge rows
+  mark only Shift+F10 / Menu as handled. Diagram Studio's surface-wide Shift+F10 accelerator already
+  returns early on `IsWithinBridgedControl`.
+- HoverPolish: Diagram Studio and the canvas use `HoverPolish.Track(this)`, so the new static button
+  gets the lift; MainWindow's status-bar links were already tracked. Menus are built per open.
+- Theme: Diagram Studio is intentionally always-dark (`RequestedTheme="Dark"`); the new button is
+  transparent with the bar's existing `#8D99AE` text, matching its neighbours. No resource lookups or
+  file I/O were added.
+- Async: the copy runs synchronously on the UI thread and reports a clipboard failure instead of
+  swallowing it.
+
+**Verified.** Desktop built to `%TEMP%\ms_run231\b` with 0 errors (it includes the other session's
+uncommitted Shape/SmartArt/Mind Map edits, as runs #221–#230 did). Targeted tests: `Run231…` 12/12;
+`Run223`/`Run225`/`Run229`/`Run230` + every `Mermaid` test 459/460 on the first pass, the one
+failure being this run's own test reading MainWindow's bridge table the wrong way (MainWindow
+bridges from a foreach table, not `BridgeAll`); fixed and 12/12. **Full test project: 5640 passed / 48 failed / 1 skipped** (5 m 6 s). All 48 are the same stale
+`SuiteHubAndTourPolishTests` cases as runs #221–#230.
+Live UIA on PID 25468 (scratch `MARKSMITH_CONFIG_DIR`), with PrintWindow screenshots:
+- Diagram Studio: `CanvasSummaryButton` is a keyboard-focusable Button named "Copy diagram summary,
+  3 nodes · 2 connectors · Snap to 10 px grid", with its help text. Invoking it put exactly that
+  summary on the clipboard and the status line read "Copied diagram summary to clipboard."
+  (screenshot shows the button in the status bar's right corner, unchanged in look).
+- Zoom panel: with the user idle (61 s) and the studio verified as the foreground process, a real
+  mouse double-click on Zoom in took the level from 100% to 110% to 125% and **left it at 125%**.
+  Before this run the same double-click ended at 100%.
+- Main window: in Split view `SplitSyncToggle` is a focusable button named "Synchronize Split View
+  scroll and selection".
+- Clipboard: it was empty before the copy test (no formats), so it was cleared again afterwards and
+  read back as empty.
+- PID 25468 was the only instance launched and was killed by PID. The user's own Marksmith (21572)
+  was left alone.
+- **Not verified live:** the export links (they need a finished export), the zoom-preset radio menu
+  and every Shift+F10 path (the rig's own double-click reset the idle timer, so no further input was
+  sent). Unit tests cover these.
+
+**Noticed, not fixed:**
+- Diagram Studio's `StatusBarText` still carries a DoubleTapped (fit) handler on the text itself as
+  well as on the bar. Harmless (it is the same action), but redundant.
+- `NodePaletteControl`'s search box selects all on double-click, which overrides the usual
+  double-click-selects-a-word. History's search box does the same (`OnSearchBoxDoubleTapped`).
+- Settings' PDF page preview cycles the page-number position on double-click from a hard-coded
+  switch; `PdfPageNumberPositions` (run #230) is the same order today but nothing keeps them in step.
+
+**Next up (Run #232):**
+1. If the Shape Studio grouping has landed, retire the 48 stale tests and bridge Shape/SmartArt/Mind Map.
+2. Live: run a paste-mode export and check the export links' Shift+F10 menu and a double-click on
+   Open (delete the exported file from `OneDrive\Documents` afterwards).
+3. With the user idle and a foreground window: Shift+F10 on the Diagram Studio summary button and the
+   zoom-preset radio menu; run #230's Extension setup / Settings checks.
+4. Derive the Settings PDF preview's double-click cycle from `PdfPageNumberPositions`.
+
+**Total user-visible improvements: 9.**

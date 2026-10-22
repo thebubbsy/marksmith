@@ -299,7 +299,8 @@ public sealed partial class NodePaletteControl : UserControl
 
             var focusSearchItem = new MenuFlyoutItem
             {
-                Text = "Focus search box (Ctrl+F)",
+                Text = "Focus search box",
+                KeyboardAcceleratorTextOverride = "Ctrl+F",
                 Icon = new FontIcon { Glyph = "\uE721" }
             };
             focusSearchItem.Click += (_, _) => FocusSearchBox();
@@ -343,7 +344,8 @@ public sealed partial class NodePaletteControl : UserControl
 
         var copySearchItem = new MenuFlyoutItem
         {
-            Text = "Select all search text (Ctrl+A)",
+            Text = "Select all search text",
+            KeyboardAcceleratorTextOverride = "Ctrl+A",
             Icon = new FontIcon { Glyph = "\uE8D2" }
         };
         copySearchItem.Click += (_, _) => SearchTextBox.SelectAll();

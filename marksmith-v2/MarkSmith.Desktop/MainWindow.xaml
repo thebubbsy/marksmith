@@ -612,8 +612,7 @@
                         <ToggleButton x:Name="SplitSyncToggle" Height="32" Width="32" Padding="0" VerticalAlignment="Center"
                                       Visibility="Collapsed" IsChecked="True"
                                       AutomationProperties.Name="Synchronize Split View scroll and selection"
-                                      ToolTipService.ToolTip="Synchronize scrolling and text selection highlighting between Editor and Preview in Split view (Double-click to force instant alignment, Right-click or Shift+F10 for options)"
-                                      DoubleTapped="OnSplitSyncToggleDoubleTapped"
+                                      ToolTipService.ToolTip="Synchronize scrolling and text selection highlighting between Editor and Preview in Split view (Right-click or Shift+F10 to align now)"
                                       RightTapped="OnSplitSyncToggleRightTapped"
                                       Checked="OnSplitSyncToggled" Unchecked="OnSplitSyncToggled">
                             <FontIcon Glyph="&#xE8AB;" FontSize="13" />
@@ -2237,19 +2236,20 @@
                     <StackPanel x:Name="StatusOutputLinks" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center"
                                 Visibility="{Binding HasStatusOutput, Converter={StaticResource BoolToVisibilityConverter}}"
                                 IsHitTestVisible="True"
-                                DoubleTapped="OnStatusOutputLinksDoubleTapped"
                                 RightTapped="OnStatusOutputLinksRightTapped"
-                                ToolTipService.ToolTip="Exported file actions · Double-click to copy path, right-click for options">
-                        <HyperlinkButton Click="OnStatusOpenOutputClick" Padding="6,1" FontSize="12"
-                                         ToolTipService.ToolTip="Open the exported file"
+                                ToolTipService.ToolTip="Exported file actions · Right-click or Shift+F10 to copy the path or name">
+                        <!-- No DoubleTapped on the strip: it is all buttons, so a double-click on Open
+                             opened the file twice and then overwrote the clipboard with its path. -->
+                        <HyperlinkButton x:Name="StatusOpenOutputButton" Click="OnStatusOpenOutputClick" Padding="6,1" FontSize="12"
+                                         ToolTipService.ToolTip="Open the exported file · Shift+F10 for more"
                                          AutomationProperties.Name="Open exported file">
                             <StackPanel Orientation="Horizontal" Spacing="5">
                                 <FontIcon Glyph="&#xE8E5;" FontSize="11" />
                                 <TextBlock Text="Open" />
                             </StackPanel>
                         </HyperlinkButton>
-                        <HyperlinkButton Click="OnStatusShowOutputFolderClick" Padding="6,1" FontSize="12"
-                                         ToolTipService.ToolTip="Show the exported file in File Explorer"
+                        <HyperlinkButton x:Name="StatusShowOutputFolderButton" Click="OnStatusShowOutputFolderClick" Padding="6,1" FontSize="12"
+                                         ToolTipService.ToolTip="Show the exported file in File Explorer · Shift+F10 for more"
                                          AutomationProperties.Name="Show exported file in folder">
                             <StackPanel Orientation="Horizontal" Spacing="5">
                                 <FontIcon Glyph="&#xE838;" FontSize="11" />

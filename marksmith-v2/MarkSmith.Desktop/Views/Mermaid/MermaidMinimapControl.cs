@@ -261,7 +261,8 @@ public sealed class MermaidMinimapControl : UserControl
 
         var zoom100Item = new MenuFlyoutItem
         {
-            Text = "Zoom to 100% (Ctrl+0)",
+            Text = "Zoom to 100%",
+            KeyboardAcceleratorTextOverride = "Ctrl+0",
             Icon = new FontIcon { Glyph = "\uE71E" }
         };
         zoom100Item.Click += (_, _) =>

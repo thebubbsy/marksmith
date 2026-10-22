@@ -61,7 +61,8 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
             (RedoToolbarButton, OnRedoButtonRightTapped),
             (ExportSvgButton, OnExportSvgButtonRightTapped),
             (CopySvgButton, OnCopySvgButtonRightTapped),
-            (SyncToMarkdownButton, OnSyncToMarkdownButtonRightTapped));
+            (SyncToMarkdownButton, OnSyncToMarkdownButtonRightTapped),
+            (CanvasSummaryButton, OnStatusBarRightTapped));
 
         _palette = new NodePaletteControl();
         PaletteContainer.Child = _palette;
@@ -908,7 +909,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
 
         var fitItem = new MenuFlyoutItem
         {
-            Text = "Fit diagram in window (Ctrl+0)",
+            Text = "Fit diagram in window",
             Icon = new FontIcon { Glyph = "\uE9A6" }
         };
         fitItem.Click += (_, _) => _canvas.FitToContentAfterLayout();
@@ -971,7 +972,8 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
 
         var exportItem = new MenuFlyoutItem
         {
-            Text = "Export SVG file (Ctrl+Shift+E)",
+            Text = "Export SVG file",
+            KeyboardAcceleratorTextOverride = "Ctrl+Shift+E",
             Icon = new FontIcon { Glyph = "\uEDE1" }
         };
         exportItem.Click += (_, _) => OnExportSvgClick(this, new RoutedEventArgs());
@@ -979,7 +981,8 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
 
         var copySvgItem = new MenuFlyoutItem
         {
-            Text = "Copy diagram as SVG (Ctrl+Shift+C)",
+            Text = "Copy diagram as SVG",
+            KeyboardAcceleratorTextOverride = "Ctrl+Shift+C",
             Icon = new FontIcon { Glyph = "\uE8C8" }
         };
         copySvgItem.Click += (_, _) => OnCopySvgClick(this, new RoutedEventArgs());
@@ -987,7 +990,8 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
 
         var syncItem = new MenuFlyoutItem
         {
-            Text = "Sync to Markdown (Ctrl+Enter)",
+            Text = "Sync to Markdown",
+            KeyboardAcceleratorTextOverride = "Ctrl+Enter",
             Icon = new FontIcon { Glyph = "\uE72C" }
         };
         syncItem.Click += (_, _) => OnSyncToMarkdownClick(this, new RoutedEventArgs());
@@ -1004,7 +1008,8 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
 
         var copySvgItem = new MenuFlyoutItem
         {
-            Text = "Copy diagram as SVG (Ctrl+Shift+C)",
+            Text = "Copy diagram as SVG",
+            KeyboardAcceleratorTextOverride = "Ctrl+Shift+C",
             Icon = new FontIcon { Glyph = "\uE8C8" }
         };
         copySvgItem.Click += (_, _) => OnCopySvgClick(this, new RoutedEventArgs());
@@ -1027,7 +1032,8 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
 
         var exportItem = new MenuFlyoutItem
         {
-            Text = "Export SVG file (Ctrl+Shift+E)",
+            Text = "Export SVG file",
+            KeyboardAcceleratorTextOverride = "Ctrl+Shift+E",
             Icon = new FontIcon { Glyph = "\uEDE1" }
         };
         exportItem.Click += (_, _) => OnExportSvgClick(this, new RoutedEventArgs());
@@ -1044,7 +1050,8 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
 
         var syncItem = new MenuFlyoutItem
         {
-            Text = "Sync to Markdown (Ctrl+Enter)",
+            Text = "Sync to Markdown",
+            KeyboardAcceleratorTextOverride = "Ctrl+Enter",
             Icon = new FontIcon { Glyph = "\uE72C" }
         };
         syncItem.Click += (_, _) => OnSyncToMarkdownClick(this, new RoutedEventArgs());
@@ -1067,7 +1074,8 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
 
         var copySvgItem = new MenuFlyoutItem
         {
-            Text = "Copy diagram as SVG (Ctrl+Shift+C)",
+            Text = "Copy diagram as SVG",
+            KeyboardAcceleratorTextOverride = "Ctrl+Shift+C",
             Icon = new FontIcon { Glyph = "\uE8C8" }
         };
         copySvgItem.Click += (_, _) => OnCopySvgClick(this, new RoutedEventArgs());
@@ -1075,7 +1083,8 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
 
         var exportItem = new MenuFlyoutItem
         {
-            Text = "Export SVG file (Ctrl+Shift+E)",
+            Text = "Export SVG file",
+            KeyboardAcceleratorTextOverride = "Ctrl+Shift+E",
             Icon = new FontIcon { Glyph = "\uEDE1" }
         };
         exportItem.Click += (_, _) => OnExportSvgClick(this, new RoutedEventArgs());
@@ -1147,13 +1156,19 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
         DeleteSelectedButton.IsEnabled = node || connector || selectedNodes > 0;
         AlignButton.IsEnabled = selectedNodes >= 2;
 
-        if (vm is null) { CanvasSummaryText.Text = ""; return; }
+        if (vm is null)
+        {
+            CanvasSummaryText.Text = "";
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(CanvasSummaryButton, "Copy diagram summary");
+            return;
+        }
         static string Count(int n, string one) => n == 1 ? $"1 {one}" : $"{n} {one}s";
         var parts = new List<string> { Count(vm.Nodes.Count, "node"), Count(vm.Connectors.Count, "connector") };
         if (selectedNodes > 1) parts.Add($"{selectedNodes} selected");
         parts.Add(vm.IsGridSnapEnabled ? "Snap to 10 px grid" : "Snap off");
         CanvasSummaryText.Text = string.Join("  ·  ", parts);
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(CanvasSummaryText, CanvasSummaryText.Text);
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(CanvasSummaryButton, $"Copy diagram summary, {CanvasSummaryText.Text}");
     }
 
     // Show the connector vocabulary of the current diagram type (flowchart line + head, sequence
@@ -1241,21 +1256,30 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
 
     private void OnStatusBarDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
     {
+        // A double-click on the summary button is two copies, not a request to refit the view.
+        for (var node = e.OriginalSource as DependencyObject; node is not null; node = VisualTreeHelper.GetParent(node))
+        {
+            if (node is ButtonBase) return;
+        }
         e.Handled = true;
         _canvas.FitToContent();
     }
 
-    private void OnCanvasSummaryDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    private void OnCanvasSummaryClick(object sender, RoutedEventArgs e)
     {
-        e.Handled = true;
+        var summary = CanvasSummaryText.Text;
+        if (string.IsNullOrWhiteSpace(summary)) return;
         try
         {
             var dp = new DataPackage();
-            dp.SetText(CanvasSummaryText.Text);
+            dp.SetText(summary);
             ClipboardWriter.Set(dp);
-            if (ViewModel != null) ViewModel.StatusText = "Copied summary to clipboard.";
+            if (ViewModel != null) ViewModel.StatusText = "Copied diagram summary to clipboard.";
         }
-        catch { }
+        catch
+        {
+            if (ViewModel != null) ViewModel.StatusText = "Couldn't copy the summary: the clipboard is busy. Try again.";
+        }
     }
 
     private void OnStatusBarRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -1286,7 +1310,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
 
         var zoomFit = new MenuFlyoutItem
         {
-            Text = "Fit whole diagram (Ctrl+0)",
+            Text = "Fit whole diagram",
             Icon = new FontIcon { Glyph = "\uE9A6" }
         };
         zoomFit.Click += (_, _) => _canvas.FitToContent();
@@ -1295,6 +1319,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
         var zoomActual = new MenuFlyoutItem
         {
             Text = "Actual size (100%)",
+            KeyboardAcceleratorTextOverride = "Ctrl+0",
             Icon = new FontIcon { Glyph = "\uE71E" }
         };
         zoomActual.Click += (_, _) => _canvas.ZoomReset();
@@ -1323,7 +1348,8 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
 
         var syncDoc = new MenuFlyoutItem
         {
-            Text = "Sync to document (Ctrl+Enter)",
+            Text = "Sync to document",
+            KeyboardAcceleratorTextOverride = "Ctrl+Enter",
             Icon = new FontIcon { Glyph = "\uE8A5" }
         };
         syncDoc.Click += (s, args) => OnSyncToMarkdownClick(s, new RoutedEventArgs());

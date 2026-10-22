@@ -669,13 +669,13 @@
                 BorderThickness="1"
                 Padding="4"
                 RightTapped="OnZoomResetRightTapped"
-                DoubleTapped="OnZoomResetDoubleTapped"
-                ToolTipService.ToolTip="Zoom controls · Double-click for 100%, right-click for zoom presets">
+                ToolTipService.ToolTip="Zoom controls · Click the level for 100%, right-click for zoom presets">
             <StackPanel Orientation="Horizontal">
                 <Button x:Name="ZoomOutButton" Width="32" Height="32" Padding="0" Click="OnZoomOutClick" RightTapped="OnZoomResetRightTapped" Background="Transparent" Foreground="#EDF2F4" BorderThickness="0" ToolTipService.ToolTip="Zoom out (Ctrl+-, or Ctrl+wheel) · Right-click or Shift+F10 for zoom presets" AutomationProperties.Name="Zoom out"><FontIcon Glyph="&#xE738;" FontSize="12" /></Button>
-                <!-- The level doubles as "back to 100%", the way most editors do it. -->
+                <!-- The level doubles as "back to 100%", the way most editors do it. No DoubleTapped here
+                     or on the panel: two quick clicks on Zoom in bubbled up as a double-tap and snapped
+                     the zoom back to 100%. -->
                 <Button x:Name="ZoomResetButton" Width="54" Height="32" Padding="0" Margin="2,0" Click="OnZoomResetClick"
-                        DoubleTapped="OnZoomResetDoubleTapped"
                         RightTapped="OnZoomResetRightTapped" Background="Transparent" Foreground="#EDF2F4" BorderThickness="0"
                         ToolTipService.ToolTip="Zoom to 100% (Ctrl+0) · Right-click or Shift+F10 for zoom presets" AutomationProperties.Name="Zoom to 100%">
                     <TextBlock x:Name="ZoomLevelText" Text="100%" TextAlignment="Center" />

@@ -587,7 +587,7 @@
         <!-- Bottom Status Bar -->
         <Border Grid.Row="3" Background="#232334" Padding="12,0" VerticalAlignment="Stretch"
                 RightTapped="OnStatusBarRightTapped" DoubleTapped="OnStatusBarDoubleTapped"
-                ToolTipService.ToolTip="Diagram Studio status (Double-click to fit to window, Right-click for options)">
+                ToolTipService.ToolTip="Diagram Studio status · Double-click to fit the diagram, right-click for options">
             <Grid VerticalAlignment="Center">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -597,12 +597,17 @@
                            AutomationProperties.LiveSetting="Polite"
                            IsHitTestVisible="True"
                            RightTapped="OnStatusBarRightTapped" DoubleTapped="OnStatusBarDoubleTapped" />
-                <!-- Filled from code: "3 nodes · 2 connectors · Snap on" (bare counts read as noise). -->
-                <TextBlock x:Name="CanvasSummaryText" Grid.Column="1" FontSize="11" Foreground="#8D99AE" VerticalAlignment="Center"
-                           AutomationProperties.LiveSetting="Polite"
-                           IsHitTestVisible="True"
-                           RightTapped="OnStatusBarRightTapped" DoubleTapped="OnCanvasSummaryDoubleTapped"
-                           ToolTipService.ToolTip="Diagram summary · Double-click to copy summary, right-click for options" />
+                <!-- Filled from code: "3 nodes · 2 connectors · Snap on" (bare counts read as noise).
+                     A button so the keyboard reaches it: Enter copies the summary, Shift+F10 / the Menu
+                     key opens the status-bar menu (bridged). It used to be a double-click-only TextBlock. -->
+                <Button x:Name="CanvasSummaryButton" Grid.Column="1" Height="22" Padding="6,0" MinWidth="0"
+                        VerticalAlignment="Center" Background="Transparent" BorderThickness="0"
+                        Click="OnCanvasSummaryClick" RightTapped="OnStatusBarRightTapped"
+                        AutomationProperties.HelpText="Copies the diagram summary. Shift+F10 for status bar options."
+                        ToolTipService.ToolTip="Diagram summary · Click to copy, right-click or Shift+F10 for options">
+                    <TextBlock x:Name="CanvasSummaryText" FontSize="11" Foreground="#8D99AE" VerticalAlignment="Center"
+                               AutomationProperties.LiveSetting="Polite" />
+                </Button>
             </Grid>
         </Border>
     </Grid>
