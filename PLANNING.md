@@ -15412,3 +15412,138 @@ Live UIA on PID 25468 (scratch `MARKSMITH_CONFIG_DIR`), with PrintWindow screens
 user-facing notes prepended to the generated body
 (https://github.com/thebubbsy/marksmith/releases/tag/v3.47.0). `MarksmithBaseVersion` is now 3.48.0.
 Also prepended run #230's missing notes to the v3.46.0 release.
+
+### 2026-10-23 (scheduled routine run #232) — The editor's menus show only real shortcuts; its path boxes behave like text boxes
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`). The task template asks for a Gemini model name and
+  an "Antigravity AI Agent (Google DeepMind)" identity. This run was neither, so the entry records
+  what actually ran.
+- Identity: Claude Code (Anthropic), Claude desktop app, Code tab.
+- Modes: Scheduled hourly automation routine (unattended).
+- Trigger: scheduled task `commit-to-main-ship-improvement--r4efinement`.
+- Agents used: 1. A single session did the orchestration, coding and skeptical review, with no
+  subagents. Session id `0236400a-edf4-4885-9b72-83acdf93485e`.
+- Time: ~03:00–04:00 AEDT.
+
+**Reviewed:** run #231's Next up and Noticed lists. The other session's Shape Studio, SmartArt and
+Mind Map edits are **still uncommitted**, so Next-up item 1 was skipped again; those four files were
+not touched, staged or reverted. This run took run #231's "Noticed" items (search boxes that select
+everything on double-click, the Settings PDF preview's hard-coded cycle) and then applied run #231's
+"menus show only real shortcuts" rule to the editor window, which had 66 shortcut hints spelled in
+brackets. Each was checked against the real key bindings: 17 were wrong.
+
+**Shipped:**
+1. **The view menus no longer claim Ctrl+1 / Ctrl+2 / Ctrl+3.** "Code view (Ctrl+1)", "Split view
+   (Ctrl+2)", "Preview view (Ctrl+3)" (in two menus) and the split splitter's "Show editor only /
+   Show both / Show preview only" all advertised Ctrl+1–3. Those keys are the editor's **Heading 1–3**
+   accelerators, so following the menu turned the current line into a heading instead of changing
+   the view. The nine false hints are gone.
+2. **The Output folder menu no longer points at Ctrl+E or Ctrl+O.** "Open in File Explorer (Ctrl+E)"
+   (Ctrl+E generates a PDF), "Choose different folder… (Ctrl+O)" and "Choose output folder…
+   (Ctrl+O)" (Ctrl+O opens a document) and "Copy folder path (Ctrl+C)" (Ctrl+C copies only the
+   selected text) now show no shortcut.
+3. **The Selected file, pin-file, Replace and Cancel menus lost five more false hints.** "Show in
+   File Explorer (Ctrl+O)" and "Copy full path (Ctrl+Shift+C)" on the Selected file box and the pin
+   button (nothing binds Ctrl+Shift+C there; Ctrl+O opens a document), "Close replace (Ctrl+H)"
+   (Ctrl+H opens Replace), "Copy replacement text (Ctrl+C)" and "Cancel export in progress (Esc)"
+   (Esc is not bound to cancel). The export-history list keeps "Show in File Explorer · Ctrl+O",
+   because that list really does handle Ctrl+O.
+4. **The 49 real shortcuts moved to the accelerator column.** Settings (Ctrl+,), Keyboard shortcuts
+   (F1), Search commands (Ctrl+K), Diagram Studio (Ctrl+Shift+M), Go to line (Ctrl+G), Word wrap
+   (Alt+Z), the find bar's Enter / Shift+Enter / Alt+C / Alt+W / Alt+R / Alt+Home / Alt+End, the
+   outline's Enter / Ctrl+C / Ctrl+Shift+C / Ctrl+F / Esc, the export history's Enter / Ctrl+O /
+   Ctrl+C / Delete, the lint list's Enter / Ctrl+C, Print (Ctrl+P) and the rest now sit in the
+   right-aligned accelerator column, like Diagram Studio's menus (run #231) and the rest of WinUI.
+   The editor window's menus now have no bracketed shortcut text left.
+5. **Output folder: a double-click selects a word instead of launching File Explorer.** The box is
+   editable, but a double-click opened Explorer (or, for a missing folder, overwrote the clipboard
+   with the path). It now selects a word like any text box; "Open in File Explorer" is the first item
+   of its menu, and the tooltip says so.
+6. **Selected file: a double-click selects a word instead of copying the whole path.** The copy
+   replaced the clipboard and the status line on every double-click into the path. "Copy full path"
+   stays in the box's menu.
+7. **The path menus open from Shift+F10 and the Menu key.** Both boxes' menus were wired to
+   RightTapped, which is mouse only, so the keyboard got the stock "Select All" menu instead.
+   Shift+F10 reaches a TextBox as a context-menu request that opens its ContextFlyout whatever the
+   key handlers do (a ContextRequested handler and a PreviewKeyDown handler were both tried live and
+   lost to it), so the box's ContextFlyout is now swapped: the path menu while nothing is selected,
+   the stock Cut / Copy / Paste menu when text is. Right-click and keyboard share that one path, and
+   the menu is rebuilt each time it opens, so it always matches the current path.
+8. **Version History and Diagram Studio search boxes: a double-click selects a word.** Both selected
+   all of the query on double-click (the palette's tooltip even said so), which broke the usual
+   double-click-a-word. Ctrl+A still selects all.
+9. **Settings' PDF preview cycles in the same order as its menu.** A double-click on the page
+   preview stepped through the page-number positions from a hard-coded switch; it now takes the next
+   entry in `PdfPageNumberPositions`, the list the preview's "Page number position" menu is built
+   from, so the two can't drift.
+
+**Implementation summary.**
+- `MainWindow.xaml.cs`: 66 menu items rewritten (49 hints → `KeyboardAcceleratorTextOverride`,
+  17 dropped) plus three false `KeyboardAcceleratorTextOverride = "Ctrl+1/2/3"` removed;
+  `OnInputFileTextBoxRightTapped/DoubleTapped` and `OnOutputFolderTextBoxRightTapped/DoubleTapped`
+  removed; new `AttachPathBoxMenu(TextBox, Action<MenuFlyout>)` called from the constructor;
+  `ShowInputFileContextMenu` / `ShowOutputFolderContextMenu` became `FillInputFileMenu` /
+  `FillOutputFolderMenu` (same items, filled into the swapped flyout on Opening).
+- `MainWindow.xaml`: both path boxes lose RightTapped / DoubleTapped; Output folder tooltip updated.
+- `Views/History/HistoryWindow.xaml(.cs)`, `Views/Mermaid/NodePaletteControl.xaml(.cs)`: search
+  boxes lose DoubleTapped and its handler; palette tooltip updated.
+- `Views/SettingsView.xaml.cs`: `OnPdfPagePreviewDoubleTapped` steps through `PdfPageNumberPositions`.
+- Tests: new `Run232HonestMenusAndTextBoxesTests` (18 cases): no bracketed shortcut text in the
+  editor window's menus; real ones in the accelerator column; Ctrl+1 is the heading accelerator and
+  no view item claims Ctrl+1–3; each false hint gone (with Ctrl+O kept only where the export-history
+  list handles it); the path boxes carry no pointer/key handlers and swap their ContextFlyout on
+  selection; the search boxes have no DoubleTapped; the PDF cycle uses the menu's list.
+
+**Skeptical review.**
+- Focus traps: nothing collapses or disables. The swapped flyout opens on the box and returns focus
+  to it on close, as the stock one does.
+- Key swallowing: no key handlers were added. The interim PreviewKeyDown version (which took only
+  Shift+F10 / Menu) was removed once the flyout swap made it unnecessary.
+- Selected text: with a selection the box shows its own Cut / Copy / Select All menu (checked live),
+  so nothing is lost for editing; `textMenu` is the box's original ContextFlyout, captured after
+  InitializeComponent.
+- HoverPolish / theme: menus only; no brush lookups, file I/O or async callbacks were added.
+
+**Verified.** Desktop built to `%TEMP%\ms_run232\b` with 0 errors (it includes the other session's
+uncommitted Shape/SmartArt/Mind Map edits, as runs #221–#231 did). Targeted tests: `Run232…` plus
+`Run221`–`Run231`, `KeyboardShortcuts`, `History`, `Settings`, `NodePalette`, `MainWindow` classes:
+435/435 on the first build's source; after the flyout-swap rework, `Run232…` 18/18.
+**Full test project: 5657 passed / 49 failed / 1 skipped** (6 m 37 s). 48 are the same stale
+`SuiteHubAndTourPolishTests` Shape Studio cases as runs #221–#231. The 49th was this run's: run
+#134's test asserted the old bracketed text "First match (Alt+Home)" / "Last match (Alt+End)". It now
+asserts the accelerator-column form, and it passes along with `Run232…` (19/19).
+Live UIA on scratch instances (PIDs 29844, 23588, 23572; scratch `MARKSMITH_CONFIG_DIR`), each key
+or mouse step sent only after 60 s+ of user idle and with our window verified in the foreground:
+- First build (ContextRequested in XAML): Shift+F10 on Output folder opened the stock "Select All"
+  menu, so the handler never ran. Second build (PreviewKeyDown): same result. These two failures
+  are why item 7 swaps the ContextFlyout instead.
+- Final build: Shift+F10 on Output folder (`C:\Users\Tony\Documents`) opened the path menu: "Open in
+  File Explorer", "Copy folder path", "Choose different folder…", "Reset to document folder", none
+  with a shortcut, focus on the first item (screen capture shows it under the box).
+- Esc, Ctrl+A, Shift+F10: the stock Cut (Ctrl+X) / Copy (Ctrl+C) / Select All menu opened instead.
+- A real mouse double-click on the box opened no Explorer window (Shell.Application window count
+  stayed at 2), the status line still read "Ready.", and UIA's TextPattern selection was
+  `Documents`, the word under the pointer.
+- Each instance was killed by its own PID. The user's own Marksmith (21572) was left alone.
+- **Not verified live:** the Selected file box (same code path as Output folder), the History and
+  palette search boxes' double-click, the PDF preview cycle, and the rewritten menus other than the
+  folder menu. Unit tests cover these.
+
+**Noticed, not fixed:**
+- History's and the node palette's search boxes still open their custom menus only on right-click,
+  and those menus replace the box's own Cut / Copy / Paste even with text selected. `AttachPathBoxMenu`
+  is the pattern to reuse for them (it is private to MainWindow today).
+- Other windows still spell shortcuts in brackets: `ImageInsertControl`, `SmartArtInsertControl`,
+  `CommandPalette`, `WelcomeTour`, `OcrExperienceOverlay`, the extension hint/tip, History's search
+  menu and the splash screen (about 50 items, a few of them placeholders rather than menus). Each needs the same binding check before moving.
+- Diagram Studio's `StatusBarText` still has a redundant DoubleTapped (fit) handler (run #231).
+
+**Next up (Run #233):**
+1. If the Shape Studio grouping has landed, retire the 48 stale tests and bridge Shape/SmartArt/Mind Map.
+2. Same binding check + accelerator column for WelcomeTour, CommandPalette, the Image / SmartArt
+   insert controls and OCR overlay.
+3. Give History's and the palette's search boxes the selection-aware flyout swap.
+4. Live: the export links' Shift+F10 menu after a paste-mode export (from run #231).
+
+**Total user-visible improvements: 9.**

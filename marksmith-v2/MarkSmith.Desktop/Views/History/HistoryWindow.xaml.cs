@@ -1821,11 +1821,6 @@ public sealed partial class HistoryWindow : Window
         }
     }
 
-    private void OnSearchBoxDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-    {
-        SearchBox.SelectAll();
-    }
-
     private void OnTimelineClearSearchClick(object sender, RoutedEventArgs e)
     {
         // Move focus first: clearing the query collapses the pill holding this button.

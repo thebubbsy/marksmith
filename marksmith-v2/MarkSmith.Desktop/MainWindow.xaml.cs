@@ -317,6 +317,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             (HistoryCountButton, OnHistoryCountTextRightTapped),
         })
             Services.KeyboardContextMenu.Bridge(pill, handler);
+        AttachPathBoxMenu(InputFileTextBox, FillInputFileMenu);
+        AttachPathBoxMenu(OutputFolderTextBox, FillOutputFolderMenu);
 
         // Status-bar pieces that come and go (detected-source badge, export links, split sync,
         // section breadcrumb) change how much room the copy pills have, so re-fit the row.
@@ -839,7 +841,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var paletteItem = new MenuFlyoutItem
         {
-            Text = "Search commands (Ctrl+K)",
+            Text = "Search commands",
+            KeyboardAcceleratorTextOverride = "Ctrl+K",
             Icon = new FontIcon { Glyph = "\uE721" }
         };
         paletteItem.Click += (_, _) => _ = ShowCommandPaletteAsync();
@@ -847,7 +850,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var shortcutsItem = new MenuFlyoutItem
         {
-            Text = "Keyboard shortcuts (F1)",
+            Text = "Keyboard shortcuts",
+            KeyboardAcceleratorTextOverride = "F1",
             Icon = new FontIcon { Glyph = "\uE765" }
         };
         shortcutsItem.Click += (_, _) => _ = ShowShortcutsCheatsheetAsync();
@@ -865,7 +869,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var settingsItem = new MenuFlyoutItem
         {
-            Text = "Settings (Ctrl+,)",
+            Text = "Settings",
+            KeyboardAcceleratorTextOverride = "Ctrl+,",
             Icon = new FontIcon { Glyph = "\uE713" }
         };
         settingsItem.Click += (_, _) => OnSettingsClick(this, new RoutedEventArgs());
@@ -1117,7 +1122,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var shortcutsItem = new MenuFlyoutItem
         {
-            Text = "Keyboard shortcuts (F1)",
+            Text = "Keyboard shortcuts",
+            KeyboardAcceleratorTextOverride = "F1",
             Icon = new FontIcon { Glyph = "\uE765" }
         };
         shortcutsItem.Click += OnShortcutsButtonClick;
@@ -1125,7 +1131,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var settingsItem = new MenuFlyoutItem
         {
-            Text = "Settings (Ctrl+,)",
+            Text = "Settings",
+            KeyboardAcceleratorTextOverride = "Ctrl+,",
             Icon = new FontIcon { Glyph = "\uE713" }
         };
         settingsItem.Click += OnSettingsClick;
@@ -2048,7 +2055,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var diagramItem = new MenuFlyoutItem
         {
-            Text = "Diagram Studio (Ctrl+Shift+M)",
+            Text = "Diagram Studio",
+            KeyboardAcceleratorTextOverride = "Ctrl+Shift+M",
             Icon = new FontIcon { Glyph = "\uEF90" }
         };
         diagramItem.Click += (_, _) => OnOpenMermaidStudioClick(this, new RoutedEventArgs());
@@ -2213,7 +2221,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var browseFileItem = new MenuFlyoutItem
         {
-            Text = "Browse Markdown files (Ctrl+O)",
+            Text = "Browse Markdown files",
+            KeyboardAcceleratorTextOverride = "Ctrl+O",
             Icon = new FontIcon { Glyph = "\uE8E5" }
         };
         browseFileItem.Click += (_, _) => OnBrowseFileClick(this, new RoutedEventArgs());
@@ -2230,7 +2239,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var diagramItem = new MenuFlyoutItem
         {
-            Text = "Diagram Studio (Ctrl+Shift+M)",
+            Text = "Diagram Studio",
+            KeyboardAcceleratorTextOverride = "Ctrl+Shift+M",
             Icon = new FontIcon { Glyph = "\uEF90" }
         };
         diagramItem.Click += (_, _) => OnOpenMermaidStudioClick(this, new RoutedEventArgs());
@@ -2289,7 +2299,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var settingsItem = new MenuFlyoutItem
         {
-            Text = "Settings (Ctrl+,)",
+            Text = "Settings",
+            KeyboardAcceleratorTextOverride = "Ctrl+,",
             Icon = new FontIcon { Glyph = "\uE713" }
         };
         settingsItem.Click += (_, _) => OnSettingsClick(this, new RoutedEventArgs());
@@ -2297,7 +2308,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var shortcutsItem = new MenuFlyoutItem
         {
-            Text = "Keyboard shortcuts (F1)",
+            Text = "Keyboard shortcuts",
+            KeyboardAcceleratorTextOverride = "F1",
             Icon = new FontIcon { Glyph = "\uE765" }
         };
         shortcutsItem.Click += (_, _) => OnShortcutsButtonClick(this, new RoutedEventArgs());
@@ -2610,7 +2622,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var openItem = new MenuFlyoutItem
         {
-            Text = "Open exported file (Enter)",
+            Text = "Open exported file",
+            KeyboardAcceleratorTextOverride = "Enter",
             Icon = new FontIcon { Glyph = "\uE8E5" }
         };
         openItem.Click += (_, _) =>
@@ -2622,7 +2635,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var showFolderItem = new MenuFlyoutItem
         {
-            Text = "Show in File Explorer (Ctrl+O)",
+            Text = "Show in File Explorer",
+            KeyboardAcceleratorTextOverride = "Ctrl+O",
             Icon = new FontIcon { Glyph = "\uEC50" }
         };
         showFolderItem.Click += (_, _) =>
@@ -2634,7 +2648,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var copyPathItem = new MenuFlyoutItem
         {
-            Text = "Copy file path (Ctrl+C)",
+            Text = "Copy file path",
+            KeyboardAcceleratorTextOverride = "Ctrl+C",
             Icon = new FontIcon { Glyph = "\uE8C8" },
             IsEnabled = !string.IsNullOrWhiteSpace(entry.OutputPath)
         };
@@ -2651,7 +2666,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var removeItem = new MenuFlyoutItem
         {
-            Text = "Remove from list (Delete)",
+            Text = "Remove from list",
+            KeyboardAcceleratorTextOverride = "Delete",
             Icon = new FontIcon { Glyph = "\uE74D" }
         };
         removeItem.Click += (_, _) => RemoveHistoryEntryFromFlyout(entry);
@@ -3120,7 +3136,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var goItem = new MenuFlyoutItem
         {
-            Text = "Go to heading (Enter)",
+            Text = "Go to heading",
+            KeyboardAcceleratorTextOverride = "Enter",
             Icon = new FontIcon { Glyph = "\uE8A4" }
         };
         goItem.Click += (_, _) => NavigateToTocEntry(entry);
@@ -3128,7 +3145,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var copyTextItem = new MenuFlyoutItem
         {
-            Text = "Copy heading text (Ctrl+C)",
+            Text = "Copy heading text",
+            KeyboardAcceleratorTextOverride = "Ctrl+C",
             Icon = new FontIcon { Glyph = "\uE8C8" }
         };
         copyTextItem.Click += (_, _) =>
@@ -3152,7 +3170,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var copyLinkItem = new MenuFlyoutItem
         {
-            Text = "Copy Markdown link (Ctrl+Shift+C)",
+            Text = "Copy Markdown link",
+            KeyboardAcceleratorTextOverride = "Ctrl+Shift+C",
             Icon = new FontIcon { Glyph = "\uE71B" },
             IsEnabled = !string.IsNullOrWhiteSpace(entry.Anchor)
         };
@@ -3190,7 +3209,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var clearItem = new MenuFlyoutItem
         {
-            Text = "Clear filter (Esc)",
+            Text = "Clear filter",
+            KeyboardAcceleratorTextOverride = "Esc",
             Icon = new FontIcon { Glyph = "\uE894" },
             IsEnabled = !string.IsNullOrEmpty(TocFilterBox.Text)
         };
@@ -3203,7 +3223,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var selectAllItem = new MenuFlyoutItem
         {
-            Text = "Select all (Ctrl+A)",
+            Text = "Select all",
+            KeyboardAcceleratorTextOverride = "Ctrl+A",
             Icon = new FontIcon { Glyph = "\uE8B3" },
             IsEnabled = !string.IsNullOrEmpty(TocFilterBox.Text)
         };
@@ -3320,7 +3341,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var filterItem = new MenuFlyoutItem
         {
-            Text = "Filter headings (Ctrl+F)",
+            Text = "Filter headings",
+            KeyboardAcceleratorTextOverride = "Ctrl+F",
             Icon = new FontIcon { Glyph = "\uE721" },
             IsEnabled = TocFilterBox is not null && TocFilterBox.Visibility == Visibility.Visible
         };
@@ -3889,32 +3911,27 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
     }
 
-    private void OnInputFileTextBoxRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    // The Selected file and Output folder boxes' path menus. Shift+F10 / the Menu key reach a
+    // TextBox as a context-menu request that opens its ContextFlyout whatever the key handlers do,
+    // so the box's ContextFlyout is swapped instead: the path menu while nothing is selected, the
+    // stock Cut / Copy / Paste menu when text is. Right-click and the keyboard share that one path,
+    // and a double-click is left to the box (it selects a word; the path actions are in the menu).
+    private static void AttachPathBoxMenu(TextBox box, Action<MenuFlyout> fill)
     {
-        if (InputFileTextBox is null) return;
-        if (!string.IsNullOrEmpty(InputFileTextBox.SelectedText))
+        var textMenu = box.ContextFlyout;
+        var pathMenu = new MenuFlyout();
+        pathMenu.Opening += (_, _) =>
         {
-            // Let the native TextBox context menu handle selected text operations
-            return;
-        }
-        e.Handled = true;
-        ShowInputFileContextMenu(KeyboardContextMenu.PointIn(e, InputFileTextBox));
+            pathMenu.Items.Clear();
+            fill(pathMenu);
+        };
+        void Sync() => box.ContextFlyout = string.IsNullOrEmpty(box.SelectedText) ? pathMenu : textMenu;
+        box.SelectionChanged += (_, _) => Sync();
+        Sync();
     }
 
-    private void OnInputFileTextBoxDoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
+    private void FillInputFileMenu(MenuFlyout menu)
     {
-        if (InputFileTextBox is null) return;
-        var path = ViewModel.InputFilePath;
-        if (string.IsNullOrWhiteSpace(path)) return;
-        e.Handled = true;
-        _ = Services.ClipboardWriter.TrySetTextAsync(path);
-        AnnounceStatus($"Copied full file path: {System.IO.Path.GetFileName(path)}");
-    }
-
-    private void ShowInputFileContextMenu(Windows.Foundation.Point? position)
-    {
-        if (InputFileTextBox is null) return;
-        var menu = new MenuFlyout();
         var path = ViewModel.InputFilePath;
         bool hasPath = !string.IsNullOrWhiteSpace(path);
         bool fileExists = hasPath && File.Exists(path);
@@ -3926,7 +3943,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
             var copyPathItem = new MenuFlyoutItem
             {
-                Text = "Copy full path (Ctrl+Shift+C)",
+                Text = "Copy full path",
                 Icon = new FontIcon { Glyph = "\uE8C8" }
             };
             copyPathItem.Click += (_, _) =>
@@ -3964,7 +3981,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
                 var showFolderItem = new MenuFlyoutItem
                 {
-                    Text = "Show in File Explorer (Ctrl+O)",
+                    Text = "Show in File Explorer",
                     Icon = new FontIcon { Glyph = "\uE838" }
                 };
                 showFolderItem.Click += (_, _) => ShowExportedFileInFolder(path);
@@ -4001,65 +4018,19 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var browseItem = new MenuFlyoutItem
             {
-                Text = "Open a document… (Ctrl+O)",
+                Text = "Open a document…",
+                KeyboardAcceleratorTextOverride = "Ctrl+O",
                 Icon = new FontIcon { Glyph = "\uE8E5" }
             };
             browseItem.Click += (_, _) => OnBrowseFileClick(this, new RoutedEventArgs());
             menu.Items.Add(browseItem);
         }
 
-        if (menu.Items.Count == 0) return;
-        if (position.HasValue) menu.ShowAt(InputFileTextBox, position.Value);
-        else menu.ShowAt(InputFileTextBox);
     }
 
-    private void OnOutputFolderTextBoxDoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
+    // Opening in File Explorer, which a double-click used to do, is this menu's first item.
+    private void FillOutputFolderMenu(MenuFlyout menu)
     {
-        if (OutputFolderTextBox is null) return;
-        var folder = ViewModel.OutputFolder;
-        if (string.IsNullOrWhiteSpace(folder))
-        {
-            folder = string.IsNullOrWhiteSpace(ViewModel.InputFilePath)
-                ? Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)
-                : System.IO.Path.GetDirectoryName(ViewModel.InputFilePath) ?? Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-        }
-        e.Handled = true;
-        try
-        {
-            if (Directory.Exists(folder))
-            {
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                {
-                    FileName = folder,
-                    UseShellExecute = true
-                });
-                AnnounceStatus($"Opened folder: {folder}");
-            }
-            else
-            {
-                _ = Services.ClipboardWriter.TrySetTextAsync(folder);
-                AnnounceStatus($"Copied folder path: {folder}");
-            }
-        }
-        catch (Exception)
-        {
-            _ = Services.ClipboardWriter.TrySetTextAsync(folder);
-            AnnounceStatus($"Copied folder path: {folder}");
-        }
-    }
-
-    private void OnOutputFolderTextBoxRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
-    {
-        if (OutputFolderTextBox is null) return;
-        if (!string.IsNullOrEmpty(OutputFolderTextBox.SelectedText)) return;
-        e.Handled = true;
-        ShowOutputFolderContextMenu(KeyboardContextMenu.PointIn(e, OutputFolderTextBox));
-    }
-
-    private void ShowOutputFolderContextMenu(Windows.Foundation.Point? position)
-    {
-        if (OutputFolderTextBox is null) return;
-        var menu = new MenuFlyout();
         var folder = ViewModel.OutputFolder;
         bool hasFolder = !string.IsNullOrWhiteSpace(folder);
 
@@ -4067,7 +4038,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var openFolderItem = new MenuFlyoutItem
             {
-                Text = "Open in File Explorer (Ctrl+E)",
+                Text = "Open in File Explorer",
                 Icon = new FontIcon { Glyph = "\uE838" }
             };
             openFolderItem.Click += (_, _) =>
@@ -4097,7 +4068,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
             var copyPathItem = new MenuFlyoutItem
             {
-                Text = "Copy folder path (Ctrl+C)",
+                Text = "Copy folder path",
                 Icon = new FontIcon { Glyph = "\uE8C8" }
             };
             copyPathItem.Click += (_, _) =>
@@ -4109,7 +4080,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
             var browseFolderItem = new MenuFlyoutItem
             {
-                Text = "Choose different folder… (Ctrl+O)",
+                Text = "Choose different folder…",
                 Icon = new FontIcon { Glyph = "\uE8B7" }
             };
             browseFolderItem.Click += (_, _) => OnBrowseFolderClick(this, new RoutedEventArgs());
@@ -4133,7 +4104,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var browseFolderItem = new MenuFlyoutItem
             {
-                Text = "Choose output folder… (Ctrl+O)",
+                Text = "Choose output folder…",
                 Icon = new FontIcon { Glyph = "\uE8B7" }
             };
             browseFolderItem.Click += (_, _) => OnBrowseFolderClick(this, new RoutedEventArgs());
@@ -4159,9 +4130,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             menu.Items.Add(useDocFolderItem);
         }
 
-        if (menu.Items.Count == 0) return;
-        if (position.HasValue) menu.ShowAt(OutputFolderTextBox, position.Value);
-        else menu.ShowAt(OutputFolderTextBox);
     }
 
     private void OnDetectedBadgeClick(object sender, RoutedEventArgs e) => ShowDetectedBadgeContextMenu(null);
@@ -6596,7 +6564,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var menu = new MenuFlyout();
         var cancelItem = new MenuFlyoutItem
         {
-            Text = "Cancel export in progress (Esc)",
+            Text = "Cancel export in progress",
             Icon = new FontIcon { Glyph = "\uE711" }
         };
         cancelItem.Click += (_, _) =>
@@ -6767,7 +6735,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
             var showFolderItem = new MenuFlyoutItem
             {
-                Text = "Show in File Explorer (Ctrl+O)",
+                Text = "Show in File Explorer",
                 Icon = new FontIcon { Glyph = "\uE838" }
             };
             showFolderItem.Click += (_, _) => ShowExportedFileInFolder(path);
@@ -6775,7 +6743,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
             var copyPathItem = new MenuFlyoutItem
             {
-                Text = "Copy full path (Ctrl+Shift+C)",
+                Text = "Copy full path",
                 Icon = new FontIcon { Glyph = "\uE8C8" }
             };
             copyPathItem.Click += (_, _) =>
@@ -6803,7 +6771,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var browseItem = new MenuFlyoutItem
             {
-                Text = "Browse files… (Ctrl+O)",
+                Text = "Browse files…",
+                KeyboardAcceleratorTextOverride = "Ctrl+O",
                 Icon = new FontIcon { Glyph = "\uE8E5" }
             };
             browseItem.Click += OnBrowseFileClick;
@@ -6837,7 +6806,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var browseItem = new MenuFlyoutItem
         {
-            Text = "Browse files… (Ctrl+O)",
+            Text = "Browse files…",
+            KeyboardAcceleratorTextOverride = "Ctrl+O",
             Icon = new FontIcon { Glyph = "\uE8E5" }
         };
         browseItem.Click += OnBrowseFileClick;
@@ -6913,7 +6883,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var codeItem = new MenuFlyoutItem
         {
-            Text = "Code view (Ctrl+1)",
+            Text = "Code view",
             Icon = new FontIcon { Glyph = "\uE8A5" }
         };
         codeItem.Click += (_, _) =>
@@ -6924,7 +6894,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var splitItem = new MenuFlyoutItem
         {
-            Text = "Split view (Ctrl+2)",
+            Text = "Split view",
             Icon = new FontIcon { Glyph = "\uE8D3" }
         };
         splitItem.Click += (_, _) =>
@@ -6935,7 +6905,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var previewItem = new MenuFlyoutItem
         {
-            Text = "Preview view (Ctrl+3)",
+            Text = "Preview view",
             Icon = new FontIcon { Glyph = "\uE7B3" }
         };
         previewItem.Click += (_, _) =>
@@ -7088,7 +7058,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             Text = "Show editor only",
             Icon = new FontIcon { Glyph = "\uE70F" },
-            KeyboardAcceleratorTextOverride = "Ctrl+1"
         };
         showEditorOnly.Click += (_, _) =>
         {
@@ -7101,7 +7070,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             Text = "Show split view",
             Icon = new FontIcon { Glyph = "\uE8A9" },
-            KeyboardAcceleratorTextOverride = "Ctrl+2"
         };
         showSplit.Click += (_, _) =>
         {
@@ -7114,7 +7082,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             Text = "Show preview only",
             Icon = new FontIcon { Glyph = "\uE896" },
-            KeyboardAcceleratorTextOverride = "Ctrl+3"
         };
         showPreviewOnly.Click += (_, _) =>
         {
@@ -8808,7 +8775,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var findNextItem = new MenuFlyoutItem
         {
-            Text = "Find next match (Enter)",
+            Text = "Find next match",
+            KeyboardAcceleratorTextOverride = "Enter",
             Icon = new FontIcon { Glyph = "\uE70D" },
             IsEnabled = _findMatches.Count > 0
         };
@@ -8817,7 +8785,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var findPrevItem = new MenuFlyoutItem
         {
-            Text = "Find previous match (Shift+Enter)",
+            Text = "Find previous match",
+            KeyboardAcceleratorTextOverride = "Shift+Enter",
             Icon = new FontIcon { Glyph = "\uE70E" },
             IsEnabled = _findMatches.Count > 0
         };
@@ -8826,7 +8795,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var matchCaseItem = new ToggleMenuFlyoutItem
         {
-            Text = "Match case (Alt+C)",
+            Text = "Match case",
+            KeyboardAcceleratorTextOverride = "Alt+C",
             IsChecked = MatchCaseCheck?.IsChecked == true
         };
         matchCaseItem.Click += (_, _) =>
@@ -8841,7 +8811,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var matchWholeWordItem = new ToggleMenuFlyoutItem
         {
-            Text = "Match whole word (Alt+W)",
+            Text = "Match whole word",
+            KeyboardAcceleratorTextOverride = "Alt+W",
             IsChecked = MatchWholeWordCheck?.IsChecked == true
         };
         matchWholeWordItem.Click += (_, _) =>
@@ -8856,7 +8827,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var useRegexItem = new ToggleMenuFlyoutItem
         {
-            Text = "Use regular expression (Alt+R)",
+            Text = "Use regular expression",
+            KeyboardAcceleratorTextOverride = "Alt+R",
             IsChecked = UseRegexCheck?.IsChecked == true
         };
         useRegexItem.Click += (_, _) =>
@@ -8915,7 +8887,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var closeItem = new MenuFlyoutItem
         {
-            Text = "Close find (Esc)",
+            Text = "Close find",
+            KeyboardAcceleratorTextOverride = "Esc",
             Icon = new FontIcon { Glyph = "\uE711" }
         };
         closeItem.Click += (_, _) => CloseFindBar();
@@ -8934,7 +8907,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var replaceOneItem = new MenuFlyoutItem
         {
-            Text = "Replace next match (Enter)",
+            Text = "Replace next match",
+            KeyboardAcceleratorTextOverride = "Enter",
             Icon = new FontIcon { Glyph = "\uE8AB" },
             IsEnabled = _findMatches.Count > 0
         };
@@ -8954,7 +8928,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var copyItem = new MenuFlyoutItem
         {
-            Text = "Copy replacement text (Ctrl+C)",
+            Text = "Copy replacement text",
             Icon = new FontIcon { Glyph = "\uE8C8" },
             IsEnabled = !string.IsNullOrEmpty(ReplaceTextBox.Text)
         };
@@ -8985,7 +8959,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var closeItem = new MenuFlyoutItem
         {
-            Text = "Close replace (Ctrl+H)",
+            Text = "Close replace",
             Icon = new FontIcon { Glyph = "\uE76C" }
         };
         closeItem.Click += (_, _) =>
@@ -9028,7 +9002,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var firstItem = new MenuFlyoutItem
         {
-            Text = "First match (Alt+Home)",
+            Text = "First match",
+            KeyboardAcceleratorTextOverride = "Alt+Home",
             Icon = new FontIcon { Glyph = "\uE892" },
             IsEnabled = _findMatches.Count > 0
         };
@@ -9037,7 +9012,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var prevItem = new MenuFlyoutItem
         {
-            Text = "Previous match (Shift+Enter)",
+            Text = "Previous match",
+            KeyboardAcceleratorTextOverride = "Shift+Enter",
             Icon = new FontIcon { Glyph = "\uE70E" },
             IsEnabled = _findMatches.Count > 0
         };
@@ -9046,7 +9022,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var nextItem = new MenuFlyoutItem
         {
-            Text = "Next match (Enter)",
+            Text = "Next match",
+            KeyboardAcceleratorTextOverride = "Enter",
             Icon = new FontIcon { Glyph = "\uE70D" },
             IsEnabled = _findMatches.Count > 0
         };
@@ -9055,7 +9032,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var lastItem = new MenuFlyoutItem
         {
-            Text = "Last match (Alt+End)",
+            Text = "Last match",
+            KeyboardAcceleratorTextOverride = "Alt+End",
             Icon = new FontIcon { Glyph = "\uE893" },
             IsEnabled = _findMatches.Count > 0
         };
@@ -10163,7 +10141,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var toggleWrapItem = new ToggleMenuFlyoutItem
         {
-            Text = "Word wrap (Alt+Z)",
+            Text = "Word wrap",
+            KeyboardAcceleratorTextOverride = "Alt+Z",
             Icon = new FontIcon { Glyph = "\uE8FD" },
             IsChecked = WordWrapToggle?.IsChecked == true
         };
@@ -10510,7 +10489,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var gotoLineItem = new MenuFlyoutItem
         {
-            Text = "Go to line… (Ctrl+G)",
+            Text = "Go to line…",
+            KeyboardAcceleratorTextOverride = "Ctrl+G",
             Icon = new FontIcon { Glyph = "\uE8FD" }
         };
         gotoLineItem.Click += (_, _) => _ = ShowGoToLineDialogAsync();
@@ -10579,7 +10559,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var toggleItem = new ToggleMenuFlyoutItem
         {
-            Text = "Wrap long lines (Alt+Z)",
+            Text = "Wrap long lines",
+            KeyboardAcceleratorTextOverride = "Alt+Z",
             Icon = new FontIcon { Glyph = "\uE8FD" },
             IsChecked = WordWrapToggle?.IsChecked == true
         };
@@ -10596,7 +10577,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var resetZoomItem = new MenuFlyoutItem
         {
-            Text = "Reset editor zoom to 100% (Ctrl+0)",
+            Text = "Reset editor zoom to 100%",
+            KeyboardAcceleratorTextOverride = "Ctrl+0",
             Icon = new FontIcon { Glyph = "\uE71E" }
         };
         resetZoomItem.Click += (_, _) => OnEditorZoomResetClick(this, new RoutedEventArgs());
@@ -11553,7 +11535,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var jumpItem = new MenuFlyoutItem
         {
-            Text = "Jump to line (Enter)",
+            Text = "Jump to line",
+            KeyboardAcceleratorTextOverride = "Enter",
             Icon = new FontIcon { Glyph = "\uE71B" }
         };
         jumpItem.Click += (_, _) => JumpToLintIssue(issue);
@@ -11561,7 +11544,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var copyOneItem = new MenuFlyoutItem
         {
-            Text = "Copy issue (Ctrl+C)",
+            Text = "Copy issue",
+            KeyboardAcceleratorTextOverride = "Ctrl+C",
             Icon = new FontIcon { Glyph = "\uE8C8" }
         };
         copyOneItem.Click += (_, _) =>
@@ -11631,7 +11615,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var shortcutsItem = new MenuFlyoutItem
         {
-            Text = "Keyboard Shortcuts Cheatsheet (F1)",
+            Text = "Keyboard Shortcuts Cheatsheet",
+            KeyboardAcceleratorTextOverride = "F1",
             Icon = new FontIcon { Glyph = "\uE765" }
         };
         shortcutsItem.Click += (_, _) => _ = ShowShortcutsCheatsheetAsync();
@@ -11639,7 +11624,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var paletteItem = new MenuFlyoutItem
         {
-            Text = "Command Palette (Ctrl+K)",
+            Text = "Command Palette",
+            KeyboardAcceleratorTextOverride = "Ctrl+K",
             Icon = new FontIcon { Glyph = "\uE721" }
         };
         paletteItem.Click += (_, _) => _ = ShowCommandPaletteAsync();
@@ -11647,7 +11633,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var goToLineItem = new MenuFlyoutItem
         {
-            Text = "Jump to Line… (Ctrl+G)",
+            Text = "Jump to Line…",
+            KeyboardAcceleratorTextOverride = "Ctrl+G",
             Icon = new FontIcon { Glyph = "\uE8FD" }
         };
         goToLineItem.Click += (_, _) => _ = ShowGoToLineDialogAsync();
@@ -14623,7 +14610,8 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
 
         var gotoLineItem = new MenuFlyoutItem
         {
-            Text = "Go to line… (Ctrl+G)",
+            Text = "Go to line…",
+            KeyboardAcceleratorTextOverride = "Ctrl+G",
             Icon = new FontIcon { Glyph = "\uE8FD" }
         };
         gotoLineItem.Click += (_, _) => _ = ShowGoToLineDialogAsync();
@@ -14675,7 +14663,8 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
 
         var customJump = new MenuFlyoutItem
         {
-            Text = "Custom line number… (Ctrl+G)",
+            Text = "Custom line number…",
+            KeyboardAcceleratorTextOverride = "Ctrl+G",
             Icon = new FontIcon { Glyph = "\uE8FD" }
         };
         customJump.Click += (_, _) => _ = ShowGoToLineDialogAsync();
@@ -14746,7 +14735,8 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
 
         var jumpStartItem = new MenuFlyoutItem
         {
-            Text = "Go to start of document (Ctrl+Home)",
+            Text = "Go to start of document",
+            KeyboardAcceleratorTextOverride = "Ctrl+Home",
             Icon = new FontIcon { Glyph = "\uE898" }
         };
         jumpStartItem.Click += (_, _) =>
@@ -14762,7 +14752,8 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
 
         var jumpEndItem = new MenuFlyoutItem
         {
-            Text = "Go to end of document (Ctrl+End)",
+            Text = "Go to end of document",
+            KeyboardAcceleratorTextOverride = "Ctrl+End",
             Icon = new FontIcon { Glyph = "\uE896" }
         };
         jumpEndItem.Click += (_, _) =>
@@ -15360,7 +15351,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
 
         var codeViewItem = new MenuFlyoutItem
         {
-            Text = "Code view (Ctrl+1)",
+            Text = "Code view",
             Icon = new FontIcon { Glyph = "\uE8A5" }
         };
         codeViewItem.Click += (_, _) =>
@@ -15371,7 +15362,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
 
         var splitViewItem = new MenuFlyoutItem
         {
-            Text = "Split view (Ctrl+2)",
+            Text = "Split view",
             Icon = new FontIcon { Glyph = "\uE8D3" }
         };
         splitViewItem.Click += (_, _) =>
@@ -15382,7 +15373,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
 
         var previewViewItem = new MenuFlyoutItem
         {
-            Text = "Preview view (Ctrl+3)",
+            Text = "Preview view",
             Icon = new FontIcon { Glyph = "\uE7B3" }
         };
         previewViewItem.Click += (_, _) =>
@@ -15539,7 +15530,8 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
 
         var printItem = new MenuFlyoutItem
         {
-            Text = "Print document (Ctrl+P)",
+            Text = "Print document",
+            KeyboardAcceleratorTextOverride = "Ctrl+P",
             Icon = new FontIcon { Glyph = "\uE749" }
         };
         printItem.Click += (_, _) => PrintDocument();
@@ -15791,7 +15783,8 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
 
         var printItem = new MenuFlyoutItem
         {
-            Text = "Print rendered document (Ctrl+P)",
+            Text = "Print rendered document",
+            KeyboardAcceleratorTextOverride = "Ctrl+P",
             Icon = new FontIcon { Glyph = "\uE749" }
         };
         printItem.Click += (_, _) => OnPrintClick(this, new RoutedEventArgs());

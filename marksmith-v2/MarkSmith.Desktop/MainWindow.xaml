@@ -316,8 +316,7 @@
                                 <TextBox x:Name="InputFileTextBox" Grid.Column="0" Header="Selected file" Text="{Binding InputFilePath, Mode=TwoWay}"
                                          PlaceholderText="No file selected" IsSpellCheckEnabled="False"
                                          ToolTipService.ToolTip="{Binding InputFilePath}"
-                                         TextChanged="OnInputFileTextBoxTextChanged" KeyDown="OnInputFileTextBoxKeyDown"
-                                         RightTapped="OnInputFileTextBoxRightTapped" DoubleTapped="OnInputFileTextBoxDoubleTapped" />
+                                         TextChanged="OnInputFileTextBoxTextChanged" KeyDown="OnInputFileTextBoxKeyDown" />
                                 <Button Grid.Column="2" VerticalAlignment="Bottom" Click="OnOpenHistoryClick" Padding="10,4"
                                         AutomationProperties.Name="Version history"
                                         ToolTipService.ToolTip="Version history: every saved version of this file (and of unsaved text), with what changed in each">
@@ -2075,9 +2074,7 @@
                              PlaceholderText="Output folder (defaults to next to the input file)"
                              IsSpellCheckEnabled="False"
                              AutomationProperties.Name="Output folder"
-                             ToolTipService.ToolTip="Output folder (Double-click to open in File Explorer, Right-click for options)"
-                             DoubleTapped="OnOutputFolderTextBoxDoubleTapped"
-                             RightTapped="OnOutputFolderTextBoxRightTapped" />
+                             ToolTipService.ToolTip="Output folder · Right-click or Shift+F10 to open it in File Explorer, copy or change it" />
 
                     <Button Grid.Column="1" VerticalAlignment="Stretch" Click="OnBrowseFolderClick"
                             ToolTipService.ToolTip="Choose output folder">

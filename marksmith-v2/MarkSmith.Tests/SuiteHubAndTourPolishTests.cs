@@ -741,8 +741,8 @@ public class SuiteHubAndTourPolishTests
         // 1. MainWindow: JumpToMatch, Alt+Home/End shortcuts and context items
         var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
         Assert.Contains("JumpToMatch", mainCs);
-        Assert.Contains("First match (Alt+Home)", mainCs);
-        Assert.Contains("Last match (Alt+End)", mainCs);
+        Assert.Contains("KeyboardAcceleratorTextOverride = \"Alt+Home\"", mainCs); // run #232: accelerator column
+        Assert.Contains("KeyboardAcceleratorTextOverride = \"Alt+End\"", mainCs);
 
         // 2. MindMapGalaxy: CycleConnectionRoutingItem & CycleStrokeWeightItem
         var galaxyXaml = File.ReadAllText(DesktopPath("Views", "MindMap", "MindMapGalaxyWindow.xaml"));

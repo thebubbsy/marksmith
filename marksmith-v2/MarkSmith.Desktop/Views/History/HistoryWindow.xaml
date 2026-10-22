@@ -63,7 +63,6 @@
                              Text="{Binding SearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                              PlaceholderText="Search labels, kinds, days… (Ctrl+F)" MaxWidth="280" MinWidth="160"
                              HorizontalAlignment="Stretch" IsSpellCheckEnabled="False" KeyDown="OnSearchBoxKeyDown"
-                             DoubleTapped="OnSearchBoxDoubleTapped"
                              RightTapped="OnSearchBoxRightTapped"
                              CornerRadius="6" VerticalAlignment="Center"
                              ToolTipService.ToolTip="Filter the timeline by label, kind (Auto-Save, Checkpoint, Export · PDF…), weekday or time · Right-click for options" />

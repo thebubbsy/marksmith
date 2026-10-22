@@ -27,8 +27,7 @@
                      TextChanged="OnSearchTextChanged"
                      KeyDown="OnSearchTextBoxKeyDown"
                      RightTapped="OnSearchTextBoxRightTapped"
-                     DoubleTapped="OnSearchTextBoxDoubleTapped"
-                     ToolTipService.ToolTip="Search shapes (Ctrl+F) · Esc clears, Double-click selects all, Right-click for options"
+                     ToolTipService.ToolTip="Search shapes (Ctrl+F) · Esc clears, Right-click for options"
                      FontSize="12" />
         </StackPanel>
 

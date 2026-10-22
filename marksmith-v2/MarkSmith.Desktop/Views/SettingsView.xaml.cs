@@ -982,15 +982,9 @@ public sealed partial class SettingsView : UserControl
     private void OnPdfPagePreviewDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
     {
         e.Handled = true;
-        // Cycle page number position: BottomRight -> BottomCenter -> TopRight -> None -> BottomRight
-        var current = App.ViewModel.PdfPageNumberPosition;
-        App.ViewModel.PdfPageNumberPosition = current switch
-        {
-            "BottomRight" => "BottomCenter",
-            "BottomCenter" => "TopRight",
-            "TopRight" => "None",
-            _ => "BottomRight"
-        };
+        // The next position in the menu's order (an unknown value starts again at the first).
+        var current = Array.FindIndex(PdfPageNumberPositions, p => p.Value == App.ViewModel.PdfPageNumberPosition);
+        App.ViewModel.PdfPageNumberPosition = PdfPageNumberPositions[(current + 1) % PdfPageNumberPositions.Length].Value;
     }
 
     // The page-number positions in the order the preview's double-click cycles through them.
