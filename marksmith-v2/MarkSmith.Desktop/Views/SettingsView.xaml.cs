@@ -32,9 +32,11 @@ public sealed partial class SettingsView : UserControl
             (BuyButton, OnBuyButtonRightTapped),
             (StartTrialButton, OnStartTrialButtonRightTapped),
             (ActivateButton, OnActivateButtonRightTapped),
-            (CheckButton, OnCheckButtonRightTapped));
+            (CheckButton, OnCheckButtonRightTapped),
+            (VersionButton, OnAboutHeaderRightTapped));
         DataContext = App.ViewModel;
         VersionText.Text = $"Version {App.Updates.CurrentDisplayVersion}";
+        AutomationProperties.SetName(VersionButton, $"Copy version details, {VersionText.Text}");
         RefreshLicenseUi();
         BuildPluginCards();
         // Listen until the dialog closes (Detach). Not until Unloaded: the dialog's popup raises
@@ -486,16 +488,18 @@ public sealed partial class SettingsView : UserControl
         UpdateStatusBar.IsOpen = true;
     }
 
-    private async void OnVersionTextDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-    {
-        e.Handled = true;
-        var text = VersionText.Text;
-        if (string.IsNullOrEmpty(text)) text = $"Version {App.Updates.CurrentDisplayVersion}";
-        await ClipboardWriter.TrySetTextAsync(text);
+    private void OnVersionButtonClick(object sender, RoutedEventArgs e) => CopyVersionDetails();
 
-        UpdateStatusBar.Severity = InfoBarSeverity.Success;
-        UpdateStatusBar.Title = "Copied to clipboard";
-        UpdateStatusBar.Message = text;
+    // One copy for the version button and both menus' "Copy version details": the same text, and
+    // the same answer in the update bar (including when the clipboard is busy).
+    private async void CopyVersionDetails()
+    {
+        var text = $"MarkSmith \u2014 Version {App.Updates.CurrentDisplayVersion}";
+        var error = await ClipboardWriter.TrySetTextAsync(text);
+
+        UpdateStatusBar.Severity = error is null ? InfoBarSeverity.Success : InfoBarSeverity.Warning;
+        UpdateStatusBar.Title = error is null ? "Copied to clipboard" : "Couldn't copy";
+        UpdateStatusBar.Message = error ?? text;
         UpdateStatusBar.IsOpen = true;
     }
 
@@ -509,11 +513,7 @@ public sealed partial class SettingsView : UserControl
             Text = "Copy version details",
             Icon = new FontIcon { Glyph = "\uE8C8" }
         };
-        copyVersionItem.Click += async (_, _) =>
-        {
-            var text = $"MarkSmith — Version {App.Updates.CurrentDisplayVersion}";
-            await ClipboardWriter.TrySetTextAsync(text);
-        };
+        copyVersionItem.Click += (_, _) => CopyVersionDetails();
         menu.Items.Add(copyVersionItem);
 
         var checkUpdatesItem = new MenuFlyoutItem
@@ -596,7 +596,7 @@ public sealed partial class SettingsView : UserControl
             Text = "Copy version details",
             Icon = new FontIcon { Glyph = "\uE8C8" }
         };
-        copyVersionItem.Click += (s, ev) => OnVersionTextDoubleTapped(s, null!);
+        copyVersionItem.Click += (_, _) => CopyVersionDetails();
         menu.Items.Add(copyVersionItem);
 
         menu.Items.Add(new MenuFlyoutSeparator());
@@ -993,6 +993,15 @@ public sealed partial class SettingsView : UserControl
         };
     }
 
+    // The page-number positions in the order the preview's double-click cycles through them.
+    private static readonly (string Value, string Label)[] PdfPageNumberPositions =
+    {
+        ("BottomRight", "Bottom right"),
+        ("BottomCenter", "Bottom center"),
+        ("TopRight", "Top right"),
+        ("None", "None"),
+    };
+
     private void OnPdfPagePreviewRightTapped(object sender, RightTappedRoutedEventArgs e)
     {
         e.Handled = true;
@@ -1033,37 +1042,20 @@ public sealed partial class SettingsView : UserControl
             Icon = new FontIcon { Glyph = "\uE7C3" }
         };
 
-        var posBR = new MenuFlyoutItem
+        // Radio items: the open menu shows which position is in use.
+        var currentPosition = App.ViewModel.PdfPageNumberPosition;
+        foreach (var (value, label) in PdfPageNumberPositions)
         {
-            Text = "Bottom right",
-            Icon = new FontIcon { Glyph = "\uE747" }
-        };
-        posBR.Click += (_, _) => App.ViewModel.PdfPageNumberPosition = "BottomRight";
-        posSubItem.Items.Add(posBR);
-
-        var posBC = new MenuFlyoutItem
-        {
-            Text = "Bottom center",
-            Icon = new FontIcon { Glyph = "\uE746" }
-        };
-        posBC.Click += (_, _) => App.ViewModel.PdfPageNumberPosition = "BottomCenter";
-        posSubItem.Items.Add(posBC);
-
-        var posTR = new MenuFlyoutItem
-        {
-            Text = "Top right",
-            Icon = new FontIcon { Glyph = "\uE748" }
-        };
-        posTR.Click += (_, _) => App.ViewModel.PdfPageNumberPosition = "TopRight";
-        posSubItem.Items.Add(posTR);
-
-        var posNone = new MenuFlyoutItem
-        {
-            Text = "None",
-            Icon = new FontIcon { Glyph = "\uE711" }
-        };
-        posNone.Click += (_, _) => App.ViewModel.PdfPageNumberPosition = "None";
-        posSubItem.Items.Add(posNone);
+            var item = new RadioMenuFlyoutItem
+            {
+                Text = label,
+                GroupName = "PdfPageNumberPosition",
+                IsChecked = string.Equals(currentPosition, value, StringComparison.Ordinal)
+                    || (value == "BottomRight" && string.IsNullOrEmpty(currentPosition)),
+            };
+            item.Click += (_, _) => App.ViewModel.PdfPageNumberPosition = value;
+            posSubItem.Items.Add(item);
+        }
 
         menu.Items.Add(posSubItem);
 

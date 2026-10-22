@@ -36,7 +36,11 @@ public sealed partial class ExtensionSetupView : UserControl
         KeyboardContextMenu.BridgeAll(
             (CopyFolderButton, OnCopyFolderButtonRightTapped),
             (OpenFolderButton, OnOpenFolderButtonRightTapped),
-            (TurnOnButton, OnTurnOnButtonRightTapped));
+            (TurnOnButton, OnTurnOnButtonRightTapped),
+            (CheckNowButton, OnStatusCardRightTapped),
+            (Step1Badge, OnStepBadgeRightTapped),
+            (Step2Badge, OnStepBadgeRightTapped),
+            (Step3Badge, OnStepBadgeRightTapped));
         _apiEnabled = apiEnabled;
         _apiRunning = apiRunning;
         _apiPort = apiPort;
@@ -167,15 +171,7 @@ public sealed partial class ExtensionSetupView : UserControl
         menu.ShowAt(button, position);
     }
 
-    private void OnStatusCardDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-    {
-        e.Handled = true;
-        Refresh(force: true);
-        if (!string.IsNullOrEmpty(StatusText.Text))
-        {
-            _ = ClipboardWriter.TrySetTextAsync(StatusText.Text);
-        }
-    }
+    private void OnCheckNowClick(object sender, RoutedEventArgs e) => Refresh(force: true);
 
     private void OnStatusCardRightTapped(object sender, RightTappedRoutedEventArgs e)
     {
@@ -187,23 +183,22 @@ public sealed partial class ExtensionSetupView : UserControl
 
         var refreshItem = new MenuFlyoutItem
         {
-            Text = "Check connection now (Ctrl+R)",
-            Icon = new FontIcon { Glyph = "\uE72C" }
+            Text = "Check connection now",
+            Icon = new FontIcon { Glyph = "\uE72C" },
+            KeyboardAcceleratorTextOverride = "Ctrl+R"
         };
         refreshItem.Click += (_, _) => Refresh(force: true);
         menu.Items.Add(refreshItem);
 
         if (!string.IsNullOrEmpty(StatusText.Text))
         {
+            // No shortcut: Ctrl+C belongs to whatever text is selected.
             var copyStatusItem = new MenuFlyoutItem
             {
-                Text = "Copy connection status (Ctrl+C)",
+                Text = "Copy connection status",
                 Icon = new FontIcon { Glyph = "\uE8C8" }
             };
-            copyStatusItem.Click += async (_, _) =>
-            {
-                await ClipboardWriter.TrySetTextAsync(StatusText.Text);
-            };
+            copyStatusItem.Click += (_, _) => CopyFeedback.CopyWithTick(StatusText.Text, CheckNowIcon);
             menu.Items.Add(copyStatusItem);
         }
 
@@ -211,16 +206,18 @@ public sealed partial class ExtensionSetupView : UserControl
         {
             var openFolderItem = new MenuFlyoutItem
             {
-                Text = "Open extension folder (Ctrl+O)",
-                Icon = new FontIcon { Glyph = "\uE838" }
+                Text = "Open extension folder",
+                Icon = new FontIcon { Glyph = "\uE838" },
+                KeyboardAcceleratorTextOverride = "Ctrl+O"
             };
             openFolderItem.Click += (s, ev) => OnOpenFolderClick(s, ev);
             menu.Items.Add(openFolderItem);
 
             var copyFolderItem = new MenuFlyoutItem
             {
-                Text = "Copy folder path (Ctrl+Shift+C)",
-                Icon = new FontIcon { Glyph = "\uE8C8" }
+                Text = "Copy folder path",
+                Icon = new FontIcon { Glyph = "\uE8C8" },
+                KeyboardAcceleratorTextOverride = "Ctrl+Shift+C"
             };
             copyFolderItem.Click += (s, ev) => OnCopyFolderClick(s, ev);
             menu.Items.Add(copyFolderItem);
@@ -249,20 +246,22 @@ public sealed partial class ExtensionSetupView : UserControl
         menu.ShowAt(StatusCard, KeyboardContextMenu.PointIn(e, StatusCard));
     }
 
-    private void OnStep1BadgeTapped(object sender, TappedRoutedEventArgs e)
+    private void OnStep1BadgeClick(object sender, RoutedEventArgs e)
     {
         var firstChip = BrowserPagesPanel.Children.OfType<Button>().FirstOrDefault();
         firstChip?.Focus(FocusState.Programmatic);
     }
 
-    private void OnStep2BadgeTapped(object sender, TappedRoutedEventArgs e)
-    {
-        StatusCard.Focus(FocusState.Programmatic);
-    }
+    // The status card is a Border and can't take focus; its Check now button is the way in.
+    private void OnStep2BadgeClick(object sender, RoutedEventArgs e) => CheckNowButton.Focus(FocusState.Programmatic);
 
-    private void OnStep3BadgeTapped(object sender, TappedRoutedEventArgs e)
+    private void OnStep3BadgeClick(object sender, RoutedEventArgs e) => FocusFolderOrFallback();
+
+    // The folder controls are collapsed when this copy of MarkSmith doesn't ship the extension.
+    private void FocusFolderOrFallback()
     {
-        (CopyFolderButton ?? (Control)FolderPathBox).Focus(FocusState.Programmatic);
+        if (_folder is not null) CopyFolderButton.Focus(FocusState.Programmatic);
+        else CheckNowButton.Focus(FocusState.Programmatic);
     }
 
     private void OnStepBadgeRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -276,7 +275,7 @@ public sealed partial class ExtensionSetupView : UserControl
             Text = "Focus Step 1 (Browser extension pages)",
             Icon = new FontIcon { Glyph = "\uE71B" }
         };
-        jump1.Click += (_, _) => OnStep1BadgeTapped(this, new TappedRoutedEventArgs());
+        jump1.Click += (_, _) => OnStep1BadgeClick(this, new RoutedEventArgs());
         menu.Items.Add(jump1);
 
         var jump3 = new MenuFlyoutItem
@@ -284,8 +283,12 @@ public sealed partial class ExtensionSetupView : UserControl
             Text = "Focus Step 3 (Extension folder)",
             Icon = new FontIcon { Glyph = "\uE8B7" }
         };
-        jump3.Click += (_, _) => OnStep3BadgeTapped(this, new TappedRoutedEventArgs());
+        jump3.Click += (_, _) => FocusFolderOrFallback();
         menu.Items.Add(jump3);
+
+        var jump2 = new MenuFlyoutItem { Text = "Focus connection check", Icon = new FontIcon { Glyph = "\uE72C" } };
+        jump2.Click += (_, _) => CheckNowButton.Focus(FocusState.Programmatic);
+        menu.Items.Insert(1, jump2);
 
         menu.Items.Add(new MenuFlyoutSeparator());
 
@@ -293,7 +296,8 @@ public sealed partial class ExtensionSetupView : UserControl
         {
             var copyFolderItem = new MenuFlyoutItem
             {
-                Text = "Copy extension folder path (Ctrl+Shift+C)",
+                Text = "Copy extension folder path",
+                KeyboardAcceleratorTextOverride = "Ctrl+Shift+C",
                 Icon = new FontIcon { Glyph = "\uE8C8" }
             };
             copyFolderItem.Click += (s, ev) => OnCopyFolderClick(s, ev);
@@ -340,7 +344,7 @@ public sealed partial class ExtensionSetupView : UserControl
         AutomationProperties.SetName(StatusCard, $"Extension status: {message}");
         if (phase != Phase.ApiOff && TurnOnButton.FocusState != FocusState.Unfocused)
         {
-            (CopyFolderButton ?? (Control)FolderPathBox).Focus(FocusState.Programmatic);
+            CheckNowButton.Focus(FocusState.Programmatic);
         }
         TurnOnButton.Visibility = phase == Phase.ApiOff ? Visibility.Visible : Visibility.Collapsed;
         ThemeBrush.Set(StatusCard, Border.BackgroundProperty,
@@ -353,7 +357,7 @@ public sealed partial class ExtensionSetupView : UserControl
         TurnOnButton.IsEnabled = false;
         if (hadFocus)
         {
-            (CopyFolderButton ?? (Control)FolderPathBox).Focus(FocusState.Programmatic);
+            CheckNowButton.Focus(FocusState.Programmatic);
         }
         string? error;
         try { (_, _, error) = await _turnOnApi(); }

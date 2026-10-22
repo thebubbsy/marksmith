@@ -688,9 +688,14 @@
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                                     <TextBlock Text="MarkSmith" Style="{StaticResource BodyStrongTextBlockStyle}" FontSize="16" />
                                     <TextBlock Text="Turn AI chats into polished documents." Style="{StaticResource SettingsHintStyle}" />
-                                    <TextBlock x:Name="VersionText" Text="" Style="{StaticResource SettingsHintStyle}" IsTextSelectionEnabled="True"
-                                               DoubleTapped="OnVersionTextDoubleTapped"
-                                               ToolTipService.ToolTip="Double-click to copy version details · Right-click for options" />
+                                    <!-- A button, so the keyboard can copy the version and open the About menu (Shift+F10). -->
+                                    <Button x:Name="VersionButton" Click="OnVersionButtonClick" RightTapped="OnAboutHeaderRightTapped"
+                                            Style="{StaticResource SubtleButtonStyle}" HorizontalAlignment="Left"
+                                            Padding="4,1" Margin="-4,0,0,0" MinWidth="0" MinHeight="0"
+                                            ToolTipService.ToolTip="Copy version details · Right-click or Shift+F10 for options"
+                                            AutomationProperties.HelpText="Copies the version number. Shift+F10 for updates and project links.">
+                                        <TextBlock x:Name="VersionText" Text="" Style="{StaticResource SettingsHintStyle}" />
+                                    </Button>
                                 </StackPanel>
                                 <StackPanel x:Name="AboutCheckPanel" Grid.Column="2" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
                                     <ProgressRing x:Name="CheckRing" IsActive="False" Width="18" Height="18" Visibility="Collapsed" />

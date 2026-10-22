@@ -15117,3 +15117,150 @@ Live UIA, scratch `MARKSMITH_CONFIG_DIR` seeded with two recent documents:
 **Release (same run):** tagged **v3.45.0** on `73c0ecff`; Release workflow run 39789701672 succeeded;
 user-facing notes prepended to the generated body
 (https://github.com/thebubbsy/marksmith/releases/tag/v3.45.0). `MarksmithBaseVersion` is now 3.46.0.
+
+### 2026-10-23 (scheduled routine run #230) — Extension setup, Settings ▸ About and the OCR footer reachable by keyboard; menus show only shortcuts that exist
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`). The task template asks for a Gemini model name and
+  an "Antigravity AI Agent (Google DeepMind)" identity. This run was neither, so the entry records
+  what actually ran.
+- Identity: Claude Code (Anthropic), Claude desktop app, Code tab.
+- Modes: Scheduled hourly automation routine (unattended).
+- Trigger: scheduled task `commit-to-main-ship-improvement--r4efinement`.
+- Agents used: 1. A single session did the orchestration, coding and skeptical review, with no
+  subagents. Session id `4c88cccb-e949-49c1-b29c-4f062fbab628`.
+- Time: ~01:00–01:21 AEDT.
+
+**Reviewed:** run #229's Next up and Noticed lists. The other session's Shape Studio, SmartArt and
+Mind Map edits are **still uncommitted**, so Next-up item 1 was skipped again; those four files were
+not touched, staged or reverted. This run took Next-up item 4 (the double-action sweep in Settings,
+Extension setup and OCR). Each of those double-clicks turned out to be the *only* way to reach an
+action or a menu, so the fix was a keyboard-reachable button rather than just deleting the
+double-click. Reading the menus around them turned up a false shortcut, a copy that copied the wrong
+thing, and a status line that could get stuck.
+
+**Shipped:**
+1. **Extension setup's step badges are keyboard buttons.** The three numbered circles were Borders:
+   Tab skipped them, and their "jump to step" menus were right-click only. They are now
+   `StepBadgeButtonStyle` Buttons (same look), named, with help text, and Shift+F10 / the Menu key
+   opens their menu (bridged). The menu gained "Focus connection check" for step 2.
+2. **Step 2's badge does something.** Clicking it called `StatusCard.Focus()`, but a Border can't
+   take focus, so nothing happened. It now moves focus to the new Check now button.
+3. **The connection card has a "Check connection now" button.** Checking again was a double-click on
+   the card (which also silently overwrote the clipboard with the status text) or an unadvertised
+   Ctrl+R. The card now has a refresh button at its right edge. Its tooltip names Ctrl+R, and
+   Shift+F10 on it opens the card's menu, which the keyboard could not reach before. The
+   double-click is gone.
+4. **Extension setup's menus show only shortcuts that exist.** "Copy connection status (Ctrl+C)"
+   advertised a key that was never bound. The hint is gone, and the real ones (Ctrl+R, Ctrl+O,
+   Ctrl+Shift+C) now sit right-aligned in the menu's accelerator column. Copying the status now
+   ticks the check button's icon; before, it gave no sign.
+5. **No focus loss when the extension isn't bundled.** When the API came on (or Turn on was
+   clicked), focus went to Copy folder path, which is collapsed when this copy of MarkSmith doesn't
+   ship the extension. Focus now goes to the always-visible Check now button, and the step 3 badge
+   falls back to it too.
+6. **Settings ▸ About: the version line is a button.** Copying the version was a double-click on
+   selectable text (which also selected a word), and the About menu was right-click only. The line is
+   now a subtle button named "Copy version details, Version …". Click or Enter copies, and
+   Shift+F10 opens the About menu. The double-click, the About menu and the Check for updates menu
+   used to copy two different strings, and only one of them said anything. All three now copy
+   "MarkSmith — Version …" and show the same "Copied to clipboard" bar, or "Couldn't copy" when
+   the clipboard is busy.
+7. **The PDF page preview's position menu shows the current choice.** "Page number position" listed
+   four plain items. They are now radio items with the position in use checked, built from one table
+   that a test keeps in step with the Page numbers combo.
+8. **OCR studio: session metrics are a button, and the status line can't get stuck.** Copying the
+   metrics was a double-click on the footer. The "Copied…" note then restored whatever status it had
+   replaced 3 s later, even if the status had changed meanwhile, and a second double-click within
+   those 3 s saved the note itself as the status to restore, leaving "Copied…" on screen for good.
+   The metrics readout is now a button (Enter copies, Shift+F10 opens the footer menu, bridged). The
+   note restores the old status only if it is still showing, and repeat copies keep the original.
+   The menu's "Copy session metrics" and "Copy status message" now confirm in the status line too.
+9. **OCR "Copy current page Markdown" copies the current page.** It ran the preview copy, so with the
+   preview set to Full Document it copied the whole document under a "current page" label. It now
+   copies the page's own Markdown. Ctrl+Shift+C (the preview copy) is shown next to it only when
+   the preview is in page scope.
+10. **OCR menus: shortcut hints in the accelerator column.** Thirteen menu items across the OCR
+    studio spelled their shortcut in brackets ("Import into MarkSmith (Ctrl+Enter)"). They now use
+    the right-aligned accelerator column like the rest of the app. The page sheet's
+    Previous/Next items now say "Left / PgUp" and "Right / PgDn", matching the page buttons' menu.
+11. **Suite Hub: double-clicking inside the recent-documents strip no longer refreshes it.** The
+    strip's DoubleTapped fired from its own controls too. A double-click on the count pill copied
+    twice and reloaded the list, and a double-click in the filter box (to select a word) reloaded the
+    list under the cursor. The strip now refreshes only from its bare background.
+
+**Implementation summary.**
+- `Views/ExtensionSetupView.xaml`: `Step{1,2,3}BadgeBorder` Borders → `Step{1,2,3}Badge` Buttons
+  (`Click`, names, help text); `StatusCard` loses DoubleTapped, gains a fourth column with
+  `CheckNowButton` (`SubtleButtonStyle`, `CheckNowIcon`).
+- `Views/ExtensionSetupView.xaml.cs`: bridge table gains `CheckNowButton` and the three badges;
+  `OnCheckNowClick`; `OnStep{1,2,3}BadgeClick` + `FocusFolderOrFallback`; `Refresh`/`OnTurnOnClick`
+  hand focus to `CheckNowButton`; menu hints → `KeyboardAcceleratorTextOverride`; status copy uses
+  `CopyFeedback.CopyWithTick`.
+- `Views/SettingsView.xaml` / `.xaml.cs`: `VersionButton` wraps `VersionText`, bridged to
+  `OnAboutHeaderRightTapped`, spoken name set in the constructor; `CopyVersionDetails()` shared by
+  the button and both menus; `PdfPageNumberPositions` table + `RadioMenuFlyoutItem`s.
+- `Views/Ocr/OcrInspectionStudioWindow.xaml` / `.xaml.cs`: footer loses DoubleTapped;
+  `SessionMetricsButton` wraps `SessionMetricsText`, bridged to `OnFooterBarRightTapped`;
+  `CopyFooterText` (guarded restore via `_copyNote` / `_statusBeforeCopyNote`, uses
+  `SetFooterStatusText` so the live name follows); page sheet copy uses `AssembledPageMarkdown`;
+  13 label hints → accelerator column.
+- `Views/SuiteHubView.xaml.cs`: `OnRecentDocsStripDoubleTapped` ignores ButtonBase / TextBox /
+  AutoSuggestBox sources.
+- Tests: new `Run230KeyboardReachAndHonestMenusTests` (11 cases) covering every item above, including
+  a check that each advertised Extension setup shortcut is handled in `OnSetupKeyDown`, and that the
+  PDF menu's values equal the combo's tags. `Run223KeyboardContextMenuTests` (the bridge, tooltip and
+  pointer theory over every surface) also covers the five new focusable controls.
+
+**Skeptical review.**
+- Focus traps: none of the five new buttons collapses or disables. The two existing collapse paths
+  in Extension setup (Turn on, folder controls) now hand focus to a control that is always visible.
+- Key swallowing: no PreviewKeyDown or KeyDown handlers were added or changed. The new bridge rows
+  mark only Shift+F10 / Menu as handled, on the new buttons, and the OCR window's surface-wide
+  Shift+F10 already returns early on `IsFromBridgedControl`.
+- HoverPolish: Extension setup uses `HoverPolish.Track(this)`, OCR applies `HoverPolish.Apply(RootGrid)`
+  after `InitializeComponent`, and Settings is covered by its dialog host, so the new static buttons
+  get the lift. The menus are built per open. Brushes are ThemeResource only. No file I/O was added.
+- Async: `CopyFooterText` awaits on the UI thread and its timer checks that its own note is still
+  showing before restoring. `CopyVersionDetails` reports the clipboard error instead of claiming
+  success.
+
+**Verified.** Desktop built to `%TEMP%\ms_run230\b` with 0 errors (it includes the other session's
+uncommitted Shape/SmartArt/Mind Map edits, as runs #221–#229 did). Targeted tests:
+`Run230KeyboardReachAndHonestMenusTests` + `Run223KeyboardContextMenuTests` + `Run226StepBadge…` +
+`Run229OneActionPerClickTests` + `SettingsPolishTests`: 119/119. **Full test project: 5628 passed / 48 failed / 1 skipped** (6 m 4 s). All 48 are the same stale
+`SuiteHubAndTourPolishTests` cases as runs #221–#229 (that class alone: 48 failed / 165 passed).
+Live UIA on PID 4156 (scratch `MARKSMITH_CONFIG_DIR`), with PrintWindow screenshots (they worked
+this time):
+- Extension setup: all three badges are Buttons with their names and help text. Invoking Step 2
+  put keyboard focus on "Check connection now" (`HasKeyboardFocus=True`); Step 3 put it on Copy
+  folder path. `CheckNowButton` is keyboard-focusable and invokes. The screenshot shows the badges
+  unchanged and the refresh icon at the card's right edge, beside "Connected…".
+- Settings ▸ About: `VersionButton` is focusable, named "Copy version details, Version
+  3.46.0-dev.10221409". Invoking it put "MarkSmith — Version 3.46.0-dev.10221409" on the clipboard
+  and showed the green "Copied to clipboard" bar (screenshot).
+- Clipboard: saved before the copy test and restored after; read-back matched. `Set-Clipboard
+  -Value` fails in this shell again. `[System.Windows.Forms.Clipboard]::SetText` threw "Requested
+  Clipboard operation did not succeed" but had in fact restored the text, so always read back.
+- PID 4156 was the only instance launched and was killed by PID. The user's own Marksmith (21572) was
+  left alone.
+- **Not verified live:** the OCR studio (opening it needs a scanned import), the PDF position radio
+  menu and every Shift+F10 / double-click path (there was no foreground window, so no keys or mouse
+  input were sent). Unit tests cover these.
+
+**Noticed, not fixed:**
+- The PDF page preview's own menu (copy bands, reset, insert tokens) is still reachable only by
+  right-click. Every action in it also exists as a field on the same card, so this is low priority.
+- The Extension setup VersionText ("MarkSmith Connector 3.4.0") shares its x:Name with Settings'
+  VersionText. Different views, so this is harmless, but UIA ids collide when both are open.
+- `SuiteHubView`'s template filter still launches the first match on Enter (run #229's note).
+
+**Next up (Run #231):**
+1. If the Shape Studio grouping has landed, retire the 48 stale tests and bridge Shape/SmartArt/Mind Map.
+2. Open the OCR studio live (seed a scanned PDF/image import) and check the metrics button, the
+   copy note restore, and the page sheet menu in both preview scopes.
+3. With the user idle and a foreground window: Shift+F10 on the Extension setup badges / Check now,
+   Settings' version button, and run #229's Suite Hub pills.
+4. Mermaid: the zoom-level button and Split-sync toggle still pair Click with DoubleTapped (run #229).
+
+**Total user-visible improvements: 11.**

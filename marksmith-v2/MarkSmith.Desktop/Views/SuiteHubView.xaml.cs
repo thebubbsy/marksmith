@@ -6047,9 +6047,19 @@ private void OnClearRecentFilterClick(object sender, RoutedEventArgs e)
 
 
 
+    // Double-click on the strip's bare background refreshes. Not from its controls: a double-click
+
+    // on the count pill would copy twice and refresh, one on the filter box (selecting a word)
+
+    // would reload the list under the cursor.
+
     private void OnRecentDocsStripDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
 
     {
+
+        for (var d = e.OriginalSource as DependencyObject; d is not null && !ReferenceEquals(d, sender); d = VisualTreeHelper.GetParent(d))
+
+            if (d is ButtonBase or TextBox or AutoSuggestBox) return;
 
         e.Handled = true;
 

@@ -29,12 +29,13 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
-            <Border x:Name="Step1BadgeBorder" Style="{StaticResource StepBadgeStyle}" VerticalAlignment="Top"
-                    IsHitTestVisible="True" Tapped="OnStep1BadgeTapped" RightTapped="OnStepBadgeRightTapped"
-                    ToolTipService.ToolTip="Step 1: Open extensions page · Click to focus browser chips · Right-click for options"
-                    AutomationProperties.Name="Step 1: Open your browser's extensions page">
+            <Button x:Name="Step1Badge" Style="{StaticResource StepBadgeButtonStyle}" VerticalAlignment="Top"
+                    Click="OnStep1BadgeClick" RightTapped="OnStepBadgeRightTapped"
+                    ToolTipService.ToolTip="Step 1: Open extensions page · Click to focus the browser address chips · Right-click or Shift+F10 for options"
+                    AutomationProperties.Name="Step 1: Open your browser's extensions page"
+                    AutomationProperties.HelpText="Moves focus to the first browser address chip. Shift+F10 to jump to another step.">
                 <TextBlock Text="1" Style="{StaticResource StepBadgeTextStyle}" />
-            </Border>
+            </Button>
             <StackPanel Grid.Column="1" Spacing="6">
                 <TextBlock Text="Open your browser's extensions page" Style="{StaticResource SetupStepTitle}" />
                 <TextBlock Style="{StaticResource SetupStepBody}"
@@ -49,12 +50,13 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
-            <Border x:Name="Step2BadgeBorder" Style="{StaticResource StepBadgeStyle}" VerticalAlignment="Top"
-                    IsHitTestVisible="True" Tapped="OnStep2BadgeTapped" RightTapped="OnStepBadgeRightTapped"
-                    ToolTipService.ToolTip="Step 2: Turn on Developer mode · Right-click for options"
-                    AutomationProperties.Name="Step 2: Turn on Developer mode">
+            <Button x:Name="Step2Badge" Style="{StaticResource StepBadgeButtonStyle}" VerticalAlignment="Top"
+                    Click="OnStep2BadgeClick" RightTapped="OnStepBadgeRightTapped"
+                    ToolTipService.ToolTip="Step 2: Turn on Developer mode · Click to focus the connection check · Right-click or Shift+F10 for options"
+                    AutomationProperties.Name="Step 2: Turn on Developer mode"
+                    AutomationProperties.HelpText="Moves focus to the Check connection now button. Shift+F10 to jump to another step.">
                 <TextBlock Text="2" Style="{StaticResource StepBadgeTextStyle}" />
-            </Border>
+            </Button>
             <StackPanel Grid.Column="1" Spacing="6">
                 <TextBlock Text="Turn on Developer mode" Style="{StaticResource SetupStepTitle}" />
                 <TextBlock Style="{StaticResource SetupStepBody}"
@@ -68,12 +70,13 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
-            <Border x:Name="Step3BadgeBorder" Style="{StaticResource StepBadgeStyle}" VerticalAlignment="Top"
-                    IsHitTestVisible="True" Tapped="OnStep3BadgeTapped" RightTapped="OnStepBadgeRightTapped"
-                    ToolTipService.ToolTip="Step 3: Load unpacked extension · Click to focus folder path · Right-click for options"
-                    AutomationProperties.Name="Step 3: Load unpacked extension">
+            <Button x:Name="Step3Badge" Style="{StaticResource StepBadgeButtonStyle}" VerticalAlignment="Top"
+                    Click="OnStep3BadgeClick" RightTapped="OnStepBadgeRightTapped"
+                    ToolTipService.ToolTip="Step 3: Load unpacked extension · Click to focus the folder path · Right-click or Shift+F10 for options"
+                    AutomationProperties.Name="Step 3: Load unpacked extension"
+                    AutomationProperties.HelpText="Moves focus to the extension folder controls. Shift+F10 to jump to another step.">
                 <TextBlock Text="3" Style="{StaticResource StepBadgeTextStyle}" />
-            </Border>
+            </Button>
             <StackPanel Grid.Column="1" Spacing="6">
                 <TextBlock Text="Click Load unpacked and choose the MarkSmith extension folder" Style="{StaticResource SetupStepTitle}" />
                 <!-- Shown when this copy of MarkSmith ships the extension. -->
@@ -142,14 +145,14 @@
                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                 IsHitTestVisible="True"
-                DoubleTapped="OnStatusCardDoubleTapped"
                 RightTapped="OnStatusCardRightTapped"
-                ToolTipService.ToolTip="Extension connection status · Double-click to check connection · Right-click for options"
+                ToolTipService.ToolTip="Extension connection status · Ctrl+R checks now · Right-click for options"
                 AutomationProperties.Name="Extension connection status">
             <Grid ColumnSpacing="12">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <Grid Width="20" Height="20" VerticalAlignment="Center">
@@ -163,6 +166,16 @@
                         ToolTipService.ToolTip="Let the extension reach MarkSmith on this PC (Settings ▸ Automation ▸ Local API) · Right-click or Shift+F10 for options"
                         RightTapped="OnTurnOnButtonRightTapped">
                     <TextBlock Text="Turn on" />
+                </Button>
+                <!-- Ctrl+R from a button: the keyboard's way into this card and its menu (Shift+F10). -->
+                <Button x:Name="CheckNowButton" Grid.Column="3" Click="OnCheckNowClick" VerticalAlignment="Center"
+                        RightTapped="OnStatusCardRightTapped"
+                        Padding="8,6" MinWidth="0" MinHeight="0"
+                        Style="{StaticResource SubtleButtonStyle}"
+                        ToolTipService.ToolTip="Check connection now (Ctrl+R) · Right-click or Shift+F10 for options"
+                        AutomationProperties.Name="Check connection now"
+                        AutomationProperties.HelpText="Checks the extension connection again. Shift+F10 for more options.">
+                    <FontIcon x:Name="CheckNowIcon" Glyph="&#xE72C;" FontSize="14" />
                 </Button>
             </Grid>
         </Border>

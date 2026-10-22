@@ -92,7 +92,8 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             (ImportCtaButton, OnImportCtaButtonRightTapped),
             (ResetPageButton, OnResetPageButtonRightTapped),
             (ResetElementButton, OnResetElementButtonRightTapped),
-            (CopyMarkdownButton, OnCopyMarkdownButtonRightTapped));
+            (CopyMarkdownButton, OnCopyMarkdownButtonRightTapped),
+            (SessionMetricsButton, OnFooterBarRightTapped));
         ConfigureWindowChrome();
         SizeForDisplay();
 
@@ -900,7 +901,8 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
 
             var copyElemItem = new MenuFlyoutItem
             {
-                Text = "Copy element Markdown (Ctrl+C)",
+                Text = "Copy element Markdown",
+                KeyboardAcceleratorTextOverride = "Ctrl+C",
                 Icon = new FontIcon { Glyph = "\uE8C8" },
                 IsEnabled = !string.IsNullOrWhiteSpace(elem.CurrentMarkdown)
             };
@@ -978,7 +980,8 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
 
             var resetPageItem = new MenuFlyoutItem
             {
-                Text = "Reset all on page (Ctrl+Shift+R)",
+                Text = "Reset all on page",
+                KeyboardAcceleratorTextOverride = "Ctrl+Shift+R",
                 Icon = new FontIcon { Glyph = "\uE72C" },
                 IsEnabled = (_session.CurrentPage?.ReclassifiedCount ?? 0) > 0
             };
@@ -996,10 +999,17 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
 
         var copyPageItem = new MenuFlyoutItem
         {
-            Text = "Copy current page Markdown (Ctrl+Shift+C)",
-            Icon = new FontIcon { Glyph = "\uE8C8" }
+            Text = "Copy current page Markdown",
+            Icon = new FontIcon { Glyph = "\uE8C8" },
+            KeyboardAcceleratorTextOverride = _markdownScopeIsDocument ? "" : "Ctrl+Shift+C"
         };
-        copyPageItem.Click += (_, _) => OnCopyMarkdownClick(this, new RoutedEventArgs());
+        copyPageItem.Click += (_, _) =>
+        {
+            var pageMd = _session.CurrentPage?.AssembledPageMarkdown ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(pageMd)) return;
+            _ = Services.ClipboardWriter.TrySetTextAsync(pageMd);
+            SetFooterStatusText($"Copied current page Markdown ({pageMd.Length:N0} chars) to clipboard.");
+        };
         menu.Items.Add(copyPageItem);
 
         var copyAllItem = new MenuFlyoutItem
@@ -1017,7 +1027,8 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
 
         var resetPageItem = new MenuFlyoutItem
         {
-            Text = "Reset all elements on page (Ctrl+Shift+R)",
+            Text = "Reset all elements on page",
+            KeyboardAcceleratorTextOverride = "Ctrl+Shift+R",
             Icon = new FontIcon { Glyph = "\uE72C" },
             IsEnabled = (_session.CurrentPage?.ReclassifiedCount ?? 0) > 0
         };
@@ -1028,7 +1039,8 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
 
         var prevPageItem = new MenuFlyoutItem
         {
-            Text = "Previous page (Left)",
+            Text = "Previous page",
+            KeyboardAcceleratorTextOverride = "Left / PgUp",
             Icon = new FontIcon { Glyph = "\uE76B" },
             IsEnabled = _session.CanPreviousPage
         };
@@ -1037,7 +1049,8 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
 
         var nextPageItem = new MenuFlyoutItem
         {
-            Text = "Next page (Right)",
+            Text = "Next page",
+            KeyboardAcceleratorTextOverride = "Right / PgDn",
             Icon = new FontIcon { Glyph = "\uE76C" },
             IsEnabled = _session.CanNextPage
         };
@@ -1048,7 +1061,8 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
 
         var importItem = new MenuFlyoutItem
         {
-            Text = "Import into MarkSmith (Ctrl+Enter)",
+            Text = "Import into MarkSmith",
+            KeyboardAcceleratorTextOverride = "Ctrl+Enter",
             Icon = new FontIcon { Glyph = "\uE898" }
         };
         importItem.Click += (_, _) => OnImportCtaClick(this, new RoutedEventArgs());
@@ -1071,7 +1085,8 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
 
         var copyMarkdownItem = new MenuFlyoutItem
         {
-            Text = "Copy Markdown preview (Ctrl+Shift+C)",
+            Text = "Copy Markdown preview",
+            KeyboardAcceleratorTextOverride = "Ctrl+Shift+C",
             Icon = new FontIcon { Glyph = "\uE8C8" }
         };
         copyMarkdownItem.Click += (s, ev) => OnCopyMarkdownClick(s, ev);
@@ -1079,7 +1094,8 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
 
         var selectAllItem = new MenuFlyoutItem
         {
-            Text = "Select all (Ctrl+A)",
+            Text = "Select all",
+            KeyboardAcceleratorTextOverride = "Ctrl+A",
             Icon = new FontIcon { Glyph = "\uE8B3" }
         };
         selectAllItem.Click += (_, _) =>
@@ -1106,7 +1122,8 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
 
         var importItem = new MenuFlyoutItem
         {
-            Text = "Import into MarkSmith (Ctrl+Enter)",
+            Text = "Import into MarkSmith",
+            KeyboardAcceleratorTextOverride = "Ctrl+Enter",
             Icon = new FontIcon { Glyph = "\uE8A5" }
         };
         importItem.Click += (s, ev) => OnImportCtaClick(s, ev);
@@ -1114,7 +1131,8 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
 
         var discardItem = new MenuFlyoutItem
         {
-            Text = "Cancel & Discard (Esc)",
+            Text = "Cancel & Discard",
+            KeyboardAcceleratorTextOverride = "Esc",
             Icon = new FontIcon { Glyph = "\uE711" }
         };
         discardItem.Click += (s, ev) => OnDiscardClick(s, ev);
@@ -1123,19 +1141,34 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         menu.ShowAt(MarkdownPreviewTextBox, KeyboardContextMenu.PointIn(e, MarkdownPreviewTextBox));
     }
 
-    private async void OnFooterBarDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-    {
-        e.Handled = true;
-        var summary = $"{FooterStatusText.Text} — {SessionMetricsText.Text}";
-        await ClipboardWriter.TrySetTextAsync(summary);
+    private void OnSessionMetricsButtonClick(object sender, RoutedEventArgs e)
+        => CopyFooterText($"{FooterStatusText.Text} — {SessionMetricsText.Text}", "session metrics and status");
 
-        var prevStatus = FooterStatusText.Text;
-        FooterStatusText.Text = "Copied session metrics and status to clipboard.";
-        var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
+    // Copies, then says so in the status line for 3 s. The status the copy replaced comes back
+    // only if nothing else has written the status line meanwhile, and a second copy within the
+    // 3 s keeps the original status rather than restoring the "Copied" note.
+    private string? _statusBeforeCopyNote;
+    private string? _copyNote;
+
+    private async void CopyFooterText(string text, string what)
+    {
+        if (string.IsNullOrEmpty(text)) return;
+        var error = await ClipboardWriter.TrySetTextAsync(text);
+
+        if (_copyNote is null || FooterStatusText.Text != _copyNote)
+            _statusBeforeCopyNote = FooterStatusText.Text;
+        var note = error is null ? $"Copied {what} to the clipboard." : $"Couldn't copy {what}: {error}";
+        _copyNote = note;
+        SetFooterStatusText(note);
+
+        var timer = DispatcherQueue.CreateTimer();
+        timer.Interval = TimeSpan.FromSeconds(3);
+        timer.IsRepeating = false;
         timer.Tick += (_, _) =>
         {
-            timer.Stop();
-            FooterStatusText.Text = prevStatus;
+            if (FooterStatusText.Text != note || !ReferenceEquals(_copyNote, note)) return;
+            SetFooterStatusText(_statusBeforeCopyNote ?? FooterStatusText.Text);
+            _copyNote = null;
         };
         timer.Start();
     }
@@ -1150,10 +1183,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             Text = "Copy session metrics",
             Icon = new FontIcon { Glyph = "\uE946" }
         };
-        copyMetricsItem.Click += async (_, _) =>
-        {
-            await ClipboardWriter.TrySetTextAsync(SessionMetricsText.Text);
-        };
+        copyMetricsItem.Click += (_, _) => CopyFooterText(SessionMetricsText.Text, "session metrics");
         menu.Items.Add(copyMetricsItem);
 
         var copyStatusItem = new MenuFlyoutItem
@@ -1161,15 +1191,16 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             Text = "Copy status message",
             Icon = new FontIcon { Glyph = "\uE8C8" }
         };
-        copyStatusItem.Click += async (_, _) =>
-        {
-            await ClipboardWriter.TrySetTextAsync(FooterStatusText.Text);
-        };
+        // While a "Copied" note is showing, copy the status it stands in for, not the note.
+        copyStatusItem.Click += (_, _) => CopyFooterText(
+            _copyNote is not null && FooterStatusText.Text == _copyNote ? _statusBeforeCopyNote ?? "" : FooterStatusText.Text,
+            "status message");
         menu.Items.Add(copyStatusItem);
 
         var copyMarkdownItem = new MenuFlyoutItem
         {
-            Text = "Copy Markdown preview (Ctrl+Shift+C)",
+            Text = "Copy Markdown preview",
+            KeyboardAcceleratorTextOverride = "Ctrl+Shift+C",
             Icon = new FontIcon { Glyph = "\uE8C8" }
         };
         copyMarkdownItem.Click += (s, ev) => OnCopyMarkdownClick(s, ev);
@@ -1179,7 +1210,8 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
 
         var importItem = new MenuFlyoutItem
         {
-            Text = "Import into MarkSmith (Ctrl+Enter)",
+            Text = "Import into MarkSmith",
+            KeyboardAcceleratorTextOverride = "Ctrl+Enter",
             Icon = new FontIcon { Glyph = "\uE8A5" }
         };
         importItem.Click += (s, ev) => OnImportCtaClick(s, ev);
@@ -1187,7 +1219,8 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
 
         var discardItem = new MenuFlyoutItem
         {
-            Text = "Cancel & Discard (Esc)",
+            Text = "Cancel & Discard",
+            KeyboardAcceleratorTextOverride = "Esc",
             Icon = new FontIcon { Glyph = "\uE711" }
         };
         discardItem.Click += (s, ev) => OnDiscardClick(s, ev);

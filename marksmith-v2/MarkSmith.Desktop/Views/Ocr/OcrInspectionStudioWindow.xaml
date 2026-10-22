@@ -373,18 +373,25 @@
               Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}"
               BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,1,0,0"
               IsHitTestVisible="True"
-              DoubleTapped="OnFooterBarDoubleTapped"
               RightTapped="OnFooterBarRightTapped"
-              ToolTipService.ToolTip="Session telemetry and status · Double-click to copy metrics · Right-click for options">
+              ToolTipService.ToolTip="Session telemetry and status · Right-click for options">
             <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
                 <TextBlock x:Name="FooterStatusText"
                            Text="OCR Studio active — Ready to finalize document import into MarkSmith."
                            FontSize="11.5" Foreground="{ThemeResource TextFillColorPrimaryBrush}"
                            AutomationProperties.LiveSetting="Polite" />
-                <TextBlock x:Name="SessionMetricsText" Grid.Column="1"
-                           Text="1 Page · 0 Elements · 0 Words"
-                           FontSize="11" FontFamily="Consolas" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                           AutomationProperties.LiveSetting="Polite" />
+                <!-- A button, so the keyboard can copy the metrics and reach the footer menu (Shift+F10). -->
+                <Button x:Name="SessionMetricsButton" Grid.Column="1" Click="OnSessionMetricsButtonClick"
+                        RightTapped="OnFooterBarRightTapped"
+                        Style="{StaticResource SubtleButtonStyle}" Padding="6,1" Margin="0,-2,-6,-2"
+                        MinWidth="0" MinHeight="0" VerticalAlignment="Center"
+                        ToolTipService.ToolTip="Copy session metrics and status · Right-click or Shift+F10 for options"
+                        AutomationProperties.HelpText="Copies the page, element and word counts with the status line. Shift+F10 for more options.">
+                    <TextBlock x:Name="SessionMetricsText"
+                               Text="1 Page · 0 Elements · 0 Words"
+                               FontSize="11" FontFamily="Consolas" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               AutomationProperties.LiveSetting="Polite" />
+                </Button>
             </Grid>
 
             <ProgressBar x:Name="StageProgressBar" Grid.Row="1"
