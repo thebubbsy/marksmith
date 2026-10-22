@@ -15407,3 +15407,8 @@ Live UIA on PID 25468 (scratch `MARKSMITH_CONFIG_DIR`), with PrintWindow screens
 4. Derive the Settings PDF preview's double-click cycle from `PdfPageNumberPositions`.
 
 **Total user-visible improvements: 9.**
+
+**Release (same run):** tagged **v3.47.0** on `d1e31344`; Release workflow run 39808340421 succeeded;
+user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.47.0). `MarksmithBaseVersion` is now 3.48.0.
+Also prepended run #230's missing notes to the v3.46.0 release.
