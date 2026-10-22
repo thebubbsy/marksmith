@@ -64,7 +64,10 @@ public sealed partial class MermaidCanvasControl : UserControl
         InitializeComponent();
         // "Right-click for options" menus: open them from Shift+F10 / the Menu key too.
         KeyboardContextMenu.BridgeAll(
-            (ZoomResetButton, OnZoomResetRightTapped));
+            (ZoomResetButton, OnZoomResetRightTapped),
+            (ZoomOutButton, OnZoomResetRightTapped),
+            (ZoomInButton, OnZoomResetRightTapped),
+            (ZoomFitButton, OnZoomResetRightTapped));
 
         // The minimap mirrors and navigates the main canvas ScrollViewer.
         MinimapControl.TargetScrollViewer = CanvasScrollViewer;
@@ -709,6 +712,9 @@ public sealed partial class MermaidCanvasControl : UserControl
             {
                 case Button button:
                     SetCursor(button, Microsoft.UI.Input.InputSystemCursorShape.Hand);
+                    // The quick-add arrows' shape chooser: Shift+F10 / Menu key as well as right-click.
+                    if (button.Tag is "Top" or "Right" or "Bottom" or "Left")
+                        KeyboardContextMenu.Bridge(button, OnQuickAddButtonRightTapped);
                     break;
                 case Grid { Tag: "ResizeNW" or "ResizeSE" } nwse:
                     SetCursor(nwse, Microsoft.UI.Input.InputSystemCursorShape.SizeNorthwestSoutheast);

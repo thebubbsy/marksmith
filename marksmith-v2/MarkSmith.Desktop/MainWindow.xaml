@@ -2250,9 +2250,16 @@
                         </StackPanel>
                     </HyperlinkButton>
                     <Border x:Name="StatusSectionBreadcrumbDivider" Width="1" Height="12" Background="{ThemeResource CardStrokeColorDefaultBrush}" VerticalAlignment="Center" Visibility="Collapsed" />
-                    <TextBlock x:Name="WordCountText" Text="{Binding WordCountText}" VerticalAlignment="Center" FontSize="11.5" Opacity="0.7"
-                               Tapped="OnWordCountTextTapped" RightTapped="OnWordCountTextRightTapped" DoubleTapped="OnWordCountTextDoubleTapped"
-                               ToolTipService.ToolTip="{Binding DocumentStatsDetail}" />
+                    <!-- A real button, not a bare TextBlock, so Tab reaches it: Enter/Space opens the statistics
+                         card and Shift+F10 / the Menu key its copy menu, the same as click and right-click. -->
+                    <HyperlinkButton x:Name="WordCountButton" Padding="4,1" MinHeight="0" VerticalAlignment="Center"
+                                     Click="OnWordCountButtonClick" RightTapped="OnWordCountButtonRightTapped"
+                                     ToolTipService.ToolTip="{Binding DocumentStatsDetail}"
+                                     AutomationProperties.Name="{Binding WordCountText}"
+                                     AutomationProperties.HelpText="Shows document statistics. Shift+F10 for copy options.">
+                        <TextBlock x:Name="WordCountText" Text="{Binding WordCountText}" FontSize="11.5" Opacity="0.7"
+                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                    </HyperlinkButton>
                     <Border Width="1" Height="12" Background="{ThemeResource CardStrokeColorDefaultBrush}" VerticalAlignment="Center" />
                     <HyperlinkButton x:Name="StatusCopyMarkdownButton"
                                      Click="OnStatusCopyMarkdownButtonClick"
@@ -2402,11 +2409,15 @@
                         </StackPanel>
                     </HyperlinkButton>
                     <Border Width="1" Height="12" Background="{ThemeResource CardStrokeColorDefaultBrush}" VerticalAlignment="Center" />
-                    <TextBlock x:Name="CursorPosText" Text="Ln 1, Col 1" VerticalAlignment="Center"
-                               FontFamily="Consolas" FontSize="11.5" Opacity="0.7"
-                               Tapped="OnCursorPosTextTapped" DoubleTapped="OnCursorPosTextDoubleTapped"
-                               RightTapped="OnCursorPosTextRightTapped"
-                               ToolTipService.ToolTip="Cursor position · Click or double-click to jump to line (Ctrl+G), right-click for options" />
+                    <!-- A button so Tab reaches it: Enter/Space opens Go to line, Shift+F10 its menu. -->
+                    <HyperlinkButton x:Name="CursorPosButton" Padding="4,1" MinHeight="0" VerticalAlignment="Center"
+                                     Click="OnCursorPosButtonClick" DoubleTapped="OnCursorPosTextDoubleTapped" RightTapped="OnCursorPosButtonRightTapped"
+                                     ToolTipService.ToolTip="Cursor position · Click to go to line (Ctrl+G) · Right-click or Shift+F10 for jump and copy options"
+                                     AutomationProperties.HelpText="Opens Go to line (Ctrl+G). Shift+F10 for jump and copy options.">
+                        <TextBlock x:Name="CursorPosText" Text="Ln 1, Col 1"
+                                   FontFamily="Consolas" FontSize="11.5" Opacity="0.7"
+                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                    </HyperlinkButton>
                     <Border Width="1" Height="12" Background="{ThemeResource CardStrokeColorDefaultBrush}" VerticalAlignment="Center" />
                     <HyperlinkButton x:Name="StatusShortcutsButton"
                                      Click="OnStatusShortcutsButtonClick"

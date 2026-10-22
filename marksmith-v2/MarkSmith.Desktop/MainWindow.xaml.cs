@@ -302,6 +302,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             (MoreMenuButton, OnMoreMenuButtonRightTapped),
             (ExportSplitButton, OnExportSplitButtonRightTapped),
             (CancelConversionButton, OnCancelConversionButtonRightTapped),
+            (WordCountButton, OnWordCountButtonRightTapped),
+            (CursorPosButton, OnCursorPosButtonRightTapped),
         })
             Services.KeyboardContextMenu.Bridge(pill, handler);
 
@@ -11545,11 +11547,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private bool _isGoToLineDialogOpen;
 
-    private void OnCursorPosTextTapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
-    {
-        _ = ShowGoToLineDialogAsync();
-        e.Handled = true;
-    }
+    private void OnCursorPosButtonClick(object sender, RoutedEventArgs e) => _ = ShowGoToLineDialogAsync();
 
     private void OnStatusShortcutsButtonClick(object sender, RoutedEventArgs e)
     {
@@ -14283,11 +14281,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         menu.ShowAt(anchor);
     }
 
-    private void OnWordCountTextTapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
-    {
-        e.Handled = true;
-        ShowWordCountFlyout(sender as FrameworkElement ?? WordCountText);
-    }
+    private void OnWordCountButtonClick(object sender, RoutedEventArgs e) => ShowWordCountFlyout(WordCountButton);
 
     private void ShowWordCountFlyout(FrameworkElement target)
     {
@@ -14445,13 +14439,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         flyout.ShowAt(target);
     }
 
-    private void OnWordCountTextDoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
-    {
-        OnWordCountTextTapped(sender, new Microsoft.UI.Xaml.Input.TappedRoutedEventArgs());
-        e.Handled = true;
-    }
-
-    private void OnWordCountTextRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    private void OnWordCountButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
     {
         var summary = ViewModel.DocumentStatsDetail;
         var words = ViewModel.WordCountText;
@@ -14496,22 +14484,25 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 if (IsLineBreak(text[i])) lineCount++;
             }
             lineCount = Math.Max(1, _folds.DocumentLine(text, lineCount));
+            var lines = lineCount == 1 ? "1 line" : $"{lineCount:N0} lines";
             var copyLinesItem = new MenuFlyoutItem
             {
-                Text = $"Copy line count ({lineCount:N0} lines)",
+                Text = $"Copy line count ({lines})",
                 Icon = new FontIcon { Glyph = "\uE8FD" }
             };
             copyLinesItem.Click += (_, _) =>
             {
-                _ = Services.ClipboardWriter.TrySetTextAsync($"{lineCount:N0} lines");
-                AnnounceStatus($"Copied line count: {lineCount:N0} lines.");
+                _ = Services.ClipboardWriter.TrySetTextAsync(lines);
+                AnnounceStatus($"Copied line count: {lines}.");
             };
             menu.Items.Add(copyLinesItem);
         }
 
         if (!string.IsNullOrWhiteSpace(summary))
         {
-            var parts = summary.Split('·', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            // The detail is "words · characters" on one line and "lines · reading time" on the next:
+            // split on both, or the character item swallows the line count.
+            var parts = summary.Split(new[] { '·', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             foreach (var part in parts)
             {
                 if (part.Contains("char", StringComparison.OrdinalIgnoreCase))
@@ -14569,7 +14560,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         _ = ShowGoToLineDialogAsync();
     }
 
-    private void OnCursorPosTextRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    private void OnCursorPosButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
     {
         var pos = CursorPosText?.Text ?? "Ln 1, Col 1";
         var menu = new MenuFlyout();

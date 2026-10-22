@@ -93,7 +93,7 @@ public sealed partial class VersionItemViewModel : ObservableObject
     private string _label;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(StarTooltip), nameof(AutomationName))]
+    [NotifyPropertyChangedFor(nameof(StarTooltip), nameof(StarButtonToolTip), nameof(AutomationName))]
     private bool _isStarred;
 
     [ObservableProperty]
@@ -108,6 +108,10 @@ public sealed partial class VersionItemViewModel : ObservableObject
                               !string.Equals(Snippet, Entry.Source, StringComparison.OrdinalIgnoreCase);
 
     public string StarTooltip => IsStarred ? "Remove the star" : "Star this version so it is easy to find";
+
+    /// <summary>The star button's hover text: the action plus its key (S) and how to reach the
+    /// menu. <see cref="StarTooltip"/> stays short because it is also the accessible name.</summary>
+    public string StarButtonToolTip => $"{StarTooltip} (S) · Right-click or Shift+F10 for options";
 
     /// <summary>What a screen reader announces for the row: time, kind, label and star.</summary>
     public string AutomationName =>

@@ -663,6 +663,9 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
     private void OnContextMenuAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
         if (IsEditingText()) return;
+        // A focused toolbar/zoom/quick-add button opens its own menu (KeyboardContextMenu bridge);
+        // opening the canvas menu as well would dismiss it straight away.
+        if (XamlRoot is { } root && KeyboardContextMenu.IsWithinBridgedControl(FocusManager.GetFocusedElement(root) as DependencyObject)) return;
         _canvas.ShowContextMenuForSelection();
         args.Handled = true;
     }

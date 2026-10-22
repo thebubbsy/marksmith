@@ -415,8 +415,9 @@
                                                                 <Button Grid.Row="0" Grid.Column="3" Background="Transparent" BorderThickness="0" Padding="6"
                                                                         services:HoverPolish.ApplyOnLoad="True" VerticalAlignment="Center"
                                                                         Click="OnStarClick"
+                                                                        Loaded="OnStarButtonLoaded"
                                                                         RightTapped="OnStarButtonRightTapped"
-                                                                        ToolTipService.ToolTip="{Binding StarTooltip}"
+                                                                        ToolTipService.ToolTip="{Binding StarButtonToolTip}"
                                                                         AutomationProperties.Name="{Binding StarTooltip}">
                                                                     <Grid>
                                                                         <FontIcon Glyph="&#xE734;" FontSize="14" Foreground="{ThemeResource TextFillColorTertiaryBrush}"
