@@ -15113,3 +15113,7 @@ Live UIA, scratch `MARKSMITH_CONFIG_DIR` seeded with two recent documents:
    (`OnFooterBarDoubleTapped`).
 
 **Total user-visible improvements: 10.**
+
+**Release (same run):** tagged **v3.45.0** on `73c0ecff`; Release workflow run 39789701672 succeeded;
+user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.45.0). `MarksmithBaseVersion` is now 3.46.0.
