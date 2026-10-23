@@ -65,7 +65,6 @@ public abstract class InsertDialogBody : UserControl
             TextWrapping = TextWrapping.Wrap,
             IsTextSelectionEnabled = true,
         }.Themed(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
-        AutomationProperties.SetName(_preview, "Markdown preview");
 
         _problem = new TextBlock
         {
@@ -273,6 +272,9 @@ public abstract class InsertDialogBody : UserControl
         // An empty card read as broken; say plainly that nothing has been chosen yet.
         var snippet = Snippet.Trim('\n');
         _preview.Text = snippet.Length == 0 ? "Nothing yet" : snippet;
+        // Named after what it shows: a fixed "Markdown preview" name hid the snippet itself from
+        // screen readers, so the one card that says what Insert will do read the same every time.
+        AutomationProperties.SetName(_preview, snippet.Length == 0 ? "Inserts nothing yet" : $"Inserts: {snippet}");
         _preview.Opacity = snippet.Length == 0 ? 0.6 : 1;
 
         bool canCopy = snippet.Length > 0;

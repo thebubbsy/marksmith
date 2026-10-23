@@ -1633,7 +1633,7 @@ private readonly MarkdownExportService _mdExport = new();
     {
         try
         {
-            var text = File.ReadAllText(path);
+            var text = Services.SharedFile.ReadAllText(path);
             IngestMarkdown(text, Path.GetFileName(path));
         }
         catch (Exception ex)
@@ -2260,7 +2260,7 @@ private readonly MarkdownExportService _mdExport = new();
 
         // A converted source (Word, PDF, HTML, email) exports the Markdown it opened as, not its bytes.
         var source = Plugins.PluginFileReader.IsMarkdownFile(InputFilePath) || string.IsNullOrEmpty(_cachedFileMarkdown)
-            ? File.ReadAllText(InputFilePath)
+            ? Services.SharedFile.ReadAllText(InputFilePath)
             : _cachedFileMarkdown;
         return (PrepareMarkdown(source), Path.GetFileNameWithoutExtension(InputFilePath));
     }

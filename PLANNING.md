@@ -16199,3 +16199,121 @@ only after a foreground-PID check). The pre-existing Marksmith (PID 13632) was n
 **Release (same run):** tagged **v3.54.0** on `756dbe27`; Release workflow run 39977616647 succeeded;
 user-facing notes prepended to the generated body
 (https://github.com/thebubbsy/marksmith/releases/tag/v3.54.0). `MarksmithBaseVersion` is now 3.55.0.
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #240 (2026-10-24, 03:00–03:40 AEDT)
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running in the Claude desktop app. The task template asks for
+  "Antigravity AI Agent (Google DeepMind)"; that would be untrue for this run, so the real identity is recorded.
+- Modes: Scheduled Hourly Automation Routine (bypass-permissions, no live user)
+- Trigger: scheduled task `commit-to-main-ship-improvement--r4efinement`
+- Agents used: 1 (one session acting as orchestrator, coding worker and skeptical reviewer; no
+  subagents). Session `6dab2cb8-c1d3-4e49-afd1-a5d6b9d0909a`.
+
+**Delivered (user-visible):**
+1. **Copy commands stop claiming success when nothing was copied.** 170 copy actions in the main
+   window (status-bar pills, path / file-name / outline / statistics / link copies, menus) fired the
+   copy and announced "Copied …" straight away. When another app held the clipboard (a clipboard
+   manager, a remote desktop session), the status line still said "Copied" and the clipboard was
+   unchanged. They now wait for the copy and, on failure, show an amber "Couldn't copy: Another app is
+   holding the clipboard. Try again in a moment."
+2. **Markdown files another app holds open now open, export and ingest.** Opening, exporting or
+   ingesting a `.md` / `.html` / plain-text file used `File.ReadAllText`, which fails with "being used
+   by another process" when an editor or a sync client has the file open for writing. Those reads now
+   share read/write/delete access (new Core `Services/SharedFile`).
+3. **Insert ▸ Table from spreadsheet and CSV import work while the CSV is open in Excel.** Both CSV
+   paths used the same plain read and failed while Excel had the file open. They use `SharedFile` now.
+4. **Theme Builder swatches have names and show their hex code.** The eight colour swatches in
+   Create a theme were unnamed buttons with no tooltip: a screen reader heard "button" eight times
+   and nobody could read a value without opening the picker. Each one now shows its hex code (black or
+   white text, whichever reads on the colour), is named "Background colour, #ffffff", has a tooltip,
+   and follows the picker as you change it. The colour moved into an inner chip, because the button's
+   hover / pressed states replaced its Background and hid the colour under the pointer.
+5. **The Document Metrics card follows the theme and gets hover polish.** The word-count flyout coloured
+   its icon and badges through `Application.Current.Resources`, which keeps the start-up theme after a
+   Windows light/dark switch. It uses `ThemeBrush` now, and the reading-time text uses the accent *text*
+   brush. Its Copy words / Copy breakdown buttons gain hover/press polish (`HoverPolish.AttachOnOpen`,
+   which no flyout had been calling) and tooltips.
+6. **Document Metrics statistics read as one stop each.** A screen reader heard "14", then a separate
+   "Words" (and an icon). Each tile is now read as "Words: 14", "Characters: 81" and so on.
+7. **Go to line says when it changes what you typed.** "500" in a 6-line file silently went to line 6,
+   and "abc" silently stayed put. The preview now leads with "Only 6 lines.", "Lines start at 1." or "Not
+   a line number, so Go stays on line 1." The preview is a polite live region, so a screen reader hears
+   where Go will land as the number is typed. The preview and Go now share one parser (they were two copies).
+8. **Go to line's Start / Mid / End put the caret back in the box.** After a quick-pick, focus stayed on
+   the button, so Enter clicked it again instead of going. The box now gets focus with its text
+   selected, so Enter goes. The buttons gained tooltips. A long preview line shows in full on hover.
+9. **Insert dialogs: the preview is read by what it inserts.** The preview text had the fixed name "Markdown
+   preview", so a screen reader never heard the snippet. It is now named "Inserts: [](https://…)" and
+   follows every edit ("Inserts nothing yet" when empty).
+
+**Implementation summary.**
+- Core: new `Services/SharedFile.cs` (`ReadAllText` / `ReadAllTextAsync`, FileShare.ReadWrite | Delete, BOM
+  detection like File.ReadAllText). `Plugins/PluginFileReader.cs` (3 reads) and
+  `ViewModels/MainViewModel.cs` (`IngestFile`, export source) use it.
+- `MainWindow.xaml.cs`: `CopyAndAnnounce(text, message)` helper replaces 170
+  `_ = ClipboardWriter.TrySetTextAsync(x); AnnounceStatus(y);` pairs; the status severity is set after the
+  text. `ShowWordCountFlyout`: ThemeBrush, named stat tiles, tooltips, `AttachOnOpen`. `ShowGoToLineDialogAsync`:
+  `Resolve()`, live-region preview, `AddQuickPick`, `TrimmedTextToolTip`. `OnCreateThemeClick`: `ShowSwatch` with
+  chip, hex, name and tooltip. Both CSV reads go through `SharedFile`.
+- `Views/InsertDialogControls.cs`: `_preview` is named from the snippet in `Refresh()`.
+- Tests: new `Run240HonestCopiesAndSharedReadsTests` (11 cases). Three are behavioural: a file held open for
+  writing the way Excel does makes `File.ReadAllText` throw while `SharedFile` and
+  `PluginFileReader.ImportAsync` read it, and BOM decoding matches File.ReadAllText.
+
+**Skeptical review.**
+- Focus traps: nothing new collapses or disables. The quick-picks move focus *into* the box. The metrics
+  flyout hides before copying, as before.
+- Key swallowing: no key handler changed.
+- Flyouts: the metrics flyout is polished on open. The theme picker flyouts hold only a ColorPicker.
+- Theme: no new `Application.Current.Resources` brush lookups. Two removed from the metrics card, one from Go to line.
+  The swatch chip colours are the user's own colours, so fixed brushes are correct there.
+- File safety: shared reads only. Nothing writes through them.
+- Async: `CopyAndAnnounce` continues synchronously when the first attempt succeeds (same timing as before).
+  On failure it reports after ClipboardWriter's ~0.8 s of retries. None of the 170 call sites set the status
+  again in the lines after the copy (checked), so the late warning can't overwrite a newer message from the same click.
+- Not changed: six copies that aren't followed by an announcement (status-line menu items, outline
+  copies) still fire and forget. So do copies in History, Suite Hub and the studios.
+
+**Verified.** Desktop built to `%TEMP%\ms_run240\b` with 0 errors, from a clean `git archive` of `origin/main`
+(`%TEMP%\ms240`), so the local tree's stale files and another session's Shape / SmartArt WIP weren't involved.
+Targeted tests (Run2xx, Insert, Import, PluginFile, MainWindow, ThemeBrush, Clipboard, HoverPolish,
+KeyboardShortcuts): 717/717 passed. Full suite: 5823 passed, 14 failed. All 14 read files outside
+`marksmith-v2` (README / governance docs, gauntlet, `extension/`, the installer script), which the archive
+copy doesn't contain. That is environmental, not a regression. Run240 passed 11/11 after the last edit.
+The stale `SuiteHubAndTourPolishTests` failures don't occur against origin's files.
+Live UIA on scratch PIDs 27096 then 27180 (fresh `MARKSMITH_CONFIG_DIR`, window parked off-screen, UIA
+patterns only). The user had been idle 3 min and the PC was unlocked. The pre-existing Marksmith (PID
+13632) was not touched.
+- Launched with `held.md` while a separate PowerShell held it open ReadWrite (a plain
+  `[IO.File]::ReadAllText` on it failed with "being used by another process"): the editor loaded it
+  (`InputFileTextBox` = the path, "14 words").
+- Word count ▸ flyout: Text elements "Words: 14", "Characters: 81", "Lines / Para: 5 / 2", "Headings: 1"…
+- With the rig holding the clipboard open (`OpenClipboard`), invoking "Copy words" left the status
+  line at "Couldn't copy: Another app is holding the clipboard. Try again in a moment." (amber in the
+  screenshot). The user's clipboard was never written: the rig only opened and closed it.
+- Go to line: typing 500 / abc / 0 / 4:3 gave "Only 6 lines. Line 6, Col 1: (blank line)", "Not a line
+  number, so Go stays on line 1. …", "Lines start at 1. …", "Line 4, Col 3: (blank line)". Invoking End (6)
+  left the box at "6:1" with `HasKeyboardFocus` True. Start (1:1) did the same with "1:1".
+- Create a theme: buttons "Background colour, #ffffff" … "Lines colour, #333333". PrintWindow shows each
+  hex on its chip, readable on all eight.
+- Insert ▸ Link: preview named "Inserts: [](url)", and after setting the URL "Inserts: [](https://example.com/docs)".
+  Insert ▸ Table: "Inserts: | Header 1 | Header 2 | …".
+- **Not verified live:** the CSV paths (they need the file picker; source tests and the shared-read tests
+  cover them) and hover over a swatch (no synthetic mouse this run).
+
+**Noticed, not fixed:**
+- Fire-and-forget copies still exist outside MainWindow (History, Suite Hub, Diagram Studio, OCR Studio) and in
+  six MainWindow spots with no announcement. Same fix, per surface.
+- Go to line's preview counts lines in the editor text while the box's range counts the document with folds
+  expanded. With a fold above the target, the preview can show the wrong line (Go itself is right).
+- The local checkout's `main` is still ~198 commits behind `origin/main`, with another session's Shape / SmartArt /
+  Mind Map edits in the tree. This run worked in an archive copy and committed through a temp index.
+
+**Next up (Run #241):**
+1. Carry `CopyAndAnnounce`-style honest copy feedback to History, Suite Hub, Diagram Studio and OCR Studio.
+2. Fix the Go to line preview to read the document line (folds expanded) so it matches where Go lands.
+3. Live OCR page-flip focus check with a 2-page PDF (carried over from #239/#240).
+
+**Total user-visible improvements: 9.**
