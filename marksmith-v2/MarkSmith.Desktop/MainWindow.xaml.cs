@@ -314,6 +314,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             (Step2Badge, OnPipelineStepBadgeRightTapped),
             (Step3Badge, OnPipelineStepBadgeRightTapped),
             (TocCountButton, OnTocCountTextRightTapped),
+            (MarkdownFilesCombo, OnMarkdownFilesComboRightTapped),
             (HistoryCountButton, OnHistoryCountTextRightTapped),
         })
             Services.KeyboardContextMenu.Bridge(pill, handler);
@@ -322,6 +323,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         TextBoxMenu.Attach(OutputFolderTextBox, FillOutputFolderMenu);
         TextBoxMenu.Attach(FindTextBox, FillFindTextBoxMenu);
         TextBoxMenu.Attach(ReplaceTextBox, FillReplaceTextBoxMenu);
+        TextBoxMenu.Attach(TocFilterBox, FillTocFilterMenu);
 
         // Status-bar pieces that come and go (detected-source badge, export links, split sync,
         // section breadcrumb) change how much room the copy pills have, so re-fit the row.
@@ -3202,13 +3204,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             menu.ShowAt(anchor);
     }
 
-    private void OnTocFilterRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    // Right-click, Shift+F10 and the Menu key all open this (TextBoxMenu); a selection keeps the
+    // box's own Cut / Copy / Paste menu.
+    private void FillTocFilterMenu(MenuFlyout menu)
     {
         if (TocFilterBox is null) return;
-        if (TocFilterBox.SelectionLength > 0) return; // preserve native selection context menu
-        e.Handled = true;
-
-        var menu = new MenuFlyout();
 
         var clearItem = new MenuFlyoutItem
         {
@@ -3244,8 +3244,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         copyAllTocItem.Click += (_, _) => CopyAllHeadingsAsToc();
         menu.Items.Add(copyAllTocItem);
-
-        menu.ShowAt(TocFilterBox, KeyboardContextMenu.PointIn(e, TocFilterBox));
     }
 
     private void CopyAllHeadingsAsToc()
@@ -6777,6 +6775,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private void OnMarkdownFilesComboRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
     {
         if (MarkdownFilesCombo is null) return;
+        // With the list open, Shift+F10 belongs to the list, not a menu on top of it.
+        if (Services.KeyboardContextMenu.IsKeyboardInvocation && MarkdownFilesCombo.IsDropDownOpen) return;
         e.Handled = true;
         var menu = new MenuFlyout();
 

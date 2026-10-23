@@ -357,7 +357,7 @@
                             <ComboBox x:Name="MarkdownFilesCombo" ItemsSource="{Binding MarkdownFiles}"
                                       SelectionChanged="OnMarkdownFileSelected" Margin="0,-8,0,0"
                                       RightTapped="OnMarkdownFilesComboRightTapped"
-                                      ToolTipService.ToolTip="Recent and discovered Markdown files on this PC (Right-click for options)"
+                                      ToolTipService.ToolTip="Recent and discovered Markdown files on this PC (Right-click or Shift+F10 for options)"
                                       AutomationProperties.Name="Recent and found Markdown files" PlaceholderText="Pick a Markdown file from your PC…" HorizontalAlignment="Stretch">
                                 <ComboBox.ItemTemplate>
                                     <DataTemplate>
@@ -1412,7 +1412,7 @@
                                                  FontSize="12" Visibility="Collapsed"
                                                  TextChanged="OnTocFilterTextChanged"
                                                  PreviewKeyDown="OnTocFilterKeyDown"
-                                                 RightTapped="OnTocFilterRightTapped"
+                                                 ToolTipService.ToolTip="Filter headings. Down moves to the list, Esc clears, Right-click or Shift+F10 for options"
                                                  AutomationProperties.Name="Filter document outline headings" />
                                         <TextBlock x:Name="TocEmptyText" Grid.Row="2" TextWrapping="Wrap" FontSize="12"
                                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"

@@ -132,7 +132,12 @@ public sealed partial class SuiteHubView : UserControl
 
             (CopyExpressUrlButton, OnCard5ButtonRightTapped),
 
-            (Card6GalaxyButton, OnCard6ButtonRightTapped));
+            (Card6GalaxyButton, OnCard6ButtonRightTapped),
+            (VersionBadge, OnVersionInfoRightTapped),
+            (LicenseBadge, OnVersionInfoRightTapped),
+            (HealthStatusBadge, OnHealthStatusRightTapped),
+            (UptimeStoragePill, OnUptimeStoragePillRightTapped),
+            (MemoryUsagePill, OnMemoryUsagePillRightTapped));
 
         // Only three of the ten starter templates fit across the strip; let the mouse wheel
 
@@ -578,7 +583,7 @@ public sealed partial class SuiteHubView : UserControl
 
                     case 0:
 
-                        OnVersionInfoTapped(this, new TappedRoutedEventArgs());
+                        OnVersionInfoClick(this, new RoutedEventArgs());
 
                         e.Handled = true;
 
@@ -1248,7 +1253,8 @@ public sealed partial class SuiteHubView : UserControl
 
             LicenseText.Text = MarkSmith.Models.ProGate.PlanBadge(AppServices.License.State);
 
-            AutomationProperties.SetName(LicenseBadge, $"Plan: {LicenseText.Text}");
+            AutomationProperties.SetName(VersionBadge, $"Copy version details ({VersionText.Text})");
+            AutomationProperties.SetName(LicenseBadge, $"Copy plan details ({LicenseText.Text})");
 
         }
 
@@ -1454,15 +1460,13 @@ public sealed partial class SuiteHubView : UserControl
 
 
 
-    private void OnVersionInfoTapped(object sender, TappedRoutedEventArgs e)
+    private void OnVersionInfoClick(object sender, RoutedEventArgs e)
 
     {
 
         var info = $"{VersionText.Text} · {LicenseText.Text}";
 
         CopyToClipboard(info, $"Copied version info ({info}).");
-
-        e.Handled = true;
 
     }
 
@@ -1580,15 +1584,13 @@ public sealed partial class SuiteHubView : UserControl
 
 
 
-    private void OnHealthStatusTapped(object sender, TappedRoutedEventArgs e)
+    private void OnHealthStatusClick(object sender, RoutedEventArgs e)
 
     {
 
         var status = $"MarkSmith WinUI 3 Desktop Engine: Active · {VersionText?.Text ?? "Version 3.0.0"} · All Studios Ready";
 
         CopyToClipboard(status, "Copied suite health status.");
-
-        e.Handled = true;
 
     }
 
@@ -7401,7 +7403,7 @@ Renders raw Markdown into an OpenXML or PDF binary document bundle.
 
 
 
-    private void OnMemoryUsagePillTapped(object sender, TappedRoutedEventArgs e)
+    private void OnMemoryUsagePillClick(object sender, RoutedEventArgs e)
 
     {
 
@@ -7443,6 +7445,11 @@ Renders raw Markdown into an OpenXML or PDF binary document bundle.
 
     private static readonly DateTime _processStartTime = DateTime.UtcNow;
 
+    // MarkSmith names its temp files marksmith-*. The cache readout and the prune used to take
+    // ms-* too, which counted (and, ten minutes on, deleted) other programs' temp files.
+    internal static IEnumerable<FileInfo> EnumerateOwnTempFiles(DirectoryInfo tempDir) =>
+        tempDir.EnumerateFiles("marksmith*", SearchOption.TopDirectoryOnly);
+
 
 
     private void UpdateUptimeAndCache()
@@ -7471,9 +7478,7 @@ Renders raw Markdown into an OpenXML or PDF binary document bundle.
 
             var tempDir = new DirectoryInfo(Path.GetTempPath());
 
-            var files = tempDir.EnumerateFiles("marksmith*", SearchOption.TopDirectoryOnly)
-
-                .Concat(tempDir.EnumerateFiles("ms-*", SearchOption.TopDirectoryOnly));
+            var files = EnumerateOwnTempFiles(tempDir);
 
             foreach (var fi in files)
 
@@ -7497,17 +7502,15 @@ Renders raw Markdown into an OpenXML or PDF binary document bundle.
 
         UptimeStorageText.Text = $"Uptime: {uptimeStr} · Cache: {cacheStr}";
 
-        ToolTipService.SetToolTip(UptimeStoragePill, $"Desktop engine uptime: {uptimeStr} · Temp cache: {cacheFileCount} files ({cacheMb:F2} MB) · Tap to prune temp cache, right-click to copy diagnostics");
+        ToolTipService.SetToolTip(UptimeStoragePill, $"Desktop engine uptime: {uptimeStr} · Temp cache: {cacheFileCount} files ({cacheMb:F2} MB) · Click to prune stale MarkSmith temp files · Right-click or Shift+F10 to copy diagnostics");
 
     }
 
 
 
-    private void OnUptimeStoragePillTapped(object sender, TappedRoutedEventArgs e)
+    private void OnUptimeStoragePillClick(object sender, RoutedEventArgs e)
 
     {
-
-        e.Handled = true;
 
         int deleted = 0;
 
@@ -7519,9 +7522,7 @@ Renders raw Markdown into an OpenXML or PDF binary document bundle.
 
             var tempDir = new DirectoryInfo(Path.GetTempPath());
 
-            var files = tempDir.EnumerateFiles("marksmith*", SearchOption.TopDirectoryOnly)
-
-                .Concat(tempDir.EnumerateFiles("ms-*", SearchOption.TopDirectoryOnly));
+            var files = EnumerateOwnTempFiles(tempDir);
 
             foreach (var fi in files)
 
@@ -7595,9 +7596,7 @@ Renders raw Markdown into an OpenXML or PDF binary document bundle.
 
             var tempDir = new DirectoryInfo(Path.GetTempPath());
 
-            var files = tempDir.EnumerateFiles("marksmith*", SearchOption.TopDirectoryOnly)
-
-                .Concat(tempDir.EnumerateFiles("ms-*", SearchOption.TopDirectoryOnly));
+            var files = EnumerateOwnTempFiles(tempDir);
 
             foreach (var fi in files)
 

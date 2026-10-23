@@ -94,6 +94,9 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             (ResetElementButton, OnResetElementButtonRightTapped),
             (CopyMarkdownButton, OnCopyMarkdownButtonRightTapped),
             (SessionMetricsButton, OnFooterBarRightTapped));
+        // The read-only preview's options menu opens from the keyboard too; a selection keeps the
+        // box's own Copy / Select all menu.
+        TextBoxMenu.Attach(MarkdownPreviewTextBox, FillMarkdownPreviewMenu);
         ConfigureWindowChrome();
         SizeForDisplay();
 
@@ -1075,14 +1078,8 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         }
     }
 
-    private void OnMarkdownPreviewRightTapped(object sender, RightTappedRoutedEventArgs e)
+    private void FillMarkdownPreviewMenu(MenuFlyout menu)
     {
-        if (!string.IsNullOrEmpty(MarkdownPreviewTextBox.SelectedText))
-            return; // Preserve native selection context menu
-
-        e.Handled = true;
-        var menu = new MenuFlyout();
-
         var copyMarkdownItem = new MenuFlyoutItem
         {
             Text = "Copy Markdown preview",
@@ -1129,16 +1126,14 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         importItem.Click += (s, ev) => OnImportCtaClick(s, ev);
         menu.Items.Add(importItem);
 
+        // Esc is left to text boxes (OnRootKeyDown), so from the preview it does not discard.
         var discardItem = new MenuFlyoutItem
         {
             Text = "Cancel & Discard",
-            KeyboardAcceleratorTextOverride = "Esc",
             Icon = new FontIcon { Glyph = "\uE711" }
         };
         discardItem.Click += (s, ev) => OnDiscardClick(s, ev);
         menu.Items.Add(discardItem);
-
-        menu.ShowAt(MarkdownPreviewTextBox, KeyboardContextMenu.PointIn(e, MarkdownPreviewTextBox));
     }
 
     private void OnSessionMetricsButtonClick(object sender, RoutedEventArgs e)

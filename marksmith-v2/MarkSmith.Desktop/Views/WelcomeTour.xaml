@@ -79,17 +79,18 @@
              visibility-switched from code-behind; Back/Next/pips still navigate. -->
         <Grid x:Name="PagesHost" Grid.Row="0">
 
-            <Border x:Name="StepBadgeBorder" HorizontalAlignment="Right" VerticalAlignment="Top"
-                    Margin="0,6,8,0" Padding="8,2" CornerRadius="6"
+            <!-- A button so Tab reaches it: Enter or click opens the step list, as Shift+F10 does. -->
+            <Button x:Name="StepBadgeButton" HorizontalAlignment="Right" VerticalAlignment="Top"
+                    Margin="0,6,8,0" Padding="8,2" CornerRadius="6" MinHeight="0" MinWidth="0" BorderThickness="0"
                     Background="{ThemeResource SubtleFillColorSecondaryBrush}"
-                    IsHitTestVisible="True" Canvas.ZIndex="2"
-                    Tapped="OnStepBadgeTapped" RightTapped="OnStepBadgeRightTapped"
-                    ToolTipService.ToolTip="Tour steps · Click or right-click to jump to any step"
-                    AutomationProperties.Name="Tour step selector">
+                    Canvas.ZIndex="2"
+                    Click="OnStepBadgeClick" RightTapped="OnStepBadgeRightTapped"
+                    ToolTipService.ToolTip="Tour steps · Click, Right-click or Shift+F10 to jump to any step"
+                    AutomationProperties.Name="Jump to a tour step">
                 <TextBlock x:Name="StepBadgeText" Text="Step 1 of 7" FontSize="11"
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                            AutomationProperties.AccessibilityView="Raw" />
-            </Border>
+            </Button>
 
             <!-- 1 · Welcome -->
             <StackPanel x:Name="Page0" Padding="8,4,8,4">

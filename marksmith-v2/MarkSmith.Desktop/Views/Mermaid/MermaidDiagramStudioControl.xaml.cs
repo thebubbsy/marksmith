@@ -63,6 +63,9 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
             (CopySvgButton, OnCopySvgButtonRightTapped),
             (SyncToMarkdownButton, OnSyncToMarkdownButtonRightTapped),
             (CanvasSummaryButton, OnStatusBarRightTapped));
+        // The Code pane's options menu opens from right-click, Shift+F10 and the Menu key, and a
+        // selection keeps the box's own Cut / Copy / Paste menu.
+        TextBoxMenu.Attach(CodeEditorTextBox, FillCodeEditorMenu);
 
         _palette = new NodePaletteControl();
         PaletteContainer.Child = _palette;
@@ -226,14 +229,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
             // Code -> canvas: re-parse what the user typed and rebuild the canvas (preserving
             // surviving node positions). Leave the editor text untouched so their caret/selection
             // and formatting survive.
-            bool ok = ViewModel.SyncCanvasFromCode(CodeEditorTextBox.Text);
-            _codeDirty = false;
-            _lastPushedCode = CodePaneText();
-            CodeStatusText.Text = ok
-                ? $"Synced to canvas · {ViewModel.Nodes.Count} nodes, {ViewModel.Connectors.Count} edges"
-                : "⚠ Mermaid syntax error — fix the highlighted code";
-            AnnounceLiveRegion(CodeStatusText, CodeStatusText.Text, assertive: !ok);
-            RefreshPreview();
+            SyncCanvasFromEditor(CodeEditorTextBox.Text, "Synced to canvas");
             return;
         }
 
@@ -410,6 +406,10 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
     private bool IsEditingText() =>
         XamlRoot is { } root && FocusManager.GetFocusedElement(root) is TextBox;
 
+    // Shortcuts no TextBox uses (Ctrl+Shift+C / E) still work from the Code pane.
+    private bool IsEditingTextOutsideCode() =>
+        IsEditingText() && CodeEditorTextBox.FocusState == FocusState.Unfocused;
+
     private bool IsFocusWithinCanvas()
     {
         if (XamlRoot is not { } root) return false;
@@ -541,26 +541,44 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
     private void OnDistributeHClick(object sender, RoutedEventArgs e) => ViewModel?.DistributeHorizontally();
     private void OnDistributeVClick(object sender, RoutedEventArgs e) => ViewModel?.DistributeVertically();
 
-    private void OnUndoClick(object sender, RoutedEventArgs e)
-    {
-        ViewModel?.Undo();
-    }
+    private void OnUndoClick(object sender, RoutedEventArgs e) => UndoRedo(redo: false);
 
-    private void OnRedoClick(object sender, RoutedEventArgs e)
-    {
-        ViewModel?.Redo();
-    }
+    private void OnRedoClick(object sender, RoutedEventArgs e) => UndoRedo(redo: true);
 
+    // In the Code pane, the inspector fields and an in-place label, Ctrl+Z / Ctrl+Y undo the typing:
+    // accelerators run before the TextBox sees the key, so this used to undo a canvas step instead.
     private void OnUndoAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
-        ViewModel?.Undo();
+        if (IsEditingText()) return;
+        UndoRedo(redo: false);
         args.Handled = true;
     }
 
     private void OnRedoAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
-        ViewModel?.Redo();
+        if (IsEditingText()) return;
+        UndoRedo(redo: true);
         args.Handled = true;
+    }
+
+    // Undoing the last step disables the Undo button. When it held focus (or opened the menu that
+    // did it), focus moves to whichever of Undo / Redo is still enabled, else the canvas, instead
+    // of falling out of the toolbar.
+    private void UndoRedo(bool redo, Control? menuOrigin = null)
+    {
+        if (ViewModel is null) return;
+        Control? holder = menuOrigin
+            ?? (UndoToolbarButton.FocusState != FocusState.Unfocused ? UndoToolbarButton
+                : RedoToolbarButton.FocusState != FocusState.Unfocused ? RedoToolbarButton : null);
+        if (redo) ViewModel.Redo(); else ViewModel.Undo();
+        if (holder is null) return;
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (holder.IsEnabled) return;
+            Control next = UndoToolbarButton.IsEnabled ? UndoToolbarButton : RedoToolbarButton;
+            if (next.IsEnabled) next.Focus(FocusState.Keyboard);
+            else _canvas.FocusCanvas();
+        });
     }
 
     // ---- World-class editing accelerators -----------------------------------------------
@@ -590,14 +608,14 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
 
     private void OnCopySvgAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
-        if (IsEditingText()) return;
+        if (IsEditingTextOutsideCode()) return;
         OnCopySvgClick(CopySvgButton, new RoutedEventArgs());
         args.Handled = true;
     }
 
     private void OnExportSvgAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
-        if (IsEditingText()) return;
+        if (IsEditingTextOutsideCode()) return;
         OnExportSvgClick(ExportSvgButton, new RoutedEventArgs());
         args.Handled = true;
     }
@@ -735,81 +753,65 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
         args.Handled = true;
     }
 
-    private void OnCodeEditorTextBoxRightTapped(object sender, RightTappedRoutedEventArgs e)
+    private void FillCodeEditorMenu(MenuFlyout menu)
     {
-        e.Handled = true;
-        var menu = new MenuFlyout();
+        bool hasCode = !string.IsNullOrEmpty(CodeEditorTextBox.Text);
 
-        var syncItem = new MenuFlyoutItem
+        // Ctrl+Enter writes the diagram into the document (OnSyncAcceleratorInvoked); the canvas
+        // follows the code by itself once typing pauses, so "update now" has no shortcut.
+        var writeItem = new MenuFlyoutItem
         {
-            Text = "Sync to canvas",
+            Text = "Write diagram to document",
             Icon = new FontIcon { Glyph = "\uE72C" },
             KeyboardAcceleratorTextOverride = "Ctrl+Enter"
         };
+        writeItem.Click += (_, _) => OnSyncToMarkdownClick(this, new RoutedEventArgs());
+        menu.Items.Add(writeItem);
+
+        var syncItem = new MenuFlyoutItem
+        {
+            Text = "Update canvas now",
+            Icon = new FontIcon { Glyph = "\uE895" },
+            IsEnabled = hasCode
+        };
         syncItem.Click += (_, _) =>
         {
-            if (ViewModel != null)
-            {
-                ViewModel.SyncCanvasFromCode(CodeEditorTextBox.Text);
-                _codeDirty = false;
-                _lastPushedCode = CodePaneText();
-                RefreshPreview();
-            }
+            SyncCanvasFromEditor(CodeEditorTextBox.Text, "Canvas updated");
             _canvas.FocusCanvas();
         };
         menu.Items.Add(syncItem);
 
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        // Ctrl+C / Ctrl+V in the box act on the selection and the caret, so these whole-source
+        // items carry no shortcut.
         var copyItem = new MenuFlyoutItem
         {
-            Text = "Copy Mermaid source",
+            Text = "Copy all source",
             Icon = new FontIcon { Glyph = "\uE8C8" },
-            KeyboardAcceleratorTextOverride = "Ctrl+C"
+            IsEnabled = hasCode
         };
         copyItem.Click += async (_, _) =>
         {
-            var text = CodeEditorTextBox.Text ?? string.Empty;
-            var err = await ClipboardWriter.TrySetTextAsync(text);
-            if (ViewModel != null)
-                ViewModel.StatusText = err is null ? "Copied Mermaid source code" : $"Copy failed: {err}";
+            var err = await ClipboardWriter.TrySetTextAsync(CodeEditorTextBox.Text ?? string.Empty);
+            ShowCodeStatus(err is null ? "Copied the Mermaid source" : $"Copy failed: {err}", assertive: err is not null);
         };
         menu.Items.Add(copyItem);
 
-        var pasteItem = new MenuFlyoutItem
+        var replaceItem = new MenuFlyoutItem
         {
-            Text = "Paste source",
-            Icon = new FontIcon { Glyph = "\uE77F" },
-            KeyboardAcceleratorTextOverride = "Ctrl+V"
+            Text = "Replace source with clipboard",
+            Icon = new FontIcon { Glyph = "\uE77F" }
         };
-        pasteItem.Click += async (_, _) =>
-        {
-            try
-            {
-                var content = Windows.ApplicationModel.DataTransfer.Clipboard.GetContent();
-                if (content.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text))
-                {
-                    var text = await content.GetTextAsync();
-                    if (!string.IsNullOrEmpty(text))
-                    {
-                        CodeEditorTextBox.Text = text;
-                        if (ViewModel != null)
-                        {
-                            ViewModel.SyncCanvasFromCode(text);
-                            _codeDirty = false;
-                            _lastPushedCode = CodePaneText();
-                            RefreshPreview();
-                        }
-                    }
-                }
-            }
-            catch { }
-        };
-        menu.Items.Add(pasteItem);
+        replaceItem.Click += async (_, _) => await ReplaceCodeFromClipboardAsync();
+        menu.Items.Add(replaceItem);
 
         var selectAllItem = new MenuFlyoutItem
         {
             Text = "Select all",
             Icon = new FontIcon { Glyph = "\uE8B3" },
-            KeyboardAcceleratorTextOverride = "Ctrl+A"
+            KeyboardAcceleratorTextOverride = "Ctrl+A",
+            IsEnabled = hasCode
         };
         selectAllItem.Click += (_, _) =>
         {
@@ -831,17 +833,54 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
 
         var exportSvgItem = new MenuFlyoutItem
         {
-            Text = "Export as SVG…",
+            Text = "Export as SVG\u2026",
             Icon = new FontIcon { Glyph = "\uEDE1" },
             KeyboardAcceleratorTextOverride = "Ctrl+Shift+E"
         };
         exportSvgItem.Click += (_, _) => OnExportSvgClick(this, new RoutedEventArgs());
         menu.Items.Add(exportSvgItem);
+    }
 
-        if (sender is FrameworkElement fe)
-            menu.ShowAt(fe, KeyboardContextMenu.PointIn(e, fe));
-        else
-            menu.ShowAt(CodeEditorTextBox);
+    private void SyncCanvasFromEditor(string code, string doneText)
+    {
+        if (ViewModel is null) return;
+        bool ok = ViewModel.SyncCanvasFromCode(code);
+        _codeDirty = false;
+        _lastPushedCode = CodePaneText();
+        RefreshPreview();
+        ShowCodeStatus(ok
+            ? $"{doneText} \u00b7 {ViewModel.Nodes.Count} nodes, {ViewModel.Connectors.Count} edges"
+            : "\u26a0 Mermaid syntax error \u2014 fix the highlighted code", assertive: !ok);
+    }
+
+    // The menu item used to swallow every failure, so an empty clipboard looked like a dead item.
+    private async System.Threading.Tasks.Task ReplaceCodeFromClipboardAsync()
+    {
+        string? text = null;
+        try
+        {
+            var content = Windows.ApplicationModel.DataTransfer.Clipboard.GetContent();
+            if (content.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text))
+                text = await content.GetTextAsync();
+        }
+        catch (Exception ex)
+        {
+            ShowCodeStatus($"Couldn't read the clipboard: {ex.Message}", assertive: true);
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            ShowCodeStatus("The clipboard has no text to paste", assertive: true);
+            return;
+        }
+        CodeEditorTextBox.Text = text;
+        SyncCanvasFromEditor(text, "Replaced from the clipboard");
+    }
+
+    private void ShowCodeStatus(string text, bool assertive = false)
+    {
+        CodeStatusText.Text = text;
+        AnnounceLiveRegion(CodeStatusText, text, assertive);
     }
 
     private void OnAutoLayoutButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -1383,7 +1422,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
             KeyboardAcceleratorTextOverride = "Ctrl+Z",
             IsEnabled = ViewModel?.CanUndo ?? false
         };
-        undo.Click += (s, args) => OnUndoClick(s, new RoutedEventArgs());
+        undo.Click += (_, _) => UndoRedo(redo: false, fe as Control);
         menu.Items.Add(undo);
 
         var redo = new MenuFlyoutItem
@@ -1393,7 +1432,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
             KeyboardAcceleratorTextOverride = "Ctrl+Y",
             IsEnabled = ViewModel?.CanRedo ?? false
         };
-        redo.Click += (s, args) => OnRedoClick(s, new RoutedEventArgs());
+        redo.Click += (_, _) => UndoRedo(redo: true, fe as Control);
         menu.Items.Add(redo);
 
         menu.Items.Add(new MenuFlyoutSeparator());

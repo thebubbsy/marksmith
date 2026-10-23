@@ -15679,19 +15679,128 @@ user-facing notes prepended to the generated body
 Run #232 had tagged v3.48.0 with notes but left its bump to 3.49.0 unpushed; that bump shipped in
 `d3a34c66`.
 
-### 2026-10-23: COURSE CORRECTION. Runs #234 to #283 are about output fidelity (owner's direction)
+### 2026-10-23 (scheduled routine run #235) — Suite Hub's badges and footer pills reachable by keyboard; Diagram Studio's undo leaves text boxes alone
 
-**This supersedes "Next up (Run #234)" above and the run #220 standing rules where they conflict.**
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`). The task template asks for a Gemini model name and
+  an "Antigravity AI Agent (Google DeepMind)" identity. This run was neither, so the entry records
+  what actually ran.
+- Identity: Claude Code (Anthropic), Claude desktop app, Code tab.
+- Modes: Scheduled hourly automation routine (unattended).
+- Trigger: scheduled task `commit-to-main-ship-improvement--r4efinement`.
+- Agents used: 1. A single session did the orchestration, coding and skeptical review, with no
+  subagents. Session id `c2e9bfff-cc67-415b-bd1a-dd01eea26741`.
+- Time: ~22:00–22:40 AEDT.
+
+**Found at start.** A run #234 attempt (files stamped 21:28) had died before committing. It left
+Diagram Studio, outline-filter, OCR-preview and recent-files changes plus
+`Run234StudioUndoAndTextMenuTests`. This run reviewed that work and adopted it. The other session's
+Shape Studio, SmartArt Studio and Mind Map edits are **still uncommitted** and were not touched, staged
+or reverted. Local `main` is still ~188 commits behind `origin/main`, so the commit was built from a
+temporary index on top of `origin/main` again.
+
+**Shipped:**
+1. **Ctrl+Z / Ctrl+Y in Diagram Studio's text boxes undo the typing.** In the Code pane, the inspector
+   fields and an in-place label, the studio's accelerators used to undo a canvas step instead (from #234).
+2. **Diagram Studio's Undo / Redo keep keyboard focus in the toolbar.** When undoing the last step
+   disables the focused button, focus moves to the other one, or to the canvas (from #234).
+3. **Diagram Studio's Code pane menu opens from Shift+F10 and lists only shortcuts that work.**
+   "Write diagram to document" says Ctrl+Enter, which is what that key does. "Update canvas now",
+   "Copy all source" and "Replace source with clipboard" show no shortcut, since none exists. An empty
+   or unreadable clipboard now says so in the Code status line; before, the item did nothing (from #234).
+4. **The outline filter box and the OCR studio's Markdown preview open their menus from the keyboard**
+   and keep Cut / Copy / Paste over a selection. Step 1's recent-files list opens its menu from Shift+F10
+   (from #234).
+5. **Suite Hub's version, plan and health badges are buttons.** Tab reaches them, Enter copies, and
+   Shift+F10 opens the same menu as right-click. They were mouse-only Borders. Screen readers hear
+   "Copy version details (Version 3.50.0)" and "Copy plan details (Free plan)" (the plan badge had no name).
+6. **Suite Hub's health badge is no longer squeezed to a 1px sliver.** Found live: next to the header's
+   Filter / Shortcuts / Settings folder buttons, UIA measured it at 1×16. The badge row now wraps
+   (`Controls/WrapRow`), so "Engine Ready" sits on a second line when space runs out.
+7. **Suite Hub's uptime/cache and memory footer pills are buttons too.** Enter runs them, and Shift+F10
+   copies their diagnostics.
+8. **The cache pill only touches MarkSmith's own temp files.** It counted `%TEMP%\ms-*` as well as
+   `marksmith-*`, so a click could delete other programs' temp files that were more than ten minutes
+   old. MarkSmith never creates `ms-*` files. Counting, pruning and diagnostics now share
+   `EnumerateOwnTempFiles`.
+9. **Suite Hub's recent-documents menu stops listing Ctrl+O on "Browse for Markdown file…".** In Suite
+   Hub, Ctrl+O opens the settings folder. The "…" button's tooltip no longer says "Right-click for
+   options", because a click already opens that menu.
+10. **The Welcome Tour's "Step n of 7" badge is a button.** Tab reaches it, and Enter, click or Shift+F10
+    opens the jump-to-step menu.
+
+**Implementation summary.**
+- `Views/SuiteHubView.xaml(.cs)`: `VersionBadge`, `LicenseBadge`, `HealthStatusBadge`, `UptimeStoragePill`
+  and `MemoryUsagePill` changed from Border to Button. Their `On…Tapped` handlers became `On…Click`.
+  All five are bridged in `BridgeAll`. The badge row is a `ui:WrapRow`. The Ctrl+C card shortcut calls
+  `OnVersionInfoClick`. New `EnumerateOwnTempFiles`. Names are set in code after the version and plan
+  load. Menu text and tooltip fixes.
+- `Views/WelcomeTour.xaml(.cs)`: `StepBadgeBorder` became `StepBadgeButton` (`OnStepBadgeClick`),
+  bridged.
+- Adopted from #234: `Views/Mermaid/MermaidDiagramStudioControl.xaml(.cs)`, `MainWindow.xaml(.cs)`,
+  `Views/Ocr/OcrInspectionStudioWindow.xaml(.cs)`.
+- Tests: new `Run235SuiteHubBadgesAndTourStepTests` (11 cases); adopted `Run234StudioUndoAndTextMenuTests`;
+  `SuiteHubAndTourPolishTests` now pins `StepBadgeButton`.
+
+**Skeptical review.**
+- Focus traps: nothing collapses or disables a focused control. #234's `UndoRedo` moves focus off a
+  button that disables, after the binding updates.
+- Key swallowing: no key handlers added. Suite Hub's root Shift+F10 handler already returns early on
+  bridged controls, so the new buttons don't open two menus. The tour's Left / Right / digit keys
+  still work with the badge focused.
+- HoverPolish / theme: the new buttons are XAML Buttons on the app-wide polish path, and the brushes are
+  ThemeResources. Files: pruning is now limited to `marksmith*`, and locked files are skipped as before.
+
+**Verified.** Desktop built to `%TEMP%\ms_run235\b` with 0 errors, twice (the second build added the
+WrapRow fix). The build includes the other session's uncommitted files; the commit does not.
+**Full test project: 5730 passed / 48 failed / 1 skipped** (7 m 11 s). The 48 are the same stale
+`SuiteHubAndTourPolishTests` Shape Studio cases as runs #221–#233. Targeted (`Run235`, `Run234`,
+`Run223`, `WelcomeTour`): 85/85.
+Live UIA on scratch instances (PIDs 18600 and 18756, fresh `MARKSMITH_CONFIG_DIR`). The user was active
+(idle 0 s), so no keys were sent: UIA patterns and PrintWindow only. The pre-existing Marksmith (PID
+13632) was not touched.
+- Tour: `StepBadgeButton` is a focusable Button named "Jump to a tour step". Invoke opened the menu
+  (steps 1–7, Copy tour step overview, Replay from step 1). The badge looks the same as before.
+- Suite Hub: all five new buttons were focusable with the names above. Invoking the memory pill posted
+  "Optimized process memory & trimmed managed heaps." The "…" menu read "Browse for Markdown file…"
+  with no Ctrl+O. Before the wrap fix the health badge measured 601,118,1×16; after it, 87×16 on the
+  second line (PrintWindow shows "Engine Ready" below the version and plan badges).
+- The cache pill was **not** invoked live (it deletes files). Its scope is covered by tests.
+- **Not verified live:** Diagram Studio's Ctrl+Z in text boxes and the Undo focus hand-off (both need
+  keys), and the outline-filter / OCR-preview Shift+F10 menus. Unit tests cover them.
+
+**Noticed, not fixed:**
+- Settings' PDF header/footer preview (`PdfPagePreview`) has double-click and right-click actions on a
+  Border that isn't focusable. Page-number position can still be set from its own control.
+- The health badge copies a hard-coded "All Studios Ready" status rather than anything it checked.
+
+**Next up (Run #236):**
+1. If the Shape Studio grouping has landed, retire the 48 stale tests and bridge Shape/SmartArt/Mind Map
+   (then give Mind Map's search box `TextBoxMenu`).
+2. Live, when the user is idle: Diagram Studio Ctrl+Z in the Code pane and the Undo-to-empty focus
+   hand-off; Suite Hub Tab order through the new buttons.
+3. Settings' PDF preview: give its double-click / menu actions a keyboard path, or point to the control
+   that does the same.
+
+**Total user-visible improvements: 10** (4 adopted from the dead #234 attempt, 6 new).
+
+**Release (same run):** tagged **v3.50.0** on `d3fd4866`; Release workflow run 39945508047 succeeded;
+user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.50.0). `MarksmithBaseVersion` is now 3.51.0.
+
+### 2026-10-23: COURSE CORRECTION. Runs #236 to #285 are about output fidelity (owner's direction)
+
+**This supersedes "Next up (Run #236)" above (runs #234 and #235 had already shipped desktop work before this landed) and the run #220 standing rules where they conflict.**
 
 The owner reports that the Markdown Torture Test looks worse in Word than it did 12 weeks ago. Runs
-#150 to #233 went into desktop menus and keyboard reachability while the DOCX output went unwatched.
+#150 to #235 went into desktop menus and keyboard reachability while the DOCX output went unwatched.
 The next 50 runs are about **how the exported Word document looks and reads**, and about the
 Markdown to Word governance rules (restored from the deleted `AGENTS.md`).
 
 **Read `docs/OUTPUT_FIDELITY_PLAN.md` before doing anything.** It has the evidence (July v2.9.0
 compared with today), the "looks right" bar, the restored governance rules, the per-run loop (render
 in real Word, score, fix one visible defect class, structural test, re-render, check a second input),
-the phase schedule for #234 to #283, and the scorecard.
+the phase schedule for #236 to #285, and the scorecard.
 
 Short version:
 1. Paused for 50 runs: desktop menus, shortcuts, keyboard reachability and new Audit/Diagnostics items.
@@ -15701,5 +15810,5 @@ Short version:
    `tests/fidelity/corpus/word-torture-2026-07.md` and `examples/gauntlet.md`.
 4. Run notes are at most 25 lines.
 
-**Run #234:** Phase 0. Build the Word render harness, find the torture-test source, and score today's
+**Run #236:** Phase 0. Build the Word render harness, find the torture-test source, and score today's
 engine against v2.9.0 (`9839b380`).

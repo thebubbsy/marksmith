@@ -73,6 +73,7 @@ public sealed partial class WelcomeTour : UserControl
         InitializeComponent();
         // "Right-click for options" menus: open them from Shift+F10 / the Menu key too.
         KeyboardContextMenu.BridgeAll(
+            (StepBadgeButton, OnStepBadgeRightTapped),
             (Step1Card, OnStepCardRightTapped),
             (Step2Card, OnStepCardRightTapped),
             (Step3Card, OnStepCardRightTapped),
@@ -492,16 +493,12 @@ public sealed partial class WelcomeTour : UserControl
 
     private void OnSkip(object sender, RoutedEventArgs e) => Completed?.Invoke(this, EventArgs.Empty);
 
-    private void OnStepBadgeTapped(object sender, TappedRoutedEventArgs e)
-    {
-        e.Handled = true;
-        ShowStepBadgeMenu(StepBadgeBorder, e.GetPosition(StepBadgeBorder));
-    }
+    private void OnStepBadgeClick(object sender, RoutedEventArgs e) => ShowStepBadgeMenu(StepBadgeButton, null);
 
     private void OnStepBadgeRightTapped(object sender, RightTappedRoutedEventArgs e)
     {
         e.Handled = true;
-        ShowStepBadgeMenu(StepBadgeBorder, KeyboardContextMenu.PointIn(e, StepBadgeBorder));
+        ShowStepBadgeMenu(StepBadgeButton, KeyboardContextMenu.PointIn(e, StepBadgeButton));
     }
 
     private void ShowStepBadgeMenu(FrameworkElement anchor, Windows.Foundation.Point? position)
