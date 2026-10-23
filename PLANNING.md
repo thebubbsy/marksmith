@@ -16195,3 +16195,7 @@ only after a foreground-PID check). The pre-existing Marksmith (PID 13632) was n
    the tooltip sweep there.
 
 **Total user-visible improvements: 7.**
+
+**Release (same run):** tagged **v3.54.0** on `756dbe27`; Release workflow run 39977616647 succeeded;
+user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.54.0). `MarksmithBaseVersion` is now 3.55.0.
