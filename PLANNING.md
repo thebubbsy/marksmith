@@ -16320,7 +16320,7 @@ patterns only). The user had been idle 3 min and the PC was unlocked. The pre-ex
 
 ### 2026-10-23: COURSE CORRECTION. Runs R1 to R50 are about output fidelity (owner's direction)
 
-**R1 = the first polisher run after this entry lands on `main`; R50 = the 50th. Write both numbers in each run heading, e.g. "run #237 (R1)".**
+**R1 = the first polisher run after this entry lands on `main`; R50 = the 50th. Write both numbers in each run heading, e.g. "run #241 (R1)".**
 
 **This supersedes the latest "Next up" list above and the run #220 standing rules where they conflict.**
 

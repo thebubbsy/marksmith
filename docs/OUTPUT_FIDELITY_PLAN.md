@@ -4,7 +4,7 @@
 the Word document looks like when the user opens it.** The Markdown Torture Test output looks worse
 today than it did 12 weeks ago, which means the product is failing at its only job.
 
-**Run numbering:** R1 is the first polisher run after this plan lands on `main`, and R50 is the 50th. Record the absolute run number alongside it, e.g. "run #237 (R1)".
+**Run numbering:** R1 is the first polisher run after this plan lands on `main`, and R50 is the 50th. Record the absolute run number alongside it, e.g. "run #241 (R1)".
 
 This file **overrides** the latest "Next up" list in `PLANNING.md` and the run #220
 standing rules wherever they conflict. Every run from R1 to R50 reads this file first.
