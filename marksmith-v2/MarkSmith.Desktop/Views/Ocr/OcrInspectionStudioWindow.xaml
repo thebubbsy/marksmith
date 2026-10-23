@@ -359,8 +359,7 @@
                                      FontFamily="Consolas" FontSize="12"
                                      AcceptsReturn="True" TextWrapping="Wrap"
                                      Background="Transparent" BorderThickness="0"
-                                     RightTapped="OnMarkdownPreviewRightTapped"
-                                     ToolTipService.ToolTip="Live Markdown preview · Right-click for options · Ctrl+Shift+C to copy"
+                                     ToolTipService.ToolTip="Live Markdown preview · Ctrl+Shift+C to copy, Right-click or Shift+F10 for options"
                                      AutomationProperties.Name="Live Markdown preview" />
                         </ScrollViewer>
                     </Border>

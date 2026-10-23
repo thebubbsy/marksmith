@@ -231,7 +231,7 @@ public class SuiteHubAndTourPolishTests
         var xaml = File.ReadAllText(DesktopPath("Views", "WelcomeTour.xaml"));
         var cs = File.ReadAllText(DesktopPath("Views", "WelcomeTour.xaml.cs"));
 
-        Assert.Contains("x:Name=\"StepBadgeBorder\"", xaml);
+        Assert.Contains("x:Name=\"StepBadgeButton\"", xaml);
         Assert.Contains("x:Name=\"StepBadgeText\"", xaml);
         Assert.Contains("x:Name=\"Step1Card\"", xaml);
         Assert.Contains("x:Name=\"Step2Card\"", xaml);
