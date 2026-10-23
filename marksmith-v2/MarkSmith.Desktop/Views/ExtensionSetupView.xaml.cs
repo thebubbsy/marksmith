@@ -155,11 +155,9 @@ public sealed partial class ExtensionSetupView : UserControl
             Text = "Copy Step 1 instructions",
             Icon = new FontIcon { Glyph = "\uE8FD" }
         };
-        copyStepItem.Click += async (_, _) =>
-        {
-            var text = $"Step 1: Open {browser}'s extensions page by pasting {address} into the address bar.";
-            await ClipboardWriter.TrySetTextAsync(text);
-        };
+        copyStepItem.Click += (_, _) => CopyFeedback.CopyWithBubble(button,
+            $"Step 1: Open {browser}'s extensions page by pasting {address} into the address bar.",
+            "Copied Step 1 instructions");
         menu.Items.Add(copyStepItem);
 
         menu.Items.Add(new MenuFlyoutSeparator());
@@ -417,7 +415,6 @@ public sealed partial class ExtensionSetupView : UserControl
         };
         copyUrlItem.Click += (_, _) =>
         {
-            _ = ClipboardWriter.TrySetTextAsync(BrowserExtensionPackage.GuideUrl);
             if (copyUrlItem.Icon is FontIcon fi) CopyFeedback.CopyWithTick(BrowserExtensionPackage.GuideUrl, fi);
         };
         menu.Items.Add(copyUrlItem);

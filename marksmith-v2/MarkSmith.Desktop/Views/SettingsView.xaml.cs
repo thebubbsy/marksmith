@@ -661,10 +661,7 @@ public sealed partial class SettingsView : UserControl
             Text = "Copy purchase link",
             Icon = new FontIcon { Glyph = "\uE8C8" }
         };
-        copyPricingItem.Click += async (_, _) =>
-        {
-            await ClipboardWriter.TrySetTextAsync("https://marksmith.app/#pricing");
-        };
+        copyPricingItem.Click += (_, _) => CopyFeedback.CopyWithBubble(target, "https://marksmith.app/#pricing", "Copied purchase link");
         menu.Items.Add(copyPricingItem);
 
         menu.ShowAt(target, KeyboardContextMenu.PointIn(e, target));
@@ -767,7 +764,7 @@ public sealed partial class SettingsView : UserControl
         {
             var key = KeyBox.Text?.Trim();
             if (!string.IsNullOrEmpty(key))
-                await ClipboardWriter.TrySetTextAsync(key);
+                CopyFeedback.CopyWithBubble(target, key, "Copied license key");
         };
         menu.Items.Add(copyKeyItem);
 
@@ -793,10 +790,7 @@ public sealed partial class SettingsView : UserControl
             Text = "Copy sync subfolder name",
             Icon = new FontIcon { Glyph = "\uE8C8" }
         };
-        copySubfolderItem.Click += async (_, _) =>
-        {
-            await ClipboardWriter.TrySetTextAsync(App.ViewModel.CloudSubfolder);
-        };
+        copySubfolderItem.Click += (_, _) => CopyFeedback.CopyWithBubble(target, App.ViewModel.CloudSubfolder, "Copied sync subfolder name");
         menu.Items.Add(copySubfolderItem);
 
         menu.ShowAt(target, KeyboardContextMenu.PointIn(e, target));
@@ -1014,7 +1008,7 @@ public sealed partial class SettingsView : UserControl
             var header = PdfPreviewHeader.Text;
             var footer = PdfPreviewFooter.Text;
             var summary = $"Header: {(string.IsNullOrEmpty(header) ? "(none)" : header)} | Footer: {(string.IsNullOrEmpty(footer) ? "(none)" : footer)}";
-            await ClipboardWriter.TrySetTextAsync(summary);
+            CopyFeedback.CopyWithBubble(PdfPagePreviewButton, summary, "Copied header and footer");
         };
         menu.Items.Add(copyBandsItem);
 
@@ -1327,7 +1321,11 @@ public sealed partial class SettingsView : UserControl
         };
         copyIdItem.Click += async (_, _) =>
         {
-            await ClipboardWriter.TrySetTextAsync(plugin.Id);
+            if (await ClipboardWriter.TrySetTextAsync(plugin.Id) is string copyError)
+            {
+                SetStatus($"Couldn't copy the plugin ID. {copyError}", failed: true);
+                return;
+            }
             SetStatus($"Copied plugin ID \u201C{plugin.Id}\u201D");
         };
         flyout.Items.Add(copyIdItem);
@@ -1353,7 +1351,11 @@ public sealed partial class SettingsView : UserControl
             if (e.Key == Windows.System.VirtualKey.C && ctrl && !shift && !alt)
             {
                 e.Handled = true;
-                await ClipboardWriter.TrySetTextAsync(plugin.Id);
+                if (await ClipboardWriter.TrySetTextAsync(plugin.Id) is string copyError)
+            {
+                SetStatus($"Couldn't copy the plugin ID. {copyError}", failed: true);
+                return;
+            }
                 SetStatus($"Copied plugin ID \u201C{plugin.Id}\u201D");
             }
         };
@@ -1453,10 +1455,10 @@ public sealed partial class SettingsView : UserControl
     private async void OnCopyPluginsFolderPathClick(object sender, RoutedEventArgs e)
     {
         var folder = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MarkSmith", "Plugins");
-        await MarkSmith.Services.ClipboardWriter.TrySetTextAsync(folder);
+        var error = await MarkSmith.Services.ClipboardWriter.TrySetTextAsync(folder);
         if (sender is Button b)
         {
-            MarkSmith.Services.CopyFeedback.ApplyButtonTick(b, null);
+            MarkSmith.Services.CopyFeedback.ApplyButtonTick(b, error);
         }
     }
 
@@ -1523,10 +1525,7 @@ public sealed partial class SettingsView : UserControl
             Text = "Copy page name",
             Icon = new FontIcon { Glyph = "\uE8C8" }
         };
-        copyName.Click += async (_, _) =>
-        {
-            await MarkSmith.Services.ClipboardWriter.TrySetTextAsync(item.Content?.ToString() ?? "");
-        };
+        copyName.Click += (_, _) => MarkSmith.Services.CopyFeedback.CopyWithBubble(item, item.Content?.ToString() ?? "", "Copied page name");
         menu.Items.Add(copyName);
 
         menu.ShowAt(item, new FlyoutShowOptions { Position = KeyboardContextMenu.PointIn(e, item) });

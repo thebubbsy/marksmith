@@ -16,6 +16,27 @@ namespace MarkSmith.Views.ShapeStudio
 {
     public sealed partial class ShapeDesignStudioWindow : Window
     {
+        // Copies text and reports it on the status line. These copies used to discard ClipboardWriter's
+        // result, so a busy clipboard still said "Copied ...". With no message, the command has already
+        // put its result on the status line; a failed copy is added to it. A tick button shows a tick
+        // or "Busy" from the real result (it used to tick even when nothing was copied).
+        private async void CopyAndReport(string? text, string? message = null, Button? tickButton = null, string? tickLabel = null)
+        {
+            var error = await MarkSmith.Services.ClipboardWriter.TrySetTextAsync(text ?? string.Empty);
+            if (ViewModel is null) return;
+            if (error is null)
+            {
+                if (message is not null) ViewModel.StatusMessage = message;
+            }
+            else
+            {
+                ViewModel.StatusMessage = MarkSmith.Services.CopyStatusText.Failed(message ?? ViewModel.StatusMessage, error);
+            }
+            if (tickButton is null) return;
+            if (tickLabel is null) MarkSmith.Services.CopyFeedback.ApplyButtonTick(tickButton, error);
+            else MarkSmith.Services.CopyFeedback.ApplyButtonTick(tickButton, error, tickLabel);
+        }
+
         /// <summary>One row of the colour-scheme flyout: the name and its swatches.</summary>
         public sealed class PaletteChoice
         {
@@ -243,8 +264,7 @@ namespace MarkSmith.Views.ShapeStudio
         {
             e.Handled = true;
             var summary = $"{ViewModel.StatusMessage} {ViewModel.SelectionSummary}".Trim();
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            ViewModel.StatusMessage = "Copied status to clipboard";
+            CopyAndReport(summary, "Copied status to clipboard");
         }
 
         private void OnSelectionSummaryDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
@@ -253,8 +273,7 @@ namespace MarkSmith.Views.ShapeStudio
             var summary = ViewModel.SelectionSummary;
             if (string.IsNullOrWhiteSpace(summary))
                 summary = $"{ViewModel.SelectionCount} shapes selected";
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            ViewModel.StatusMessage = $"Copied selection summary: {summary}";
+            CopyAndReport(summary, $"Copied selection summary: {summary}");
         }
 
         private void OnSelectionSummaryRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -268,8 +287,7 @@ namespace MarkSmith.Views.ShapeStudio
             var summary = ViewModel.SelectionSummary ?? string.Empty;
             flyout.Items.Add(ShapeMenuItem(!string.IsNullOrEmpty(summary) ? $"Copy summary ({summary})" : "Copy selection summary", "\uE946", () =>
             {
-                _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-                ViewModel.StatusMessage = $"Copied selection summary: {summary}";
+                CopyAndReport(summary, $"Copied selection summary: {summary}");
             }, enabled: !string.IsNullOrEmpty(summary)));
 
             flyout.Items.Add(ShapeMenuItem("Select all shapes", "\uE8B3", () => ViewModel.SelectAllCommand.Execute(null), "Ctrl+A", enabled: any && !ViewModel.IsDense));
@@ -302,14 +320,12 @@ namespace MarkSmith.Views.ShapeStudio
 
             flyout.Items.Add(ShapeMenuItem("Copy status message", "\uE8C8", () =>
             {
-                _ = Services.ClipboardWriter.TrySetTextAsync(ViewModel.StatusMessage ?? "");
-                ViewModel.StatusMessage = "Copied status message to clipboard";
+                CopyAndReport(ViewModel.StatusMessage ?? "", "Copied status message to clipboard");
             }));
 
             flyout.Items.Add(ShapeMenuItem("Copy selection summary", "\uE946", () =>
             {
-                _ = Services.ClipboardWriter.TrySetTextAsync(ViewModel.SelectionSummary ?? "");
-                ViewModel.StatusMessage = "Copied selection summary to clipboard";
+                CopyAndReport(ViewModel.SelectionSummary ?? "", "Copied selection summary to clipboard");
             }));
 
             flyout.Items.Add(ShapeMenuItem("Copy shapes as Markdown", "\uE8C8", () => OnCopyMarkdownClick(this, new RoutedEventArgs()), enabled: any));
@@ -579,8 +595,7 @@ namespace MarkSmith.Views.ShapeStudio
             var copyNameItem = ShapeMenuItem($"Copy scheme name ({ViewModel.SelectedPaletteName})", "\uE8C8", () =>
             {
                 var name = ViewModel.SelectedPaletteName ?? string.Empty;
-                _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync(name);
-                ViewModel.StatusMessage = $"Copied scheme name: {name}";
+                CopyAndReport(name, $"Copied scheme name: {name}");
             });
             flyout.Items.Add(copyNameItem);
 
@@ -1116,14 +1131,7 @@ namespace MarkSmith.Views.ShapeStudio
 
             flyout.Items.Add(ShapeMenuItem("Copy text", "\uE8C8", () =>
             {
-                try
-                {
-                    var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-                    dp.SetText(currentText);
-                    Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dp);
-                    ViewModel.StatusMessage = "Copied label to clipboard";
-                }
-                catch { }
+                CopyAndReport(currentText, "Copied label to clipboard");
             }, "Ctrl+C", enabled: hasText));
 
             flyout.Items.Add(ShapeMenuItem("Paste text", "\uE77F", async () =>
@@ -3417,8 +3425,7 @@ namespace MarkSmith.Views.ShapeStudio
             flyout.Items.Add(ShapeMenuItem($"Copy angle ({ShapeDesignStudioViewModel.WrapRotationAngle(s.Rotation)}°)", "\uE8C8", () =>
             {
                 int cur = ShapeDesignStudioViewModel.WrapRotationAngle(s.Rotation);
-                _ = Services.ClipboardWriter.TrySetTextAsync($"{cur}°");
-                ViewModel.StatusMessage = $"Copied angle: {cur}°";
+                CopyAndReport($"{cur}°", $"Copied angle: {cur}°");
             }));
 
             flyout.ShowAt(_rotateHandle, e.GetPosition(_rotateHandle));
@@ -3974,8 +3981,7 @@ namespace MarkSmith.Views.ShapeStudio
             var curPt = points[idx];
             flyout.Items.Add(ShapeMenuItem($"Copy {ptLabel.ToLowerInvariant()} coordinates ({curPt.X:F0}, {curPt.Y:F0})", "\uE8C8", () =>
             {
-                _ = Services.ClipboardWriter.TrySetTextAsync($"({curPt.X:F0}, {curPt.Y:F0})");
-                ViewModel.StatusMessage = $"Copied coordinates ({curPt.X:F0}, {curPt.Y:F0}) to clipboard";
+                CopyAndReport($"({curPt.X:F0}, {curPt.Y:F0})", $"Copied coordinates ({curPt.X:F0}, {curPt.Y:F0}) to clipboard");
             }));
 
             flyout.ShowAt(h, e.GetPosition(h));
@@ -4184,8 +4190,7 @@ namespace MarkSmith.Views.ShapeStudio
                     var copy = new MenuFlyoutItem { Text = $"Copy #{capturedHex}", Icon = new FontIcon { Glyph = "\uE8C8" } };
                     copy.Click += (_, _) =>
                     {
-                        _ = Services.ClipboardWriter.TrySetTextAsync($"#{capturedHex}");
-                        ViewModel.StatusMessage = $"Copied #{capturedHex} to clipboard";
+                        CopyAndReport($"#{capturedHex}", $"Copied #{capturedHex} to clipboard");
                     };
                     menu.Items.Add(copy);
                     var remove = new MenuFlyoutItem { Text = "Remove from recent", Icon = new FontIcon { Glyph = "\uE74D" } };
@@ -4283,8 +4288,7 @@ namespace MarkSmith.Views.ShapeStudio
 
             flyout.Items.Add(ShapeMenuItem($"Copy #{currentHex}", "\uE8C8", () =>
             {
-                _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync($"#{currentHex}");
-                ViewModel.StatusMessage = $"Copied #{currentHex} to clipboard.";
+                CopyAndReport($"#{currentHex}", $"Copied #{currentHex} to clipboard.");
             }));
 
             flyout.Items.Add(ShapeMenuItem("Paste hex colour", "\uE77F", async () =>
@@ -4415,8 +4419,7 @@ namespace MarkSmith.Views.ShapeStudio
             {
                 if (ViewModel.SelectedShape is { } s)
                 {
-                    _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync($"{s.Rotation:0}°");
-                    ViewModel.StatusMessage = $"Copied angle {s.Rotation:0}° to clipboard.";
+                    CopyAndReport($"{s.Rotation:0}°", $"Copied angle {s.Rotation:0}° to clipboard.");
                 }
             }));
 
@@ -4474,8 +4477,7 @@ namespace MarkSmith.Views.ShapeStudio
             {
                 if (ViewModel.SelectedShape is { } s)
                 {
-                    _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync($"{s.StrokeWidthPt:0.##} pt");
-                    ViewModel.StatusMessage = $"Copied line weight {s.StrokeWidthPt:0.##} pt to clipboard.";
+                    CopyAndReport($"{s.StrokeWidthPt:0.##} pt", $"Copied line weight {s.StrokeWidthPt:0.##} pt to clipboard.");
                 }
             }));
 
@@ -4543,8 +4545,7 @@ namespace MarkSmith.Views.ShapeStudio
             {
                 if (ViewModel.SelectedShape is { } s)
                 {
-                    _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync($"X={s.X:0}, Y={s.Y:0}");
-                    ViewModel.StatusMessage = $"Copied position (X={s.X:0}, Y={s.Y:0})";
+                    CopyAndReport($"X={s.X:0}, Y={s.Y:0}", $"Copied position (X={s.X:0}, Y={s.Y:0})");
                 }
             }));
 
@@ -4586,8 +4587,7 @@ namespace MarkSmith.Views.ShapeStudio
             {
                 if (ViewModel.SelectedShape is { } s)
                 {
-                    _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync($"W={s.Width:0}, H={s.Height:0}");
-                    ViewModel.StatusMessage = $"Copied dimensions ({s.Width:0} × {s.Height:0})";
+                    CopyAndReport($"W={s.Width:0}, H={s.Height:0}", $"Copied dimensions ({s.Width:0} × {s.Height:0})");
                 }
             }));
 
@@ -4698,8 +4698,7 @@ namespace MarkSmith.Views.ShapeStudio
             {
                 if (ViewModel.SelectedShape is { } s)
                 {
-                    _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync($"{s.Rotation:0}°");
-                    ViewModel.StatusMessage = $"Copied angle {s.Rotation:0}° to clipboard.";
+                    CopyAndReport($"{s.Rotation:0}°", $"Copied angle {s.Rotation:0}° to clipboard.");
                 }
             }, enabled: hasSelection));
 
@@ -4923,14 +4922,7 @@ namespace MarkSmith.Views.ShapeStudio
 
             var copyCatItem = ShapeMenuItem("Copy category name", "\uE8C8", () =>
             {
-                try
-                {
-                    var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-                    dp.SetText(ViewModel.SelectedPresetCategory ?? "All");
-                    Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dp);
-                    ViewModel.StatusMessage = $"Copied '{ViewModel.SelectedPresetCategory}' to clipboard";
-                }
-                catch { }
+                CopyAndReport(ViewModel.SelectedPresetCategory ?? "All", $"Copied '{ViewModel.SelectedPresetCategory ?? "All"}' to clipboard");
             });
             flyout.Items.Add(copyCatItem);
 
@@ -5177,8 +5169,7 @@ namespace MarkSmith.Views.ShapeStudio
                 var path = FuseImagePathBox?.Text ?? _composeImagePath ?? "";
                 if (!string.IsNullOrEmpty(path))
                 {
-                    _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync(path);
-                    ViewModel.StatusMessage = "Copied image path to clipboard.";
+                    CopyAndReport(path, "Copied image path to clipboard.");
                 }
             }, enabled: !string.IsNullOrEmpty(FuseImagePathBox?.Text) || !string.IsNullOrEmpty(_composeImagePath)));
 
@@ -5428,8 +5419,7 @@ namespace MarkSmith.Views.ShapeStudio
             {
                 if (!string.IsNullOrEmpty(FuseImagePathBox.Text))
                 {
-                    _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync(FuseImagePathBox.Text);
-                    ViewModel.StatusMessage = "Copied image path to clipboard.";
+                    CopyAndReport(FuseImagePathBox.Text, "Copied image path to clipboard.");
                 }
             }, enabled: !string.IsNullOrEmpty(FuseImagePathBox.Text)));
 
@@ -5465,8 +5455,7 @@ namespace MarkSmith.Views.ShapeStudio
             flyout.Items.Add(new MenuFlyoutSeparator());
             flyout.Items.Add(ShapeMenuItem("Copy density value", "\uE8C8", () =>
             {
-                _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync(FuseMosaicDensity.Value.ToString("F0"));
-                ViewModel.StatusMessage = $"Copied mosaic density {FuseMosaicDensity.Value:F0} to clipboard.";
+                CopyAndReport(FuseMosaicDensity.Value.ToString("F0"), $"Copied mosaic density {FuseMosaicDensity.Value:F0} to clipboard.");
             }));
             if (sender is FrameworkElement fe) flyout.ShowAt(fe, e.GetPosition(fe));
             else flyout.ShowAt(FuseMosaicDensity, e.GetPosition(FuseMosaicDensity));
@@ -5495,8 +5484,7 @@ namespace MarkSmith.Views.ShapeStudio
             flyout.Items.Add(new MenuFlyoutSeparator());
             flyout.Items.Add(ShapeMenuItem("Copy tile spacing value", "\uE8C8", () =>
             {
-                _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync(FuseMosaicPadding.Value.ToString("F0"));
-                ViewModel.StatusMessage = $"Copied tile spacing {FuseMosaicPadding.Value:F0} to clipboard.";
+                CopyAndReport(FuseMosaicPadding.Value.ToString("F0"), $"Copied tile spacing {FuseMosaicPadding.Value:F0} to clipboard.");
             }));
             if (sender is FrameworkElement fe) flyout.ShowAt(fe, e.GetPosition(fe));
             else flyout.ShowAt(FuseMosaicPadding, e.GetPosition(FuseMosaicPadding));
@@ -5524,8 +5512,7 @@ namespace MarkSmith.Views.ShapeStudio
             flyout.Items.Add(new MenuFlyoutSeparator());
             flyout.Items.Add(ShapeMenuItem("Copy line density value", "\uE8C8", () =>
             {
-                _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync(FuseLineDensity.Value.ToString("F0"));
-                ViewModel.StatusMessage = $"Copied line density {FuseLineDensity.Value:F0} to clipboard.";
+                CopyAndReport(FuseLineDensity.Value.ToString("F0"), $"Copied line density {FuseLineDensity.Value:F0} to clipboard.");
             }));
             if (sender is FrameworkElement fe) flyout.ShowAt(fe, e.GetPosition(fe));
             else flyout.ShowAt(FuseLineDensity, e.GetPosition(FuseLineDensity));
@@ -5552,8 +5539,7 @@ namespace MarkSmith.Views.ShapeStudio
             flyout.Items.Add(new MenuFlyoutSeparator());
             flyout.Items.Add(ShapeMenuItem("Copy detail threshold", "\uE8C8", () =>
             {
-                _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync(FuseEdgeSensitivity.Value.ToString("F0"));
-                ViewModel.StatusMessage = $"Copied detail threshold {FuseEdgeSensitivity.Value:F0} to clipboard.";
+                CopyAndReport(FuseEdgeSensitivity.Value.ToString("F0"), $"Copied detail threshold {FuseEdgeSensitivity.Value:F0} to clipboard.");
             }));
             if (sender is FrameworkElement fe) flyout.ShowAt(fe, e.GetPosition(fe));
             else flyout.ShowAt(FuseEdgeSensitivity, e.GetPosition(FuseEdgeSensitivity));
@@ -5581,8 +5567,7 @@ namespace MarkSmith.Views.ShapeStudio
             flyout.Items.Add(new MenuFlyoutSeparator());
             flyout.Items.Add(ShapeMenuItem("Copy stroke width", "\uE8C8", () =>
             {
-                _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync($"{FuseStrokeWidth.Value:F1} pt");
-                ViewModel.StatusMessage = $"Copied stroke width {FuseStrokeWidth.Value:F1} pt to clipboard.";
+                CopyAndReport($"{FuseStrokeWidth.Value:F1} pt", $"Copied stroke width {FuseStrokeWidth.Value:F1} pt to clipboard.");
             }));
             if (sender is FrameworkElement fe) flyout.ShowAt(fe, e.GetPosition(fe));
             else flyout.ShowAt(FuseStrokeWidth, e.GetPosition(FuseStrokeWidth));
@@ -5770,7 +5755,7 @@ namespace MarkSmith.Views.ShapeStudio
             if (sel.Count == 0) sel = ViewModel.Shapes.ToList();
             if (sel.Count == 0)
             {
-                _ = Services.ClipboardWriter.TrySetTextAsync("Canvas 2200x1800");
+                CopyAndReport("Canvas 2200x1800");
                 return;
             }
 
@@ -5779,8 +5764,7 @@ namespace MarkSmith.Views.ShapeStudio
             double maxX = sel.Max(s => s.X + s.Width);
             double maxY = sel.Max(s => s.Y + s.Height);
             string geom = $"X: {minX:F0}, Y: {minY:F0}, Width: {(maxX - minX):F0}, Height: {(maxY - minY):F0}";
-            _ = Services.ClipboardWriter.TrySetTextAsync(geom);
-            ViewModel.StatusMessage = $"Copied geometry: {geom}";
+            CopyAndReport(geom, $"Copied geometry: {geom}");
         }
 
         private void OnSelectionBringForwardClick(object sender, RoutedEventArgs e)
@@ -6155,7 +6139,7 @@ namespace MarkSmith.Views.ShapeStudio
             if (ViewModel == null) return;
             ViewModel.ReverseSelectedZOrder();
             var summary = MarkSmith.ViewModels.ShapeStudio.ShapeDesignStudioViewModel.FormatZOrderSummary(ViewModel.Shapes, ViewModel.Shapes.Where(s => s.IsSelected));
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            CopyAndReport(summary);
             UpdateAdorner();
             UpdateMultiSelectionAdorner();
         }
@@ -6165,7 +6149,7 @@ namespace MarkSmith.Views.ShapeStudio
             if (ViewModel == null) return;
             var (adjusted, total, maxDelta) = ViewModel.NormalizeShapePrecision(1.0);
             var summary = MarkSmith.ViewModels.ShapeStudio.ShapeDesignStudioViewModel.FormatPrecisionNormalizationSummary(adjusted, total, 1.0, maxDelta);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            CopyAndReport(summary);
             UpdateAdorner();
             UpdateMultiSelectionAdorner();
         }
@@ -6175,7 +6159,7 @@ namespace MarkSmith.Views.ShapeStudio
             if (ViewModel == null) return;
             var (resized, total, targetW, targetH, refLabel) = ViewModel.MatchSelectedShapeDimensions(matchWidth: true, matchHeight: true);
             var summary = MarkSmith.ViewModels.ShapeStudio.ShapeDesignStudioViewModel.FormatDimensionMatchSummary(resized, total, targetW, targetH, refLabel);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            CopyAndReport(summary);
             UpdateAdorner();
             UpdateMultiSelectionAdorner();
         }
@@ -6185,7 +6169,7 @@ namespace MarkSmith.Views.ShapeStudio
             if (ViewModel == null) return;
             var (flipped, pivotX, pivotY) = ViewModel.FlipSelectedShapes(horizontal: true, vertical: false);
             var summary = MarkSmith.ViewModels.ShapeStudio.ShapeDesignStudioViewModel.FormatFlipTransformSummary(flipped, horizontal: true, vertical: false, pivotX, pivotY);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            CopyAndReport(summary);
             UpdateAdorner();
             UpdateMultiSelectionAdorner();
         }
@@ -6194,7 +6178,7 @@ namespace MarkSmith.Views.ShapeStudio
         {
             if (ViewModel == null) return;
             var (matched, total, kind, fill, summary) = ViewModel.SelectSimilarShapes(matchKind: true, matchFill: false);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            CopyAndReport(summary);
             UpdateAdorner();
             UpdateMultiSelectionAdorner();
         }
@@ -6203,7 +6187,7 @@ namespace MarkSmith.Views.ShapeStudio
         {
             if (ViewModel == null) return;
             var (matched, total, kind, fill, summary) = ViewModel.SelectSimilarShapes(matchKind: false, matchFill: true);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            CopyAndReport(summary);
             UpdateAdorner();
             UpdateMultiSelectionAdorner();
         }
@@ -6212,7 +6196,7 @@ namespace MarkSmith.Views.ShapeStudio
         {
             if (ViewModel == null) return;
             var (nudged, total, summary) = ViewModel.ResolveShapeOverlaps(16.0);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            CopyAndReport(summary);
             UpdateAdorner();
             UpdateMultiSelectionAdorner();
         }
@@ -6221,7 +6205,7 @@ namespace MarkSmith.Views.ShapeStudio
         {
             if (ViewModel == null) return;
             var (distCount, total, summary) = ViewModel.DistributeShapesEvenly(DistributionAxis.Horizontal);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            CopyAndReport(summary);
             UpdateAdorner();
             UpdateMultiSelectionAdorner();
         }
@@ -6230,7 +6214,7 @@ namespace MarkSmith.Views.ShapeStudio
         {
             if (ViewModel == null) return;
             var (distCount, total, summary) = ViewModel.DistributeShapesEvenly(DistributionAxis.Vertical);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            CopyAndReport(summary);
             UpdateAdorner();
             UpdateMultiSelectionAdorner();
         }
@@ -6239,7 +6223,7 @@ namespace MarkSmith.Views.ShapeStudio
         {
             if (ViewModel == null) return;
             var (scaledCount, total, factor, summary) = ViewModel.ScaleSelectedShapesProportionally(1.25);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            CopyAndReport(summary);
             UpdateAdorner();
             UpdateMultiSelectionAdorner();
         }
@@ -6248,7 +6232,7 @@ namespace MarkSmith.Views.ShapeStudio
         {
             if (ViewModel == null) return;
             var (arrangedCount, rx, ry, summary) = ViewModel.DistributeShapesRadially();
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            CopyAndReport(summary);
             UpdateAdorner();
             UpdateMultiSelectionAdorner();
         }
@@ -6257,23 +6241,21 @@ namespace MarkSmith.Views.ShapeStudio
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditLayerStackIndices();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnSelectionAuditGridSnapClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditGridAlignment(8.0);
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnSelectionQuantizeGridClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var (targets, modified, summary) = ViewModel.QuantizeShapeCoordinates(8.0);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            CopyAndReport(summary);
             UpdateAdorner();
             UpdateMultiSelectionAdorner();
         }
@@ -6282,15 +6264,14 @@ namespace MarkSmith.Views.ShapeStudio
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditAspectRatioProportions();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnSelectionLockAspectRatioSquareClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var (targets, modified, summary) = ViewModel.EnforceAspectRatioLock(1.0, "1:1 Square");
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            CopyAndReport(summary);
             UpdateAdorner();
             UpdateMultiSelectionAdorner();
         }
@@ -6299,15 +6280,14 @@ namespace MarkSmith.Views.ShapeStudio
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditSpacingDistribution();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnSelectionDistributeSpacingHorizontalClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var (targets, modified, gap, summary) = ViewModel.DistributeSpacingUniformly(DistributionAxis.Horizontal);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            CopyAndReport(summary);
             UpdateAdorner();
             UpdateMultiSelectionAdorner();
         }
@@ -6316,367 +6296,321 @@ namespace MarkSmith.Views.ShapeStudio
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditOcclusionAndOverlap();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnSelectionAuditBoundaryBleedClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditBoundaryMarginsAndBleed();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnSelectionAuditTextContrastClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditShapeTextContrast();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnSelectionAuditGoldenRatioClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditGoldenRatioProgression();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnSelectionAuditGoldenSpiralClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditGoldenSpiralProgression();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnSelectionAuditColorHarmonyClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditColorPaletteHarmony();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnSelectionAuditIsometricClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditIsometricGridAlignment();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnSelectionAuditSymmetryClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditDiagramSymmetry();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnSelectionAuditSpacingUniformityClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditSpacingUniformityAndCollisions();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnSelectionAuditOrthogonalRoutingClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditOrthogonalRoutingAndIntersections();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnSelectionAuditGridSnapConformanceClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditGridSnapConformance();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnSelectionAuditVisualWeightClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditVisualWeightAndOpticalCentroid();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnSelectionAuditConnectorCurvatureClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditConnectorCurvatureAndTangents();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnSelectionAuditAspectRatioScalingClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditAspectRatioAndPrimitiveScaling();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnSelectionAuditStrokeAlignmentClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditStrokeAlignmentAndCornerRadius();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnSelectionAuditConnectorObstaclesClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditConnectorObstacleCollisions();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnSelectionAuditCompoundGroupsClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditCompoundGroupBoundsAndStacking();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnSelectionAuditConnectorPortSnappingClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditConnectorPortSnapping();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnSelectionAuditCanvasSpatialBalanceClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditCanvasSpatialBalance();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnSelectionAuditShapeCollinearityClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditShapeCollinearityAndSpacing();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnSelectionAuditVisualFlowDirectionalityClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditVisualFlowDirectionality();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnSelectionAuditAspectRatioGoldenRatioClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditShapeAspectRatioAndGoldenRatio();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnSelectionAuditCornerRadiusConsistencyClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditShapeCornerRadiusConsistency();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnSelectionAuditZIndexOcclusionClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditShapeZIndexLayeringAndOcclusion();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnSelectionAuditConnectorArrowheadUniformityClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditConnectorArrowheadUniformity();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnSelectionAuditStrokeWeightAndDashClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditStrokeWeightAndDashUniformity();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnSelectionAuditFillColorPaletteHarmonyClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditFillColorPaletteHarmony();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnSelectionAuditAspectRatioHarmonyClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditShapeAspectRatioHarmony();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnSelectionAuditConnectorRoutesClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditConnectorRouteDirectness();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnSelectionAuditLayerOcclusionClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditLayerStackingAndOcclusion();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnSelectionAuditAlignmentSnappingClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditAlignmentAndGridSnapping();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnSelectionAuditConnectionPortRoutingClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditConnectionPortOrthogonality();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnSelectionAuditVisualDensityMarginsClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditVisualDensityAndMargins();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnSelectionAuditZOrderOcclusionClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditZOrderAndOcclusion();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnSelectionAuditConnectorOrthogonalBendsClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditConnectorOrthogonalBends();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnSelectionAuditAlignmentGuidesSnappingClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditAlignmentGuidesAndSnapping();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnSelectionAuditGroupHierarchyPaddingClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditGroupHierarchyAndPadding();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnSelectionAuditLayeringZOrderOcclusionClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditLayeringZOrderAndOcclusion();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnSelectionAuditVisualWeightContrastClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditShapeVisualWeightAndContrast();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnSelectionAuditConnectorAnchorSnappingClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditConnectorAnchorSnappingAndOrthogonality();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnSelectionAuditShapeAspectRatioClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditShapeAspectRatioUniformityAndProportions();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnSelectionAuditColorContrastClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditShapeColorContrastAccessibility();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnSelectionAuditShapeZOrderStackingClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditShapeZOrderStackingAndOcclusion();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
     private void OnSelectionAuditShapeTextPaddingClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel == null) return;
         var result = ViewModel.AuditShapeTextPaddingAndOverflow(selectionOnly: ViewModel.Shapes.Any(s => s.IsSelected));
-        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-        ViewModel.StatusMessage = $"✓ {result.Summary}";
+        CopyAndReport(result.Summary, $"✓ {result.Summary}");
     }
 
     private void OnSelectionAuditConnectorArrowheadsClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel == null) return;
         var result = ViewModel.AuditConnectorArrowheadAndPortAttachments(selectionOnly: ViewModel.Shapes.Any(s => s.IsSelected));
-        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-        ViewModel.StatusMessage = $"✓ {result.Summary}";
+        CopyAndReport(result.Summary, $"✓ {result.Summary}");
     }
 
     private void OnSelectionAuditShapeStrokeDashClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel == null) return;
         var result = ViewModel.AuditShapeStrokeDashUniformity(selectionOnly: ViewModel.Shapes.Any(s => s.IsSelected));
-        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-        ViewModel.StatusMessage = $"✓ {result.Summary}";
+        CopyAndReport(result.Summary, $"✓ {result.Summary}");
     }
 
 
@@ -6689,9 +6623,7 @@ namespace MarkSmith.Views.ShapeStudio
 
         var result = ViewModel.AuditShapeElevationAndShadowHarmony(selectionOnly: ViewModel.Shapes.Any(s => s.IsSelected));
 
-        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-
-        ViewModel.StatusMessage = $"✓ {result.Summary}";
+        CopyAndReport(result.Summary, $"✓ {result.Summary}");
 
     }
 
@@ -6700,103 +6632,90 @@ namespace MarkSmith.Views.ShapeStudio
     {
         if (ViewModel == null) return;
         var result = ViewModel.AuditShapeGroupNestingHierarchy(selectionOnly: ViewModel.Shapes.Any(s => s.IsSelected));
-        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-        ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+        CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
     }
     private void OnSelectionAuditObliqueAlignmentClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel == null) return;
         var result = ViewModel.AuditObliqueProjectionAlignment();
-        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-        ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+        CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
     }
 
     private void OnSelectionAuditDimetricAlignmentClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel == null) return;
         var result = ViewModel.AuditDimetricProjectionAlignment();
-        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-        ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+        CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
     }
 
     private void OnSelectionAuditTrimetricAlignmentClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel == null) return;
         var result = ViewModel.AuditTrimetricProjectionAlignment();
-        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-        ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+        CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
     }
 
     private void OnSelectionAuditBezierHandleSymmetryClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel == null) return;
         var result = ViewModel.AuditBezierHandleSymmetry();
-        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-        ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+        CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
     }
 
     private void OnSelectionAuditDiagramViewportBleedClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel == null) return;
         var result = ViewModel.AuditDiagramViewportBleedSafety();
-        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-        ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+        CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
     }
 
     private void OnSelectionAuditDiagramCoordinateSnapGridAlignmentClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel == null) return;
         var result = ViewModel.AuditDiagramCoordinateSnapGridAlignment();
-        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-        ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+        CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
     }
 
     private void OnSelectionAuditShapeAspectRatioDistortionClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel == null) return;
         var result = ViewModel.AuditShapeAspectRatioDistortion();
-        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-        ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+        CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
     }
 
     private void OnSelectionAuditOrthogonalConnectorWaypointsClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel == null) return;
         var result = ViewModel.AuditOrthogonalConnectorWaypoints();
-        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-        ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+        CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
     }
 
     private void OnSelectionAuditDiagramZIndexStackingClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel == null) return;
         var result = ViewModel.AuditDiagramZIndexStacking();
-        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-        ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+        CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
     }
 
     private void OnSelectionAuditDiagramTextContrastClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel == null) return;
         var result = ViewModel.AuditDiagramTextContrast();
-        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-        ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+        CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
     }
 
     private void OnSelectionAuditDiagramShadowConsistencyClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel == null) return;
         var result = ViewModel.AuditDiagramShadowConsistency();
-        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-        ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+        CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
     }
 
     private void OnSelectionAuditShapeOcclusionAndStackingOrderClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel == null) return;
         var result = ViewModel.AuditShapeOcclusionAndStackingOrder();
-        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-        ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+        CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
     }
 
 
@@ -6805,16 +6724,14 @@ namespace MarkSmith.Views.ShapeStudio
     {
         if (ViewModel == null) return;
         var result = ViewModel.AuditMagneticSnappingGuides();
-        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-        ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+        CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
     }
 
     private void OnSelectionAuditIsometricGridSnappingClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel == null) return;
         var result = ViewModel.AuditIsometricGridSnapping();
-        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-        ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+        CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
     }
 
 
@@ -6822,24 +6739,21 @@ namespace MarkSmith.Views.ShapeStudio
     {
         if (ViewModel == null) return;
         var result = ViewModel.AuditConnectorAnchorSnapping();
-        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-        ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+        CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
     }
 
     private void OnSelectionAuditIsometricAlignmentClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel == null) return;
         var result = ViewModel.AuditIsometricProjectionAlignment();
-        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-        ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+        CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
     }
 
     private void OnSelectionAuditRadialAlignmentClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel == null) return;
         var result = ViewModel.AuditRadialAndConcentricAlignment();
-        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-        ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+        CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
     }
     }
 }

@@ -126,6 +126,20 @@ public sealed class EditorFolds
     }
 
     /// <summary>
+    /// How many lines the document has (folds expanded). <see cref="DocumentLine"/> of the last
+    /// visible line falls short when that line is a fold: it is the fold's first line, not the end.
+    /// </summary>
+    public int DocumentLineCount(string visible)
+    {
+        if (string.IsNullOrEmpty(visible)) return 1;
+        var lines = SplitLines(visible, out _);
+        var count = lines.Length;
+        if (visible.IndexOf('«') >= 0)
+            foreach (var line in lines) count += HiddenCount(line);
+        return count;
+    }
+
+    /// <summary>
     /// The document line number of every visible line, in order (the gutter's numbers: after a
     /// fold they jump by the lines it hides). <paramref name="lineCount"/> is the visible line count.
     /// </summary>

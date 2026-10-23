@@ -215,7 +215,7 @@ public sealed partial class SettingsCard : UserControl
                 Text = "Copy setting name",
                 Icon = new FontIcon { Glyph = "\uE8C8" }
             };
-            copyNameItem.Click += (_, _) => _ = Services.ClipboardWriter.TrySetTextAsync(Header);
+            copyNameItem.Click += (_, _) => Services.CopyFeedback.CopyWithBubble(this, Header, "Copied setting name");
             menu.Items.Add(copyNameItem);
         }
 
@@ -226,7 +226,7 @@ public sealed partial class SettingsCard : UserControl
                 Text = "Copy setting description",
                 Icon = new FontIcon { Glyph = "\uE8FD" }
             };
-            copyDescItem.Click += (_, _) => _ = Services.ClipboardWriter.TrySetTextAsync(Description);
+            copyDescItem.Click += (_, _) => Services.CopyFeedback.CopyWithBubble(this, Description, "Copied setting description");
             menu.Items.Add(copyDescItem);
         }
 

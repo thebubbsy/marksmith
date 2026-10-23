@@ -23,6 +23,27 @@ namespace MarkSmith.Views.MindMap
 {
     public sealed partial class MindMapGalaxyWindow : Window
     {
+        // Copies text and reports it on the status line. These copies used to discard ClipboardWriter's
+        // result, so a busy clipboard still said "Copied ...". With no message, the command has already
+        // put its result on the status line; a failed copy is added to it. A tick button shows a tick
+        // or "Busy" from the real result (it used to tick even when nothing was copied).
+        private async void CopyAndReport(string? text, string? message = null, Button? tickButton = null, string? tickLabel = null)
+        {
+            var error = await MarkSmith.Services.ClipboardWriter.TrySetTextAsync(text ?? string.Empty);
+            if (ViewModel is null) return;
+            if (error is null)
+            {
+                if (message is not null) ViewModel.StatusMessage = message;
+            }
+            else
+            {
+                ViewModel.StatusMessage = MarkSmith.Services.CopyStatusText.Failed(message ?? ViewModel.StatusMessage, error);
+            }
+            if (tickButton is null) return;
+            if (tickLabel is null) MarkSmith.Services.CopyFeedback.ApplyButtonTick(tickButton, error);
+            else MarkSmith.Services.CopyFeedback.ApplyButtonTick(tickButton, error, tickLabel);
+        }
+
         public MindMapStudioViewModel ViewModel { get; }
 
         private bool _isPanning;
@@ -422,8 +443,7 @@ namespace MarkSmith.Views.MindMap
             copyItem.IsEnabled = hasText;
             copyItem.Click += (_, _) =>
             {
-                _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync(title);
-                ViewModel.StatusMessage = $"Copied title: {title}";
+                CopyAndReport(title, $"Copied title: {title}");
             };
             menu.Items.Add(copyItem);
 
@@ -546,8 +566,7 @@ namespace MarkSmith.Views.MindMap
             var copyProgressItem = MenuItem("Copy progress text", "\uE8C8");
             copyProgressItem.Click += (_, _) =>
             {
-                _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync(node.ProgressText);
-                ViewModel.StatusMessage = $"Copied progress: {node.ProgressText}";
+                CopyAndReport(node.ProgressText, $"Copied progress: {node.ProgressText}");
             };
             menu.Items.Add(copyProgressItem);
 
@@ -577,8 +596,7 @@ namespace MarkSmith.Views.MindMap
             copyItem.IsEnabled = hasTags;
             copyItem.Click += (_, _) =>
             {
-                _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync(currentTags);
-                ViewModel.StatusMessage = $"Copied tags: {currentTags}";
+                CopyAndReport(currentTags, $"Copied tags: {currentTags}");
             };
             menu.Items.Add(copyItem);
 
@@ -1031,8 +1049,7 @@ namespace MarkSmith.Views.MindMap
             copyTitlesItem.Click += (_, _) =>
             {
                 var md = string.Join(Environment.NewLine, selected.Select(n => $"- {n.Title}"));
-                _ = Services.ClipboardWriter.TrySetTextAsync(md);
-                ViewModel.StatusMessage = $"Copied {selected.Count} node titles to clipboard";
+                CopyAndReport(md, $"Copied {selected.Count} node titles to clipboard");
             };
             flyout.Items.Add(copyTitlesItem);
 
@@ -2750,8 +2767,7 @@ namespace MarkSmith.Views.MindMap
             var copyDescItem = MenuItem("Copy link description", "\uE8C8");
             copyDescItem.Click += (s, e) =>
             {
-                _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync(desc);
-                ViewModel.StatusMessage = $"Copied: {desc}";
+                CopyAndReport(desc, $"Copied: {desc}");
             };
             flyout.Items.Add(copyDescItem);
 
@@ -2760,8 +2776,7 @@ namespace MarkSmith.Views.MindMap
                 var copyLabelItem = MenuItem($"Copy label ({link.Label.Trim()})", "\uE8FD");
                 copyLabelItem.Click += (s, e) =>
                 {
-                    _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync(link.Label.Trim());
-                    ViewModel.StatusMessage = $"Copied link label: {link.Label.Trim()}";
+                    CopyAndReport(link.Label.Trim(), $"Copied link label: {link.Label.Trim()}");
                 };
                 flyout.Items.Add(copyLabelItem);
             }
@@ -2919,14 +2934,7 @@ namespace MarkSmith.Views.MindMap
             {
                 string pTitle = _nodeIndex.TryGetValue(parentId, out var p) ? p.Title : parentId;
                 string cTitle = _nodeIndex.TryGetValue(childId, out var c) ? c.Title : childId;
-                try
-                {
-                    var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-                    dp.SetText($"{pTitle} → {cTitle}");
-                    ClipboardWriter.Set(dp);
-                    ViewModel.StatusMessage = $"Copied '{pTitle} → {cTitle}' to clipboard.";
-                }
-                catch { }
+                CopyAndReport($"{pTitle} → {cTitle}", $"Copied '{pTitle} → {cTitle}' to clipboard.");
             };
             flyout.Items.Add(copyRelationItem);
 
@@ -3117,8 +3125,7 @@ namespace MarkSmith.Views.MindMap
             copyStatsItem.Click += (_, _) =>
             {
                 var summary = $"{ViewModel.Title} · {ViewModel.NodesCountText} · {ViewModel.LinksCountText}";
-                _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync(summary);
-                ViewModel.StatusMessage = "Copied map statistics to clipboard";
+                CopyAndReport(summary, "Copied map statistics to clipboard");
             };
             exportSub.Items.Add(copyStatsItem);
 
@@ -3592,10 +3599,7 @@ namespace MarkSmith.Views.MindMap
                     _ => "Normal (1.8px)"
                 };
                 var summary = MindMapStudioViewModel.FormatConnectionStyleSummary(routingStr, weightStr, _showConnectionArrows);
-                var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-                dp.SetText(summary);
-                ClipboardWriter.Set(dp);
-                ViewModel.StatusMessage = $"Copied connection style: {summary}";
+                CopyAndReport(summary, $"Copied connection style: {summary}");
             };
             flyout.Items.Add(summaryItem);
 
@@ -3854,8 +3858,7 @@ namespace MarkSmith.Views.MindMap
             if (ViewModel == null) return;
             var (nodeCount, maxDepth, distinctColors) = ViewModel.AutoColorizeByHierarchy();
             var summary = MindMapStudioViewModel.FormatHierarchyColorSummary(nodeCount, maxDepth, distinctColors);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            ViewModel.StatusMessage = summary;
+            CopyAndReport(summary, summary);
             RequestRedraw();
         }
 
@@ -3864,8 +3867,7 @@ namespace MarkSmith.Views.MindMap
             if (ViewModel == null) return;
             var (attachedCount, rootLabel, totalNodes) = ViewModel.AttachOrphansToRoot();
             var summary = MindMapStudioViewModel.FormatOrphanAttachmentSummary(attachedCount, rootLabel, totalNodes);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            ViewModel.StatusMessage = summary;
+            CopyAndReport(summary, summary);
             RequestRedraw();
         }
 
@@ -3875,8 +3877,7 @@ namespace MarkSmith.Views.MindMap
             var (totalLinked, validCount, missingCount, missingTitles) = ViewModel.AuditLinkedFilesStatus();
             var summary = MindMapStudioViewModel.FormatLinkedFilesAuditSummary(
                 totalLinked, validCount, missingCount, missingTitles, ViewModel.Nodes.Count);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            ViewModel.StatusMessage = summary;
+            CopyAndReport(summary, summary);
         }
 
         private void OnRollupSubtreeProgressClick(object sender, RoutedEventArgs e)
@@ -3885,8 +3886,7 @@ namespace MarkSmith.Views.MindMap
             var (updatedParents, leafCount, rootProgress) = ViewModel.RollupSubtreeProgress();
             var summary = MindMapStudioViewModel.FormatSubtreeProgressRollupSummary(
                 updatedParents, leafCount, rootProgress, ViewModel.Nodes.Count);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            ViewModel.StatusMessage = summary;
+            CopyAndReport(summary, summary);
             RequestRedraw();
         }
 
@@ -3894,7 +3894,7 @@ namespace MarkSmith.Views.MindMap
         {
             if (ViewModel == null) return;
             var (colorizedNodes, distinctTags, colorsApplied) = ViewModel.AutoColorizeByPrimaryTag();
-            _ = Services.ClipboardWriter.TrySetTextAsync(ViewModel.StatusMessage);
+            CopyAndReport(ViewModel.StatusMessage);
             RequestRedraw();
         }
 
@@ -3902,8 +3902,7 @@ namespace MarkSmith.Views.MindMap
         {
             if (ViewModel == null) return;
             var summary = ViewModel.FormatTagCoOccurrenceSummary();
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            ViewModel.StatusMessage = summary;
+            CopyAndReport(summary, summary);
         }
 
         private void OnCenterOnMassClick(object sender, RoutedEventArgs e)
@@ -3917,231 +3916,203 @@ namespace MarkSmith.Views.MindMap
         {
             if (ViewModel == null) return;
             var summary = ViewModel.FormatSpatialQuadrantBalanceSummary();
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            ViewModel.StatusMessage = summary;
+            CopyAndReport(summary, summary);
         }
 
         private void OnNormalizeNodeCasingClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var (modified, total, summary) = ViewModel.NormalizeNodeTextCasing(NodeCasingMode.TitleCase);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
+            CopyAndReport(summary);
         }
 
         private void OnAuditInactiveNodesClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditInactiveSubtrees(inactiveDaysThreshold: 60);
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditTopologicalDepthClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditTopologicalDepth();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditOrphansClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditOrphanedNodes();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditClusterHullsClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditClusterConvexHulls();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditMstClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditMinimumSpanningTree();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditDegreeCentralityClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditDegreeCentrality();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditPeripheryEccentricityClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditPeripheryEccentricity();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditRadialAngularClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditRadialAngularSpacing();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditClusterCohesionClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditClusterCohesionAndDensity();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditBipartitePartitionClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditBipartitePartitioning();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditTopologicalOrderClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditTopologicalOrderAndDepth();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditGraphVulnerabilityClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditGraphBridgesAndArticulationPoints();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditNetworkSpanningBackboneClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditNetworkSpanningBackboneAndRedundancy();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditGraphCommunitiesClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditGraphModularityAndCommunities();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditGraphDiameterClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditGraphDiameterAndEccentricity();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditClosenessCentralityClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditClosenessCentralityAndHarmonicDistance();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditBetweennessCentralityClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditBetweennessCentralityAndBridges();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditEigenvectorCentralityClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditEigenvectorCentrality();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditRadialLayoutClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditRadialLayoutAngularSpacing();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditClusteringTransitivityClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditClusteringCoefficientAndTransitivity();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditSpectralBisectionClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditSpectralBisectionAndAlgebraicConnectivity();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditBiconnectivityClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditBiconnectedComponentsAndBridges();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditKCoreDecompositionClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditKCoreDecompositionAndShells();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditGraphAssortativityClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditGraphAssortativityAndMixing();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditCommunityModularityClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditCommunityModularityAndClusters();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditGraphCyclesFeedbackClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditGraphCyclesAndFeedbackLoops();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditGraphDiameterAndSmallWorldClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditGraphDiameterAndSmallWorldProperties(); // AuditGraphDiameterAndSmallWorld
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
 
@@ -4154,9 +4125,7 @@ namespace MarkSmith.Views.MindMap
 
             var result = ViewModel.AuditGraphCyclesAndFeedbackArcSet();
 
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
 
         }
 
@@ -4164,103 +4133,90 @@ namespace MarkSmith.Views.MindMap
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditGraphBipartitenessAndOddCycles();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+            CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
         }
         private void OnAuditGraphHarmonicCentralityClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditGraphHarmonicCentrality();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+            CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
         }
 
         private void OnAuditGraphBetweennessBottlenecksClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditGraphBetweennessCentrality();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+            CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
         }
 
         private void OnAuditGraphRadialTreeSectorDistributionClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditGraphRadialTreeSectorDistribution();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+            CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
         }
 
         private void OnAuditGraphRadialDepthDistributionClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditGraphRadialDepthDistribution();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+            CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
         }
 
         private void OnAuditGraphDegreeCentralityAndBridgesClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditGraphDegreeCentralityAndBridges();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+            CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
         }
 
         private void OnAuditGraphCriticalPathClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditGraphCriticalPathAndDepth();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+            CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
         }
 
         private void OnAuditGraphDisconnectedIslandsClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditGraphDisconnectedIslands();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+            CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
         }
 
         private void OnAuditGraphDegreeDistributionAndHubsClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditGraphDegreeDistributionAndHubs();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+            CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
         }
 
         private void OnAuditGraphRadialClusteringClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditGraphRadialClustering();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+            CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
         }
 
         private void OnAuditGraphOrthogonalGridAlignmentClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditGraphOrthogonalGridAlignment();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+            CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
         }
 
         private void OnAuditGraphBranchSymmetryClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditGraphBranchSymmetry();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+            CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
         }
 
         private void OnAuditGraphColorContrastAccessibilityClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditGraphColorContrastAccessibility();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+            CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
         }
 
 
@@ -4269,16 +4225,14 @@ namespace MarkSmith.Views.MindMap
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditGraphSemanticClusterCentroids();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+            CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
         }
 
         private void OnAuditGraphNodeBoundingCollisionsClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditGraphNodeBoundingCollisions();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+            CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
         }
 
 
@@ -4286,47 +4240,41 @@ namespace MarkSmith.Views.MindMap
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditGraphEdgeIntersectionPlanarity();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+            CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
         }
 
         private void OnAuditGraphMedianClosenessPlacementClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditGraphClosenessCentrality();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+            CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
         }
 
         private void OnAuditGraphDiameterAndGeodesicPathsClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditGraphDiameterAndGeodesicPaths();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+            CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
         }
 
         private void OnAuditGraphDegreeDistributionClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditGraphDegreeDistributionAndPowerLaw(); // AuditDegreeDistributionAndHubs
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditGraphArticulationPointsClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditArticulationPointsAndBiconnectivity();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
         private void OnAuditGraphKCoreDecompositionClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditGraphKCoreDecompositionAndNuclei();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
 
@@ -4334,152 +4282,133 @@ namespace MarkSmith.Views.MindMap
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditClosenessAndHarmonicCentrality();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditGraphBetweennessCentralityClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditBetweennessCentralityAndGateways();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditGraphDegreeDistributionAndHubDominanceClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditDegreeDistributionAndHubDominance();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditGraphTopologicalHierarchyAndCyclesClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditTopologicalHierarchyAndCycles();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditGraphEdgeCrossingsClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditEdgeCrossingsAndPlanarity();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditGraphSpatialBalanceClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditVisualMassCenterAndSpatialBalance();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditGraphNodeProximityClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditNodeProximityAndOverlaps();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditGraphSubtreeDepthClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditSubtreeDepthAndBranching();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditGraphCyclesClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditGraphDagFeedbackLoopsAndScc();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditGraphSpatialDensityClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditSpatialDensityAndCollisions();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditGraphTreeHierarchyClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditTreeHierarchyBranching();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditGraphClusteringCoefficientClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditClusteringCoefficientAndTopology();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditGraphBipartiteClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditBipartitePartitionAndModularity();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditGraphPlanarityClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditGraphEdgeIntersectionPlanarity();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditGraphArticulationClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditCriticalPathAndArticulationPoints();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditGraphDegreeDistributionTopologyClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditGraphDegreeDistributionAndHubCentrality();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditGraphMinimumSpanningTreeClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditGraphMinimumSpanningTreeAndBackbone();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditGraphBiconnectedComponentsClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditGraphArticulationPointsAndBiconnectedComponents();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditGraphFeedbackArcSetClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditGraphCyclesAndFeedbackArcSet();
-            _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnCenterOnRootClick(object sender, RoutedEventArgs e) => CenterOnRoot();
@@ -4683,17 +4612,8 @@ namespace MarkSmith.Views.MindMap
                 _ => "Normal"
             };
             var summary = MarkSmith.ViewModels.MindMap.MindMapStudioViewModel.FormatConnectionStyleSummary(routing, weight, _showConnectionArrows);
-            try
-            {
-                var pkg = new Windows.ApplicationModel.DataTransfer.DataPackage();
-                pkg.SetText(summary);
-                Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(pkg);
-                if (ConnectionStyleDropDownButton != null)
-                {
-                    CopyFeedback.ApplyButtonTick(ConnectionStyleDropDownButton, null, "\u2713 Style Copied");
-                }
-            }
-            catch { /* non-critical clipboard failure */ }
+            // This copy said nothing on the status line and swallowed a busy clipboard.
+            CopyAndReport(summary, $"Copied connection style: {summary}", ConnectionStyleDropDownButton, "\u2713 Style Copied");
         }
 
         private void OnCopyFullConnectionConfigurationClick(object sender, RoutedEventArgs e)
@@ -4713,18 +4633,7 @@ namespace MarkSmith.Views.MindMap
             var config = MarkSmith.ViewModels.MindMap.MindMapStudioViewModel.FormatFullConnectionConfiguration(
                 routing, weight, _connectionAnchorPosition, _connectionAnchorPadding, _showConnectionArrows);
 
-            try
-            {
-                var pkg = new Windows.ApplicationModel.DataTransfer.DataPackage();
-                pkg.SetText(config);
-                Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(pkg);
-                if (ConnectionStyleDropDownButton != null)
-                {
-                    CopyFeedback.ApplyButtonTick(ConnectionStyleDropDownButton, null, "\u2713 Config Copied");
-                }
-                ViewModel.StatusMessage = $"Copied: {config}";
-            }
-            catch { /* non-critical clipboard failure */ }
+            CopyAndReport(config, $"Copied: {config}", ConnectionStyleDropDownButton, "\u2713 Config Copied");
         }
 
         private double _connectionAnchorSnapAngle = 0.0;
@@ -5149,8 +5058,7 @@ namespace MarkSmith.Views.MindMap
             };
             copyTitleItem.Click += (_, _) =>
             {
-                _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync(ViewModel.Title ?? "Document Galaxy");
-                ViewModel.StatusMessage = "Copied map title to clipboard";
+                CopyAndReport(ViewModel.Title ?? "Document Galaxy", "Copied map title to clipboard");
             };
             menu.Items.Add(copyTitleItem);
 
@@ -5162,8 +5070,7 @@ namespace MarkSmith.Views.MindMap
             copySummaryItem.Click += (_, _) =>
             {
                 var summary = $"{ViewModel.Title} · {ViewModel.NodesCountText} · {ViewModel.LinksCountText}";
-                _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync(summary);
-                ViewModel.StatusMessage = "Copied map summary to clipboard";
+                CopyAndReport(summary, "Copied map summary to clipboard");
             };
             menu.Items.Add(copySummaryItem);
 
@@ -5673,8 +5580,7 @@ namespace MarkSmith.Views.MindMap
             copyTitleItem.Click += (s, args) =>
             {
                 var title = ViewModel.Title;
-                _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync(title);
-                ViewModel.StatusMessage = $"Copied map title: {title}";
+                CopyAndReport(title, $"Copied map title: {title}");
             };
             menu.Items.Add(copyTitleItem);
 
@@ -6242,8 +6148,7 @@ namespace MarkSmith.Views.MindMap
             copyItem.IsEnabled = hasText;
             copyItem.Click += (_, _) =>
             {
-                _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync(label);
-                ViewModel.StatusMessage = $"Copied label: {label}";
+                CopyAndReport(label, $"Copied label: {label}");
             };
             menu.Items.Add(copyItem);
 
@@ -6645,8 +6550,7 @@ namespace MarkSmith.Views.MindMap
             };
             copySearchItem.Click += (_, _) =>
             {
-                _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync(SearchBox.Text);
-                ViewModel.StatusMessage = $"Copied search query: {SearchBox.Text}";
+                CopyAndReport(SearchBox.Text, $"Copied search query: {SearchBox.Text}");
             };
             menu.Items.Add(copySearchItem);
 
@@ -6811,10 +6715,7 @@ namespace MarkSmith.Views.MindMap
             var matchText = SearchMatchLabel?.Text ?? string.Empty;
             if (string.IsNullOrWhiteSpace(matchText)) return;
             e.Handled = true;
-            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-            dp.SetText(matchText);
-            ClipboardWriter.Set(dp);
-            ViewModel.StatusMessage = $"Copied search match count: {matchText}";
+            CopyAndReport(matchText, $"Copied search match count: {matchText}");
         }
 
         private void OnSearchMatchLabelRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -6834,10 +6735,7 @@ namespace MarkSmith.Views.MindMap
             {
                 if (!string.IsNullOrWhiteSpace(matchText))
                 {
-                    var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-                    dp.SetText(matchText);
-                    ClipboardWriter.Set(dp);
-                    ViewModel.StatusMessage = $"Copied search match count: {matchText}";
+                    CopyAndReport(matchText, $"Copied search match count: {matchText}");
                 }
             };
             menu.Items.Add(copyMatchItem);
@@ -6942,8 +6840,7 @@ namespace MarkSmith.Views.MindMap
             copyTagsItem.Click += (_, _) =>
             {
                 var tags = string.Join(", ", ViewModel.DistinctTags);
-                _ = Services.ClipboardWriter.TrySetTextAsync(tags);
-                ViewModel.StatusMessage = "Copied all tags to clipboard";
+                CopyAndReport(tags, "Copied all tags to clipboard");
             };
             menu.Items.Add(copyTagsItem);
 
@@ -6994,8 +6891,7 @@ namespace MarkSmith.Views.MindMap
             };
             copyTagItem.Click += (_, _) =>
             {
-                _ = Services.ClipboardWriter.TrySetTextAsync(tag);
-                ViewModel.StatusMessage = $"Copied tag '{tag}' to clipboard";
+                CopyAndReport(tag, $"Copied tag '{tag}' to clipboard");
             };
             menu.Items.Add(copyTagItem);
 
@@ -7177,8 +7073,7 @@ namespace MarkSmith.Views.MindMap
             };
             copyTitleItem.Click += (_, _) =>
             {
-                _ = Services.ClipboardWriter.TrySetTextAsync(ViewModel.PreviewTitle ?? "");
-                ViewModel.StatusMessage = "Copied preview title to clipboard";
+                CopyAndReport(ViewModel.PreviewTitle ?? "", "Copied preview title to clipboard");
             };
             menu.Items.Add(copyTitleItem);
 
@@ -7190,8 +7085,7 @@ namespace MarkSmith.Views.MindMap
             };
             copyMarkdownItem.Click += (_, _) =>
             {
-                _ = Services.ClipboardWriter.TrySetTextAsync(ViewModel.PreviewMarkdown ?? "");
-                ViewModel.StatusMessage = "Copied preview Markdown to clipboard";
+                CopyAndReport(ViewModel.PreviewMarkdown ?? "", "Copied preview Markdown to clipboard");
             };
             menu.Items.Add(copyMarkdownItem);
 
@@ -7204,8 +7098,7 @@ namespace MarkSmith.Views.MindMap
                 };
                 copyPathItem.Click += (_, _) =>
                 {
-                    _ = Services.ClipboardWriter.TrySetTextAsync(ViewModel.PreviewFilePath ?? "");
-                    ViewModel.StatusMessage = "Copied file path to clipboard";
+                    CopyAndReport(ViewModel.PreviewFilePath ?? "", "Copied file path to clipboard");
                 };
                 menu.Items.Add(copyPathItem);
             }
@@ -7511,8 +7404,7 @@ namespace MarkSmith.Views.MindMap
             copyStatsItem.Click += (_, _) =>
             {
                 string summary = $"MarkSmith MindMap Galaxy: {ViewModel.Nodes.Count} nodes, {ViewModel.Links.Count} links";
-                _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync(summary);
-                ViewModel.StatusMessage = $"Copied: {summary}";
+                CopyAndReport(summary, $"Copied: {summary}");
             };
             menu.Items.Add(copyStatsItem);
 
@@ -7774,8 +7666,7 @@ namespace MarkSmith.Views.MindMap
             };
             copyStatusItem.Click += (_, _) =>
             {
-                _ = Services.ClipboardWriter.TrySetTextAsync(ViewModel.StatusMessage ?? "");
-                ViewModel.StatusMessage = "Copied status message to clipboard";
+                CopyAndReport(ViewModel.StatusMessage ?? "", "Copied status message to clipboard");
             };
             menu.Items.Add(copyStatusItem);
 
@@ -7787,8 +7678,7 @@ namespace MarkSmith.Views.MindMap
             copyTopologyItem.Click += (_, _) =>
             {
                 var summary = $"{ViewModel.Title} — {ViewModel.NodesCountText}, {ViewModel.LinksCountText}";
-                _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-                ViewModel.StatusMessage = "Copied map topology overview to clipboard";
+                CopyAndReport(summary, "Copied map topology overview to clipboard");
             };
             menu.Items.Add(copyTopologyItem);
 
@@ -7858,10 +7748,7 @@ namespace MarkSmith.Views.MindMap
                 if (!string.IsNullOrWhiteSpace(countText))
                 {
                     string info = $"{countText} (max depth {maxDepth})";
-                    var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-                    dp.SetText(info);
-                    ClipboardWriter.Set(dp);
-                    ViewModel.StatusMessage = $"Copied map structure: {info}";
+                    CopyAndReport(info, $"Copied map structure: {info}");
                 }
             };
             menu.Items.Add(copyCountItem);
@@ -7948,10 +7835,7 @@ namespace MarkSmith.Views.MindMap
             e.Handled = true;
             var text = ViewModel.LinksCountText;
             if (string.IsNullOrWhiteSpace(text)) return;
-            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-            dp.SetText(text);
-            ClipboardWriter.Set(dp);
-            ViewModel.StatusMessage = $"Copied connection count: {text}";
+            CopyAndReport(text, $"Copied connection count: {text}");
         }
 
         private void OnLinksCountRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -7971,10 +7855,7 @@ namespace MarkSmith.Views.MindMap
             {
                 if (!string.IsNullOrWhiteSpace(countText))
                 {
-                    var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-                    dp.SetText(countText);
-                    ClipboardWriter.Set(dp);
-                    ViewModel.StatusMessage = $"Copied connection count: {countText}";
+                    CopyAndReport(countText, $"Copied connection count: {countText}");
                 }
             };
             menu.Items.Add(copyCountItem);
@@ -8013,8 +7894,7 @@ namespace MarkSmith.Views.MindMap
             e.Handled = true;
             var title = ViewModel.Title ?? string.Empty;
             if (string.IsNullOrEmpty(title)) return;
-            _ = Services.ClipboardWriter.TrySetTextAsync(title);
-            ViewModel.StatusMessage = $"Copied map title: {title}";
+            CopyAndReport(title, $"Copied map title: {title}");
         }
 
         private void OnMapTitleTextRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -8032,8 +7912,7 @@ namespace MarkSmith.Views.MindMap
             };
             copyTitleItem.Click += (_, _) =>
             {
-                _ = Services.ClipboardWriter.TrySetTextAsync(title);
-                ViewModel.StatusMessage = $"Copied map title: {title}";
+                CopyAndReport(title, $"Copied map title: {title}");
             };
             menu.Items.Add(copyTitleItem);
 
@@ -8045,8 +7924,7 @@ namespace MarkSmith.Views.MindMap
             };
             copySummaryItem.Click += (_, _) =>
             {
-                _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-                ViewModel.StatusMessage = $"Copied map summary: {summary}";
+                CopyAndReport(summary, $"Copied map summary: {summary}");
             };
             menu.Items.Add(copySummaryItem);
 

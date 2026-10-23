@@ -953,17 +953,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 Text = "Copy search query",
                 Icon = new FontIcon { Glyph = "\uE8C8" }
             };
+            // A busy clipboard used to be swallowed by an empty catch: no copy and no word about it.
             copyQueryItem.Click += (_, _) =>
-            {
-                try
-                {
-                    var pkg = new Windows.ApplicationModel.DataTransfer.DataPackage();
-                    pkg.SetText(FindTextBox.Text);
-                    Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(pkg);
-                    ViewModel.StatusText = $"Copied search query '{FindTextBox.Text}'";
-                }
-                catch { }
-            };
+                CopyAndAnnounce(FindTextBox.Text, $"Copied search query '{FindTextBox.Text}'");
             menu.Items.Add(copyQueryItem);
         }
 
@@ -2917,7 +2909,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         var text = ViewModel.StatusText;
         if (string.IsNullOrWhiteSpace(text)) return;
-        _ = Services.ClipboardWriter.TrySetTextAsync(text);
+        // A bubble, not the status line: replacing the message would drop an export's Open / Show actions.
+        Services.CopyFeedback.CopyWithBubble(StatusMsgHost, text, "Copied status message");
         e.Handled = true;
     }
 
@@ -2936,7 +2929,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 Text = "Copy status message",
                 Icon = new FontIcon { Glyph = "\uE8C8" }
             };
-            copyStatusItem.Click += (_, _) => _ = Services.ClipboardWriter.TrySetTextAsync(text);
+            copyStatusItem.Click += (_, _) => Services.CopyFeedback.CopyWithBubble(StatusMsgHost, text, "Copied status message");
             menu.Items.Add(copyStatusItem);
         }
 
@@ -2949,7 +2942,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 Text = "Copy exported file path",
                 Icon = new FontIcon { Glyph = "\uE8C8" }
             };
-            copyPathItem.Click += (_, _) => _ = Services.ClipboardWriter.TrySetTextAsync(ViewModel.StatusOutputPath!);
+            copyPathItem.Click += (_, _) => Services.CopyFeedback.CopyWithBubble(StatusMsgHost, ViewModel.StatusOutputPath!, "Copied exported file path");
             menu.Items.Add(copyPathItem);
 
             var openFileItem = new MenuFlyoutItem
@@ -6601,10 +6594,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             Text = "Copy export status",
             Icon = new FontIcon { Glyph = "\uE8C8" }
         };
-        copyStatusItem.Click += async (_, _) =>
-        {
-            await MarkSmith.Services.ClipboardWriter.TrySetTextAsync(ViewModel.StatusText ?? "Exporting...");
-        };
+        // A bubble, not the status line: rewriting the status text would clear the export's actions.
+        copyStatusItem.Click += (_, _) => MarkSmith.Services.CopyFeedback.CopyWithBubble(
+            ExportSplitButton, ViewModel.StatusText ?? "Exporting...", "Copied export status");
         menu.Items.Add(copyStatusItem);
 
         if (sender is FrameworkElement fe)
@@ -13652,10 +13644,9 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             sb.AppendLine($"[^{fn.Id}]: {defPart}");
         }
 
-        _ = Services.ClipboardWriter.TrySetTextAsync(sb.ToString().TrimEnd());
-        int missingDef = footnotes.Count(f => !f.DefinitionLine.HasValue);
+                int missingDef = footnotes.Count(f => !f.DefinitionLine.HasValue);
         int unreferenced = footnotes.Count(f => f.ReferenceCount == 0);
-        AnnounceStatus($"Copied {footnotes.Count:N0} footnote(s) ({missingDef:N0} missing definition, {unreferenced:N0} unreferenced) to clipboard");
+        CopyAndAnnounce(sb.ToString().TrimEnd(), $"Copied {footnotes.Count:N0} footnote(s) ({missingDef:N0} missing definition, {unreferenced:N0} unreferenced) to clipboard");
     }
 
     private void OnStatusCopyFootnotesButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
@@ -13886,10 +13877,9 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         }
 
         var joined = string.Join(Environment.NewLine + Environment.NewLine, diagrams.Select(d => d.RawBlock));
-        _ = Services.ClipboardWriter.TrySetTextAsync(joined);
-        int mermaidCount = diagrams.Count(d => d.Kind == "Mermaid");
+                int mermaidCount = diagrams.Count(d => d.Kind == "Mermaid");
         int wrapperCount = diagrams.Count - mermaidCount;
-        AnnounceStatus($"Copied {diagrams.Count:N0} diagram/visual block(s) ({mermaidCount:N0} Mermaid, {wrapperCount:N0} ::: wrapper) to clipboard");
+        CopyAndAnnounce(joined, $"Copied {diagrams.Count:N0} diagram/visual block(s) ({mermaidCount:N0} Mermaid, {wrapperCount:N0} ::: wrapper) to clipboard");
     }
 
     private void OnStatusCopyDiagramsButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
@@ -14021,9 +14011,8 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             return;
         }
 
-        _ = Services.ClipboardWriter.TrySetTextAsync(md);
-        var stats = ViewModel.DocumentStats;
-        AnnounceStatus($"Copied Markdown ({stats.Words:N0} words, {stats.Lines:N0} lines) to clipboard");
+                var stats = ViewModel.DocumentStats;
+        CopyAndAnnounce(md, $"Copied Markdown ({stats.Words:N0} words, {stats.Lines:N0} lines) to clipboard");
     }
 
     private void OnStatusCopyMarkdownButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
@@ -14470,7 +14459,9 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         {
             if (IsLineBreak(text[i])) totalLines++;
         }
-        totalLines = Math.Max(1, _folds.DocumentLine(text, totalLines));
+        // Folds hide lines, so count the document's. DocumentLine(last visible line) stopped at a
+        // fold's first line when the document ended inside a fold, and End / "Only n lines" undercounted.
+        if (_folds.HasFolds(text)) totalLines = _folds.DocumentLineCount(text);
 
         var gotoLineItem = new MenuFlyoutItem
         {
@@ -14670,7 +14661,9 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         {
             if (IsLineBreak(text[i])) totalLines++;
         }
-        totalLines = Math.Max(1, _folds.DocumentLine(text, totalLines));
+        // Folds hide lines, so count the document's. DocumentLine(last visible line) stopped at a
+        // fold's first line when the document ended inside a fold, and End / "Only n lines" undercounted.
+        if (_folds.HasFolds(text)) totalLines = _folds.DocumentLineCount(text);
 
         var start = Math.Min(PasteTextBox?.SelectionStart ?? 0, text.Length);
         var curLine = 1;
@@ -14708,20 +14701,24 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetLiveSetting(previewText, Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Polite);
         Services.TrimmedTextToolTip.Attach(previewText);
 
+        // Line numbers here are document lines (folds expanded), so the preview reads the unfolded
+        // text. Reading the editor's text showed a different line whenever a fold sat above the
+        // target, while Go itself landed on the right one.
+        var docText = _folds.HasFolds(text) ? _folds.Document(text) : text;
         string GetLinePreview(int lineNum)
         {
-            if (string.IsNullOrEmpty(text)) return "(empty document)";
+            if (string.IsNullOrEmpty(docText)) return "(empty document)";
             int l = 1;
             int offset = 0;
-            while (l < lineNum && offset < text.Length)
+            while (l < lineNum && offset < docText.Length)
             {
-                if (IsLineBreak(text[offset])) l++;
+                if (IsLineBreak(docText[offset])) l++;
                 offset++;
             }
-            int ls = Math.Clamp(offset, 0, text.Length);
+            int ls = Math.Clamp(offset, 0, docText.Length);
             int le = ls;
-            while (le < text.Length && text[le] != '\r' && text[le] != '\n') le++;
-            var preview = text.Substring(ls, le - ls).Trim();
+            while (le < docText.Length && docText[le] != '\r' && docText[le] != '\n') le++;
+            var preview = docText.Substring(ls, le - ls).Trim();
             return string.IsNullOrEmpty(preview) ? "(blank line)" : preview;
         }
 

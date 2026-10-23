@@ -225,13 +225,12 @@ public sealed partial class MermaidCanvasControl : UserControl
             Text = "Copy zoom level",
             Icon = new Microsoft.UI.Xaml.Controls.FontIcon { Glyph = "\uE8C8" }
         };
-        copyZoomItem.Click += (_, _) =>
+        // ClipboardWriter.Set threw on a busy clipboard (the app-wide handler ate it): no copy, no word.
+        copyZoomItem.Click += async (_, _) =>
         {
             var text = ZoomLevelText?.Text ?? $"{Math.Round(CanvasScrollViewer.ZoomFactor * 100):0}%";
-            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-            dp.SetText(text);
-            ClipboardWriter.Set(dp);
-            if (ViewModel != null) ViewModel.StatusText = $"Copied zoom level: {text}";
+            var error = await ClipboardWriter.TrySetTextAsync(text);
+            if (ViewModel != null) ViewModel.StatusText = error is null ? $"Copied zoom level: {text}" : $"The zoom level wasn't copied. {error}";
         };
         menu.Items.Add(copyZoomItem);
 
@@ -1720,13 +1719,11 @@ public sealed partial class MermaidCanvasControl : UserControl
             if (vm.Nodes.Count > 0)
             {
                 flyout.Items.Add(new Microsoft.UI.Xaml.Controls.MenuFlyoutSeparator());
-                var copyMermaid = MenuItem("Copy diagram as Mermaid", 0xE8C8, (s, e) =>
+                var copyMermaid = MenuItem("Copy diagram as Mermaid", 0xE8C8, async (s, e) =>
                 {
                     var code = vm.GenerateMermaidCode();
-                    var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-                    dp.SetText(code);
-                    ClipboardWriter.Set(dp);
-                    vm.StatusText = "Copied diagram as Mermaid to clipboard.";
+                    var error = await ClipboardWriter.TrySetTextAsync(code);
+                    vm.StatusText = error is null ? "Copied diagram as Mermaid to clipboard." : $"The Mermaid code wasn't copied. {error}";
                 }, "Ctrl+Shift+C");
                 flyout.Items.Add(copyMermaid);
             }

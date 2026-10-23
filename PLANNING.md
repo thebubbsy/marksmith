@@ -16318,14 +16318,345 @@ patterns only). The user had been idle 3 min and the PC was unlocked. The pre-ex
 
 **Total user-visible improvements: 9.**
 
+**Release (finished in run #241):** run #240 tagged **v3.55.0** on `07c2d788` and the Release workflow
+(run 39986408333) succeeded, but the run stopped before it prepended notes or bumped the version. Run #241
+prepended the user-facing notes (https://github.com/thebubbsy/marksmith/releases/tag/v3.55.0) and bumped
+`MarksmithBaseVersion` to 3.56.0.
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #241 (2026-10-24, 05:35–06:05 AEDT)
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running in the Claude desktop app. The task template asks for
+  "Antigravity AI Agent (Google DeepMind)"; that would be untrue for this run, so the real identity is recorded.
+- Modes: Scheduled Hourly Automation Routine (bypass-permissions, no live user)
+- Trigger: scheduled task `commit-to-main-ship-improvement--r4efinement`
+- Agents used: 1 (one session acting as orchestrator, coding worker and skeptical reviewer; no
+  subagents). Session `267e6be5-dd4d-41ae-9408-b9412fcc4da7`.
+- An earlier attempt at run #241 (around 04:00–04:25) left no commit, only a scratch build in
+  `%TEMP%\ms_run241` and a Marksmith instance (PID 12896, opened on `fold.md`) still running. It wasn't
+  launched by this session, so it was left alone and this run built to `%TEMP%\ms_run241c` instead.
+
+**Delivered (user-visible):**
+1. **Version History copies stop claiming success when nothing was copied.** All 84 copy commands in
+   History (timestamp, delta, audit, velocity, changelog, commit message, release notes, cherry-pick
+   payload, HEAD comparison …) fired the copy and showed "Copied …" straight away. With a clipboard
+   manager or remote desktop holding the clipboard, the notice still said "Copied". They now wait and show a red
+   "Couldn't copy: Another app is holding the clipboard. Try again in a moment." on failure.
+2. **OCR Studio menu copies report what happened, and an empty page no longer wipes your clipboard.** The
+   element and page menus' copies (element text, bounding box, page / document Markdown) now report
+   failures. Three review-menu copies gave no feedback at all, and one of them copied an empty string, which
+   cleared the clipboard. They now say "Copied …", "Couldn't copy: …" or "Nothing to copy yet: this has no Markdown."
+3. **OCR Studio's Copy Markdown button: the tick and the footer agree.** The button showed an amber
+   warning on a busy clipboard while the footer still said "Copied current page Markdown". Both now come from
+   the same result.
+4. **OCR overlay's Copy final Markdown is honest.** The stage status said "✓ Copied N characters" whatever
+   happened. It now shows the failure reason, and the button shows "⚠ Busy".
+5. **Suite Hub's Copy file path warns on a busy clipboard** instead of showing a green "Copied path" notification.
+6. **The browser-extension tip and paste hint bar show a real tick.** Both always showed "✓ Copied" without
+   checking. They now show "⚠ Busy" when the copy failed.
+7. **Status-bar Copy footnotes, Copy diagrams and Copy Markdown go through `CopyAndAnnounce`.** These were
+   the three announced copies run #240 missed. They now warn instead of claiming success.
+8. **Go to line previews the line it will actually go to when part of the document is folded.** Line numbers
+   in the box are document lines, but the preview read the editor's folded text, so with a fold above the target it
+   showed a different line (Go itself was right). It now reads the unfolded document.
+
+**Implementation summary.**
+- `Views/History/HistoryWindow.xaml.cs`: new `CopyAndNotify(text, message)`; 84 `_ = TrySetTextAsync` +
+  `_vm.ShowNotice` pairs (plus one awaited copy) rewritten to it.
+- `Views/Ocr/OcrInspectionStudioWindow.xaml.cs`: new `CopyAndReport(text, message)` (refuses empty text); 4 menu
+  copies plus 3 silent review-menu copies use it. `OnCopyMarkdownClick` awaits once, then drives the icon tick and
+  the footer from the same result.
+- `Controls/OcrExperienceOverlay.xaml.cs` (`CopyFinalMarkdownToClipboard`), `Views/SuiteHubView.xaml.cs` (copy path),
+  `Controls/ExtensionTip.xaml.cs` / `Controls/ExtensionHintBar.xaml.cs`: await the copy and pass the error on.
+- `Views/ExtensionSetupView.xaml.cs`: Copy guide URL copied twice (a fire-and-forget copy, then `CopyWithTick`). It now copies once.
+- `MainWindow.xaml.cs`: three status-bar copies use `CopyAndAnnounce`. `ShowGoToLineDialogAsync` previews from
+  `_folds.Document(text)` when folds exist.
+- Tests: new `Run241HonestCopiesEverywhereTests` (16 cases). One is behavioural: with a fold above it, document line 9
+  is found in `Document(visible)` but not in the visible text.
+
+**Skeptical review.**
+- Focus traps: nothing collapses or disables. Menu items close their flyouts as before.
+- Key swallowing: no key handler changed.
+- Flyouts / HoverPolish: no new dynamic buttons.
+- Theme: no new brush lookups. The OCR tick uses `CopyFeedback.ApplyIconTick` (ThemeBrush).
+- Async: every new handler is `async void` at the event boundary, the same as `CopyAndAnnounce`. On success,
+  `ClipboardWriter` returns on its first attempt, so the timing matches the old fire-and-forget. On failure the
+  warning lands after about 0.8 s of retries. No rewritten call site sets the notice again straight after the
+  copy, so a late warning can't overwrite a newer message from the same click (checked: in every pair the copy is
+  followed by the notice and nothing else).
+- History's `Copy HEAD comparison` was already awaited but ignored the result. It is now reported like the rest.
+- Not changed: copies with no announcement (status-line Ctrl+C / "Copy status message" / "Copy exported file path",
+  Settings card name/description, Mermaid minimap stats) still fire and forget. They claim nothing, so they're not
+  dishonest, just silent. The Shape / SmartArt / Mind Map studios (~250 copies) were left alone because another
+  session has uncommitted edits there.
+
+**Verified.** Desktop built to `%TEMP%\ms_run241c\b` with 0 errors, from a clean `git archive` of `origin/main`
+(`%TEMP%\ms241`). Targeted tests (Run23x/24x, EditorFolds, History, Ocr, SuiteHub, Clipboard, CopyFeedback,
+Extension, GoTo): 818/819 passed before the last test fix. The failure was `OnboardingPolishTests.The_build_ships_the_repo_extension_without_its_tests`,
+which reads `extension/`, which the archive doesn't contain (environmental). One Run241 assertion was too
+broad and was fixed. Run241 then passed 16/16.
+Live UIA on scratch PIDs 10564 and 27432 (fresh `MARKSMITH_CONFIG_DIR`, UIA patterns only: the PC had no
+foreground window and the user had been idle for 84 minutes, so no keystrokes were sent). Pre-existing Marksmith instances
+(13632, and the stale 12896) were not touched.
+- `fold241.md` + Folding ▸ Fold all code blocks (editor: "```js «+4 lines folded #1»"). Invoking the Ln/Col pill
+  opened Go to line. Typing 9 previewed "Line 9, Col 1: target line after the fold" (before the fix the editor's line 9
+  was "[^1]: The note."), and 4 previewed "const a = 1;" from inside the fold.
+- With the rig holding the clipboard open (`OpenClipboard`), invoking "Copy Markdown to clipboard" left the status at
+  "Couldn't copy: Another app is holding the clipboard. Try again in a moment." With the clipboard released, the same button
+  said "Copied Markdown (12 words, 13 lines) to clipboard". That success check did put the scratch document on the clipboard.
+- OCR Studio (launched with `ocr241.html`): with the clipboard held, Copy Markdown changed the footer from "Inspection
+  Studio active — …" to "Couldn't copy: Another app is holding the clipboard. Try again in a moment."
+- **Not verified live:** History copies (a scratch config has no snapshots) and the Suite Hub / extension nudge
+  copies. Source tests cover them.
+
+**Noticed, not fixed:**
+- Go to line's `totalLines` comes from `DocumentLine(text, lastVisibleLine)`. If the last visible line is a fold
+  marker, the count is the fold's first line, not the document's end, so "End (n)" and "Only n lines" can undercount.
+- The stale Marksmith PID 12896 from the abandoned attempt is still running from `%TEMP%\ms_run241\b`.
+- The local checkout is still ~199 commits behind `origin/main`, with another session's Shape / SmartArt / Mind Map edits.
+
+**Next up (Run #242):**
+1. Fix Go to line's `totalLines` when the document ends inside a fold (count from `Document(text)`).
+2. Give the silent copies (status line, Settings card, Mermaid minimap) a short confirmation, or a warning on failure.
+3. Live OCR page-flip focus check with a 2-page PDF (carried over since #239).
+
+**Total user-visible improvements: 8.**
+
+**Release (same run):** tagged **v3.56.0** on `dc368db9`; Release workflow run 40006627360 succeeded;
+user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.56.0). `MarksmithBaseVersion` is now 3.57.0.
+(The run #241 code landed as `520b5b9a`, which stored CRLF line endings, followed by `dc368db9`, which put
+the same content back to LF. The net diff is the 11 files listed above.)
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #242 (2026-10-24, 06:00–06:40 AEDT)
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running in the Claude desktop app. The task template asks for
+  "Antigravity AI Agent (Google DeepMind)"; that would be untrue for this run, so the real identity is recorded.
+- Modes: Scheduled Hourly Automation Routine (bypass-permissions, no live user)
+- Trigger: scheduled task `commit-to-main-ship-improvement--r4efinement`
+- Agents used: 1 (one session acting as orchestrator, coding worker and skeptical reviewer; no
+  subagents). Session `200e8c00-8ac8-497a-b2c7-01b1cea4a91f`.
+- Run #241's session was still finishing its release when this run started (it pushed the 3.57.0 bump at
+  about 06:03). This run worked in a fresh `--filter=blob:none` clone of `origin/main` (`%TEMP%\ms242\repo`),
+  so it never touched the shared checkout or that session's files.
+
+**Delivered (user-visible):**
+1. **Go to line counts every line when the document ends inside a fold.** With a fold covering the end
+   of the document (e.g. "Fold all code blocks" on a file ending in a code block), Go to line said
+   "1 – 5" and offered "End (5)" for a 9-line file, and typing 8 said "Only 5 lines". The status-bar
+   pill's Quick jump menu (quarters, End of document) undercounted the same way. Both now count the
+   document's lines.
+2. **Version History's remaining 23 copies report a busy clipboard.** Copy added / removed / context
+   lines, diff statistics, file path and name, version title and ID, word deltas, line copies and the
+   rest called a clipboard write that throws after its retries. The app-wide handler swallowed it, so the
+   click did nothing and said nothing (four of them sat inside an empty `catch`). They now show the red
+   "Couldn't copy: …" notice, and the Copy toolbar button shows "⚠ Busy" instead of a tick it hadn't earned.
+3. **The status line's copies confirm without wiping the export's actions.** Double-clicking the status
+   message, "Copy status message" and "Copy exported file path" were silent, success or failure. They now
+   show a small bubble above the status line ("Copied status message", or the reason it failed), also
+   read by screen readers. The bubble is used instead of rewriting the status text, because a new status
+   text clears the exported file's Open / Show in File Explorer actions.
+4. **Settings cards' Copy setting name / description confirm.** Both were silent. They now show the same
+   bubble under the card.
+5. **Diagram Studio: Copy Mermaid source code no longer fails silently and says so on the status line.** Both
+   menus (Copy SVG's and Sync's) called `Clipboard.SetContent` bare, which throws on a busy clipboard, and
+   only changed the status line's spoken name, never its visible text. The status line now reads "Copied
+   Mermaid source code to the clipboard." or "The Mermaid source wasn't copied. …".
+6. **Diagram Studio canvas: Copy zoom level and Copy diagram as Mermaid report failures** instead of
+   doing nothing on a busy clipboard.
+7. **The diagram minimap's Copy diagram statistics confirms** with the bubble (it was silent).
+8. **The Find bar's Copy search query reports a busy clipboard.** An empty `catch` swallowed it.
+9. **The Welcome tour's four copies confirm** (step overview from a step card or the step badge, tour
+   overview from Skip's menu, sample description). They were silent and threw on a busy clipboard.
+10. **Suite Hub's recent-documents pill warns on a busy clipboard** instead of doing nothing; the green
+    "✓ 3 paths" tick only shows after a real copy.
+
+**Implementation summary.**
+- Core `Services/Editor/EditorFolds.cs`: new `DocumentLineCount(visible)` (visible lines plus every
+  fold's hidden lines). `MainWindow.ShowGoToLineDialogAsync` and `OnCursorPosButtonRightTapped` use it when
+  folds exist (they used `DocumentLine(text, lastVisibleLine)`).
+- `Services/CopyFeedback.cs`: new `CopyWithBubble(anchor, text, message)` / `ShowBubble(...)`: awaits
+  `ClipboardWriter.TrySetTextAsync`, shows a `Transient` (non-focusing) bottom flyout with a tick or warning
+  glyph (`ThemeBrush`), raises a UIA notification with the same sentence, hides after 1.6 s / 4 s.
+- `MainWindow.xaml.cs`: status-line copies use the bubble anchored to `StatusMsgHost`; Find bar copy uses
+  `CopyAndAnnounce`.
+- `Views/History/HistoryWindow.xaml.cs`: 23 `DataPackage` + `ClipboardWriter.Set` + `ShowNotice` blocks
+  become `CopyAndNotify`; new overload `CopyAndNotify(text, message, tickButton, tickLabel)` ticks from the result.
+- `Views/Mermaid/MermaidDiagramStudioControl.xaml.cs`: new `CopyMermaidSource()`;
+  `MermaidCanvasControl.xaml.cs`: two copies awaited; `MermaidMinimapControl.cs`, `Controls/SettingsCard.xaml.cs`,
+  `Views/WelcomeTour.xaml.cs`: `CopyWithBubble`; `Views/SuiteHubView.xaml.cs`: awaited copy with failure notice.
+- Tests: new `Run242FoldCountAndSilentCopiesTests` (12 cases incl. behavioural `DocumentLineCount` tests for a
+  fold at the end, nested folds and no folds). `Run225…HistoryVersionMenu_OffersTheDeltaCopy` now counts
+  `CopyAndNotify(item.DeltaBadge,` (same one-routine intent).
+
+**Skeptical review.**
+- Focus traps: nothing collapses or disables. The bubble is `FlyoutShowMode.Transient`, so it never takes
+  focus from where the menu returned it.
+- Key swallowing: no key handler changed.
+- Flyouts / HoverPolish: the bubble has no buttons. It's shown after the copy completes; if the anchor has
+  left the tree by then (`XamlRoot` null, or `ShowAt` throws `ArgumentException`), it is skipped.
+- Theme: the glyph colour comes from `ThemeBrush.Set`; the flyout uses the default theme presenter.
+- Status line: the bubble was chosen over `CopyAndAnnounce` because `MainViewModel.OnStatusTextChanged`
+  clears `StatusOutputPath`, which would remove the export's Open / Show actions on a copy of its path.
+- Async: every new copy is `async void` at the event boundary, like `CopyAndAnnounce`. On success the
+  timing matches the old synchronous write. History's four `try { CopyAndNotify(...) } catch { }` wrappers
+  are now redundant but harmless.
+- Not changed: `MainWindow`'s `PutEmailOnClipboard` still uses `ClipboardWriter.Set`; that's intended (the
+  view model catches and reports it). The Shape / SmartArt / Mind Map studios were left alone (another
+  session's uncommitted edits sit in the shared checkout).
+
+**Verified.** Desktop built to `%TEMP%\ms_run242\b` with 0 errors. Targeted tests (Run24x, EditorFold,
+History, SuiteHub, Mermaid, WelcomeTour, Settings, Clipboard, CopyFeedback, GoTo; 994 tests): all passed except
+the four known stale `SuiteHubAndTourPolishTests.Run216–219_AllSixSurfaces…` path cases (they look for
+`MarkSmith.Tests\MarkSmith.Desktop\MainWindow.xaml.cs`; failing since #221) and the Run225 assertion fixed above.
+Run225 + Run242: 39/39 passed.
+Live UIA on scratch PID 34484 (fresh `MARKSMITH_CONFIG_DIR`, launched with `fold242.md`, a 9-line file ending in
+a code block). UIA patterns only. Folding ▸ Fold all code blocks left "```js  «+4 lines folded #1»" as the last
+editor line ("1 folded"). Invoking the Ln/Col pill opened Go to line with "Line and column (1 – 9[:col])",
+"Mid (4)" and "End (9)" (before the fix: 1 – 5 and End (5)).
+The user was active during the check (idle 0–16 s) and the scratch window had come to the front, so a keypress
+closed the dialog early. The instance was stopped straight away; this run sent no keys.
+Pre-existing Marksmith instances (13632, and the stale 12896 from an abandoned #241 attempt) were not touched.
+- **Not verified live:** the copy bubbles and failure notices. Every one of them is behind a right-click /
+  Shift+F10 menu or a double-click, which UIA patterns can't open, and real input was off the table with the user
+  at the PC. Source-contract tests cover them.
+
+**Noticed, not fixed:**
+- History's four now-redundant `try { CopyAndNotify(...) } catch { }` wrappers could be removed.
+- The first-run Welcome tour blocks every `ContentDialog` (Go to line did nothing until the tour was skipped).
+  That's expected for a modal tour, but Ctrl+G gives no hint why nothing opened.
+
+**Next up (Run #243):**
+1. Live check of the copy bubbles (Settings card, status line, minimap) with Shift+F10 when the user is idle,
+   plus a held-clipboard failure check of one History copy.
+2. Remove the redundant History try/catch wrappers and audit the Shape / SmartArt / Mind Map studios' copies once
+   the other session's edits land.
+3. Live OCR page-flip focus check with a 2-page PDF (carried over since #239).
+
+**Total user-visible improvements: 10.**
+
+**Release (same run):** tagged **v3.57.0** on `e591321`; Release workflow run 40010752235 succeeded;
+user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.57.0). `MarksmithBaseVersion` is now 3.58.0.
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #243 (2026-10-24, 07:00–07:40 AEDT)
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running in the Claude desktop app. The task template asks for
+  "Antigravity AI Agent (Google DeepMind)"; that would be untrue for this run, so the real identity is recorded.
+- Modes: Scheduled Hourly Automation Routine (bypass-permissions, no live user)
+- Trigger: scheduled task `commit-to-main-ship-improvement--r4efinement`
+- Agents used: 1 (one session acting as orchestrator, coding worker and skeptical reviewer; no
+  subagents). Session `71141103-e6f0-41c7-8639-15266166c2f4`.
+- Worked in a fresh `--filter=blob:none` clone of `origin/main` (`%TEMP%\ms243`). The temp drive was at
+  100% (1.6 GB free), so the pushed scratch folders of runs #233–#242 were deleted first (5.7 GB free after).
+
+**Delivered (user-visible):**
+1. **Shape Studio: about 110 copies stop claiming "Copied …" when nothing was copied.** Each one threw
+   away the clipboard result (`_ = ClipboardWriter.TrySetTextAsync(...)`) and then wrote "Copied angle: 45°",
+   "Copied #FF0000 to clipboard" and so on. With another app holding the clipboard the status line now says
+   "Couldn't copy angle: 45°. Another app is holding the clipboard. Try again in a moment." The label's and
+   preset category's "Copy" menu items (a bare `Clipboard.SetContent` inside an empty `catch`) do the same.
+2. **SmartArt Studio: about 110 copies report honestly**, including the ~100 audit and outline commands that put their
+   result on the clipboard.
+3. **Mind Map: about 105 copies report honestly**, including the status-pill and search-count copies that
+   threw out of their click handler on a busy clipboard.
+4. **Studio Copy buttons only tick after a real copy.** SmartArt's Copy outline bullets, Copy SmartArt
+   block and Copy SVG (all three sizes and the Data URI) showed the green tick even when the copy failed (the
+   Data URI copy threw instead). Mind Map's two connection-style copies did the same. They now show
+   "⚠ Busy" plus the reason on the status line.
+5. **Audit results survive a failed copy.** Commands whose result is also copied (grid snap, layer stack,
+   hierarchy metrics…) keep their result on the status line and add "Not copied to the clipboard: …"
+   instead of replacing it.
+6. **Suite Hub's ~90 audit and path copies warn on a busy clipboard.** Each one showed a green "Copied …"
+   notification whatever happened. A failure now shows the amber notification with the reason.
+7. **The last silent copies confirm.** Settings rows (Copy setting name / description), Settings menus
+   (purchase link, license key, sync subfolder, PDF header/footer, page name), the Image insert dialog (alt
+   text, image path), the SmartArt insert dialog (outline text, layout name), the extension guide's
+   "Copy Step 1 instructions" and the Export button's "Copy export status" said nothing either way. They now
+   show the small copy bubble (tick or warning) and screen readers hear it. Copy plugin ID and the plugins
+   folder button no longer confirm a copy that failed.
+8. **Mind Map "Copy connection style" says what it copied** on the status line (it only flashed the button).
+9. **Shape Studio "Copy category name" names the category** when none is picked ("Copied 'All'", was "Copied ''").
+
+**Implementation summary.**
+- Core `Services/CopyStatusText.cs` (new): `Failed(message, error)` turns "Copied X to clipboard" into
+  "Couldn't copy X. {reason}", and a result line into "{result}. Not copied to the clipboard: {reason}".
+- Shape / SmartArt / Mind Map windows: new private `CopyAndReport(text, message?, tickButton?, tickLabel?)`
+  (awaits `ClipboardWriter.TrySetTextAsync`, sets the status from the real result, ticks from it). The ~320
+  call sites were rewritten by script (`_ = TrySetTextAsync(x)` + `ViewModel.StatusMessage = y` →
+  `CopyAndReport(x, y)`; bare DataPackage + `ClipboardWriter.Set` / `Clipboard.SetContent` blocks likewise;
+  try/catch wrappers left empty by that were removed), then the six button-tick copies by hand.
+- `Views/SuiteHubView.xaml.cs`: 88 `await TrySetTextAsync(x)` + `SetNotification(msg, success: true)` pairs now
+  pass `success: clipboardError is null` and the `CopyStatusText.Failed` sentence.
+- `Controls/OptionRow.xaml.cs`, `Views/SettingsView.xaml.cs`, `Views/ImageInsertControl.cs`,
+  `Views/SmartArtInsertControl.cs`, `Views/ExtensionSetupView.xaml.cs`, `MainWindow.xaml.cs`: `CopyFeedback.CopyWithBubble`
+  (MainWindow anchors it to `ExportSplitButton` rather than rewriting the status text, which would clear the
+  export's Open/Show actions).
+- `Views/History/HistoryWindow.xaml.cs`: the four redundant `try { CopyAndNotify(...) } catch { }` wrappers
+  noted by run #242 removed.
+- Tests: new `Run243HonestStudioCopiesTests` (26 cases): behavioural `CopyStatusText.Failed` cases; no
+  discarded/bare/throwing clipboard writes left in the three studios; each studio's `CopyAndReport` awaits,
+  reports and ticks from the result; SmartArt/Mind Map buttons tick from the result; seven files have no
+  result-discarding awaited copy; bubble anchors; Suite Hub's ≥80 honest notifications; History wrappers gone.
+
+**Skeptical review.**
+- Focus traps: nothing collapses or disables. The bubble is `FlyoutShowMode.Transient` and never takes focus.
+- Key swallowing: no key handler changed. Settings' plugin-card Ctrl+C still sets `Handled` before its await.
+- Flyouts / HoverPolish: no new buttons. The bubble skips itself if its anchor left the tree.
+- Theme: tick and warning colours come from the existing `ThemeBrush` paths in `CopyFeedback`.
+- Async: `CopyAndReport` is `async void` at the event boundary like `CopyAndAnnounce`. On success
+  `TrySetAsync` finishes synchronously, so the status line updates in the same tick as before. A failure lands
+  after ~0.8 s of retries; with no message it reads the status line *then*, so a status set later in the same
+  handler is the one it amends. It null-checks `ViewModel` after the await. `text ?? string.Empty` avoids
+  the `SetText(null)` throw that the discarded tasks used to hide.
+- Not changed: Splash's "Copy application version" copies the literal "MarkSmith Desktop"; noted below.
+
+**Verified.** Desktop built to `%TEMP%\ms_run243\b` with 0 errors. Full suite (no OutDir): 5888 passed, 11
+failed, 1 skipped. The 11 are the known path cases: 7 `GovernanceDocsSyncTests` (gitignored governance docs
+absent from a clone) and the 4 stale `SuiteHubAndTourPolishTests.Run216–219` cases. All 26 Run243 tests pass.
+Live UIA on scratch PID 17956 (fresh `MARKSMITH_CONFIG_DIR`, `doc243.md`): skipped the tour, opened SmartArt
+Studio through Insert ▸ Diagrams and studios ▸ SmartArt Studio… (UIA Invoke/Expand), invoked
+"Copy outline bullets" and the status bar read "Copied outline bullets to clipboard."
+- **Not verified live:** the busy-clipboard path. The held-clipboard invoke was overtaken by user input. The
+  user came back to the PC (idle 1.9 s); the scratch window was in front and got four "New Node" children and
+  a rename box. The instance was stopped at once and nothing more was sent. Source and behavioural tests cover
+  the failure path.
+- **Process slip:** the successful live copy replaced the user's clipboard contents. The clipboard was not
+  saved first, against run #229's rule. Next run: save `Get-Clipboard -Raw` to a scratch file *before* any
+  copy test and restore it (reading back to confirm), or test only the held-clipboard path, which never writes.
+- Pre-existing Marksmith instances were not touched.
+
+**Noticed, not fixed:**
+- Many studio audit commands put their result on the clipboard without saying so in the menu text. That
+  replaces whatever the user had copied. Consider saying "(copies the result)" in the menu text, or dropping
+  the silent copy.
+- Splash's "Copy application version" copies "MarkSmith Desktop" with no version number.
+- A user at the PC can't tell the scratch window from their own: check idle time right before each live step.
+
+**Next up (Run #244):**
+1. Live check of a studio busy-clipboard message with the held-clipboard rig (no writes) while the user is idle.
+2. Decide on the audit commands' silent clipboard writes (menu wording, or stop copying).
+3. Live OCR page-flip focus check with a 2-page PDF (carried over since #239).
+
+**Total user-visible improvements: 9.**
+
+**Release (same run):** tagged **v3.58.0** on `8147ab6`; Release workflow run 40019282821 succeeded;
+user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.58.0). `MarksmithBaseVersion` is now 3.59.0.
+
 ### 2026-10-23: COURSE CORRECTION. Runs R1 to R50 are about output fidelity (owner's direction)
 
-**R1 = the first polisher run after this entry lands on `main`; R50 = the 50th. Write both numbers in each run heading, e.g. "run #241 (R1)".**
+**R1 = the first polisher run after this entry lands on `main`; R50 = the 50th. Write both numbers in each run heading, e.g. "run #NNN (R1)".**
 
 **This supersedes the latest "Next up" list above and the run #220 standing rules where they conflict.**
 
 The owner reports that the Markdown Torture Test looks worse in Word than it did 12 weeks ago. Runs
-#150 to #240 went into desktop menus and keyboard reachability while the DOCX output went unwatched.
+#150 onward went into desktop menus and keyboard reachability while the DOCX output went unwatched.
 The next 50 runs are about **how the exported Word document looks and reads**, and about the
 Markdown to Word governance rules (restored from the deleted `AGENTS.md`).
 
