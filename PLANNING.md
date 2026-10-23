@@ -15881,3 +15881,7 @@ Live UIA on scratch instances (PIDs 30496 and 2800, fresh `MARKSMITH_CONFIG_DIR`
 3. The two "Noticed" menus above.
 
 **Total user-visible improvements: 7.**
+
+**Release (same run):** tagged **v3.51.0** on `777cd59b`; Release workflow run 39952609032 succeeded;
+user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.51.0). `MarksmithBaseVersion` is now 3.52.0.
