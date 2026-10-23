@@ -13,7 +13,7 @@ standing rules wherever they conflict. Every run from R1 to R50 reads this file 
 
 ## 1. Why we are here (what went wrong)
 
-- **The polisher drifted off the product.** Runs #150 to the latest run (about 85 runs) went into desktop
+- **The polisher drifted off the product.** Runs #150 to #236 (about 85 runs) went into desktop
   chrome: Audit menus, then Diagnostics submenus, then Shift+F10 menus, accelerator columns and
   keyboard reachability. In that time almost nothing touched `DocxExportService`. The last real
   DOCX-look work was the 2026-10-10 batch (`polish(docx): Word documents that print properly`, and

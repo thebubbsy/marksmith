@@ -15893,7 +15893,7 @@ user-facing notes prepended to the generated body
 **This supersedes the latest "Next up" list above and the run #220 standing rules where they conflict.**
 
 The owner reports that the Markdown Torture Test looks worse in Word than it did 12 weeks ago. Runs
-#150 to the latest run went into desktop menus and keyboard reachability while the DOCX output went unwatched.
+#150 to #236 went into desktop menus and keyboard reachability while the DOCX output went unwatched.
 The next 50 runs are about **how the exported Word document looks and reads**, and about the
 Markdown to Word governance rules (restored from the deleted `AGENTS.md`).
 
