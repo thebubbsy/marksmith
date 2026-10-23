@@ -85,11 +85,6 @@ public abstract class InsertDialogBody : UserControl
         AutomationProperties.SetName(_copySnippetButton, "Copy generated Markdown snippet");
         ToolTipService.SetToolTip(_copySnippetButton, "Copy the generated Markdown snippet (Ctrl+C / Ctrl+Shift+C)");
         _copySnippetButton.Click += (_, _) => CopyCurrentSnippet();
-        _copySnippetButton.RightTapped += (_, e) =>
-        {
-            e.Handled = true;
-            ShowSnippetContextMenu(_copySnippetButton, e.GetPosition(_copySnippetButton));
-        };
 
         var previewHeader = new Grid();
         previewHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -107,12 +102,10 @@ public abstract class InsertDialogBody : UserControl
         Grid.SetColumn(_copySnippetButton, 1);
         previewHeader.Children.Add(insertsLabel);
         previewHeader.Children.Add(_copySnippetButton);
-        previewHeader.RightTapped += (_, e) =>
-        {
-            e.Handled = true;
-            ShowSnippetContextMenu(previewHeader, e.GetPosition(previewHeader));
-        };
 
+        // The card's one menu, for right-click and Shift+F10 / the Menu key anywhere on it (the Copy
+        // button included). The header and the button used to open their own copy of it from
+        // RightTapped as well, which is mouse only and raced the card's menu on every right-click.
         var previewContextFlyout = new MenuFlyout();
         previewContextFlyout.Opening += (_, _) =>
         {
@@ -162,8 +155,28 @@ public abstract class InsertDialogBody : UserControl
             Refresh();
             _opened = true;
         };
+        AddHandler(PreviewKeyDownEvent, new KeyEventHandler(OnBodyPreviewKeyDown), true);
         AddHandler(KeyDownEvent, new KeyEventHandler(OnBodyKeyDown), true);
         Services.HoverPolish.Track(this);
+    }
+
+    // Enter that picks an item from an open list (an editable ComboBox's suggestions) belongs to
+    // that list. KeyDown is too late to tell: by then the ComboBox has already closed its dropdown.
+    private bool _enterClosesDropDown;
+
+    private void OnBodyPreviewKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key != VirtualKey.Enter) return;
+        var root = XamlRoot;
+        _enterClosesDropDown = root is not null
+            && OwningComboBox(FocusManager.GetFocusedElement(root) as DependencyObject) is { IsDropDownOpen: true };
+    }
+
+    private static ComboBox? OwningComboBox(DependencyObject? node)
+    {
+        for (; node is not null; node = VisualTreeHelper.GetParent(node))
+            if (node is ComboBox combo) return combo;
+        return null;
     }
 
     private void OnBodyKeyDown(object sender, KeyRoutedEventArgs e)
@@ -194,6 +207,11 @@ public abstract class InsertDialogBody : UserControl
         }
 
         if (e.Key != VirtualKey.Enter) return;
+        if (_enterClosesDropDown)
+        {
+            _enterClosesDropDown = false;
+            return;
+        }
         var root = XamlRoot;
         var focused = root is null ? null : FocusManager.GetFocusedElement(root) as DependencyObject;
 
@@ -240,6 +258,9 @@ public abstract class InsertDialogBody : UserControl
             {
                 AutomationProperties.SetName(_problem, $"Problem: {problem}");
                 AutomationProperties.SetLiveSetting(_problem, AutomationLiveSetting.Polite);
+                // Setting the name alone is silent: a live region speaks only when it is told it changed.
+                FrameworkElementAutomationPeer.FromElement(_problem)
+                    ?.RaiseAutomationEvent(AutomationEvents.LiveRegionChanged);
             }
             else
             {
@@ -274,7 +295,20 @@ public abstract class InsertDialogBody : UserControl
         var first = FirstInput(_fields);
         if (first is null) return;
         first.Focus(FocusState.Programmatic);
-        if (first is TextBox box) box.SelectAll();
+        // A NumberBox or an editable ComboBox types into a TextBox of its own; select that one's
+        // sample too, or typing 5 into Table's "Body rows" read 25 (or 52).
+        if ((first as TextBox ?? InnerTextBox(first)) is { } box) box.SelectAll();
+    }
+
+    private static TextBox? InnerTextBox(DependencyObject parent)
+    {
+        for (int i = 0, n = VisualTreeHelper.GetChildrenCount(parent); i < n; i++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, i);
+            if (child is TextBox box) return box;
+            if (InnerTextBox(child) is { } found) return found;
+        }
+        return null;
     }
 
     private void PopulateSnippetContextMenu(MenuFlyout menu)
@@ -312,16 +346,6 @@ public abstract class InsertDialogBody : UserControl
         };
         focusFieldItem.Click += (_, _) => FocusFirstField();
         menu.Items.Add(focusFieldItem);
-    }
-
-    private void ShowSnippetContextMenu(FrameworkElement anchor, Windows.Foundation.Point? position)
-    {
-        var menu = new MenuFlyout();
-        PopulateSnippetContextMenu(menu);
-        if (position.HasValue)
-            menu.ShowAt(anchor, position.Value);
-        else
-            menu.ShowAt(anchor);
     }
 
     private static Control? FirstInput(Panel panel)

@@ -33,7 +33,8 @@ public sealed partial class SettingsView : UserControl
             (StartTrialButton, OnStartTrialButtonRightTapped),
             (ActivateButton, OnActivateButtonRightTapped),
             (CheckButton, OnCheckButtonRightTapped),
-            (VersionButton, OnAboutHeaderRightTapped));
+            (VersionButton, OnAboutHeaderRightTapped),
+            (PdfPagePreviewButton, OnPdfPagePreviewRightTapped));
         DataContext = App.ViewModel;
         VersionText.Text = $"Version {App.Updates.CurrentDisplayVersion}";
         AutomationProperties.SetName(VersionButton, $"Copy version details, {VersionText.Text}");
@@ -974,20 +975,19 @@ public sealed partial class SettingsView : UserControl
         var spoken = new System.Collections.Generic.List<string>();
         if (bands.Header.Length > 0) spoken.Add($"header \u201C{bands.Header}\u201D");
         if (bands.Footer.Length > 0) spoken.Add($"footer \u201C{bands.Footer}\u201D");
-        AutomationProperties.SetName(PdfPagePreview, spoken.Count == 0
+        AutomationProperties.SetName(PdfPagePreviewButton, spoken.Count == 0
             ? "Page preview: no header or footer"
             : "Page preview: " + string.Join(", ", spoken));
     }
 
-    private void OnPdfPagePreviewDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    private void OnPdfPagePreviewClick(object sender, RoutedEventArgs e)
     {
-        e.Handled = true;
         // The next position in the menu's order (an unknown value starts again at the first).
         var current = Array.FindIndex(PdfPageNumberPositions, p => p.Value == App.ViewModel.PdfPageNumberPosition);
         App.ViewModel.PdfPageNumberPosition = PdfPageNumberPositions[(current + 1) % PdfPageNumberPositions.Length].Value;
     }
 
-    // The page-number positions in the order the preview's double-click cycles through them.
+    // The page-number positions in the order the preview's click (or Enter) cycles through them.
     private static readonly (string Value, string Label)[] PdfPageNumberPositions =
     {
         ("BottomRight", "Bottom right"),
@@ -1078,7 +1078,7 @@ public sealed partial class SettingsView : UserControl
         };
         menu.Items.Add(insertPage);
 
-        menu.ShowAt(PdfPagePreview, KeyboardContextMenu.PointIn(e, PdfPagePreview));
+        menu.ShowAt(PdfPagePreviewButton, KeyboardContextMenu.PointIn(e, PdfPagePreviewButton));
     }
 
     // ---- Google ----
