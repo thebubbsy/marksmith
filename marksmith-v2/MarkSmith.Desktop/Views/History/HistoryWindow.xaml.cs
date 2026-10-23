@@ -433,10 +433,7 @@ public sealed partial class HistoryWindow : Window
             {
                 try
                 {
-                    var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-                    dp.SetText(file.Detail);
-                    ClipboardWriter.Set(dp);
-                    _vm.ShowNotice("Copied file path to clipboard.");
+                    CopyAndNotify(file.Detail, "Copied file path to clipboard.");
                 }
                 catch { }
             };
@@ -1074,11 +1071,7 @@ public sealed partial class HistoryWindow : Window
             return;
         }
         var text = string.Join(Environment.NewLine, added);
-        var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-        dp.SetText(text);
-        ClipboardWriter.Set(dp);
-        _vm.ShowNotice($"Copied {added.Count} added line(s) to clipboard.");
-        if (CopyToolbarButton != null) CopyFeedback.ApplyButtonTick(CopyToolbarButton, null, $"\u2713 {added.Count} added");
+        CopyAndNotify(text, $"Copied {added.Count} added line(s) to clipboard.", CopyToolbarButton, $"\u2713 {added.Count} added");
     }
 
     private void OnCopyRemovedLinesContextClick(object sender, RoutedEventArgs e)
@@ -1090,11 +1083,7 @@ public sealed partial class HistoryWindow : Window
             return;
         }
         var text = string.Join(Environment.NewLine, removed);
-        var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-        dp.SetText(text);
-        ClipboardWriter.Set(dp);
-        _vm.ShowNotice($"Copied {removed.Count} removed line(s) to clipboard.");
-        if (CopyToolbarButton != null) CopyFeedback.ApplyButtonTick(CopyToolbarButton, null, $"\u2713 {removed.Count} removed");
+        CopyAndNotify(text, $"Copied {removed.Count} removed line(s) to clipboard.", CopyToolbarButton, $"\u2713 {removed.Count} removed");
     }
 
     private void OnCopyUnchangedLinesContextClick(object sender, RoutedEventArgs e)
@@ -1106,11 +1095,7 @@ public sealed partial class HistoryWindow : Window
             return;
         }
         var text = string.Join(Environment.NewLine, unchanged);
-        var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-        dp.SetText(text);
-        ClipboardWriter.Set(dp);
-        _vm.ShowNotice($"Copied {unchanged.Count} unchanged context line(s) to clipboard.");
-        if (CopyToolbarButton != null) CopyFeedback.ApplyButtonTick(CopyToolbarButton, null, $"\u2713 {unchanged.Count} context");
+        CopyAndNotify(text, $"Copied {unchanged.Count} unchanged context line(s) to clipboard.", CopyToolbarButton, $"\u2713 {unchanged.Count} context");
     }
 
     private void OnCopyDiffStatsContextClick(object sender, RoutedEventArgs e)
@@ -1120,11 +1105,7 @@ public sealed partial class HistoryWindow : Window
         int unchanged = MarkSmith.Services.LineDiff.ExtractModifiedLines(_vm.UnifiedDiffRows, MarkSmith.Services.LineDiff.Kind.Same).Count;
         int hunkCount = GetChangeHunkIndices().Count;
         var summary = MarkSmith.Services.LineDiff.FormatDiffStatistics(added, removed, unchanged, hunkCount);
-        var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-        dp.SetText(summary);
-        ClipboardWriter.Set(dp);
-        _vm.ShowNotice($"Copied diff statistics ({summary}) to clipboard.");
-        if (CopyToolbarButton != null) CopyFeedback.ApplyButtonTick(CopyToolbarButton, null, "\u2713 Stats copied");
+        CopyAndNotify(summary, $"Copied diff statistics ({summary}) to clipboard.", CopyToolbarButton, "\u2713 Stats copied");
     }
 
     private bool _diffWrapEnabled = false;
@@ -1954,10 +1935,7 @@ public sealed partial class HistoryWindow : Window
         };
         copyPath.Click += (_, _) =>
         {
-            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-            dp.SetText(filePath);
-            ClipboardWriter.Set(dp);
-            _vm.ShowNotice($"Copied file path: {filePath}");
+            CopyAndNotify(filePath, $"Copied file path: {filePath}");
         };
         menu.Items.Add(copyPath);
 
@@ -1969,10 +1947,7 @@ public sealed partial class HistoryWindow : Window
         copyName.Click += (_, _) =>
         {
             var name = file?.FileName ?? Path.GetFileName(filePath);
-            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-            dp.SetText(name);
-            ClipboardWriter.Set(dp);
-            _vm.ShowNotice($"Copied file name: {name}");
+            CopyAndNotify(name, $"Copied file name: {name}");
         };
         menu.Items.Add(copyName);
 
@@ -2020,10 +1995,7 @@ public sealed partial class HistoryWindow : Window
         var filePath = _vm.SelectedFile?.Summary.FilePath ?? _vm.FileName;
         if (!string.IsNullOrWhiteSpace(filePath))
         {
-            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-            dp.SetText(filePath);
-            ClipboardWriter.Set(dp);
-            _vm.ShowNotice($"Copied file path: {filePath}");
+            CopyAndNotify(filePath, $"Copied file path: {filePath}");
         }
     }
 
@@ -2073,10 +2045,7 @@ public sealed partial class HistoryWindow : Window
         var title = _vm.DiffTitle;
         if (!string.IsNullOrWhiteSpace(title))
         {
-            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-            dp.SetText(title);
-            ClipboardWriter.Set(dp);
-            _vm.ShowNotice($"Copied version title: {title}");
+            CopyAndNotify(title, $"Copied version title: {title}");
         }
     }
 
@@ -2105,10 +2074,7 @@ public sealed partial class HistoryWindow : Window
         var sha = _vm.Selected?.Id;
         if (!string.IsNullOrWhiteSpace(sha))
         {
-            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-            dp.SetText(sha);
-            ClipboardWriter.Set(dp);
-            _vm.ShowNotice($"Copied version ID: {sha}");
+            CopyAndNotify(sha, $"Copied version ID: {sha}");
         }
     }
 
@@ -2125,10 +2091,7 @@ public sealed partial class HistoryWindow : Window
         var stats = _vm.DiffStats;
         if (!string.IsNullOrWhiteSpace(stats))
         {
-            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-            dp.SetText(stats);
-            ClipboardWriter.Set(dp);
-            _vm.ShowNotice($"Copied diff statistics: {stats}");
+            CopyAndNotify(stats, $"Copied diff statistics: {stats}");
         }
     }
 
@@ -2145,10 +2108,7 @@ public sealed partial class HistoryWindow : Window
         int net = _lastAddedWords - _lastRemovedWords;
         string netSign = net >= 0 ? $"+{net:N0}" : $"{net:N0}";
         string text = $"+{_lastAddedWords:N0} / -{_lastRemovedWords:N0} words (net {netSign})";
-        var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-        dp.SetText(text);
-        ClipboardWriter.Set(dp);
-        _vm.ShowNotice($"Copied word delta statistics: {text}");
+        CopyAndNotify(text, $"Copied word delta statistics: {text}");
     }
 
     private void CopyDetailedWordDelta()
@@ -2158,10 +2118,7 @@ public sealed partial class HistoryWindow : Window
         var target = _vm.Selected;
         string label = target is not null ? $" for version {target.TimestampLabel}" : "";
         string detailed = $"Diff word delta{label}: +{_lastAddedWords:N0} added, -{_lastRemovedWords:N0} removed, net {netSign} words.";
-        var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-        dp.SetText(detailed);
-        ClipboardWriter.Set(dp);
-        _vm.ShowNotice($"Copied detailed word delta: {detailed}");
+        CopyAndNotify(detailed, $"Copied detailed word delta: {detailed}");
     }
 
     private void OnDiffWordDeltaPillRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -2179,10 +2136,7 @@ public sealed partial class HistoryWindow : Window
             int net = _lastAddedWords - _lastRemovedWords;
             string netSign = net >= 0 ? $"+{net:N0}" : $"{net:N0}";
             string text = $"+{_lastAddedWords:N0} / -{_lastRemovedWords:N0} words (net {netSign})";
-            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-            dp.SetText(text);
-            ClipboardWriter.Set(dp);
-            _vm.ShowNotice($"Copied word delta: {text}");
+            CopyAndNotify(text, $"Copied word delta: {text}");
         };
         menu.Items.Add(copyWordDelta);
 
@@ -2302,10 +2256,7 @@ public sealed partial class HistoryWindow : Window
                 var stats = _vm.DiffStats;
                 if (!string.IsNullOrWhiteSpace(stats))
                 {
-                    var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-                    dp.SetText(stats);
-                    ClipboardWriter.Set(dp);
-                    _vm.ShowNotice($"Copied diff statistics: {stats}");
+                    CopyAndNotify(stats, $"Copied diff statistics: {stats}");
                 }
             };
             menu.Items.Add(copyStats);
@@ -2428,10 +2379,7 @@ public sealed partial class HistoryWindow : Window
         {
             if (!row.IsGap && !string.IsNullOrEmpty(row.Text))
             {
-                var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-                dp.SetText(row.Text);
-                ClipboardWriter.Set(dp);
-                _vm.ShowNotice($"Copied line: {row.Text}");
+                CopyAndNotify(row.Text, $"Copied line: {row.Text}");
             }
         }
     }
@@ -2452,10 +2400,7 @@ public sealed partial class HistoryWindow : Window
             };
             copyLine.Click += (_, _) =>
             {
-                var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-                dp.SetText(row.Text);
-                ClipboardWriter.Set(dp);
-                _vm.ShowNotice($"Copied line: {row.Text}");
+                CopyAndNotify(row.Text, $"Copied line: {row.Text}");
             };
             menu.Items.Add(copyLine);
 
@@ -2467,10 +2412,7 @@ public sealed partial class HistoryWindow : Window
             };
             copyWithPrefix.Click += (_, _) =>
             {
-                var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-                dp.SetText(lineWithPrefix);
-                ClipboardWriter.Set(dp);
-                _vm.ShowNotice($"Copied line with prefix: {lineWithPrefix}");
+                CopyAndNotify(lineWithPrefix, $"Copied line with prefix: {lineWithPrefix}");
             };
             menu.Items.Add(copyWithPrefix);
 
@@ -2574,10 +2516,7 @@ public sealed partial class HistoryWindow : Window
         var cell = isLeft ? row.Left : row.Right;
         if (cell != null && !string.IsNullOrEmpty(cell.Text))
         {
-            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-            dp.SetText(cell.Text);
-            ClipboardWriter.Set(dp);
-            _vm.ShowNotice($"Copied {(isLeft ? "previous" : "current")} line: {cell.Text}");
+            CopyAndNotify(cell.Text, $"Copied {(isLeft ? "previous" : "current")} line: {cell.Text}");
         }
     }
 
@@ -2606,10 +2545,7 @@ public sealed partial class HistoryWindow : Window
             };
             copyLine.Click += (_, _) =>
             {
-                var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-                dp.SetText(lineText);
-                ClipboardWriter.Set(dp);
-                _vm.ShowNotice($"Copied line: {lineText}");
+                CopyAndNotify(lineText, $"Copied line: {lineText}");
             };
             menu.Items.Add(copyLine);
 
@@ -2900,10 +2836,7 @@ public sealed partial class HistoryWindow : Window
         {
             try
             {
-                var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-                dp.SetText($"{item.TimestampLabel} — {item.Snippet}");
-                ClipboardWriter.Set(dp);
-                _vm.ShowNotice($"Copied version info for {item.TimestampLabel}.");
+                CopyAndNotify($"{item.TimestampLabel} — {item.Snippet}", $"Copied version info for {item.TimestampLabel}.");
             }
             catch { }
         };
@@ -2936,10 +2869,7 @@ public sealed partial class HistoryWindow : Window
     {
         try
         {
-            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-            dp.SetText(item.DeltaBadge);
-            ClipboardWriter.Set(dp);
-            _vm.ShowNotice($"Copied line delta {item.DeltaBadge} to clipboard.");
+            CopyAndNotify(item.DeltaBadge, $"Copied line delta {item.DeltaBadge} to clipboard.");
         }
         catch { }
     }
@@ -3035,6 +2965,17 @@ public sealed partial class HistoryWindow : Window
         var error = await Services.ClipboardWriter.TrySetTextAsync(text);
         if (error is null) _vm.ShowNotice(message);
         else _vm.ShowNotice($"Couldn't copy: {error}", isError: true);
+    }
+
+    // The same, plus the Copy toolbar button's tick ("✓ 3 added", or "⚠ Busy" when nothing was copied).
+    // These copies called ClipboardWriter.Set bare: on a busy clipboard it threw after its retries, the
+    // app-wide handler swallowed it, and the click did nothing at all.
+    private async void CopyAndNotify(string text, string message, Button? tickButton, string tickLabel)
+    {
+        var error = await Services.ClipboardWriter.TrySetTextAsync(text);
+        if (error is null) _vm.ShowNotice(message);
+        else _vm.ShowNotice($"Couldn't copy: {error}", isError: true);
+        if (tickButton is not null) CopyFeedback.ApplyButtonTick(tickButton, error, tickLabel);
     }
 
     private void OnTimelineFilterStatusPillRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -4241,10 +4182,7 @@ var auditResourceDisposalLeaksItem = new MenuFlyoutItem
             {
                 try
                 {
-                    var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-                    dp.SetText(file.Summary.FilePath);
-                    ClipboardWriter.Set(dp);
-                    _vm.ShowNotice("Copied file path to clipboard.");
+                    CopyAndNotify(file.Summary.FilePath, "Copied file path to clipboard.");
                 }
                 catch { }
             };

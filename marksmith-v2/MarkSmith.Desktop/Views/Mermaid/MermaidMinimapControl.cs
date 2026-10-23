@@ -324,7 +324,7 @@ public sealed class MermaidMinimapControl : UserControl
                 {
                     var v = VisibleWorld(svTarget);
                     string stats = $"Mermaid diagram: {vm.Nodes.Count} nodes, {vm.Connectors.Count} connectors · Zoom {(svTarget.ZoomFactor * 100):0}% · Viewport {v.W:0}x{v.H:0} at ({v.X:0}, {v.Y:0})";
-                    _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync(stats);
+                    MarkSmith.Services.CopyFeedback.CopyWithBubble(this, stats, "Copied diagram statistics");
                 }
             };
             menu.Items.Add(statsItem);

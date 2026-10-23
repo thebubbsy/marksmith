@@ -2163,11 +2163,19 @@ public sealed partial class SuiteHubView : UserControl
 
         var summary = string.Join(Environment.NewLine, existing);
 
-        var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+        // ClipboardWriter.Set threw on a busy clipboard and the click did nothing; say why instead.
 
-        dp.SetText(summary);
+        var error = await ClipboardWriter.TrySetTextAsync(summary);
 
-        ClipboardWriter.Set(dp);
+        if (error is not null)
+
+        {
+
+            SetNotification($"Couldn't copy: {error}", success: false);
+
+            return;
+
+        }
 
         SetNotification($"Copied {existing.Count} recent document paths to clipboard.", success: true);
 

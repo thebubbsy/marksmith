@@ -108,6 +108,49 @@ public static class CopyFeedback
         timer.Start();
     }
 
+    // For copies from a context menu on something that isn't a button and has no status line to
+    // report to (a Settings card, the diagram minimap): copy, then show a small bubble beside the
+    // element saying what happened. Transient, so it never takes focus, and a screen reader hears
+    // the same sentence. These copies used to be silent, which hid a busy clipboard.
+    public static async void CopyWithBubble(FrameworkElement anchor, string text, string copiedMessage)
+    {
+        if (string.IsNullOrEmpty(text)) return;
+        var error = await ClipboardWriter.TrySetTextAsync(text);
+        ShowBubble(anchor, error is null ? copiedMessage : $"Couldn't copy: {error}", error is null);
+    }
+
+    public static void ShowBubble(FrameworkElement anchor, string message, bool success)
+    {
+        if (anchor.XamlRoot is null) return;
+        var icon = new FontIcon { Glyph = success ? "" : "", FontSize = 14, VerticalAlignment = VerticalAlignment.Center };
+        ThemeBrush.Set(icon, FontIcon.ForegroundProperty,
+            success ? "SystemFillColorSuccessBrush" : "SystemFillColorCautionBrush");
+        var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, MaxWidth = 360 };
+        content.Children.Add(icon);
+        content.Children.Add(new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center });
+        var flyout = new Flyout
+        {
+            Content = content,
+            ShowMode = FlyoutShowMode.Transient,
+            Placement = FlyoutPlacementMode.Bottom,
+        };
+        try { flyout.ShowAt(anchor); }
+        catch (ArgumentException) { return; } // the element left the tree between the click and the copy
+
+        var peer = Microsoft.UI.Xaml.Automation.Peers.FrameworkElementAutomationPeer.FromElement(anchor)
+            ?? Microsoft.UI.Xaml.Automation.Peers.FrameworkElementAutomationPeer.CreatePeerForElement(anchor);
+        peer?.RaiseNotificationEvent(
+            Microsoft.UI.Xaml.Automation.Peers.AutomationNotificationKind.ActionCompleted,
+            Microsoft.UI.Xaml.Automation.Peers.AutomationNotificationProcessing.ImportantMostRecent,
+            message, "MarkSmith.Copy");
+
+        var timer = anchor.DispatcherQueue.CreateTimer();
+        timer.Interval = TimeSpan.FromMilliseconds(success ? 1600 : 4000);
+        timer.IsRepeating = false;
+        timer.Tick += (_, _) => flyout.Hide();
+        timer.Start();
+    }
+
     private static ButtonBase? FindButton(DependencyObject element)
     {
         for (var d = VisualTreeHelper.GetParent(element); d is not null; d = VisualTreeHelper.GetParent(d))

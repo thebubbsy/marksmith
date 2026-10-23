@@ -1059,14 +1059,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
             Text = "Copy Mermaid source code",
             Icon = new FontIcon { Glyph = "\uE8C8" }
         };
-        copyCodeItem.Click += (_, _) =>
-        {
-            var code = CodePaneText();
-            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-            dp.SetText(code);
-            Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dp);
-            AnnounceLiveRegion(StatusBarText, "Copied Mermaid source code to clipboard.");
-        };
+        copyCodeItem.Click += (_, _) => CopyMermaidSource();
         menu.Items.Add(copyCodeItem);
 
         var exportItem = new MenuFlyoutItem
@@ -1101,14 +1094,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
             Text = "Copy Mermaid source code",
             Icon = new FontIcon { Glyph = "\uE8C8" }
         };
-        copyCodeItem.Click += (_, _) =>
-        {
-            var code = CodePaneText();
-            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-            dp.SetText(code);
-            Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dp);
-            AnnounceLiveRegion(StatusBarText, "Copied Mermaid source code to clipboard.");
-        };
+        copyCodeItem.Click += (_, _) => CopyMermaidSource();
         menu.Items.Add(copyCodeItem);
 
         var copySvgItem = new MenuFlyoutItem
@@ -1291,6 +1277,24 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
                 CopyFeedback.ApplyButtonTick(btn, error, "✓ SVG");
             }
         }
+    }
+
+    // Copy Mermaid source code (Copy SVG's and Sync's menus). This called Clipboard.SetContent bare,
+    // so a busy clipboard threw out of the click, and the status line itself never changed: only its
+    // spoken name said "Copied", whatever happened. An empty diagram copied an empty string.
+    private async void CopyMermaidSource()
+    {
+        if (ViewModel is null) return;
+        var code = CodePaneText();
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            ViewModel.StatusText = "Nothing to copy yet: the diagram has no Mermaid source.";
+            return;
+        }
+        var error = await MarkSmith.Services.ClipboardWriter.TrySetTextAsync(code);
+        ViewModel.StatusText = error is null
+            ? "Copied Mermaid source code to the clipboard."
+            : $"The Mermaid source wasn't copied. {error}";
     }
 
     private void OnStatusBarDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)

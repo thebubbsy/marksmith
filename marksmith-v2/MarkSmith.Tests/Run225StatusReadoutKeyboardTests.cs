@@ -165,7 +165,8 @@ public class Run225StatusReadoutKeyboardTests
         Assert.Contains("Copy line delta ({item.DeltaBadge})", body);
         Assert.Contains("CopyVersionDelta(item)", body);
         // One copy routine for the badge's double-click, its menu, and the version menu.
-        Assert.Equal(1, code.Split("dp.SetText(item.DeltaBadge);").Length - 1);
+        // (Run #242: the copy goes through CopyAndNotify, which reports a busy clipboard.)
+        Assert.Equal(1, code.Split("CopyAndNotify(item.DeltaBadge,").Length - 1);
     }
 
     [Theory]

@@ -953,17 +953,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 Text = "Copy search query",
                 Icon = new FontIcon { Glyph = "\uE8C8" }
             };
+            // A busy clipboard used to be swallowed by an empty catch: no copy and no word about it.
             copyQueryItem.Click += (_, _) =>
-            {
-                try
-                {
-                    var pkg = new Windows.ApplicationModel.DataTransfer.DataPackage();
-                    pkg.SetText(FindTextBox.Text);
-                    Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(pkg);
-                    ViewModel.StatusText = $"Copied search query '{FindTextBox.Text}'";
-                }
-                catch { }
-            };
+                CopyAndAnnounce(FindTextBox.Text, $"Copied search query '{FindTextBox.Text}'");
             menu.Items.Add(copyQueryItem);
         }
 
@@ -2917,7 +2909,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         var text = ViewModel.StatusText;
         if (string.IsNullOrWhiteSpace(text)) return;
-        _ = Services.ClipboardWriter.TrySetTextAsync(text);
+        // A bubble, not the status line: replacing the message would drop an export's Open / Show actions.
+        Services.CopyFeedback.CopyWithBubble(StatusMsgHost, text, "Copied status message");
         e.Handled = true;
     }
 
@@ -2936,7 +2929,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 Text = "Copy status message",
                 Icon = new FontIcon { Glyph = "\uE8C8" }
             };
-            copyStatusItem.Click += (_, _) => _ = Services.ClipboardWriter.TrySetTextAsync(text);
+            copyStatusItem.Click += (_, _) => Services.CopyFeedback.CopyWithBubble(StatusMsgHost, text, "Copied status message");
             menu.Items.Add(copyStatusItem);
         }
 
@@ -2949,7 +2942,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 Text = "Copy exported file path",
                 Icon = new FontIcon { Glyph = "\uE8C8" }
             };
-            copyPathItem.Click += (_, _) => _ = Services.ClipboardWriter.TrySetTextAsync(ViewModel.StatusOutputPath!);
+            copyPathItem.Click += (_, _) => Services.CopyFeedback.CopyWithBubble(StatusMsgHost, ViewModel.StatusOutputPath!, "Copied exported file path");
             menu.Items.Add(copyPathItem);
 
             var openFileItem = new MenuFlyoutItem
@@ -14467,7 +14460,9 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         {
             if (IsLineBreak(text[i])) totalLines++;
         }
-        totalLines = Math.Max(1, _folds.DocumentLine(text, totalLines));
+        // Folds hide lines, so count the document's. DocumentLine(last visible line) stopped at a
+        // fold's first line when the document ended inside a fold, and End / "Only n lines" undercounted.
+        if (_folds.HasFolds(text)) totalLines = _folds.DocumentLineCount(text);
 
         var gotoLineItem = new MenuFlyoutItem
         {
@@ -14667,7 +14662,9 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         {
             if (IsLineBreak(text[i])) totalLines++;
         }
-        totalLines = Math.Max(1, _folds.DocumentLine(text, totalLines));
+        // Folds hide lines, so count the document's. DocumentLine(last visible line) stopped at a
+        // fold's first line when the document ended inside a fold, and End / "Only n lines" undercounted.
+        if (_folds.HasFolds(text)) totalLines = _folds.DocumentLineCount(text);
 
         var start = Math.Min(PasteTextBox?.SelectionStart ?? 0, text.Length);
         var curLine = 1;

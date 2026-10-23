@@ -527,9 +527,7 @@ public sealed partial class WelcomeTour : UserControl
         copySteps.Click += (_, _) =>
         {
             var overview = string.Join(Environment.NewLine, PageTitles.Select((t, idx) => $"{idx + 1}. {t}"));
-            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-            dp.SetText(overview);
-            ClipboardWriter.Set(dp);
+            CopyFeedback.CopyWithBubble(anchor, overview, "Copied the tour's step overview");
         };
         menu.Items.Add(copySteps);
 
@@ -570,9 +568,7 @@ public sealed partial class WelcomeTour : UserControl
         copyItem.Click += (_, _) =>
         {
             var title = stepNum < PageTitles.Length ? PageTitles[stepNum] : $"Step {stepNum}";
-            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-            dp.SetText($"{stepNum}. {title}");
-            ClipboardWriter.Set(dp);
+            CopyFeedback.CopyWithBubble(btn, $"{stepNum}. {title}", "Copied step overview");
         };
         menu.Items.Add(copyItem);
 
@@ -631,9 +627,7 @@ public sealed partial class WelcomeTour : UserControl
         };
         copyDesc.Click += (_, _) =>
         {
-            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-            dp.SetText(SampleCaption.Text);
-            ClipboardWriter.Set(dp);
+            CopyFeedback.CopyWithBubble(SampleCard, SampleCaption.Text, "Copied sample description");
         };
         menu.Items.Add(copyDesc);
 
@@ -724,9 +718,7 @@ public sealed partial class WelcomeTour : UserControl
         copySteps.Click += (_, _) =>
         {
             var overview = string.Join(Environment.NewLine, PageTitles.Select((t, idx) => $"{idx + 1}. {t}"));
-            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-            dp.SetText(overview);
-            ClipboardWriter.Set(dp);
+            CopyFeedback.CopyWithBubble(SkipButton, overview, "Copied the tour's step overview");
         };
         menu.Items.Add(copySteps);
 

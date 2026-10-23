@@ -16428,3 +16428,112 @@ user-facing notes prepended to the generated body
 (https://github.com/thebubbsy/marksmith/releases/tag/v3.56.0). `MarksmithBaseVersion` is now 3.57.0.
 (The run #241 code landed as `520b5b9a`, which stored CRLF line endings, followed by `dc368db9`, which put
 the same content back to LF. The net diff is the 11 files listed above.)
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #242 (2026-10-24, 06:00–06:40 AEDT)
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running in the Claude desktop app. The task template asks for
+  "Antigravity AI Agent (Google DeepMind)"; that would be untrue for this run, so the real identity is recorded.
+- Modes: Scheduled Hourly Automation Routine (bypass-permissions, no live user)
+- Trigger: scheduled task `commit-to-main-ship-improvement--r4efinement`
+- Agents used: 1 (one session acting as orchestrator, coding worker and skeptical reviewer; no
+  subagents). Session `200e8c00-8ac8-497a-b2c7-01b1cea4a91f`.
+- Run #241's session was still finishing its release when this run started (it pushed the 3.57.0 bump at
+  about 06:03). This run worked in a fresh `--filter=blob:none` clone of `origin/main` (`%TEMP%\ms242\repo`),
+  so it never touched the shared checkout or that session's files.
+
+**Delivered (user-visible):**
+1. **Go to line counts every line when the document ends inside a fold.** With a fold covering the end
+   of the document (e.g. "Fold all code blocks" on a file ending in a code block), Go to line said
+   "1 – 5" and offered "End (5)" for a 9-line file, and typing 8 said "Only 5 lines". The status-bar
+   pill's Quick jump menu (quarters, End of document) undercounted the same way. Both now count the
+   document's lines.
+2. **Version History's remaining 23 copies report a busy clipboard.** Copy added / removed / context
+   lines, diff statistics, file path and name, version title and ID, word deltas, line copies and the
+   rest called a clipboard write that throws after its retries. The app-wide handler swallowed it, so the
+   click did nothing and said nothing (four of them sat inside an empty `catch`). They now show the red
+   "Couldn't copy: …" notice, and the Copy toolbar button shows "⚠ Busy" instead of a tick it hadn't earned.
+3. **The status line's copies confirm without wiping the export's actions.** Double-clicking the status
+   message, "Copy status message" and "Copy exported file path" were silent, success or failure. They now
+   show a small bubble above the status line ("Copied status message", or the reason it failed), also
+   read by screen readers. The bubble is used instead of rewriting the status text, because a new status
+   text clears the exported file's Open / Show in File Explorer actions.
+4. **Settings cards' Copy setting name / description confirm.** Both were silent. They now show the same
+   bubble under the card.
+5. **Diagram Studio: Copy Mermaid source code no longer fails silently and says so on the status line.** Both
+   menus (Copy SVG's and Sync's) called `Clipboard.SetContent` bare, which throws on a busy clipboard, and
+   only changed the status line's spoken name, never its visible text. The status line now reads "Copied
+   Mermaid source code to the clipboard." or "The Mermaid source wasn't copied. …".
+6. **Diagram Studio canvas: Copy zoom level and Copy diagram as Mermaid report failures** instead of
+   doing nothing on a busy clipboard.
+7. **The diagram minimap's Copy diagram statistics confirms** with the bubble (it was silent).
+8. **The Find bar's Copy search query reports a busy clipboard.** An empty `catch` swallowed it.
+9. **The Welcome tour's four copies confirm** (step overview from a step card or the step badge, tour
+   overview from Skip's menu, sample description). They were silent and threw on a busy clipboard.
+10. **Suite Hub's recent-documents pill warns on a busy clipboard** instead of doing nothing; the green
+    "✓ 3 paths" tick only shows after a real copy.
+
+**Implementation summary.**
+- Core `Services/Editor/EditorFolds.cs`: new `DocumentLineCount(visible)` (visible lines plus every
+  fold's hidden lines). `MainWindow.ShowGoToLineDialogAsync` and `OnCursorPosButtonRightTapped` use it when
+  folds exist (they used `DocumentLine(text, lastVisibleLine)`).
+- `Services/CopyFeedback.cs`: new `CopyWithBubble(anchor, text, message)` / `ShowBubble(...)`: awaits
+  `ClipboardWriter.TrySetTextAsync`, shows a `Transient` (non-focusing) bottom flyout with a tick or warning
+  glyph (`ThemeBrush`), raises a UIA notification with the same sentence, hides after 1.6 s / 4 s.
+- `MainWindow.xaml.cs`: status-line copies use the bubble anchored to `StatusMsgHost`; Find bar copy uses
+  `CopyAndAnnounce`.
+- `Views/History/HistoryWindow.xaml.cs`: 23 `DataPackage` + `ClipboardWriter.Set` + `ShowNotice` blocks
+  become `CopyAndNotify`; new overload `CopyAndNotify(text, message, tickButton, tickLabel)` ticks from the result.
+- `Views/Mermaid/MermaidDiagramStudioControl.xaml.cs`: new `CopyMermaidSource()`;
+  `MermaidCanvasControl.xaml.cs`: two copies awaited; `MermaidMinimapControl.cs`, `Controls/SettingsCard.xaml.cs`,
+  `Views/WelcomeTour.xaml.cs`: `CopyWithBubble`; `Views/SuiteHubView.xaml.cs`: awaited copy with failure notice.
+- Tests: new `Run242FoldCountAndSilentCopiesTests` (12 cases incl. behavioural `DocumentLineCount` tests for a
+  fold at the end, nested folds and no folds). `Run225…HistoryVersionMenu_OffersTheDeltaCopy` now counts
+  `CopyAndNotify(item.DeltaBadge,` (same one-routine intent).
+
+**Skeptical review.**
+- Focus traps: nothing collapses or disables. The bubble is `FlyoutShowMode.Transient`, so it never takes
+  focus from where the menu returned it.
+- Key swallowing: no key handler changed.
+- Flyouts / HoverPolish: the bubble has no buttons. It's shown after the copy completes; if the anchor has
+  left the tree by then (`XamlRoot` null, or `ShowAt` throws `ArgumentException`), it is skipped.
+- Theme: the glyph colour comes from `ThemeBrush.Set`; the flyout uses the default theme presenter.
+- Status line: the bubble was chosen over `CopyAndAnnounce` because `MainViewModel.OnStatusTextChanged`
+  clears `StatusOutputPath`, which would remove the export's Open / Show actions on a copy of its path.
+- Async: every new copy is `async void` at the event boundary, like `CopyAndAnnounce`. On success the
+  timing matches the old synchronous write. History's four `try { CopyAndNotify(...) } catch { }` wrappers
+  are now redundant but harmless.
+- Not changed: `MainWindow`'s `PutEmailOnClipboard` still uses `ClipboardWriter.Set`; that's intended (the
+  view model catches and reports it). The Shape / SmartArt / Mind Map studios were left alone (another
+  session's uncommitted edits sit in the shared checkout).
+
+**Verified.** Desktop built to `%TEMP%\ms_run242\b` with 0 errors. Targeted tests (Run24x, EditorFold,
+History, SuiteHub, Mermaid, WelcomeTour, Settings, Clipboard, CopyFeedback, GoTo; 994 tests): all passed except
+the four known stale `SuiteHubAndTourPolishTests.Run216–219_AllSixSurfaces…` path cases (they look for
+`MarkSmith.Tests\MarkSmith.Desktop\MainWindow.xaml.cs`; failing since #221) and the Run225 assertion fixed above.
+Run225 + Run242: 39/39 passed.
+Live UIA on scratch PID 34484 (fresh `MARKSMITH_CONFIG_DIR`, launched with `fold242.md`, a 9-line file ending in
+a code block). UIA patterns only. Folding ▸ Fold all code blocks left "```js  «+4 lines folded #1»" as the last
+editor line ("1 folded"). Invoking the Ln/Col pill opened Go to line with "Line and column (1 – 9[:col])",
+"Mid (4)" and "End (9)" (before the fix: 1 – 5 and End (5)).
+The user was active during the check (idle 0–16 s) and the scratch window had come to the front, so a keypress
+closed the dialog early. The instance was stopped straight away; this run sent no keys.
+Pre-existing Marksmith instances (13632, and the stale 12896 from an abandoned #241 attempt) were not touched.
+- **Not verified live:** the copy bubbles and failure notices. Every one of them is behind a right-click /
+  Shift+F10 menu or a double-click, which UIA patterns can't open, and real input was off the table with the user
+  at the PC. Source-contract tests cover them.
+
+**Noticed, not fixed:**
+- History's four now-redundant `try { CopyAndNotify(...) } catch { }` wrappers could be removed.
+- The first-run Welcome tour blocks every `ContentDialog` (Go to line did nothing until the tour was skipped).
+  That's expected for a modal tour, but Ctrl+G gives no hint why nothing opened.
+
+**Next up (Run #243):**
+1. Live check of the copy bubbles (Settings card, status line, minimap) with Shift+F10 when the user is idle,
+   plus a held-clipboard failure check of one History copy.
+2. Remove the redundant History try/catch wrappers and audit the Shape / SmartArt / Mind Map studios' copies once
+   the other session's edits land.
+3. Live OCR page-flip focus check with a 2-page PDF (carried over since #239).
+
+**Total user-visible improvements: 10.**
