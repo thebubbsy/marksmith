@@ -15990,3 +15990,7 @@ pre-existing Marksmith (PID 13632) was not touched.
    edits. Only History's F5 was missing).
 
 **Total user-visible improvements: 7.**
+
+**Release (same run):** tagged **v3.52.0** on `2844afcc`; Release workflow run 39960663130 succeeded;
+user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.52.0). `MarksmithBaseVersion` is now 3.53.0.
