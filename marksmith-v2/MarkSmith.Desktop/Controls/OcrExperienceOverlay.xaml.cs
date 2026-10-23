@@ -1528,7 +1528,7 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
         CopyFinalMarkdownToClipboard();
     }
 
-    private void CopyFinalMarkdownToClipboard()
+    private async void CopyFinalMarkdownToClipboard()
     {
         var text = FinalMarkdownTextBlock?.Text;
         if (string.IsNullOrWhiteSpace(text) && _assembledPages.Count > 0)
@@ -1537,15 +1537,11 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
         }
         if (string.IsNullOrWhiteSpace(text)) return;
 
-        if (CopyFinalMarkdownButton is not null)
-        {
-            Services.CopyFeedback.CopyWithTick(CopyFinalMarkdownButton, text);
-        }
-        else
-        {
-            _ = Services.ClipboardWriter.TrySetTextAsync(text);
-        }
-        StageStatusText.Text = $"✓ Copied {text.Length:N0} characters of assembled Markdown to clipboard.";
+        var error = await Services.ClipboardWriter.TrySetTextAsync(text);
+        if (CopyFinalMarkdownButton is not null) Services.CopyFeedback.ApplyButtonTick(CopyFinalMarkdownButton, error);
+        StageStatusText.Text = error is null
+            ? $"✓ Copied {text.Length:N0} characters of assembled Markdown to clipboard."
+            : $"Couldn't copy: {error}";
     }
 
     private void OnFinalSheetRightTapped(object sender, RightTappedRoutedEventArgs e)

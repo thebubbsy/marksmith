@@ -178,13 +178,13 @@ namespace MarkSmith.Controls
             ShowTipContextMenu(KeyboardContextMenu.PointIn(e, this));
         }
 
-        private void CopyExtensionInfo()
+        private async void CopyExtensionInfo()
         {
             const string info = "MarkSmith Connector: Install the browser extension in Edge or Chrome to send ChatGPT, Gemini and Claude replies straight here.";
-            _ = Services.ClipboardWriter.TrySetTextAsync(info);
+            var error = await Services.ClipboardWriter.TrySetTextAsync(info);
             if (GetExtensionButton is not null)
             {
-                Services.CopyFeedback.ApplyButtonTick(GetExtensionButton, null, "\u2713 Copied");
+                Services.CopyFeedback.ApplyButtonTick(GetExtensionButton, error, "\u2713 Copied");
             }
         }
 

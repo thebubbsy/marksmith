@@ -13652,10 +13652,9 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             sb.AppendLine($"[^{fn.Id}]: {defPart}");
         }
 
-        _ = Services.ClipboardWriter.TrySetTextAsync(sb.ToString().TrimEnd());
-        int missingDef = footnotes.Count(f => !f.DefinitionLine.HasValue);
+                int missingDef = footnotes.Count(f => !f.DefinitionLine.HasValue);
         int unreferenced = footnotes.Count(f => f.ReferenceCount == 0);
-        AnnounceStatus($"Copied {footnotes.Count:N0} footnote(s) ({missingDef:N0} missing definition, {unreferenced:N0} unreferenced) to clipboard");
+        CopyAndAnnounce(sb.ToString().TrimEnd(), $"Copied {footnotes.Count:N0} footnote(s) ({missingDef:N0} missing definition, {unreferenced:N0} unreferenced) to clipboard");
     }
 
     private void OnStatusCopyFootnotesButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
@@ -13886,10 +13885,9 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         }
 
         var joined = string.Join(Environment.NewLine + Environment.NewLine, diagrams.Select(d => d.RawBlock));
-        _ = Services.ClipboardWriter.TrySetTextAsync(joined);
-        int mermaidCount = diagrams.Count(d => d.Kind == "Mermaid");
+                int mermaidCount = diagrams.Count(d => d.Kind == "Mermaid");
         int wrapperCount = diagrams.Count - mermaidCount;
-        AnnounceStatus($"Copied {diagrams.Count:N0} diagram/visual block(s) ({mermaidCount:N0} Mermaid, {wrapperCount:N0} ::: wrapper) to clipboard");
+        CopyAndAnnounce(joined, $"Copied {diagrams.Count:N0} diagram/visual block(s) ({mermaidCount:N0} Mermaid, {wrapperCount:N0} ::: wrapper) to clipboard");
     }
 
     private void OnStatusCopyDiagramsButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
@@ -14021,9 +14019,8 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             return;
         }
 
-        _ = Services.ClipboardWriter.TrySetTextAsync(md);
-        var stats = ViewModel.DocumentStats;
-        AnnounceStatus($"Copied Markdown ({stats.Words:N0} words, {stats.Lines:N0} lines) to clipboard");
+                var stats = ViewModel.DocumentStats;
+        CopyAndAnnounce(md, $"Copied Markdown ({stats.Words:N0} words, {stats.Lines:N0} lines) to clipboard");
     }
 
     private void OnStatusCopyMarkdownButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
@@ -14708,20 +14705,24 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetLiveSetting(previewText, Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Polite);
         Services.TrimmedTextToolTip.Attach(previewText);
 
+        // Line numbers here are document lines (folds expanded), so the preview reads the unfolded
+        // text. Reading the editor's text showed a different line whenever a fold sat above the
+        // target, while Go itself landed on the right one.
+        var docText = _folds.HasFolds(text) ? _folds.Document(text) : text;
         string GetLinePreview(int lineNum)
         {
-            if (string.IsNullOrEmpty(text)) return "(empty document)";
+            if (string.IsNullOrEmpty(docText)) return "(empty document)";
             int l = 1;
             int offset = 0;
-            while (l < lineNum && offset < text.Length)
+            while (l < lineNum && offset < docText.Length)
             {
-                if (IsLineBreak(text[offset])) l++;
+                if (IsLineBreak(docText[offset])) l++;
                 offset++;
             }
-            int ls = Math.Clamp(offset, 0, text.Length);
+            int ls = Math.Clamp(offset, 0, docText.Length);
             int le = ls;
-            while (le < text.Length && text[le] != '\r' && text[le] != '\n') le++;
-            var preview = text.Substring(ls, le - ls).Trim();
+            while (le < docText.Length && docText[le] != '\r' && docText[le] != '\n') le++;
+            var preview = docText.Substring(ls, le - ls).Trim();
             return string.IsNullOrEmpty(preview) ? "(blank line)" : preview;
         }
 

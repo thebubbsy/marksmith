@@ -417,7 +417,6 @@ public sealed partial class ExtensionSetupView : UserControl
         };
         copyUrlItem.Click += (_, _) =>
         {
-            _ = ClipboardWriter.TrySetTextAsync(BrowserExtensionPackage.GuideUrl);
             if (copyUrlItem.Icon is FontIcon fi) CopyFeedback.CopyWithTick(BrowserExtensionPackage.GuideUrl, fi);
         };
         menu.Items.Add(copyUrlItem);

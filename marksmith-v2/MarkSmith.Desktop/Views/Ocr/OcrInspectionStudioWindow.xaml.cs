@@ -978,8 +978,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
                 };
                 copyRawItem.Click += (_, _) =>
                 {
-                    _ = Services.ClipboardWriter.TrySetTextAsync(rawText);
-                    SetFooterStatusText($"Copied {elem.KindDisplayName} text to clipboard.");
+                    CopyAndReport(rawText, $"Copied {elem.KindDisplayName} text to clipboard.");
                 };
                 menu.Items.Add(copyRawItem);
             }
@@ -992,8 +991,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             copyBoxItem.Click += (_, _) =>
             {
                 var boxStr = $"X={elem.Box.X:0.000}, Y={elem.Box.Y:0.000}, W={elem.Box.Width:0.000}, H={elem.Box.Height:0.000}";
-                _ = Services.ClipboardWriter.TrySetTextAsync(boxStr);
-                SetFooterStatusText($"Copied bounding box: {boxStr}");
+                CopyAndReport(boxStr, $"Copied bounding box: {boxStr}");
             };
             menu.Items.Add(copyBoxItem);
 
@@ -1060,8 +1058,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         {
             var pageMd = _session.CurrentPage?.AssembledPageMarkdown ?? string.Empty;
             if (string.IsNullOrWhiteSpace(pageMd)) return;
-            _ = Services.ClipboardWriter.TrySetTextAsync(pageMd);
-            SetFooterStatusText($"Copied current page Markdown ({pageMd.Length:N0} chars) to clipboard.");
+            CopyAndReport(pageMd, $"Copied current page Markdown ({pageMd.Length:N0} chars) to clipboard.");
         };
         menu.Items.Add(copyPageItem);
 
@@ -1073,8 +1070,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         copyAllItem.Click += (_, _) =>
         {
             var allMd = _session.GetDocumentMarkdown();
-            _ = Services.ClipboardWriter.TrySetTextAsync(allMd);
-            SetFooterStatusText("Copied full document Markdown to clipboard.");
+            CopyAndReport(allMd, "Copied full document Markdown to clipboard.");
         };
         menu.Items.Add(copyAllItem);
 
@@ -1194,6 +1190,19 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
     // 3 s keeps the original status rather than restoring the "Copied" note.
     private string? _statusBeforeCopyNote;
     private string? _copyNote;
+
+    // Menu copies: report the copy only once it has happened, and say why when it didn't. Copying
+    // an empty page used to clear the clipboard silently; it now says there's nothing to copy.
+    private async void CopyAndReport(string text, string message)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            SetFooterStatusText("Nothing to copy yet: this has no Markdown.");
+            return;
+        }
+        var error = await ClipboardWriter.TrySetTextAsync(text);
+        SetFooterStatusText(error is null ? message : $"Couldn't copy: {error}");
+    }
 
     private async void CopyFooterText(string text, string what)
     {
@@ -1430,11 +1439,8 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             Text = "Copy full document Markdown",
             Icon = new FontIcon { Glyph = "\uE8C8" }
         };
-        copyAllItem.Click += async (_, _) =>
-        {
-            var fullDoc = _session.GetDocumentMarkdown();
-            await ClipboardWriter.TrySetTextAsync(fullDoc);
-        };
+        copyAllItem.Click += (_, _) =>
+            CopyAndReport(_session.GetDocumentMarkdown(), "Copied full document Markdown to clipboard.");
         menu.Items.Add(copyAllItem);
 
         menu.Items.Add(new MenuFlyoutSeparator());
@@ -1581,10 +1587,10 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             Text = "Copy current page Markdown",
             Icon = new FontIcon { Glyph = "\uE8C8" }
         };
-        copyPageItem.Click += async (_, _) =>
+        copyPageItem.Click += (_, _) =>
         {
             var md = _session.CurrentPage?.AssembledPageMarkdown ?? string.Empty;
-            await ClipboardWriter.TrySetTextAsync(md);
+            CopyAndReport(md, $"Copied current page Markdown ({md.Length:N0} chars) to clipboard.");
         };
         menu.Items.Add(copyPageItem);
 
@@ -1593,11 +1599,8 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             Text = "Copy full document Markdown",
             Icon = new FontIcon { Glyph = "\uE8C8" }
         };
-        copyDocItem.Click += async (_, _) =>
-        {
-            var fullDoc = _session.GetDocumentMarkdown();
-            await ClipboardWriter.TrySetTextAsync(fullDoc);
-        };
+        copyDocItem.Click += (_, _) =>
+            CopyAndReport(_session.GetDocumentMarkdown(), "Copied full document Markdown to clipboard.");
         menu.Items.Add(copyDocItem);
 
         menu.Items.Add(new MenuFlyoutSeparator());
@@ -2064,20 +2067,16 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         UpdateLiveMarkdownPreview();
     }
 
-    private void OnCopyMarkdownClick(object sender, RoutedEventArgs e)
+    private async void OnCopyMarkdownClick(object sender, RoutedEventArgs e)
     {
         string? md = MarkdownPreviewTextBox?.Text;
         if (string.IsNullOrWhiteSpace(md)) return;
-        if (CopyMarkdownButton is not null)
-        {
-            CopyFeedback.CopyWithTick(CopyMarkdownButton, CopyMarkdownIcon, md);
-        }
-        else
-        {
-            _ = ClipboardWriter.TrySetTextAsync(md);
-        }
         string scopeLabel = _markdownScopeIsDocument ? "full document" : "current page";
-        SetFooterStatusText($"Copied {scopeLabel} Markdown ({md.Length:N0} chars) to clipboard.");
+        var error = await ClipboardWriter.TrySetTextAsync(md);
+        if (CopyMarkdownIcon is not null) CopyFeedback.ApplyIconTick(CopyMarkdownIcon, CopyMarkdownButton, error);
+        SetFooterStatusText(error is null
+            ? $"Copied {scopeLabel} Markdown ({md.Length:N0} chars) to clipboard."
+            : $"Couldn't copy: {error}");
     }
 
     private async void CopySelectedElementMarkdown()

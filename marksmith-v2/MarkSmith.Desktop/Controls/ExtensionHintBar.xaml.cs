@@ -177,13 +177,13 @@ namespace MarkSmith.Controls
             ShowHintContextMenu(KeyboardContextMenu.PointIn(e, this));
         }
 
-        private void CopyHintInfo()
+        private async void CopyHintInfo()
         {
             const string info = "MarkSmith Connector: That paste looks like plain text. Use the MarkSmith Connector's 'Copy as Markdown' button in your AI chat to keep full formatting.";
-            _ = Services.ClipboardWriter.TrySetTextAsync(info);
+            var error = await Services.ClipboardWriter.TrySetTextAsync(info);
             if (GetExtensionButton is not null)
             {
-                Services.CopyFeedback.ApplyButtonTick(GetExtensionButton, null, "\u2713 Copied");
+                Services.CopyFeedback.ApplyButtonTick(GetExtensionButton, error, "\u2713 Copied");
             }
         }
 

@@ -2303,13 +2303,13 @@ public sealed partial class SuiteHubView : UserControl
 
         };
 
-        copyPathItem.Click += (_, _) =>
+        copyPathItem.Click += async (_, _) =>
 
         {
 
-            _ = Services.ClipboardWriter.TrySetTextAsync(fullPath);
+            var error = await Services.ClipboardWriter.TrySetTextAsync(fullPath);
 
-            SetNotification($"Copied path: {System.IO.Path.GetFileName(fullPath)}", success: true);
+            SetNotification(error is null ? $"Copied path: {System.IO.Path.GetFileName(fullPath)}" : $"Couldn't copy: {error}", success: error is null);
 
         };
 
