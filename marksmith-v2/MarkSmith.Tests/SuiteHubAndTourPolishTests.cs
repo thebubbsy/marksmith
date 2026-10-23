@@ -271,7 +271,8 @@ public class SuiteHubAndTourPolishTests
         Assert.Contains("RightTapped=\"OnResultsRightTapped\"", xaml);
 
         Assert.Contains("ShowCommandContextMenu", cs);
-        Assert.Contains("Remove from Recently used (Ctrl+Delete)", cs);
+        Assert.Contains("Text = \"Remove from Recently used\",", cs);
+        Assert.Contains("KeyboardAcceleratorTextOverride = \"Ctrl+Delete\"", cs);
         Assert.Contains("Clear Recently used", cs);
         Assert.Contains("CopySelectedCommandAsync", cs);
         Assert.Contains("RemoveRecent", cs);

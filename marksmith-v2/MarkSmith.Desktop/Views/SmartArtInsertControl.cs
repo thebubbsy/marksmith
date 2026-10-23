@@ -270,7 +270,8 @@ public sealed class SmartArtInsertControl : InsertDialogBody
 
         var indentItem = new MenuFlyoutItem
         {
-            Text = "Indent line (Alt+Shift+Right)",
+            Text = "Indent line",
+            KeyboardAcceleratorTextOverride = "Alt+Shift+Right",
             Icon = new FontIcon { Glyph = "\uE8A9" }
         };
         indentItem.Click += (_, _) => { ShiftLines(+1); _box.Focus(FocusState.Programmatic); };
@@ -278,7 +279,8 @@ public sealed class SmartArtInsertControl : InsertDialogBody
 
         var outdentItem = new MenuFlyoutItem
         {
-            Text = "Outdent line (Alt+Shift+Left)",
+            Text = "Outdent line",
+            KeyboardAcceleratorTextOverride = "Alt+Shift+Left",
             Icon = new FontIcon { Glyph = "\uE8A8" }
         };
         outdentItem.Click += (_, _) => { ShiftLines(-1); _box.Focus(FocusState.Programmatic); };
@@ -299,7 +301,7 @@ public sealed class SmartArtInsertControl : InsertDialogBody
 
         var copyItem = new MenuFlyoutItem
         {
-            Text = "Copy outline text (Ctrl+C)",
+            Text = "Copy outline text",
             Icon = new FontIcon { Glyph = "\uE8C8" }
         };
         copyItem.Click += async (_, _) => await ClipboardWriter.TrySetTextAsync(_box.Text);
@@ -371,7 +373,7 @@ public sealed class SmartArtInsertControl : InsertDialogBody
 
         var copyOutline = new MenuFlyoutItem
         {
-            Text = "Copy outline text (Ctrl+C)",
+            Text = "Copy outline text",
             Icon = new FontIcon { Glyph = "\uE8C8" }
         };
         copyOutline.Click += async (_, _) => await ClipboardWriter.TrySetTextAsync(_box.Text);

@@ -140,7 +140,8 @@ public sealed partial class OptionRow : UserControl
         {
             var toggleItem = new MenuFlyoutItem
             {
-                Text = toggle.IsOn ? "Turn off (Space)" : "Turn on (Space)",
+                Text = toggle.IsOn ? "Turn off" : "Turn on",
+                KeyboardAcceleratorTextOverride = "Space",
                 Icon = new FontIcon { Glyph = toggle.IsOn ? "\uE73A" : "\uE739" }
             };
             toggleItem.Click += (_, _) => toggle.IsOn = !toggle.IsOn;
@@ -151,7 +152,8 @@ public sealed partial class OptionRow : UserControl
         {
             var checkItem = new MenuFlyoutItem
             {
-                Text = (check.IsChecked ?? false) ? "Uncheck (Space)" : "Check (Space)",
+                Text = (check.IsChecked ?? false) ? "Uncheck" : "Check",
+                KeyboardAcceleratorTextOverride = "Space",
                 Icon = new FontIcon { Glyph = (check.IsChecked ?? false) ? "\uE73A" : "\uE739" }
             };
             checkItem.Click += (_, _) => check.IsChecked = !(check.IsChecked ?? false);

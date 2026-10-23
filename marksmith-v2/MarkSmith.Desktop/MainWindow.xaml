@@ -698,7 +698,8 @@
                                             <TextBox x:Name="FindTextBox" Grid.Column="0" PlaceholderText="Find in document…"
                                                      AutomationProperties.Name="Find in document"
                                                      Height="30" FontSize="13" KeyDown="OnFindTextBoxKeyDown"
-                                                     TextChanged="OnFindTextChanged" RightTapped="OnFindTextBoxRightTapped" />
+                                                     TextChanged="OnFindTextChanged"
+                                                     ToolTipService.ToolTip="Text to find · Enter for the next match, Shift+Enter for the previous · Right-click or Shift+F10 for options" />
                                             <!-- A button so the keyboard reaches it (a tab stop only while it shows a count):
                                                  Enter copies the count, Shift+F10 / the Menu key opens its menu. -->
                                             <HyperlinkButton x:Name="FindCountButton" Grid.Column="1" VerticalAlignment="Center"
@@ -752,8 +753,7 @@
                                             <TextBox x:Name="ReplaceTextBox" Grid.Column="0" PlaceholderText="Replace with…"
                                                      AutomationProperties.Name="Replace with"
                                                      Height="30" FontSize="13" KeyDown="OnReplaceTextBoxKeyDown"
-                                                     RightTapped="OnReplaceTextBoxRightTapped"
-                                                     ToolTipService.ToolTip="Replacement text · Press Enter to replace next match · Right-click for options" />
+                                                     ToolTipService.ToolTip="Replacement text · Press Enter to replace next match · Right-click or Shift+F10 for options" />
                                             <Button x:Name="ReplaceOneButton" Grid.Column="1" Height="30" Padding="12,0" Click="OnReplaceClick"
                                                     AutomationProperties.Name="Replace match (Enter)"
                                                     ToolTipService.ToolTip="Replace this match and go to the next one (Enter)">

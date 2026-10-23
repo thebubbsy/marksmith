@@ -1553,7 +1553,8 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
         var menu = new MenuFlyout();
         var copyItem = new MenuFlyoutItem
         {
-            Text = "Copy assembled Markdown (Ctrl+C)",
+            Text = "Copy assembled Markdown",
+            KeyboardAcceleratorTextOverride = "Ctrl+C",
             Icon = new FontIcon { Glyph = "\uE8C8" }
         };
         copyItem.Click += (_, _) => CopyFinalMarkdownToClipboard();
@@ -1561,7 +1562,8 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
 
         var skipItem = new MenuFlyoutItem
         {
-            Text = "Skip to editor (Esc)",
+            Text = "Skip to editor",
+            KeyboardAcceleratorTextOverride = "Esc",
             Icon = new FontIcon { Glyph = "\uE711" }
         };
         skipItem.Click += (_, _) => SkipAnimation();
@@ -1578,7 +1580,8 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
 
         var skipItem = new MenuFlyoutItem
         {
-            Text = "Skip to editor (Esc)",
+            Text = "Skip to editor",
+            KeyboardAcceleratorTextOverride = "Esc",
             Icon = new FontIcon { Glyph = "\uE711" }
         };
         skipItem.Click += (_, _) => SkipAnimation();
@@ -1586,7 +1589,8 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
 
         var copyItem = new MenuFlyoutItem
         {
-            Text = "Copy assembled Markdown (Ctrl+C)",
+            Text = "Copy assembled Markdown",
+            KeyboardAcceleratorTextOverride = "Ctrl+C",
             Icon = new FontIcon { Glyph = "\uE8C8" }
         };
         copyItem.Click += (_, _) => CopyFinalMarkdownToClipboard();
@@ -1602,7 +1606,8 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
 
         var copyItem = new MenuFlyoutItem
         {
-            Text = "Copy assembled Markdown (Ctrl+C)",
+            Text = "Copy assembled Markdown",
+            KeyboardAcceleratorTextOverride = "Ctrl+C",
             Icon = new FontIcon { Glyph = "\uE8C8" }
         };
         copyItem.Click += (_, _) => CopyFinalMarkdownToClipboard();
@@ -1610,7 +1615,8 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
 
         var skipItem = new MenuFlyoutItem
         {
-            Text = "Skip to editor (Esc)",
+            Text = "Skip to editor",
+            KeyboardAcceleratorTextOverride = "Esc",
             Icon = new FontIcon { Glyph = "\uE711" }
         };
         skipItem.Click += (_, _) => SkipAnimation();

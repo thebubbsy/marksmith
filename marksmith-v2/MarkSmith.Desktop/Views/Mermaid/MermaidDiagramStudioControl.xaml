@@ -596,7 +596,7 @@
                 <TextBlock x:Name="StatusBarText" Grid.Column="0" Text="{Binding StatusText}" FontSize="11" Foreground="#8D99AE" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
                            AutomationProperties.LiveSetting="Polite"
                            IsHitTestVisible="True"
-                           RightTapped="OnStatusBarRightTapped" DoubleTapped="OnStatusBarDoubleTapped" />
+                           RightTapped="OnStatusBarRightTapped" />
                 <!-- Filled from code: "3 nodes · 2 connectors · Snap on" (bare counts read as noise).
                      A button so the keyboard reaches it: Enter copies the summary, Shift+F10 / the Menu
                      key opens the status-bar menu (bridged). It used to be a double-click-only TextBlock. -->

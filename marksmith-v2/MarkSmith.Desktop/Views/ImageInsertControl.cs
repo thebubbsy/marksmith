@@ -78,70 +78,14 @@ public sealed class ImageInsertControl : InsertDialogBody
         ToolTipService.SetToolTip(browse, "Pick an image file on this PC (Ctrl+O, Alt+B)");
         AutomationProperties.SetName(browse, "Browse for an image");
         browse.Click += OnBrowseClick;
-        browse.RightTapped += OnBrowseRightTapped;
 
+        // The Browse button has no menu of its own: a right-click or Shift+F10 on it reaches the
+        // zone's, so both show the same items.
         var zoneMenu = new MenuFlyout();
         zoneMenu.Opening += (_, _) =>
         {
             zoneMenu.Items.Clear();
-            var browseItem = new MenuFlyoutItem
-            {
-                Text = "Browse for image… (Ctrl+O)",
-                Icon = new FontIcon { Glyph = "\uE8E5" },
-            };
-            browseItem.Click += OnBrowseClick;
-            zoneMenu.Items.Add(browseItem);
-
-            var pasteItem = new MenuFlyoutItem
-            {
-                Text = "Paste address or path (Ctrl+V)",
-                Icon = new FontIcon { Glyph = "\uE77F" },
-            };
-            pasteItem.Click += async (_, _) => await PasteSourceFromClipboardAsync();
-            zoneMenu.Items.Add(pasteItem);
-
-            var clearItem = new MenuFlyoutItem
-            {
-                Text = "Clear selected image (Delete)",
-                Icon = new FontIcon { Glyph = "\uE74D" },
-                IsEnabled = Source.Length > 0,
-            };
-            clearItem.Click += (_, _) => ClearSelectedImage();
-            zoneMenu.Items.Add(clearItem);
-
-            if (Source.Length > 0)
-            {
-                var copyItem = new MenuFlyoutItem
-                {
-                    Text = "Copy image path or URL (Ctrl+C)",
-                    Icon = new FontIcon { Glyph = "\uE8C8" },
-                };
-                copyItem.Click += async (_, _) => await ClipboardWriter.TrySetTextAsync(Source);
-                zoneMenu.Items.Add(copyItem);
-
-                if (File.Exists(Source))
-                {
-                    var showInExplorerItem = new MenuFlyoutItem
-                    {
-                        Text = "Show in File Explorer",
-                        Icon = new FontIcon { Glyph = "\uE838" },
-                    };
-                    showInExplorerItem.Click += (_, _) =>
-                    {
-                        try
-                        {
-                            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                            {
-                                FileName = "explorer.exe",
-                                Arguments = $"/select,\"{Source}\"",
-                                UseShellExecute = true,
-                            });
-                        }
-                        catch { }
-                    };
-                    zoneMenu.Items.Add(showInExplorerItem);
-                }
-            }
+            FillZoneMenu(zoneMenu);
         };
 
         _zone = new Border
@@ -159,52 +103,11 @@ public sealed class ImageInsertControl : InsertDialogBody
                 Children = { _zoneIcon, _thumb, _zoneTitle, _zoneHint, browse },
             },
         }.Themed(Border.BorderBrushProperty, "CardStrokeColorDefaultBrush").Themed(Border.BackgroundProperty, "CardBackgroundFillColorDefaultBrush");
-        ToolTipService.SetToolTip(_zone, "Drag an image here, click Browse, or right-click for options");
+        ToolTipService.SetToolTip(_zone, "Drag an image here, click Browse, or right-click (Shift+F10 on Browse) for options");
         AutomationProperties.SetName(_zone, "Image drop zone");
         _zone.DragOver += OnDragOver;
         _zone.DragLeave += (_, _) => Highlight(false);
         _zone.Drop += OnDrop;
-
-        var sourceMenu = new MenuFlyout();
-        sourceMenu.Opening += (_, _) =>
-        {
-            sourceMenu.Items.Clear();
-            var pasteItem = new MenuFlyoutItem
-            {
-                Text = "Paste address or path (Ctrl+V)",
-                Icon = new FontIcon { Glyph = "\uE77F" },
-            };
-            pasteItem.Click += async (_, _) => await PasteSourceFromClipboardAsync();
-            sourceMenu.Items.Add(pasteItem);
-
-            var browseItem = new MenuFlyoutItem
-            {
-                Text = "Browse for image… (Ctrl+O)",
-                Icon = new FontIcon { Glyph = "\uE8E5" },
-            };
-            browseItem.Click += OnBrowseClick;
-            sourceMenu.Items.Add(browseItem);
-
-            var clearItem = new MenuFlyoutItem
-            {
-                Text = "Clear path (Delete)",
-                Icon = new FontIcon { Glyph = "\uE74D" },
-                IsEnabled = Source.Length > 0,
-            };
-            clearItem.Click += (_, _) => ClearSelectedImage();
-            sourceMenu.Items.Add(clearItem);
-
-            if (Source.Length > 0)
-            {
-                var copyItem = new MenuFlyoutItem
-                {
-                    Text = "Copy image path or URL (Ctrl+C)",
-                    Icon = new FontIcon { Glyph = "\uE8C8" },
-                };
-                copyItem.Click += async (_, _) => await ClipboardWriter.TrySetTextAsync(Source);
-                sourceMenu.Items.Add(copyItem);
-            }
-        };
 
         _source = new TextBox
         {
@@ -212,55 +115,14 @@ public sealed class ImageInsertControl : InsertDialogBody
             PlaceholderText = @"C:\Pictures\chart.png or https://…",
             IsSpellCheckEnabled = false,
             InputScope = LinkInsertControl.UrlScope(),
-            ContextFlyout = sourceMenu,
         };
         ToolTipService.SetToolTip(_source, "Local image path (C:\\...) or web URL (https://...)");
         _source.TextChanged += (_, _) => OnSourceChanged();
-
-        var altMenu = new MenuFlyout();
-        altMenu.Opening += (_, _) =>
-        {
-            altMenu.Items.Clear();
-            var prefillItem = new MenuFlyoutItem
-            {
-                Text = "Prefill from file name",
-                Icon = new FontIcon { Glyph = "\uE8D2" },
-                IsEnabled = Source.Length > 0,
-            };
-            prefillItem.Click += (_, _) =>
-            {
-                if (Source.Length > 0)
-                {
-                    _alt.Text = DocumentImages.AltFromFileName(Source);
-                    _autoAlt = _alt.Text;
-                }
-            };
-            altMenu.Items.Add(prefillItem);
-
-            var copyAltItem = new MenuFlyoutItem
-            {
-                Text = "Copy alt text (Ctrl+C)",
-                Icon = new FontIcon { Glyph = "\uE8C8" },
-                IsEnabled = _alt.Text.Length > 0,
-            };
-            copyAltItem.Click += async (_, _) => await ClipboardWriter.TrySetTextAsync(_alt.Text);
-            altMenu.Items.Add(copyAltItem);
-
-            var clearAltItem = new MenuFlyoutItem
-            {
-                Text = "Clear alt text",
-                Icon = new FontIcon { Glyph = "\uE74D" },
-                IsEnabled = _alt.Text.Length > 0,
-            };
-            clearAltItem.Click += (_, _) => _alt.Text = string.Empty;
-            altMenu.Items.Add(clearAltItem);
-        };
 
         _alt = new TextBox
         {
             Header = "Alt text",
             PlaceholderText = "What the picture shows",
-            ContextFlyout = altMenu,
         };
         ToolTipService.SetToolTip(_alt, "Read aloud by screen readers, and shown wherever the picture can't load");
         _alt.TextChanged += (_, _) => Refresh();
@@ -268,6 +130,11 @@ public sealed class ImageInsertControl : InsertDialogBody
         AddField(_zone);
         AddField(_source);
         AddField(_alt);
+
+        // Each box keeps its own Cut / Copy / Paste menu for a selection; with nothing selected,
+        // right-click or Shift+F10 opens the image actions.
+        TextBoxMenu.Attach(_source, FillSourceMenu);
+        TextBoxMenu.Attach(_alt, FillAltMenu);
 
         AddHandler(KeyDownEvent, new KeyEventHandler(OnImageControlKeyDown), true);
     }
@@ -327,15 +194,13 @@ public sealed class ImageInsertControl : InsertDialogBody
         var focused = XamlRoot is null ? null : FocusManager.GetFocusedElement(XamlRoot);
         if (focused is TextBox) return;
 
+        // Ctrl+C is not handled here: the dialog's own handler (registered first) copies the
+        // Markdown snippet, as in every insert dialog, and a second copy of the bare path used to
+        // overwrite it.
         if (e.Key == VirtualKey.V && ctrl && !shift && !alt)
         {
             e.Handled = true;
             await PasteSourceFromClipboardAsync();
-        }
-        else if (e.Key == VirtualKey.C && ctrl && !shift && !alt && Source.Length > 0)
-        {
-            e.Handled = true;
-            await ClipboardWriter.TrySetTextAsync(Source);
         }
         else if (e.Key == VirtualKey.Delete && !ctrl && !shift && !alt && Source.Length > 0)
         {
@@ -484,15 +349,14 @@ public sealed class ImageInsertControl : InsertDialogBody
         }
     }
 
-    private void OnBrowseRightTapped(object sender, RightTappedRoutedEventArgs e)
+    // Shortcuts shown here are the ones OnImageControlKeyDown handles outside a text box, which is
+    // where this menu is opened from (the zone or its Browse button).
+    private void FillZoneMenu(MenuFlyout menu)
     {
-        e.Handled = true;
-        if (sender is not FrameworkElement anchor) return;
-        var menu = new MenuFlyout();
-
         var browseItem = new MenuFlyoutItem
         {
-            Text = "Browse for image… (Ctrl+O)",
+            Text = "Browse for image…",
+            KeyboardAcceleratorTextOverride = "Ctrl+O",
             Icon = new FontIcon { Glyph = "\uE8E5" },
         };
         browseItem.Click += OnBrowseClick;
@@ -500,7 +364,8 @@ public sealed class ImageInsertControl : InsertDialogBody
 
         var pasteItem = new MenuFlyoutItem
         {
-            Text = "Paste address or path (Ctrl+V)",
+            Text = "Paste address or path",
+            KeyboardAcceleratorTextOverride = "Ctrl+V",
             Icon = new FontIcon { Glyph = "\uE77F" },
         };
         pasteItem.Click += async (_, _) => await PasteSourceFromClipboardAsync();
@@ -508,48 +373,121 @@ public sealed class ImageInsertControl : InsertDialogBody
 
         var clearItem = new MenuFlyoutItem
         {
-            Text = "Clear selected image (Delete)",
+            Text = "Clear selected image",
+            KeyboardAcceleratorTextOverride = "Delete",
             Icon = new FontIcon { Glyph = "\uE74D" },
             IsEnabled = Source.Length > 0,
         };
         clearItem.Click += (_, _) => ClearSelectedImage();
         menu.Items.Add(clearItem);
 
-        if (Source.Length > 0)
+        if (Source.Length == 0) return;
+        menu.Items.Add(CopySourceItem());
+
+        if (File.Exists(Source))
         {
-            var copyItem = new MenuFlyoutItem
+            var showInExplorerItem = new MenuFlyoutItem
             {
-                Text = "Copy image path or URL (Ctrl+C)",
-                Icon = new FontIcon { Glyph = "\uE8C8" },
+                Text = "Show in File Explorer",
+                Icon = new FontIcon { Glyph = "\uE838" },
             };
-            copyItem.Click += async (_, _) => await ClipboardWriter.TrySetTextAsync(Source);
-            menu.Items.Add(copyItem);
-
-            if (File.Exists(Source))
+            showInExplorerItem.Click += (_, _) =>
             {
-                var showInExplorerItem = new MenuFlyoutItem
+                try
                 {
-                    Text = "Show in File Explorer",
-                    Icon = new FontIcon { Glyph = "\uE838" },
-                };
-                showInExplorerItem.Click += (_, _) =>
-                {
-                    try
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
                     {
-                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                        {
-                            FileName = "explorer.exe",
-                            Arguments = $"/select,\"{Source}\"",
-                            UseShellExecute = true,
-                        });
-                    }
-                    catch { }
-                };
-                menu.Items.Add(showInExplorerItem);
-            }
+                        FileName = "explorer.exe",
+                        Arguments = $"/select,\"{Source}\"",
+                        UseShellExecute = true,
+                    });
+                }
+                catch { }
+            };
+            menu.Items.Add(showInExplorerItem);
         }
+    }
 
-        menu.ShowAt(anchor, e.GetPosition(anchor));
+    // Inside the path box Ctrl+V, Delete and Ctrl+C are the box's own text keys, so only Browse
+    // (handled anywhere in the dialog) shows a shortcut.
+    private void FillSourceMenu(MenuFlyout menu)
+    {
+        var pasteItem = new MenuFlyoutItem
+        {
+            Text = "Paste address or path",
+            Icon = new FontIcon { Glyph = "\uE77F" },
+        };
+        pasteItem.Click += async (_, _) => await PasteSourceFromClipboardAsync();
+        menu.Items.Add(pasteItem);
+
+        var browseItem = new MenuFlyoutItem
+        {
+            Text = "Browse for image…",
+            KeyboardAcceleratorTextOverride = "Ctrl+O",
+            Icon = new FontIcon { Glyph = "\uE8E5" },
+        };
+        browseItem.Click += OnBrowseClick;
+        menu.Items.Add(browseItem);
+
+        var clearItem = new MenuFlyoutItem
+        {
+            Text = "Clear path",
+            Icon = new FontIcon { Glyph = "\uE74D" },
+            IsEnabled = Source.Length > 0,
+        };
+        clearItem.Click += (_, _) => ClearSelectedImage();
+        menu.Items.Add(clearItem);
+
+        if (Source.Length > 0) menu.Items.Add(CopySourceItem());
+    }
+
+    private void FillAltMenu(MenuFlyout menu)
+    {
+        var prefillItem = new MenuFlyoutItem
+        {
+            Text = "Prefill from file name",
+            Icon = new FontIcon { Glyph = "\uE8D2" },
+            IsEnabled = Source.Length > 0,
+        };
+        prefillItem.Click += (_, _) =>
+        {
+            if (Source.Length > 0)
+            {
+                _alt.Text = DocumentImages.AltFromFileName(Source);
+                _autoAlt = _alt.Text;
+            }
+        };
+        menu.Items.Add(prefillItem);
+
+        var copyAltItem = new MenuFlyoutItem
+        {
+            Text = "Copy alt text",
+            Icon = new FontIcon { Glyph = "\uE8C8" },
+            IsEnabled = _alt.Text.Length > 0,
+        };
+        copyAltItem.Click += async (_, _) => await ClipboardWriter.TrySetTextAsync(_alt.Text);
+        menu.Items.Add(copyAltItem);
+
+        var clearAltItem = new MenuFlyoutItem
+        {
+            Text = "Clear alt text",
+            Icon = new FontIcon { Glyph = "\uE74D" },
+            IsEnabled = _alt.Text.Length > 0,
+        };
+        clearAltItem.Click += (_, _) => _alt.Text = string.Empty;
+        menu.Items.Add(clearAltItem);
+    }
+
+    // No shortcut: Ctrl+C copies the whole Markdown snippet, not the bare path.
+    private MenuFlyoutItem CopySourceItem()
+    {
+        var copyItem = new MenuFlyoutItem
+        {
+            Text = "Copy image path or URL",
+            Icon = new FontIcon { Glyph = "\uE8C8" },
+        };
+        copyItem.Click += async (_, _) => await ClipboardWriter.TrySetTextAsync(Source);
+        return copyItem;
     }
 
     // ---- helpers -------------------------------------------------------------------------------

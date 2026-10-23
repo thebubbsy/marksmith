@@ -135,6 +135,7 @@ public sealed partial class NodePaletteControl : UserControl
             (CatGantt, OnCategoryPillRightTapped),
             (CatER, OnCategoryPillRightTapped),
             (CatMindmap, OnCategoryPillRightTapped));
+        TextBoxMenu.Attach(SearchTextBox, FillSearchTextBoxMenu);
         HoverPolish.Track(this);
         DataContextChanged += (_, _) => WatchDiagramType();
     }
@@ -283,7 +284,7 @@ public sealed partial class NodePaletteControl : UserControl
             {
                 var clearSearchItem = new MenuFlyoutItem
                 {
-                    Text = "Clear search query (Esc)",
+                    Text = "Clear search query",
                     Icon = new FontIcon { Glyph = "\uE894" }
                 };
                 clearSearchItem.Click += (_, _) => OnClearSearchClick(this, new Microsoft.UI.Xaml.RoutedEventArgs());
@@ -303,16 +304,16 @@ public sealed partial class NodePaletteControl : UserControl
         }
     }
 
-    private void OnSearchTextBoxRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    // The search box's options menu, opened by right-click or Shift+F10 while nothing is selected
+    // (TextBoxMenu keeps the box's own Cut / Copy / Paste menu for a selection).
+    private void FillSearchTextBoxMenu(MenuFlyout menu)
     {
-        e.Handled = true;
-        var menu = new MenuFlyout();
-
         if (!string.IsNullOrEmpty(SearchTextBox.Text))
         {
             var clearItem = new MenuFlyoutItem
             {
-                Text = "Clear search query (Esc)",
+                Text = "Clear search query",
+                KeyboardAcceleratorTextOverride = "Esc",
                 Icon = new FontIcon { Glyph = "\uE894" }
             };
             clearItem.Click += (_, _) =>
@@ -343,8 +344,6 @@ public sealed partial class NodePaletteControl : UserControl
         };
         copySearchItem.Click += (_, _) => SearchTextBox.SelectAll();
         menu.Items.Add(copySearchItem);
-
-        menu.ShowAt(SearchTextBox, KeyboardContextMenu.PointIn(e, SearchTextBox));
     }
 
     private void SelectPill(ToggleButton btn)

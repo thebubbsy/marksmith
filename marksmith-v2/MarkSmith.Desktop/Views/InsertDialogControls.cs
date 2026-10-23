@@ -284,7 +284,9 @@ public abstract class InsertDialogBody : UserControl
 
         var copyItem = new MenuFlyoutItem
         {
-            Text = "Copy Markdown snippet (Ctrl+C / Ctrl+Shift+C)",
+            Text = "Copy Markdown snippet",
+            // Ctrl+C copies it too, but only while no text is selected; Ctrl+Shift+C always does.
+            KeyboardAcceleratorTextOverride = "Ctrl+Shift+C",
             Icon = new FontIcon { Glyph = "\uE8C8" },
             IsEnabled = snippet.Length > 0,
         };
@@ -293,7 +295,8 @@ public abstract class InsertDialogBody : UserControl
 
         var insertItem = new MenuFlyoutItem
         {
-            Text = "Insert into document (Ctrl+Enter)",
+            Text = "Insert into document",
+            KeyboardAcceleratorTextOverride = "Ctrl+Enter",
             Icon = new FontIcon { Glyph = "\uE898" },
             IsEnabled = IsValid,
         };

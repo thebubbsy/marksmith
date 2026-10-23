@@ -135,6 +135,10 @@ public class Run231DiagramStudioOneActionTests
         var fit = Method(StudioCode, "OnStatusBarDoubleTapped");
         Assert.Contains("is ButtonBase) return;", fit);
         Assert.True(fit.IndexOf("ButtonBase", StringComparison.Ordinal) < fit.IndexOf("FitToContent", StringComparison.Ordinal));
+        // Run #233: only the status bar Border handles the double-click; the status text inside it
+        // used to carry a second copy of the same handler.
+        var xaml = Read("Views", "Mermaid", "MermaidDiagramStudioControl.xaml");
+        Assert.Equal(1, xaml.Split("DoubleTapped=\"OnStatusBarDoubleTapped\"").Length - 1);
     }
 
     [Fact]

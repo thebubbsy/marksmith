@@ -84,6 +84,7 @@ public sealed partial class CommandPalette : UserControl
             (ClearSearchButton, OnClearSearchButtonRightTapped),
             (EscButton, OnEscButtonRightTapped),
             (ResetSearchButton, OnResetSearchButtonRightTapped));
+        TextBoxMenu.Attach(SearchBox, FillSearchBoxMenu);
         PreviewKeyDown += OnPreviewKeyDown;
         // While the palette is up the window's shortcuts belong to it: Ctrl+K closes it and the
         // rest (Ctrl+B, Ctrl+E…) must not act on the document behind it.
@@ -387,7 +388,8 @@ public sealed partial class CommandPalette : UserControl
 
         var runItem = new MenuFlyoutItem
         {
-            Text = "Run command (Enter)",
+            Text = "Run command",
+            KeyboardAcceleratorTextOverride = "Enter",
             Icon = new FontIcon { Glyph = "\uE768" }
         };
         runItem.Click += (_, _) => Close(cmd);
@@ -427,7 +429,8 @@ public sealed partial class CommandPalette : UserControl
             menu.Items.Add(new MenuFlyoutSeparator());
             var removeRecentItem = new MenuFlyoutItem
             {
-                Text = "Remove from Recently used (Ctrl+Delete)",
+                Text = "Remove from Recently used",
+                KeyboardAcceleratorTextOverride = "Ctrl+Delete",
                 Icon = new FontIcon { Glyph = "\uE74D" }
             };
             removeRecentItem.Click += (_, _) =>
@@ -461,14 +464,16 @@ public sealed partial class CommandPalette : UserControl
             menu.ShowAt(anchor);
     }
 
-    private void OnSearchBoxRightTapped(object sender, RightTappedRoutedEventArgs e)
+    // The search box's options menu, opened by right-click or Shift+F10 while nothing is selected
+    // (TextBoxMenu keeps the box's own Cut / Copy / Paste menu for a selection).
+    private void FillSearchBoxMenu(MenuFlyout menu)
     {
-        e.Handled = true;
-        var menu = new MenuFlyout();
-
+        var hasCommand = Results.SelectedItem is PaletteCommand;
         var runItem = new MenuFlyoutItem
         {
-            Text = "Run selected command (Enter)",
+            Text = "Run selected command",
+            KeyboardAcceleratorTextOverride = "Enter",
+            IsEnabled = hasCommand,
             Icon = new FontIcon { Glyph = "\uE768" }
         };
         runItem.Click += (_, _) =>
@@ -479,7 +484,9 @@ public sealed partial class CommandPalette : UserControl
 
         var copyItem = new MenuFlyoutItem
         {
-            Text = "Copy selected command (Ctrl+C)",
+            Text = "Copy selected command",
+            KeyboardAcceleratorTextOverride = "Ctrl+C",
+            IsEnabled = hasCommand,
             Icon = new FontIcon { Glyph = "\uE8C8" }
         };
         copyItem.Click += async (_, _) =>
@@ -493,7 +500,8 @@ public sealed partial class CommandPalette : UserControl
 
         var clearItem = new MenuFlyoutItem
         {
-            Text = "Clear search query (Esc)",
+            Text = "Clear search query",
+            KeyboardAcceleratorTextOverride = "Esc",
             Icon = new FontIcon { Glyph = "\uE711" }
         };
         clearItem.Click += (_, _) =>
@@ -505,7 +513,8 @@ public sealed partial class CommandPalette : UserControl
 
         var pasteItem = new MenuFlyoutItem
         {
-            Text = "Paste into search (Ctrl+V)",
+            Text = "Paste into search",
+            KeyboardAcceleratorTextOverride = "Ctrl+V",
             Icon = new FontIcon { Glyph = "\uE77F" }
         };
         pasteItem.Click += async (_, _) =>
@@ -526,11 +535,6 @@ public sealed partial class CommandPalette : UserControl
             catch { }
         };
         menu.Items.Add(pasteItem);
-
-        if (sender is FrameworkElement fe)
-            menu.ShowAt(fe, KeyboardContextMenu.PointIn(e, fe));
-        else
-            menu.ShowAt(SearchBox);
     }
 
     private void OnClearSearchButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -680,6 +684,9 @@ public sealed partial class CommandPalette : UserControl
         {
             // Clear / Esc / Reset have their own menus; let the key reach them.
             if (KeyboardContextMenu.IsFromBridgedControl(e)) return;
+            // In the search box the key is a context-menu request that opens the box's own menu
+            // (TextBoxMenu) over anything shown here, so leave it to the box.
+            if (XamlRoot is not null && ReferenceEquals(FocusManager.GetFocusedElement(XamlRoot), SearchBox)) return;
             if (Results.SelectedItem is PaletteCommand contextCmd)
             {
                 ShowCommandContextMenu(contextCmd, Results, null);

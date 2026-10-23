@@ -75,6 +75,7 @@ public sealed partial class HistoryWindow : Window
             (TimelineFilterStatusPill, OnTimelineFilterStatusPillRightTapped),
             (CommitShaCopyPill, OnDiffSummaryRightTapped),
             (ChangeStepperButton, OnChangeStepperButtonRightTapped));
+        TextBoxMenu.Attach(SearchBox, FillSearchBoxMenu);
         Title = "Version History — MarkSmith";
         _main = mainViewModel;
 
@@ -1869,14 +1870,14 @@ public sealed partial class HistoryWindow : Window
         if (KindFilterLabel != null) KindFilterLabel.Text = "Exports";
     }
 
-    private void OnSearchBoxRightTapped(object sender, RightTappedRoutedEventArgs e)
+    // The search box's options menu, opened by right-click or Shift+F10 while nothing is selected
+    // (TextBoxMenu keeps the box's own Cut / Copy / Paste menu for a selection).
+    private void FillSearchBoxMenu(MenuFlyout menu)
     {
-        e.Handled = true;
-        var menu = new MenuFlyout();
-
         var focusTimeline = new MenuFlyoutItem
         {
-            Text = "Focus timeline (Enter / Down)",
+            Text = "Focus timeline",
+            KeyboardAcceleratorTextOverride = "Enter",
             Icon = new FontIcon { Glyph = "\uE70D" }
         };
         focusTimeline.Click += (_, _) =>
@@ -1895,7 +1896,8 @@ public sealed partial class HistoryWindow : Window
 
         var clearItem = new MenuFlyoutItem
         {
-            Text = "Clear search filter (Esc)",
+            Text = "Clear search filter",
+            KeyboardAcceleratorTextOverride = "Esc",
             Icon = new FontIcon { Glyph = "\uE894" },
             IsEnabled = !string.IsNullOrEmpty(_vm.SearchQuery) || !string.IsNullOrEmpty(SearchBox.Text)
         };
@@ -1929,8 +1931,6 @@ public sealed partial class HistoryWindow : Window
         };
         checkpointItem.Click += (_, _) => OnTakeSnapshotClick(this, new RoutedEventArgs());
         menu.Items.Add(checkpointItem);
-
-        menu.ShowAt(SearchBox, KeyboardContextMenu.PointIn(e, SearchBox));
     }
 
     private void OnFileNameRightTapped(object sender, RightTappedRoutedEventArgs e)

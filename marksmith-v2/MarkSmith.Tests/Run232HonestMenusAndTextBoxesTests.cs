@@ -137,17 +137,11 @@ public class Run232HonestMenusAndTextBoxesTests
         {
             Assert.Null(element.Attribute(evt));
         }
-        Assert.Contains($"AttachPathBoxMenu({box}, {fill});", MainCode);
+        // Run #233 moved the swap into Services/TextBoxMenu so other search boxes share it
+        // (Run233TextBoxMenuAndHonestShortcutTests covers the helper itself).
+        Assert.Contains($"TextBoxMenu.Attach({box}, {fill});", MainCode);
         Assert.DoesNotContain($"void On{box}DoubleTapped(", MainCode);
         Assert.DoesNotContain($"void On{box}RightTapped(", MainCode);
-
-        var attach = Method(MainCode, "AttachPathBoxMenu");
-        // With text selected the box keeps its own Cut / Copy / Paste menu.
-        Assert.Contains("var textMenu = box.ContextFlyout;", attach);
-        Assert.Contains("string.IsNullOrEmpty(box.SelectedText) ? pathMenu : textMenu", attach);
-        Assert.Contains("box.SelectionChanged +=", attach);
-        // Rebuilt on every open, so the items match the current path.
-        Assert.Contains("pathMenu.Items.Clear();", attach);
 
         var body = Method(MainCode, fill);
         Assert.DoesNotContain("ShowAt(", body);

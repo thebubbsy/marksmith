@@ -74,7 +74,7 @@
                              PlaceholderText="Type a command: export, find, heading, theme…"
                              AutomationProperties.Name="Search commands"
                              TextChanged="OnSearchTextChanged"
-                             RightTapped="OnSearchBoxRightTapped">
+                             ToolTipService.ToolTip="Type to filter commands · Up/Down to choose, Enter to run · Right-click or Shift+F10 for options">
                         <TextBox.Resources>
                             <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="Transparent" />
                             <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="Transparent" />

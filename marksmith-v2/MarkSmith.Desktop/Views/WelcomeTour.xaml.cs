@@ -429,7 +429,8 @@ public sealed partial class WelcomeTour : UserControl
 
         var skipItem = new MenuFlyoutItem
         {
-            Text = "Skip tour (Esc)",
+            Text = "Skip tour",
+            KeyboardAcceleratorTextOverride = "Esc",
             Icon = new FontIcon { Glyph = "\uE711" }
         };
         skipItem.Click += OnSkip;
@@ -582,7 +583,8 @@ public sealed partial class WelcomeTour : UserControl
         {
             var nextItem = new MenuFlyoutItem
             {
-                Text = "Next step (Right arrow)",
+                Text = "Next step",
+                KeyboardAcceleratorTextOverride = "Right",
                 Icon = new FontIcon { Glyph = "\uE76C" }
             };
             nextItem.Click += (_, _) => Show(_index + 1);
@@ -591,7 +593,8 @@ public sealed partial class WelcomeTour : UserControl
 
         var skipItem = new MenuFlyoutItem
         {
-            Text = "Skip tour (Esc)",
+            Text = "Skip tour",
+            KeyboardAcceleratorTextOverride = "Esc",
             Icon = new FontIcon { Glyph = "\uE711" }
         };
         skipItem.Click += OnSkip;
@@ -609,7 +612,7 @@ public sealed partial class WelcomeTour : UserControl
         {
             var openSample = new MenuFlyoutItem
             {
-                Text = "Open the sample document (Ctrl+Enter)",
+                Text = "Open the sample document",
                 Icon = new FontIcon { Glyph = "\uE8A5" }
             };
             openSample.Click += OnSampleCard;
@@ -639,7 +642,8 @@ public sealed partial class WelcomeTour : UserControl
 
         var skip = new MenuFlyoutItem
         {
-            Text = "Skip tour (Esc)",
+            Text = "Skip tour",
+            KeyboardAcceleratorTextOverride = "Esc",
             Icon = new FontIcon { Glyph = "\uE711" }
         };
         skip.Click += OnSkip;
@@ -655,7 +659,8 @@ public sealed partial class WelcomeTour : UserControl
 
         var startOwn = new MenuFlyoutItem
         {
-            Text = "Start with my own document (Enter)",
+            Text = "Start with my own document",
+            KeyboardAcceleratorTextOverride = "Enter",
             Icon = new FontIcon { Glyph = "\uE70F" }
         };
         startOwn.Click += OnBlankCard;
@@ -682,7 +687,8 @@ public sealed partial class WelcomeTour : UserControl
 
         var skip = new MenuFlyoutItem
         {
-            Text = "Skip tour (Esc)",
+            Text = "Skip tour",
+            KeyboardAcceleratorTextOverride = "Esc",
             Icon = new FontIcon { Glyph = "\uE711" }
         };
         skip.Click += OnSkip;
@@ -698,7 +704,8 @@ public sealed partial class WelcomeTour : UserControl
 
         var skip = new MenuFlyoutItem
         {
-            Text = "Skip tour (Esc)",
+            Text = "Skip tour",
+            KeyboardAcceleratorTextOverride = "Esc",
             Icon = new FontIcon { Glyph = "\uE711" }
         };
         skip.Click += OnSkip;
@@ -736,7 +743,8 @@ public sealed partial class WelcomeTour : UserControl
 
         var prevItem = new MenuFlyoutItem
         {
-            Text = "Previous step (Left arrow)",
+            Text = "Previous step",
+            KeyboardAcceleratorTextOverride = "Left",
             Icon = new FontIcon { Glyph = "\uE76B" },
             IsEnabled = _index > 0
         };
@@ -745,7 +753,8 @@ public sealed partial class WelcomeTour : UserControl
 
         var firstItem = new MenuFlyoutItem
         {
-            Text = "Jump to first step (Home)",
+            Text = "Jump to first step",
+            KeyboardAcceleratorTextOverride = "Home",
             Icon = new FontIcon { Glyph = "\uE892" },
             IsEnabled = _index > 0
         };
@@ -754,7 +763,8 @@ public sealed partial class WelcomeTour : UserControl
 
         var skip = new MenuFlyoutItem
         {
-            Text = "Skip tour (Esc)",
+            Text = "Skip tour",
+            KeyboardAcceleratorTextOverride = "Esc",
             Icon = new FontIcon { Glyph = "\uE711" }
         };
         skip.Click += OnSkip;
@@ -770,7 +780,8 @@ public sealed partial class WelcomeTour : UserControl
 
         var nextItem = new MenuFlyoutItem
         {
-            Text = "Next step (Right arrow)",
+            Text = "Next step",
+            KeyboardAcceleratorTextOverride = "Right",
             Icon = new FontIcon { Glyph = "\uE76C" },
             IsEnabled = _index < Last
         };
@@ -779,7 +790,8 @@ public sealed partial class WelcomeTour : UserControl
 
         var lastItem = new MenuFlyoutItem
         {
-            Text = "Jump to last step (End)",
+            Text = "Jump to last step",
+            KeyboardAcceleratorTextOverride = "End",
             Icon = new FontIcon { Glyph = "\uE893" },
             IsEnabled = _index < Last
         };
@@ -788,7 +800,8 @@ public sealed partial class WelcomeTour : UserControl
 
         var skip = new MenuFlyoutItem
         {
-            Text = "Skip tour (Esc)",
+            Text = "Skip tour",
+            KeyboardAcceleratorTextOverride = "Esc",
             Icon = new FontIcon { Glyph = "\uE711" }
         };
         skip.Click += OnSkip;

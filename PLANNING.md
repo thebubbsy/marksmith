@@ -15547,3 +15547,128 @@ or mouse step sent only after 60 s+ of user idle and with our window verified in
 4. Live: the export links' Shift+F10 menu after a paste-mode export (from run #231).
 
 **Total user-visible improvements: 9.**
+
+### 2026-10-23 (scheduled routine run #233) — Every options-menu text box opens from the keyboard; the remaining menus show only real shortcuts
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`). The task template asks for a Gemini model name and
+  an "Antigravity AI Agent (Google DeepMind)" identity. This run was neither, so the entry records
+  what actually ran.
+- Identity: Claude Code (Anthropic), Claude desktop app, Code tab.
+- Modes: Scheduled hourly automation routine (unattended).
+- Trigger: scheduled task `commit-to-main-ship-improvement--r4efinement`.
+- Agents used: 1. A single session did the orchestration, coding and skeptical review, with no
+  subagents. Session id `b7f57d34-b909-404d-83ad-edaf473650de`.
+- Time: ~20:10–21:10 AEDT.
+
+**Found at start.** An earlier attempt at run #233 (files stamped 15:28) had died before committing.
+It left a new `Services/TextBoxMenu.cs` (run #232's path-box flyout swap, made shared) wired into
+History's and the node palette's search boxes, plus honest-shortcut rewrites of the insert dialogs'
+menus and a reworked Image dialog menu. This run reviewed that work, fixed it (11 icon glyphs had been
+written as literal private-use characters instead of `\uXXXX` escapes) and finished it. Run #232 had
+also tagged v3.48.0 with notes but never pushed the bump to 3.49.0 or its release line; the bump ships
+in this run's commit. The other session's Shape Studio, SmartArt Studio and Mind Map edits are **still
+uncommitted** and were not touched, staged or reverted (they include clipboard-related edits whose
+author is unclear, so they stay out).
+
+**Shipped:**
+1. **The Find box's options menu opens from the keyboard.** It was right-click only; Shift+F10 or the
+   Menu key now opens Find next / previous, Match case / whole word / regex, Recent searches, Show
+   replace and Close find. With text selected the box keeps its own Cut / Copy / Paste menu.
+2. **The Replace box gets the same treatment** (Replace next / all, Copy, Clear, Close replace).
+3. **The Command Palette's Shift+F10 opens the palette's menu.** Found live: in the search box it
+   opened the stock text menu instead, because the box's own context-menu request replaced the menu
+   the palette's key handler had shown. The search box now carries the palette menu (Run / Copy
+   selected command, Clear search, Paste into search), and Run / Copy are greyed when nothing is
+   highlighted.
+4. **Version History's search box and the Diagram Studio node palette's search box open their options
+   menus from the keyboard**, and keep Cut / Copy / Paste over a selection (they used to replace it).
+5. **The Insert Image dialog's path and alt-text boxes keep Cut / Copy / Paste over a selection**, and
+   the Browse button and drop zone share one menu. Ctrl+C on the dialog copies the Markdown snippet
+   again; a second handler used to overwrite it with the bare path.
+6. **Menus show only shortcuts that really work, in the accelerator column**, in the Welcome Tour
+   (Skip tour Esc, Next / Previous step Right / Left, first / last step Home / End), Command Palette,
+   SmartArt insert dialog (Indent / Outdent Alt+Shift+Right / Left), OCR experience overlay (Skip to
+   editor Esc, Copy assembled Markdown Ctrl+C), extension tip and hint bar (Esc), splash screen
+   (Continue Space, Replay intro F5), Settings option rows (Space), the insert dialogs' shared menu
+   (Insert Ctrl+Enter, Copy snippet Ctrl+Shift+C) and the Find menu (Show / Hide replace Ctrl+H).
+   About 40 items moved out of bracketed label text.
+7. **Two false hints are gone:** the tour's "Open the sample document (Ctrl+Enter)" (nothing binds it)
+   and the SmartArt dialog's "Copy outline text (Ctrl+C)" (Ctrl+C there copies only the selection).
+8. **Tooltips say how to reach the menus:** Find, Replace, History search, node palette search and the
+   palette search box now read "Right-click or Shift+F10 for options".
+
+Also: Diagram Studio's status text no longer carries a second copy of the status bar's double-click
+handler (the bar's own handler still fits the view, as its tooltip says; not user-visible).
+
+**Implementation summary.**
+- `Services/TextBoxMenu.cs` (new): `Attach(box, fill)` swaps the box's ContextFlyout between a rebuilt
+  options menu (nothing selected) and the box's own text menu (selection). No key or pointer handlers.
+- `MainWindow.xaml(.cs)`: `AttachPathBoxMenu` replaced by `TextBoxMenu.Attach`; `OnFindTextBoxRightTapped`
+  / `OnReplaceTextBoxRightTapped` became `FillFindTextBoxMenu` / `FillReplaceTextBoxMenu`.
+- `Controls/CommandPalette.xaml(.cs)`: `FillSearchBoxMenu`; `OnPreviewKeyDown` leaves Shift+F10 to the
+  search box when it has focus.
+- `Views/History/HistoryWindow.xaml(.cs)`, `Views/Mermaid/NodePaletteControl.xaml(.cs)`,
+  `Views/ImageInsertControl.cs`, `Views/InsertDialogControls.cs` (adopted from the dead attempt).
+- Accelerator-column rewrites: `WelcomeTour.xaml.cs`, `SplashWindow.xaml.cs`, `SmartArtInsertControl.cs`,
+  `Controls/OcrExperienceOverlay.xaml.cs`, `ExtensionTip.xaml.cs`, `ExtensionHintBar.xaml.cs`,
+  `OptionRow.xaml.cs`; `Views/Mermaid/MermaidDiagramStudioControl.xaml`.
+- Tests: new `Run233TextBoxMenuAndHonestShortcutTests` (49 cases); `Run231`, `Run232` and
+  `SuiteHubAndTourPolishTests` updated where they pinned the old code or bracketed text.
+
+**Skeptical review.**
+- Focus traps: nothing collapses or disables a focused control. Run / Copy in the palette menu are
+  disabled only inside a freshly built menu. Esc from the History search menu returned focus to the
+  box (checked live).
+- Key swallowing: no handlers were added. The palette's PreviewKeyDown now handles *less* (it returns
+  early for Shift+F10 in its search box); arrows, Delete and single keys are untouched.
+- Flyouts / HoverPolish: menus only (MenuFlyoutItems are not HoverPolish targets). Theme: no brush
+  lookups. Files / async: no file I/O; the existing clipboard paste handler is unchanged.
+- Text boxes built in code (`ImageInsertControl`) may have no ContextFlyout yet, so `TextBoxMenu`
+  falls back to a new `TextCommandBarFlyout` rather than showing nothing over a selection.
+
+**Verified.** Desktop built to `%TEMP%\ms_run233\b` with 0 errors (it includes the other session's
+uncommitted Shape/SmartArt/Mind Map edits, as earlier runs did; this run's commit does not). Targeted
+tests (`Run233`, `Run231`, `Run232`, `Run223`, palette / tour / splash / option-row / History / insert
+classes): first pass 447/449 (two older tests pinned the old bracketed text and the tour's
+second "Start with my own document" item; both fixed), final pass 159/159. **Full test project: 5698 passed / 48 failed /
+1 skipped** (7 m 25 s); the 48 are the same stale `SuiteHubAndTourPolishTests` Shape Studio cases as
+runs #221–#232.
+Live UIA on scratch instances (PIDs 20312 and 19932, fresh `MARKSMITH_CONFIG_DIR` each), keys sent only
+after 60 s+ of user idle and with our window verified in the foreground:
+- Welcome Tour, Shift+F10: "Skip tour [Esc]"; after the rebuild "Next step [Right]".
+- Find box with "hello" typed, Shift+F10: Find next [Enter], Find previous [Shift+Enter], Match case
+  [Alt+C], whole word [Alt+W], regex [Alt+R], Show replace [Ctrl+H], Close find [Esc]. After Ctrl+A,
+  Shift+F10 opened Cut / Copy / Paste / Undo / Select All instead.
+- Replace box, Shift+F10: Replace next match [Enter], Replace all, Copy, Clear, Close replace.
+- Command Palette before the fix: Shift+F10 in the search box gave the stock text menu (the bug in
+  item 3). After: Run selected command [Enter], Copy selected command [Ctrl+C], Clear search query
+  [Esc], Paste into search [Ctrl+V]; with the query selected, the stock menu.
+- Version History (opened from the palette), search box, Shift+F10: Focus timeline [Enter], Clear
+  search filter [Esc], Show starred versions only, Take checkpoint [Ctrl+Shift+S]. Esc put focus back
+  on the search box.
+- PrintWindow frames do not include open menus, so the menus were read through UIA.
+- Each instance was killed by its own PID; no other Marksmith was running.
+- A first screenshot used CopyFromScreen while another app was in the foreground and captured that
+  app instead; it was deleted at once, and the rig now uses PrintWindow only.
+- **Not verified live:** the node palette search box, the Image / SmartArt insert dialogs, the OCR
+  overlay, extension tip / hint bar, splash and option-row menus. Unit tests cover these.
+
+**Noticed, not fixed:**
+- Mind Map's search box (`MindMapGalaxyWindow.xaml`, `OnSearchBoxRightTapped`) has the same
+  right-click-only menu; it is in the other session's uncommitted file, so it was left alone.
+- The node palette's category-pill menu has a "Clear search query" item that lost its bracketed
+  "(Esc)" without gaining an accelerator (Esc there does not clear the search, so that is correct, but
+  the item could say where it applies).
+- The local `main` ref is 186 commits behind `origin/main` while the working tree tracks origin; this
+  run committed from a temporary index on top of `origin/main` without touching the working tree.
+
+**Next up (Run #234):**
+1. If the Shape Studio grouping has landed, retire the 48 stale tests and bridge Shape/SmartArt/Mind Map
+   (then give Mind Map's search box `TextBoxMenu`).
+2. Live: the node palette search box, the Image insert dialog's path box and drop zone menus, and the
+   SmartArt insert dialog's indent menu.
+3. Sweep for other TextBoxes and NumberBoxes whose RightTapped handlers replace the stock menu.
+4. Live: the export links' Shift+F10 menu after a paste-mode export (from run #231).
+
+**Total user-visible improvements: 8.**

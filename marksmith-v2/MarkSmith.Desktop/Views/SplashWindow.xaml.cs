@@ -115,7 +115,8 @@ public sealed partial class SplashWindow : Window
 
         var continueItem = new Microsoft.UI.Xaml.Controls.MenuFlyoutItem
         {
-            Text = "Continue to MarkSmith (Space)",
+            Text = "Continue to MarkSmith",
+            KeyboardAcceleratorTextOverride = "Space",
             Icon = new Microsoft.UI.Xaml.Controls.FontIcon { Glyph = "\uE76C" }
         };
         continueItem.Click += (_, _) => SafeClose();
@@ -123,7 +124,8 @@ public sealed partial class SplashWindow : Window
 
         var replayItem = new Microsoft.UI.Xaml.Controls.MenuFlyoutItem
         {
-            Text = "Replay intro video (F5)",
+            Text = "Replay intro video",
+            KeyboardAcceleratorTextOverride = "F5",
             Icon = new Microsoft.UI.Xaml.Controls.FontIcon { Glyph = "\uE72C" }
         };
         replayItem.Click += (_, _) => ReplayVideo();

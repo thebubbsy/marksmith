@@ -26,8 +26,7 @@
                      AutomationProperties.Name="Search shapes"
                      TextChanged="OnSearchTextChanged"
                      KeyDown="OnSearchTextBoxKeyDown"
-                     RightTapped="OnSearchTextBoxRightTapped"
-                     ToolTipService.ToolTip="Search shapes (Ctrl+F) · Esc clears, Right-click for options"
+                     ToolTipService.ToolTip="Search shapes (Ctrl+F) · Esc clears, Right-click or Shift+F10 for options"
                      FontSize="12" />
         </StackPanel>
 

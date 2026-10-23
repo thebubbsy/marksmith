@@ -152,7 +152,8 @@ namespace MarkSmith.Controls
 
             var dismissItem = new MenuFlyoutItem
             {
-                Text = "Dismiss hint (Esc)",
+                Text = "Dismiss hint",
+                KeyboardAcceleratorTextOverride = "Esc",
                 Icon = new FontIcon { Glyph = "\uE711" }
             };
             dismissItem.Click += OnCloseClick;

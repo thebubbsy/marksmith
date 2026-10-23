@@ -317,8 +317,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             (HistoryCountButton, OnHistoryCountTextRightTapped),
         })
             Services.KeyboardContextMenu.Bridge(pill, handler);
-        AttachPathBoxMenu(InputFileTextBox, FillInputFileMenu);
-        AttachPathBoxMenu(OutputFolderTextBox, FillOutputFolderMenu);
+        // A double-click is left to the boxes (it selects a word); the path actions are in the menu.
+        TextBoxMenu.Attach(InputFileTextBox, FillInputFileMenu);
+        TextBoxMenu.Attach(OutputFolderTextBox, FillOutputFolderMenu);
+        TextBoxMenu.Attach(FindTextBox, FillFindTextBoxMenu);
+        TextBoxMenu.Attach(ReplaceTextBox, FillReplaceTextBoxMenu);
 
         // Status-bar pieces that come and go (detected-source badge, export links, split sync,
         // section breadcrumb) change how much room the copy pills have, so re-fit the row.
@@ -3909,25 +3912,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         ViewModel.StatusText = message;
         ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
-    }
-
-    // The Selected file and Output folder boxes' path menus. Shift+F10 / the Menu key reach a
-    // TextBox as a context-menu request that opens its ContextFlyout whatever the key handlers do,
-    // so the box's ContextFlyout is swapped instead: the path menu while nothing is selected, the
-    // stock Cut / Copy / Paste menu when text is. Right-click and the keyboard share that one path,
-    // and a double-click is left to the box (it selects a word; the path actions are in the menu).
-    private static void AttachPathBoxMenu(TextBox box, Action<MenuFlyout> fill)
-    {
-        var textMenu = box.ContextFlyout;
-        var pathMenu = new MenuFlyout();
-        pathMenu.Opening += (_, _) =>
-        {
-            pathMenu.Items.Clear();
-            fill(pathMenu);
-        };
-        void Sync() => box.ContextFlyout = string.IsNullOrEmpty(box.SelectedText) ? pathMenu : textMenu;
-        box.SelectionChanged += (_, _) => Sync();
-        Sync();
     }
 
     private void FillInputFileMenu(MenuFlyout menu)
@@ -8766,13 +8750,10 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
     }
 
-    private void OnFindTextBoxRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    // The Find box's options menu, opened by right-click or Shift+F10 while nothing is selected
+    // (TextBoxMenu keeps the box's own Cut / Copy / Paste menu for a selection).
+    private void FillFindTextBoxMenu(MenuFlyout menu)
     {
-        if (FindTextBox is null) return;
-        if (!string.IsNullOrEmpty(FindTextBox.SelectedText)) return; // preserve native selection menus
-
-        var menu = new MenuFlyout();
-
         var findNextItem = new MenuFlyoutItem
         {
             Text = "Find next match",
@@ -8873,7 +8854,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var toggleReplaceItem = new MenuFlyoutItem
         {
-            Text = ReplaceRow.Visibility == Visibility.Visible ? "Hide replace (Ctrl+H)" : "Show replace (Ctrl+H)",
+            Text = ReplaceRow.Visibility == Visibility.Visible ? "Hide replace" : "Show replace",
+            KeyboardAcceleratorTextOverride = "Ctrl+H",
             Icon = new FontIcon { Glyph = "\uE76C" }
         };
         toggleReplaceItem.Click += (_, _) =>
@@ -8893,18 +8875,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         closeItem.Click += (_, _) => CloseFindBar();
         menu.Items.Add(closeItem);
-
-        menu.ShowAt(FindTextBox, KeyboardContextMenu.PointIn(e, FindTextBox));
-        e.Handled = true;
     }
 
-    private void OnReplaceTextBoxRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    // The Replace box's options menu, opened the same way as the Find box's.
+    private void FillReplaceTextBoxMenu(MenuFlyout menu)
     {
-        if (ReplaceTextBox is null) return;
-        if (!string.IsNullOrEmpty(ReplaceTextBox.SelectedText)) return; // preserve native selection menus
-
-        var menu = new MenuFlyout();
-
         var replaceOneItem = new MenuFlyoutItem
         {
             Text = "Replace next match",
@@ -8970,9 +8945,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             }
         };
         menu.Items.Add(closeItem);
-
-        menu.ShowAt(ReplaceTextBox, KeyboardContextMenu.PointIn(e, ReplaceTextBox));
-        e.Handled = true;
     }
 
     private void OnFindCountButtonClick(object sender, RoutedEventArgs e)
