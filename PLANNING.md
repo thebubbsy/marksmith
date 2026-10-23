@@ -16537,3 +16537,7 @@ Pre-existing Marksmith instances (13632, and the stale 12896 from an abandoned #
 3. Live OCR page-flip focus check with a 2-page PDF (carried over since #239).
 
 **Total user-visible improvements: 10.**
+
+**Release (same run):** tagged **v3.57.0** on `e591321`; Release workflow run 40010752235 succeeded;
+user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.57.0). `MarksmithBaseVersion` is now 3.58.0.
