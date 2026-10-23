@@ -16099,3 +16099,99 @@ so keys were sent only after a foreground-PID check). The pre-existing Marksmith
 **Release (same run):** tagged **v3.53.0** on `76cc1972`; Release workflow run 39971779226 succeeded;
 user-facing notes prepended to the generated body
 (https://github.com/thebubbsy/marksmith/releases/tag/v3.53.0). `MarksmithBaseVersion` is now 3.54.0.
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #239 (2026-10-24, 02:00–02:45 AEDT)
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running in the Claude desktop app. The task template asks for
+  "Antigravity AI Agent (Google DeepMind)"; that would be untrue for this run, so the real identity is recorded.
+- Modes: Scheduled Hourly Automation Routine (bypass-permissions, no live user)
+- Trigger: scheduled task `commit-to-main-ship-improvement--r4efinement`
+- Agents used: 1 (one session acting as orchestrator, coding worker and skeptical reviewer; no
+  subagents). Session `198c5a6b-3cd4-4e4f-8611-64382b9ee2b7`.
+
+**Delivered (user-visible):**
+1. **OCR Studio: tabbing onto an element card selects that element.** Focus could sit on card #4's
+   reclassify box while element #1 stayed selected, so pressing 1–8, R, Ctrl+C or Shift+F10 changed
+   or copied a different element from the one you were looking at. Focusing a card's box now selects
+   its element, so those keys act on the card that has focus.
+2. **OCR Studio: Up/Down (and [ ]) take keyboard focus along with the selection.** When focus was in
+   a card, Up/Down moved the highlight but left focus on the old card. Focus now moves to the newly
+   selected card's reclassify box.
+3. **OCR Studio: changing page no longer drops keyboard focus.** Left/Right/PageUp/PageDown/Home/End
+   from inside a card rebuilt the cards and removed the focused one, so focus disappeared. It now
+   comes back on the selected card of the new page. On a page with no elements it goes to Next,
+   Previous or Import instead.
+4. **Insert dialogs: Ctrl+C copies what you selected in the preview.** The "Inserts" preview is
+   selectable, but Ctrl+C always overwrote the clipboard with the whole snippet. A partial selection
+   in the preview is now copied as is. With nothing selected, Ctrl+C still copies the snippet, and
+   Ctrl+Shift+C always does.
+5. **Insert dialogs: screen readers hear the item count.** The count badge ("3 steps",
+   "4 points", SmartArt's description) had a fixed name, so a screen reader heard the same generic
+   label every time and never the number. It is now read by its text.
+6. **Insert image: the drop zone's spoken text matches what's shown.** After you cleared a chosen
+   image, the zone showed "Drag an image here" but a screen reader still said "Selected image:
+   old.png". After a failed preview it still said "Preview not supported". Title and hint now set
+   their text and name together, and choosing an image is announced through the zone's polite live region.
+7. **Insert image: a file that can't be previewed keeps its name in the zone.** A valid image path
+   that WinUI can't render (e.g. a corrupt PNG) reset the zone to "Drag an image here" even though
+   the image was chosen and would insert. It now shows the file name over "Preview not supported
+   (image will still insert)". Dragging over the zone afterwards doesn't wipe it.
+
+**Implementation summary.**
+- `Views/Ocr/OcrInspectionStudioWindow.xaml.cs`: card `combo.GotFocus` → `SelectElement(elem)`
+  (guarded by `ReferenceEquals`); new `IsFocusWithinElementCards()`, `FocusSelectedCard()` and
+  `SelectElementKeepingCardFocus()`; `SelectPreviousElement`/`SelectNextElement` route through it;
+  `RenderCurrentPage` records focus before clearing the cards and restores it after (enabled
+  Next → Prev → Import fallback).
+- `Views/InsertDialogControls.cs`: `OnBodyKeyDown` treats a selection in a `TextBlock` as a text
+  selection; `CountBadge()` no longer sets a fixed `AutomationProperties.Name`.
+- `Views/ImageInsertControl.cs`: `SetZoneText(title, hint, spokenTitle)` sets text and names together and raises
+  `LiveRegionChanged` when the spoken title changes; `ShowThumb`, `ImageFailed` and `Highlight` use it
+  or keep names in sync; `OnDrop` no longer names the zone after a file that may not be an image.
+- Tests: new `Run239CardFocusAndInsertNamesTests` (8 source-contract cases).
+
+**Skeptical review.**
+- Focus traps: nothing new is collapsed or disabled. The one place that removes focused controls
+  (`RenderCurrentPage`) now restores focus, and its fallback picks only enabled controls.
+- Key swallowing: no key handling changed. `IsTextOrComboInputFocused` still excludes open combos
+  and text boxes. A closed card combo already counted as "not input", which is why Up/Down/1–8 reached
+  the studio from there. Now they act on that card.
+- Re-entrancy: `FocusSelectedCard` → `GotFocus` → `SelectElement` is a no-op for the already
+  selected element, so there's no loop. `GotFocus` after a dropdown closes is guarded the same way.
+- Clipboard: the TextBlock branch only stops our handler from overwriting the TextBlock's own copy.
+  Ctrl+Shift+C is unchanged.
+- Theme / HoverPolish: no new brushes or dynamic buttons.
+- Not covered: the streaming scan animation (`AnimateSinglePageBreakdownAsync`) also clears cards,
+  but it runs before review mode while no card can have focus.
+
+**Verified.** Desktop built to `%TEMP%\ms_run239\b` with 0 errors. Run239: 8/8 passed. The wider
+targeted sweep (Run2xx, Ocr, Insert, Image; 847 tests) had only the known stale
+`SuiteHubAndTourPolishTests` RunNNN wiring cases failing (Shape Studio WIP, unchanged since #221).
+Live UIA on scratch PIDs 26792 then 24112 (fresh `MARKSMITH_CONFIG_DIR`; user idle ~36 min, keys sent
+only after a foreground-PID check). The pre-existing Marksmith (PID 13632) was not touched.
+- Insert workflow: the count badge's UIA name is "3 steps". Double-clicking "Step" in the preview and
+  pressing Ctrl+C put `Step ` on the clipboard (not the whole snippet).
+- Insert image: initial "Drag an image here", then choosing `logo.png` read "Selected image: logo.png" / "266 KB",
+  and clearing it went back to "Drag an image here" / "PNG · JPG · GIF · WebP · SVG". A corrupt `broken.png`
+  read "Selected image: broken.png" / "Preview not supported (image will still insert)" (screenshot shows the title).
+- OCR Studio (opened by launching with a small HTML file): focusing "Reclassify element 4" set the badge
+  to "Element #4 (List)". Down moved the badge and focus to element 5. Key 6 reclassified element 5
+  to Heading (element 1 untouched). Up brought focus back to element 4.
+- **Not verified live:** focus restore on a page flip (the HTML import has one page). Source tests cover it.
+
+**Noticed, not fixed:**
+- The local checkout's `main` is 196 commits behind `origin/main`; the working tree matches origin
+  except the Shape / SmartArt / Mind Map studio edits from another session (and a stale 3.50.0 in
+  `Directory.Build.props`). Commits keep going through a temp index built from `origin/main`.
+- OCR canvas frames still aren't focusable (cards now are, through their reclassify boxes).
+
+**Next up (Run #240):**
+1. Live check of OCR page-flip focus restore with a multi-page import (a 2-page PDF launched as an argument).
+2. Insert dialogs: audit the remaining dialogs (Chart, Numbers, References, Embed) for names that
+   don't follow their text, as the image zone did.
+3. If the Shape Studio work has landed, retire the stale `SuiteHubAndTourPolishTests` cases and run
+   the tooltip sweep there.
+
+**Total user-visible improvements: 7.**

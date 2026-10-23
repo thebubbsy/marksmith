@@ -576,6 +576,9 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         var page = _session.CurrentPage;
         if (page is null) return;
 
+        // Rebuilding the cards removes the focused one; remember to put focus back afterwards.
+        bool focusWasOnCard = IsFocusWithinElementCards();
+
         ElementsCanvas.Children.Clear();
         ElementCardsPanel.Children.Clear();
         _canvasElementFrames.Clear();
@@ -628,6 +631,39 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         UpdatePageFlickingState();
         UpdateLiveMarkdownPreview();
         UpdateSessionTelemetry();
+
+        if (focusWasOnCard && !FocusSelectedCard())
+        {
+            // A page with no elements has no card to land on.
+            Control? fallback = NextPageButton is { IsEnabled: true } ? NextPageButton
+                : PrevPageButton is { IsEnabled: true } ? PrevPageButton
+                : ImportCtaButton;
+            fallback?.Focus(FocusState.Keyboard);
+        }
+    }
+
+    private bool IsFocusWithinElementCards()
+    {
+        if (RootGrid.XamlRoot is null || ElementCardsPanel is null) return false;
+        for (var node = FocusManager.GetFocusedElement(RootGrid.XamlRoot) as DependencyObject;
+             node is not null; node = VisualTreeHelper.GetParent(node))
+        {
+            if (ReferenceEquals(node, ElementCardsPanel)) return true;
+        }
+        return false;
+    }
+
+    /// <summary>Puts keyboard focus on the selected element's card (its reclassify box).</summary>
+    private bool FocusSelectedCard()
+    {
+        if (_selectedElement is null ||
+            !_inspectorCards.TryGetValue(_selectedElement, out var card) ||
+            card.Child is not StackPanel { Children.Count: > 1 } stack ||
+            stack.Children[1] is not ComboBox combo)
+        {
+            return false;
+        }
+        return combo.Focus(FocusState.Keyboard);
     }
 
     private static string DescribeElementForAccessibility(OcrInspectionElement elem) =>
@@ -782,6 +818,13 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             if (opt.Kind == elem.Kind) selectedIdx = i;
         }
         combo.SelectedIndex = selectedIdx;
+
+        // Tabbing onto a card selects its element, so 1–8, R, Ctrl+C and Shift+F10 act on the card
+        // that has focus rather than on whichever element was selected before.
+        combo.GotFocus += (_, _) =>
+        {
+            if (!ReferenceEquals(_selectedElement, elem)) SelectElement(elem);
+        };
 
         combo.SelectionChanged += (_, _) =>
         {
@@ -2114,7 +2157,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         }
         int idx = page.Elements.IndexOf(_selectedElement);
         int prevIdx = idx <= 0 ? page.Elements.Count - 1 : idx - 1;
-        SelectElement(page.Elements[prevIdx]);
+        SelectElementKeepingCardFocus(page.Elements[prevIdx]);
     }
 
     private void SelectNextElement()
@@ -2128,7 +2171,16 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         }
         int idx = page.Elements.IndexOf(_selectedElement);
         int nextIdx = (idx < 0 || idx >= page.Elements.Count - 1) ? 0 : idx + 1;
-        SelectElement(page.Elements[nextIdx]);
+        SelectElementKeepingCardFocus(page.Elements[nextIdx]);
+    }
+
+    // Up/Down (and [ ]) from inside a card take keyboard focus along to the newly selected card;
+    // otherwise focus stayed on the old card while the highlight moved on.
+    private void SelectElementKeepingCardFocus(OcrInspectionElement elem)
+    {
+        bool focusWasOnCard = IsFocusWithinElementCards();
+        SelectElement(elem);
+        if (focusWasOnCard) FocusSelectedCard();
     }
 
     private void OnImportCtaClick(object sender, RoutedEventArgs e)

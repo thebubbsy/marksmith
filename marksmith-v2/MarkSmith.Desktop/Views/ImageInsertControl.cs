@@ -59,9 +59,15 @@ public sealed class ImageInsertControl : InsertDialogBody
         _thumb = new Image { MaxHeight = 88, MaxWidth = 400, Stretch = Stretch.Uniform, Visibility = Visibility.Collapsed, HorizontalAlignment = HorizontalAlignment.Center };
         _thumb.ImageFailed += (_, _) =>
         {
+            // The image is still chosen and still inserts, so keep its name in the title rather than
+            // falling back to "Drag an image here".
+            var src = Source;
             ShowThumb(null);
-            _zoneHint.Text = "Preview not supported (image will still insert)";
-            AutomationProperties.SetName(_zoneHint, _zoneHint.Text);
+            if (src.Length > 0)
+            {
+                var name = IsWeb(src) ? "From the web" : Path.GetFileName(src);
+                SetZoneText(name, PreviewUnsupported, $"Selected image: {name}");
+            }
         };
 
         var browse = new Button
@@ -261,8 +267,7 @@ public sealed class ImageInsertControl : InsertDialogBody
             _thumb.Source = null;
             _thumb.Visibility = Visibility.Collapsed;
             _zoneIcon.Visibility = Visibility.Visible;
-            _zoneTitle.Text = "Drag an image here";
-            _zoneHint.Text = "PNG · JPG · GIF · WebP · SVG";
+            SetZoneText("Drag an image here", "PNG · JPG · GIF · WebP · SVG");
             return;
         }
 
@@ -281,9 +286,24 @@ public sealed class ImageInsertControl : InsertDialogBody
         _thumb.Visibility = Visibility.Visible;
         _zoneIcon.Visibility = Visibility.Collapsed;
         var title = IsWeb(source) ? "From the web" : Path.GetFileName(source);
+        SetZoneText(title, IsWeb(source) ? new Uri(source).Host : SizeOf(source), $"Selected image: {title}");
+    }
+
+    private const string PreviewUnsupported = "Preview not supported (image will still insert)";
+
+    // Text and spoken name change together: the names used to be set only for a chosen image, so
+    // after clearing it a screen reader still read "Selected image: old.png" and "Preview not supported".
+    private void SetZoneText(string title, string hint, string? spokenTitle = null)
+    {
+        var spoken = spokenTitle ?? title;
+        bool announce = spokenTitle is not null && AutomationProperties.GetName(_zoneTitle) != spoken;
         _zoneTitle.Text = title;
-        AutomationProperties.SetName(_zoneTitle, $"Selected image: {title}");
-        _zoneHint.Text = IsWeb(source) ? new Uri(source).Host : SizeOf(source);
+        AutomationProperties.SetName(_zoneTitle, spoken);
+        _zoneHint.Text = hint;
+        AutomationProperties.SetName(_zoneHint, hint);
+        // The title is a polite live region, but a live region speaks only when told it changed.
+        if (announce)
+            FrameworkElementAutomationPeer.FromElement(_zoneTitle)?.RaiseAutomationEvent(AutomationEvents.LiveRegionChanged);
     }
 
     private static string SizeOf(string path)
@@ -309,7 +329,12 @@ public sealed class ImageInsertControl : InsertDialogBody
     private void Highlight(bool active)
     {
         ThemeBrush.Set(_zone, Border.BorderBrushProperty, active ? "AccentFillColorDefaultBrush" : "CardStrokeColorDefaultBrush");
-        if (_thumb.Visibility != Visibility.Visible) _zoneTitle.Text = active ? "Release to use this image" : "Drag an image here";
+        if (_thumb.Visibility != Visibility.Visible && _zoneHint.Text != PreviewUnsupported)
+        {
+            var title = active ? "Release to use this image" : "Drag an image here";
+            _zoneTitle.Text = title;
+            AutomationProperties.SetName(_zoneTitle, title);
+        }
     }
 
     private async void OnDrop(object sender, DragEventArgs e)
@@ -323,8 +348,8 @@ public sealed class ImageInsertControl : InsertDialogBody
                        ?? items.OfType<StorageFile>().FirstOrDefault();
             if (file is not null)
             {
-                _source.Text = file.Path;   // the problem line explains a non-image
-                AutomationProperties.SetName(_zoneTitle, $"Selected image: {file.Name}");
+                // The problem line explains a non-image; ShowThumb names the zone for a real one.
+                _source.Text = file.Path;
             }
         }
         catch
