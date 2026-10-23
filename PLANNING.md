@@ -16422,3 +16422,9 @@ foreground window and the user had been idle for 84 minutes, so no keystrokes we
 3. Live OCR page-flip focus check with a 2-page PDF (carried over since #239).
 
 **Total user-visible improvements: 8.**
+
+**Release (same run):** tagged **v3.56.0** on `dc368db9`; Release workflow run 40006627360 succeeded;
+user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.56.0). `MarksmithBaseVersion` is now 3.57.0.
+(The run #241 code landed as `520b5b9a`, which stored CRLF line endings, followed by `dc368db9`, which put
+the same content back to LF. The net diff is the 11 files listed above.)
