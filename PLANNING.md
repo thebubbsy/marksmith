@@ -15672,3 +15672,9 @@ after 60 s+ of user idle and with our window verified in the foreground:
 4. Live: the export links' Shift+F10 menu after a paste-mode export (from run #231).
 
 **Total user-visible improvements: 8.**
+
+**Release (same run):** tagged **v3.49.0** on `d3a34c66`; Release workflow run 39934684115 succeeded;
+user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.49.0). `MarksmithBaseVersion` is now 3.50.0.
+Run #232 had tagged v3.48.0 with notes but left its bump to 3.49.0 unpushed; that bump shipped in
+`d3a34c66`.
