@@ -19,8 +19,8 @@ standing rules wherever they conflict. Every run from #234 to #283 reads this fi
 - **The governance rules were deleted and never came back.** `AGENTS.md` held the hard-won
   Markdown to Word rules (Word/OOXML truths, the normalizer order, "fidelity is the product", "both
   pipelines, always", "verify twice"). It was removed in `e3bdc2f0` (2026-07-22, "before public
-  release"). Its replacement, `docs/MD_ENGINE_GOVERNANCE.md`, is still missing: `GovernanceDocsSyncTests`
-  looks for it, and those tests have been failing ever since. Each run has written them off as "known
+  release"). Its replacement, `docs/MD_ENGINE_GOVERNANCE.md`, is gitignored, so it has never been in
+  the repo: `GovernanceDocsSyncTests` looks for it, and those tests have been failing ever since. Each run has written them off as "known
   pre-existing failures".
 - **Nobody looks at the output.** Run notes report test counts and UIA menu readouts. No run in the
   last 80 rendered the torture test in Word and looked at it.
@@ -166,6 +166,12 @@ phase runs out of defects, pull from the next phase. Never pull desktop work.
   catalogue (`:::smartart`, `:::workflow`, `:::tabs`, `:::columns`, and others), the inline syntaxes,
   Markdig AST / HtmlSanitizer, AmbiguityDetector / AppSettings. `GovernanceDocsSyncTests` goes green
   **on content, not by keyword stuffing.**
+  **That path is gitignored** (`.gitignore`, in the list of internal docs kept out before the public
+  release). This is why the tests fail on every clean checkout. If the doc is only written locally,
+  the next run won't have it. Remove the `docs/MD_ENGINE_GOVERNANCE.md` line from `.gitignore` in the
+  same commit and confirm with `git ls-files docs/MD_ENGINE_GOVERNANCE.md`. The content is the engine
+  contract, with no secrets or business plans. If the owner has said it must stay private, ask them
+  instead of shipping a local-only doc. Never skip the tests.
 - **#236: Fidelity regression gate.** Add a `TortureFidelityTests` class that exports the torture
   corpus and asserts the structural invariants from §2. It should fail today on the §1 regressions,
   marked as `Skip` with the run number that will fix each one. Never skip anything else, and remove each
