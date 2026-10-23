@@ -15994,3 +15994,104 @@ pre-existing Marksmith (PID 13632) was not touched.
 **Release (same run):** tagged **v3.52.0** on `2844afcc`; Release workflow run 39960663130 succeeded;
 user-facing notes prepended to the generated body
 (https://github.com/thebubbsy/marksmith/releases/tag/v3.52.0). `MarksmithBaseVersion` is now 3.53.0.
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #238 (2026-10-24, 01:00–01:55 AEDT)
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running in the Claude desktop app. The task template asks for
+  "Antigravity AI Agent (Google DeepMind)"; that would be untrue for this run, so the real identity is recorded.
+- Modes: Scheduled Hourly Automation Routine (bypass-permissions, no live user)
+- Trigger: scheduled task `commit-to-main-ship-improvement--r4efinement`
+- Agents used: 1 (one session acting as orchestrator, coding worker and skeptical reviewer; no
+  subagents). Session `1a9e60a2-0e0f-4a76-997d-82d341bd700a`.
+
+**Delivered (user-visible):**
+1. **OCR Studio no longer throws away your review on a stray Esc.** Esc, Cancel & Discard (button
+   and all four Discard menu items) and the window's X used to close the studio and cancel the import
+   at once, even after you had reclassified elements. If anything has been reclassified, the studio
+   now asks first: "Insert the reviewed text before closing?" with Insert and close / Discard /
+   Keep editing. With no changes, Esc still cancels straight away.
+2. **OCR Studio's Shift+F10 always opens a menu.** With no element selected, Shift+F10 / the Menu key
+   did nothing. It now opens the page menu (copy page / document Markdown, reset page, previous /
+   next page, import). It also uses the shared `IsContextMenuKey` test, so Ctrl+Shift+F10 no longer
+   counts as Shift+F10.
+3. **Every "Right-click for …" hint on a keyboard-reachable control now says "Right-click or
+   Shift+F10".** Run #223 only fixed tooltips that said exactly "Right-click for options". 30 more
+   said "for page navigation", "for sizes", "for copy options" and so on, all on controls that
+   already open from the keyboard. They are in MainWindow (Suite Hub, Pin, Looking Glass, Email preview,
+   view bar, Find, both zoom levels, Copy HTML, Outline, section breadcrumb, all twelve status-bar
+   copy pills, Shortcuts), OCR (Prev / Next page, Copy Markdown, element frames and cards), Diagram
+   Studio (Auto-layout) and the node palette rows. The palette row tooltip also mentions Enter now.
+4. **History's Documents header has a refresh button.** The header's menu (Refresh, Show in File
+   Explorer, Copy file path) was mouse only (run #237's "Noticed, not fixed"). A small refresh icon
+   button now sits in the header. Click (or F5) refreshes, and right-click / Shift+F10 opens that
+   menu. A double-click on the button doesn't trigger a third refresh through the header.
+5. **The extension setup's address chips open their menu from the keyboard.** The Edge / Chrome
+   "Copy edge://extensions" chips are focusable but had a right-click-only menu, which read the pointer
+   position. They are now bridged and anchor under the chip.
+6. **Suite Hub's recent documents open their own menu from Shift+F10.** Shift+F10 on a recent-document
+   chip fell through to the hub-wide handler and opened a studio card's menu. The chips are now bridged.
+7. **The Code / Split / Preview bar opens its view menu from Shift+F10.** `CenterViewSelector` had a
+   right-click menu (Code / Split / Preview, Looking Glass, Email preview, Focus mode) but no bridge.
+   Shift+F10 on a focused item now opens it under the bar.
+
+**Implementation summary.**
+- `Services/CloseGuard.cs`: `Attach` now returns an `Action` close request. It closes at once when
+  nothing would be lost and otherwise asks the same question as the X. The callers in Shape / SmartArt
+  Studio are unchanged (they ignore the return value).
+- `Views/Ocr/OcrInspectionStudioWindow.xaml(.cs)`: `_requestClose` guard (unkept work =
+  `TotalReclassifications > 0` and no decision yet); `CompleteImport()` split from `OnImportCtaClick`;
+  `OnDiscardClick` goes through the guard; the Shift+F10 branch uses `IsContextMenuKey` and falls back to
+  `KeyboardContextMenu.Invoke(PageSheetBorder, OnPageSheetRightTapped)`; tooltips.
+- `Views/History/HistoryWindow.xaml(.cs)`: `DocumentsRefreshButton` (bridged to
+  `OnDocumentsHeaderRightTapped`), `OnDocumentsRefreshButtonClick`, and an `IsWithin` guard in the header's double-tap.
+- `Views/ExtensionSetupView.xaml.cs`, `Views/SuiteHubView.xaml.cs`, `MainWindow.xaml(.cs)`,
+  `Views/Mermaid/MermaidDiagramStudioControl.xaml`, `Views/Mermaid/NodePaletteControl.xaml`: bridges and tooltips.
+- Tests: new `Run238CloseGuardAndKeyboardHintsTests` (11 cases + 1 theory over every XAML surface).
+  It includes a behavioural OCR-session test that the guard's predicate drops to 0 after a page
+  reset, and a generalised check that no bridged control's tooltip says only "Right-click for/to …".
+  `Run223…SurfaceWideShiftF10Menus_YieldToTheFocusedControlsOwn` also accepts `IsContextMenuKey(e.Key)` as the branch marker.
+
+**Skeptical review.**
+- Focus traps: nothing new collapses or disables a control. The guard's dialog returns focus to the
+  studio on Keep editing.
+- Key swallowing: the OCR Shift+F10 branch still runs after the `inputFocused` early return, so text
+  boxes and open combo boxes keep their own menus. The new bridges handle only Shift+F10 / the Menu key.
+- Double menus: History's refresh button handles its RightTapped, so the header Border doesn't open a
+  second menu. The view bar, chips and recent documents aren't nested inside other bridged elements.
+  Live checks showed exactly one menu each time.
+- Close paths: all Discard paths (button, Esc, four menu items) call `OnDiscardClick`. "Insert and close"
+  only completes the import task, and the Closed handler's discard result is then a no-op.
+- HoverPolish / theme: one XAML button under a window that is already tracked; no resource lookups.
+- Residual edge: if `Window.Close()` does raise `AppWindow.Closing`, MainWindow's error-path
+  `studio.Close()` would ask first after a review. That is harmless and only happens on failures.
+
+**Verified.** Desktop built to `%TEMP%\ms_run238\b` with 0 errors. Targeted tests (Run2xx, History,
+ExtensionSetup, Ocr, SuiteHub, MainWindow, Mermaid, KeyboardContextMenu): 1190 passed. The only failures
+were the same 48 stale `SuiteHubAndTourPolishTests` (Shape Studio WIP) as runs #221–#237, and all Run238 cases
+passed. Live UIA on scratch PID 24520 (fresh `MARKSMITH_CONFIG_DIR`; the user had been idle 13 minutes,
+so keys were sent only after a foreground-PID check). The pre-existing Marksmith (PID 13632) was not touched.
+- Focus "Split" ▸ Shift+F10: Code view / Split view / Preview view / Turn on Looking Glass / Preview as
+  email / Focus mode (F11).
+- Version History: `DocumentsRefreshButton` is focusable. Invoke gave `NoticeBar` "Refreshed the
+  documents list.", and Shift+F10 opened "Refresh documents list [F5]". PrintWindow shows the icon in the header.
+- Extension setup ▸ focus "Copy edge://extensions…" ▸ Shift+F10: Copy Edge extensions URL / Copy Step 1
+  instructions / Read extension guide.
+- **Not verified live:** the OCR guard and page-menu fallback (they need a real scan import, which needs
+  the file picker) and Suite Hub recent documents (the scratch config has none). Source and session tests cover them.
+
+**Noticed, not fixed:**
+- Shape / SmartArt / Mind Map studios still have uncommitted edits from another session (unchanged
+  since 2026-10-23 23:28). Their tooltips and bridges weren't touched.
+- OCR inspector cards and canvas frames still aren't focusable. Up/Down/[ ] select elements, so it's
+  reachable, but Tab can't land on an element.
+
+**Next up (Run #239):**
+1. Live OCR check: import a small PNG through the scan path, reclassify one element, then Esc: the
+   guard should ask, and Keep editing should leave the review intact.
+2. Consider making OCR inspector cards focusable (Tab lands on the selected card, and Enter / F2
+   opens its reclassify combo) without breaking the Up/Down handler.
+3. If the Shape Studio work has landed, retire the 48 stale tests and run the same tooltip sweep there.
+
+**Total user-visible improvements: 7.**

@@ -191,7 +191,7 @@
                 <Button x:Name="SuiteHubButton" Height="30" Padding="8,0" Background="Transparent" BorderThickness="0"
                         Click="OnSuiteHubClick"
                         RightTapped="OnSuiteHubButtonRightTapped"
-                        ToolTipService.ToolTip="Open Suite Hub: the studios, browser extension, AI server and command line in one place (Right-click for direct studio jump)">
+                        ToolTipService.ToolTip="Open Suite Hub: the studios, browser extension, AI server and command line in one place (Right-click or Shift+F10 for direct studio jump)">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <FontIcon Glyph="&#xECA5;" FontSize="12" Foreground="{ThemeResource AccentFillColorDefaultBrush}" />
                         <TextBlock Text="Suite Hub" FontSize="12" FontWeight="SemiBold" />
@@ -329,7 +329,7 @@
                                         Click="OnTogglePinFileClick" RightTapped="OnPinFileButtonRightTapped"
                                         IsEnabled="{Binding HasInputFile}"
                                         AutomationProperties.Name="Pin this file"
-                                        ToolTipService.ToolTip="Pin this file to the top of the file list (Right-click for file options)">
+                                        ToolTipService.ToolTip="Pin this file to the top of the file list (Right-click or Shift+F10 for file options)">
                                     <Grid>
                                         <FontIcon Glyph="&#xE735;" FontSize="14" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
                                                   Visibility="{Binding IsCurrentFilePinned, Converter={StaticResource BoolToVisibilityConverter}}" />
@@ -591,7 +591,7 @@
                          this row can no longer overflow into the step title on the left at the
                          default 1220×800 launch size. -->
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" VerticalAlignment="Center">
-                        <ToggleButton x:Name="LookingGlassToggle" AutomationProperties.Name="Looking Glass portal mode" ToolTipService.ToolTip="Looking Glass portal mode — click the preview to reveal the editable Markdown behind it (Right-click for portal options)"
+                        <ToggleButton x:Name="LookingGlassToggle" AutomationProperties.Name="Looking Glass portal mode" ToolTipService.ToolTip="Looking Glass portal mode — click the preview to reveal the editable Markdown behind it (Right-click or Shift+F10 for portal options)"
                                       Height="32" Width="32" Padding="0" VerticalAlignment="Center"
                                       RightTapped="OnLookingGlassToggleRightTapped"
                                       Checked="OnLookingGlassToggled" Unchecked="OnLookingGlassToggled">
@@ -601,7 +601,7 @@
                              email-safe body) instead of the themed page. -->
                         <ToggleButton x:Name="EmailPreviewToggle" Height="32" Width="32" Padding="0" VerticalAlignment="Center"
                                       AutomationProperties.Name="Preview as email"
-                                      ToolTipService.ToolTip="Preview as email: see the document exactly as the Outlook draft will show it (Right-click for email options)"
+                                      ToolTipService.ToolTip="Preview as email: see the document exactly as the Outlook draft will show it (Right-click or Shift+F10 for email options)"
                                       IsChecked="{Binding PreviewAsEmail, Mode=TwoWay}"
                                       RightTapped="OnEmailPreviewToggleRightTapped"
                                       Checked="OnEmailPreviewToggled" Unchecked="OnEmailPreviewToggled">
@@ -618,7 +618,7 @@
                         </ToggleButton>
                         <SelectorBar x:Name="CenterViewSelector" SelectionChanged="OnCenterViewSelectorChanged"
                                      RightTapped="OnCenterViewSelectorRightTapped"
-                                     ToolTipService.ToolTip="Switch between Code (Ctrl+1), Split (Ctrl+2), and Preview (Ctrl+3) — Right-click for view options">
+                                     ToolTipService.ToolTip="Switch between Code (Ctrl+1), Split (Ctrl+2), and Preview (Ctrl+3) — Right-click or Shift+F10 for view options">
                             <SelectorBarItem x:Name="ViewCodeTab" Text="Code" IsSelected="True"
                                              ToolTipService.ToolTip="Markdown editor only (Ctrl+1)" />
                             <SelectorBarItem x:Name="ViewSplitTab" Text="Split"
@@ -838,7 +838,7 @@
                                     <Button x:Name="EditorFindButton" Width="28" Height="24" Padding="0" Click="OnEditorFindClick"
                                             RightTapped="OnEditorFindButtonRightTapped"
                                             AutomationProperties.Name="Find and replace"
-                                            ToolTipService.ToolTip="Find (Ctrl+F) · Find and replace (Ctrl+H) — Right-click for find options">
+                                            ToolTipService.ToolTip="Find (Ctrl+F) · Find and replace (Ctrl+H) — Right-click or Shift+F10 for find options">
                                         <FontIcon Glyph="&#xE721;" FontSize="12" />
                                     </Button>
                                     <Border Width="1" Height="14" Background="{ThemeResource CardStrokeColorDefaultBrush}" Margin="4,0" VerticalAlignment="Center" />
@@ -847,7 +847,7 @@
                                     </Button>
                                     <Button x:Name="EditorZoomResetButton" Height="24" MinWidth="42" Padding="4,0"
                                             Background="Transparent" BorderThickness="0"
-                                            ToolTipService.ToolTip="Editor font size · Click for 100%; Ctrl+wheel zooms; right-click for sizes."
+                                            ToolTipService.ToolTip="Editor font size · Click for 100%; Ctrl+wheel zooms; right-click or Shift+F10 for sizes."
                                             AutomationProperties.Name="Reset editor font size to 100%"
                                             Click="OnEditorZoomResetClick"
                                             RightTapped="OnEditorZoomResetRightTapped">
@@ -1028,7 +1028,7 @@
                                              still reads as a label; the hover fill shows it's clickable. -->
                                         <Button x:Name="PreviewZoomResetButton" Height="22" MinWidth="44" Padding="4,0"
                                                 Background="Transparent" BorderThickness="0"
-                                                ToolTipService.ToolTip="Preview zoom. Click for 100%; Ctrl+wheel zooms; right-click for preset stops."
+                                                ToolTipService.ToolTip="Preview zoom. Click for 100%; Ctrl+wheel zooms; right-click or Shift+F10 for preset stops."
                                                 AutomationProperties.Name="Reset preview zoom to 100%"
                                                 Click="OnPreviewZoomResetClick"
                                                 RightTapped="OnPreviewZoomResetRightTapped">
@@ -1122,7 +1122,7 @@
 
 
                     <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center" Margin="0,4,0,10">
-                        <Button x:Name="CopyHtmlButton" ToolTipService.ToolTip="Copy the rendered HTML to the clipboard (Right-click for copy options)" Height="32" Width="32" Padding="0"
+                        <Button x:Name="CopyHtmlButton" ToolTipService.ToolTip="Copy the rendered HTML to the clipboard (Right-click or Shift+F10 for copy options)" Height="32" Width="32" Padding="0"
                                 Click="OnCopyHtmlClick" VerticalAlignment="Center"
                                 RightTapped="OnCopyHtmlButtonRightTapped"
                                 AutomationProperties.Name="Copy rendered HTML">
@@ -1383,7 +1383,7 @@
                         <Button x:Name="OutlineButton"
                                 AutomationProperties.Name="Document outline"
                                 RightTapped="OnOutlineButtonRightTapped"
-                                ToolTipService.ToolTip="Document outline (H1–H6, Right-click for outline options)">
+                                ToolTipService.ToolTip="Document outline (H1–H6, Right-click or Shift+F10 for outline options)">
                             <FontIcon Glyph="&#xE8A4;" FontSize="14" />
                             <Button.Flyout>
                                 <Flyout x:Name="OutlineFlyout" Placement="BottomEdgeAlignedRight" Opened="OnOutlineFlyoutOpened">
@@ -2272,7 +2272,7 @@
                                      Click="OnStatusSectionBreadcrumbButtonClick"
                                      RightTapped="OnStatusSectionBreadcrumbButtonRightTapped"
                                      Padding="4,1" FontSize="11.5" Opacity="0.85" Visibility="Collapsed"
-                                     ToolTipService.ToolTip="Active section · Click to jump to section heading, right-click for section budget and distribution summary"
+                                     ToolTipService.ToolTip="Active section · Click to jump to section heading, right-click or Shift+F10 for section budget and distribution summary"
                                      AutomationProperties.Name="Active section breadcrumb">
                         <StackPanel Orientation="Horizontal" Spacing="4">
                             <FontIcon Glyph="&#xE8FD;" FontSize="11" />
@@ -2295,7 +2295,7 @@
                                      Click="OnStatusCopyMarkdownButtonClick"
                                      RightTapped="OnStatusCopyMarkdownButtonRightTapped"
                                      Padding="5,1" FontSize="11.5" Opacity="0.85"
-                                     ToolTipService.ToolTip="Copy Markdown (or active selection) to clipboard · Right-click for rich email &amp; metrics copy options"
+                                     ToolTipService.ToolTip="Copy Markdown (or active selection) to clipboard · Right-click or Shift+F10 for rich email &amp; metrics copy options"
                                      AutomationProperties.Name="Copy Markdown to clipboard">
                         <StackPanel Orientation="Horizontal" Spacing="4">
                             <FontIcon Glyph="&#xE8C8;" FontSize="11" />
@@ -2307,7 +2307,7 @@
                                      Click="OnStatusCopyTocButtonClick"
                                      RightTapped="OnStatusCopyTocButtonRightTapped"
                                      Padding="5,1" FontSize="11.5" Opacity="0.85"
-                                     ToolTipService.ToolTip="Copy Markdown Table of Contents to clipboard · Right-click for plain outline or insert at cursor"
+                                     ToolTipService.ToolTip="Copy Markdown Table of Contents to clipboard · Right-click or Shift+F10 for plain outline or insert at cursor"
                                      AutomationProperties.Name="Copy Markdown Table of Contents">
                         <StackPanel Orientation="Horizontal" Spacing="4">
                             <FontIcon Glyph="&#xE8FD;" FontSize="11" />
@@ -2319,7 +2319,7 @@
                                      Click="OnStatusCopyLinksButtonClick"
                                      RightTapped="OnStatusCopyLinksButtonRightTapped"
                                      Padding="5,1" FontSize="11.5" Opacity="0.85"
-                                     ToolTipService.ToolTip="Copy all document links to clipboard · Right-click for raw URLs only or insert Link Index at cursor"
+                                     ToolTipService.ToolTip="Copy all document links to clipboard · Right-click or Shift+F10 for raw URLs only or insert Link Index at cursor"
                                      AutomationProperties.Name="Copy document links">
                         <StackPanel Orientation="Horizontal" Spacing="4">
                             <FontIcon Glyph="&#xE71B;" FontSize="11" />
@@ -2335,7 +2335,7 @@
                                          Click="OnStatusCopyCodeButtonClick"
                                          RightTapped="OnStatusCopyCodeButtonRightTapped"
                                          Padding="5,1" FontSize="11.5" Opacity="0.85"
-                                         ToolTipService.ToolTip="Copy all fenced code blocks to clipboard · Right-click for raw code only or Code Language Breakdown"
+                                         ToolTipService.ToolTip="Copy all fenced code blocks to clipboard · Right-click or Shift+F10 for raw code only or Code Language Breakdown"
                                          AutomationProperties.Name="Copy fenced code blocks">
                             <StackPanel Orientation="Horizontal" Spacing="4">
                                 <FontIcon Glyph="&#xE943;" FontSize="11" />
@@ -2347,7 +2347,7 @@
                                          Click="OnStatusCopyTablesButtonClick"
                                          RightTapped="OnStatusCopyTablesButtonRightTapped"
                                          Padding="5,1" FontSize="11.5" Opacity="0.85"
-                                         ToolTipService.ToolTip="Copy all Markdown tables to clipboard · Right-click for Excel/TSV copy or Table Inventory Summary"
+                                         ToolTipService.ToolTip="Copy all Markdown tables to clipboard · Right-click or Shift+F10 for Excel/TSV copy or Table Inventory Summary"
                                          AutomationProperties.Name="Copy Markdown tables">
                             <StackPanel Orientation="Horizontal" Spacing="4">
                                 <FontIcon Glyph="&#xE80A;" FontSize="11" />
@@ -2359,7 +2359,7 @@
                                          Click="OnStatusCopyTasksButtonClick"
                                          RightTapped="OnStatusCopyTasksButtonRightTapped"
                                          Padding="5,1" FontSize="11.5" Opacity="0.85"
-                                         ToolTipService.ToolTip="Copy all Markdown task list items to clipboard · Right-click for pending/completed filters or Task Progress Summary"
+                                         ToolTipService.ToolTip="Copy all Markdown task list items to clipboard · Right-click or Shift+F10 for pending/completed filters or Task Progress Summary"
                                          AutomationProperties.Name="Copy Markdown tasks">
                             <StackPanel Orientation="Horizontal" Spacing="4">
                                 <FontIcon Glyph="&#xE73A;" FontSize="11" />
@@ -2371,7 +2371,7 @@
                                          Click="OnStatusCopyMathButtonClick"
                                          RightTapped="OnStatusCopyMathButtonRightTapped"
                                          Padding="5,1" FontSize="11.5" Opacity="0.85"
-                                         ToolTipService.ToolTip="Copy all LaTeX math expressions to clipboard · Right-click for display/inline filters or Math Inventory Table"
+                                         ToolTipService.ToolTip="Copy all LaTeX math expressions to clipboard · Right-click or Shift+F10 for display/inline filters or Math Inventory Table"
                                          AutomationProperties.Name="Copy LaTeX math expressions">
                             <StackPanel Orientation="Horizontal" Spacing="4">
                                 <FontIcon Glyph="&#xE948;" FontSize="11" />
@@ -2383,7 +2383,7 @@
                                          Click="OnStatusCopyCalloutsButtonClick"
                                          RightTapped="OnStatusCopyCalloutsButtonRightTapped"
                                          Padding="5,1" FontSize="11.5" Opacity="0.85"
-                                         ToolTipService.ToolTip="Copy all admonition callouts (&gt; [!NOTE], [!WARNING], etc.) and blockquotes to clipboard · Right-click for alert filters or Callout Inventory Table"
+                                         ToolTipService.ToolTip="Copy all admonition callouts (&gt; [!NOTE], [!WARNING], etc.) and blockquotes to clipboard · Right-click or Shift+F10 for alert filters or Callout Inventory Table"
                                          AutomationProperties.Name="Copy Markdown callouts and blockquotes">
                             <StackPanel Orientation="Horizontal" Spacing="4">
                                 <FontIcon Glyph="&#xE783;" FontSize="11" />
@@ -2395,7 +2395,7 @@
                                          Click="OnStatusCopyImagesButtonClick"
                                          RightTapped="OnStatusCopyImagesButtonRightTapped"
                                          Padding="5,1" FontSize="11.5" Opacity="0.85"
-                                         ToolTipService.ToolTip="Copy all Markdown (![alt](src)) and HTML (&lt;img&gt;) image references to clipboard · Right-click for URL-only, missing alt-text audit, or Image Inventory Table"
+                                         ToolTipService.ToolTip="Copy all Markdown (![alt](src)) and HTML (&lt;img&gt;) image references to clipboard · Right-click or Shift+F10 for URL-only, missing alt-text audit, or Image Inventory Table"
                                          AutomationProperties.Name="Copy Markdown and HTML images">
                             <StackPanel Orientation="Horizontal" Spacing="4">
                                 <FontIcon Glyph="&#xEB9F;" FontSize="11" />
@@ -2407,7 +2407,7 @@
                                          Click="OnStatusCopyFootnotesButtonClick"
                                          RightTapped="OnStatusCopyFootnotesButtonRightTapped"
                                          Padding="5,1" FontSize="11.5" Opacity="0.85"
-                                         ToolTipService.ToolTip="Copy all Markdown footnotes ([^id] references &amp; [^id]: definitions) to clipboard · Right-click for definitions-only, orphan/missing audit, or Footnote Inventory Table"
+                                         ToolTipService.ToolTip="Copy all Markdown footnotes ([^id] references &amp; [^id]: definitions) to clipboard · Right-click or Shift+F10 for definitions-only, orphan/missing audit, or Footnote Inventory Table"
                                          AutomationProperties.Name="Copy Markdown footnotes">
                             <StackPanel Orientation="Horizontal" Spacing="4">
                                 <FontIcon Glyph="&#xE8A1;" FontSize="11" />
@@ -2419,7 +2419,7 @@
                                          Click="OnStatusCopyDiagramsButtonClick"
                                          RightTapped="OnStatusCopyDiagramsButtonRightTapped"
                                          Padding="5,1" FontSize="11.5" Opacity="0.85"
-                                         ToolTipService.ToolTip="Copy all Mermaid diagrams and :::smartart / :::chart / :::shapes visual blocks to clipboard · Right-click for filters or Diagram Inventory Table"
+                                         ToolTipService.ToolTip="Copy all Mermaid diagrams and :::smartart / :::chart / :::shapes visual blocks to clipboard · Right-click or Shift+F10 for filters or Diagram Inventory Table"
                                          AutomationProperties.Name="Copy Markdown diagrams and visual blocks">
                             <StackPanel Orientation="Horizontal" Spacing="4">
                                 <FontIcon Glyph="&#xE9D2;" FontSize="11" />
@@ -2453,7 +2453,7 @@
                                      Click="OnStatusShortcutsButtonClick"
                                      RightTapped="OnStatusShortcutsButtonRightTapped"
                                      Padding="5,1" FontSize="11.5" Opacity="0.85"
-                                     ToolTipService.ToolTip="Keyboard shortcuts cheatsheet (F1) · Right-click for quick navigation actions"
+                                     ToolTipService.ToolTip="Keyboard shortcuts cheatsheet (F1) · Right-click or Shift+F10 for quick navigation actions"
                                      AutomationProperties.Name="Keyboard shortcuts cheatsheet">
                         <StackPanel Orientation="Horizontal" Spacing="4">
                             <FontIcon Glyph="&#xE765;" FontSize="11" />

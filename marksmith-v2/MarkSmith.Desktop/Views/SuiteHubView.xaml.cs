@@ -2058,6 +2058,8 @@ public sealed partial class SuiteHubView : UserControl
                     btn.Click += OnRecentFileItemClick;
 
                     btn.RightTapped += OnRecentFileItemRightTapped;
+                    // Without the bridge, Shift+F10 here fell through to the hub-wide card menu.
+                    KeyboardContextMenu.Bridge(btn, OnRecentFileItemRightTapped);
 
 
 

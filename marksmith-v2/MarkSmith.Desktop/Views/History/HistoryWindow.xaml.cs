@@ -74,7 +74,8 @@ public sealed partial class HistoryWindow : Window
             (SelectedHeaderButton, OnTimelineHeaderRightTapped),
             (TimelineFilterStatusPill, OnTimelineFilterStatusPillRightTapped),
             (CommitShaCopyPill, OnDiffSummaryRightTapped),
-            (ChangeStepperButton, OnChangeStepperButtonRightTapped));
+            (ChangeStepperButton, OnChangeStepperButtonRightTapped),
+            (DocumentsRefreshButton, OnDocumentsHeaderRightTapped));
         TextBoxMenu.Attach(SearchBox, FillSearchBoxMenu);
         Title = "Version History — MarkSmith";
         _main = mainViewModel;
@@ -4265,8 +4266,12 @@ var auditResourceDisposalLeaksItem = new MenuFlyoutItem
     private void OnDocumentsHeaderDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
     {
         e.Handled = true;
+        // A double-click on the refresh button already refreshed through its Click.
+        if (IsWithin(e.OriginalSource as DependencyObject, DocumentsRefreshButton)) return;
         _ = RefreshHistoryAsync();
     }
+
+    private void OnDocumentsRefreshButtonClick(object sender, RoutedEventArgs e) => _ = RefreshHistoryAsync();
 
     private void OnDocumentsHeaderRightTapped(object sender, RightTappedRoutedEventArgs e)
     {

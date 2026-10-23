@@ -57,6 +57,8 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
     private CancellationTokenSource? _idleLaserCts;
     private CancellationTokenSource? _playbackCts;
     private OcrInspectionElement? _selectedElement;
+    // Discard, Esc and the X all cancel the import. After reclassifying, CloseGuard asks first.
+    private readonly Action _requestClose;
     private int _imagePixelWidth = 960;
     private int _imagePixelHeight = 1320;
     private bool _isReviewMode = false;
@@ -119,6 +121,11 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         };
 
         RootGrid.PreviewKeyDown += OnRootKeyDown;
+
+        _requestClose = CloseGuard.Attach(this,
+            () => _session.TotalReclassifications > 0 && !_decisionTcs.Task.IsCompleted,
+            () => { CompleteImport(); return true; },
+            "reviewed text");
     }
 
     private void ConfigureWindowChrome()
@@ -630,7 +637,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
     private static string DescribeElementToolTip(OcrInspectionElement elem) =>
         $"#{elem.Id} · {elem.KindDisplayName} ({elem.WordCount} words)" +
         (elem.IsReclassified ? $" — Reclassified from {elem.OriginalKind}" : string.Empty) +
-        "\nClick to select · Right-click for actions · Keys 1–8 to reclassify · R to reset";
+        "\nClick to select · Right-click or Shift+F10 for actions · Keys 1–8 to reclassify · R to reset";
 
     private Border CreateCanvasElementFrame(OcrInspectionElement elem)
     {
@@ -2126,24 +2133,23 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
 
     private void OnImportCtaClick(object sender, RoutedEventArgs e)
     {
+        CompleteImport();
+        this.Close();
+    }
+
+    private void CompleteImport()
+    {
         string finalMarkdown = _session.GetDocumentMarkdown();
         _decisionTcs.TrySetResult(new OcrInspectionResult(
             Imported: true,
             Markdown: finalMarkdown,
             PageCount: _session.Pages.Count,
             ReclassifiedCount: _session.TotalReclassifications));
-        this.Close();
     }
 
-    private void OnDiscardClick(object sender, RoutedEventArgs e)
-    {
-        _decisionTcs.TrySetResult(new OcrInspectionResult(
-            Imported: false,
-            Markdown: string.Empty,
-            PageCount: _session.Pages.Count,
-            ReclassifiedCount: 0));
-        this.Close();
-    }
+    // The Closed handler reports the discard; going through the guard means reclassifications
+    // are never thrown away by a stray Esc.
+    private void OnDiscardClick(object sender, RoutedEventArgs e) => _requestClose();
 
     private bool IsTextOrComboInputFocused()
     {
@@ -2217,16 +2223,22 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             }
 
             // Context menu key (Application or Shift+F10) for the selected element
-            if (e.Key == Windows.System.VirtualKey.Application || (e.Key == Windows.System.VirtualKey.F10 && shift))
+            if (KeyboardContextMenu.IsContextMenuKey(e.Key))
             {
                 // Toolbar/footer buttons with their own menus (Prev/Next page, Discard, Import…) open those.
                 if (KeyboardContextMenu.IsFromBridgedControl(e)) return;
+                e.Handled = true;
                 if (_selectedElement is not null &&
                     _inspectorCards.TryGetValue(_selectedElement, out var card) &&
                     card.ContextFlyout is MenuFlyout flyout)
                 {
-                    e.Handled = true;
                     flyout.ShowAt(card, new FlyoutShowOptions { Placement = FlyoutPlacementMode.BottomEdgeAlignedLeft });
+                }
+                else if (PageSheetBorder is not null)
+                {
+                    // Nothing selected: the page's own menu (copy, reset, page nav, import) rather
+                    // than nothing at all.
+                    KeyboardContextMenu.Invoke(PageSheetBorder, OnPageSheetRightTapped);
                 }
                 return;
             }

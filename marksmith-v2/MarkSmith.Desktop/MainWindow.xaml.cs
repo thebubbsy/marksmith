@@ -315,6 +315,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             (Step3Badge, OnPipelineStepBadgeRightTapped),
             (TocCountButton, OnTocCountTextRightTapped),
             (MarkdownFilesCombo, OnMarkdownFilesComboRightTapped),
+            // Shift+F10 on a focused Code / Split / Preview item bubbles up to the bar.
+            (CenterViewSelector, OnCenterViewSelectorRightTapped),
             (HistoryCountButton, OnHistoryCountTextRightTapped),
             // The pane splitters take focus (arrow keys resize); their width presets were mouse only.
             (LeftSplitter, OnLeftSplitterRightTapped),
@@ -7736,7 +7738,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         string display = activeSection.Level > 0 ? $"§ {activeSection.Title}" : "§ Intro";
         StatusSectionBreadcrumbText.Text = display;
-        ToolTipService.SetToolTip(StatusSectionBreadcrumbButton, $"Section '{activeSection.Title}' · {activeSection.WordCount} words ({activeSection.WordPercentage:0.#}%) · ~{activeSection.ReadingTimeMinutes:0.#}m read · Click to jump to line {activeSection.LineNumber}, right-click for options");
+        ToolTipService.SetToolTip(StatusSectionBreadcrumbButton, $"Section '{activeSection.Title}' · {activeSection.WordCount} words ({activeSection.WordPercentage:0.#}%) · ~{activeSection.ReadingTimeMinutes:0.#}m read · Click to jump to line {activeSection.LineNumber}, right-click or Shift+F10 for options");
         StatusSectionBreadcrumbButton.Visibility = Visibility.Visible;
         StatusSectionBreadcrumbDivider.Visibility = Visibility.Visible;
     }

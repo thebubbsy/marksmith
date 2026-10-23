@@ -124,14 +124,17 @@ public sealed partial class ExtensionSetupView : UserControl
         }.Themed(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush"));
         content.Children.Add(icon);
         var button = new Button { Content = content };
-        ToolTipService.SetToolTip(button, $"Copy {address} for {browser}'s address bar (Right-click for options)");
+        ToolTipService.SetToolTip(button, $"Copy {address} for {browser}'s address bar (Right-click or Shift+F10 for options)");
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(button, $"Copy {address} for {browser}'s address bar");
         button.Click += (_, _) => CopyFeedback.CopyWithTick(address, icon);
-        button.RightTapped += (s, e) =>
+        // The chips are focusable, so their menu has to open from Shift+F10 / the Menu key too.
+        RightTappedEventHandler showMenu = (_, e) =>
         {
             e.Handled = true;
-            ShowChipContextMenu(button, icon, browser, address, e.GetPosition(button));
+            ShowChipContextMenu(button, icon, browser, address, KeyboardContextMenu.PointIn(e, button));
         };
+        button.RightTapped += showMenu;
+        KeyboardContextMenu.Bridge(button, showMenu);
         return button;
     }
 
