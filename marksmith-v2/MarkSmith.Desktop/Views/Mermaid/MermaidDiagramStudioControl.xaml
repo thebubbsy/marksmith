@@ -119,7 +119,7 @@
                         </StackPanel>
                     </Button>
 
-                    <Button x:Name="AutoLayoutButton" Click="OnAutoLayoutClick" ToolTipService.ToolTip="Auto-arrange nodes (Right-click for layout options)"
+                    <Button x:Name="AutoLayoutButton" Click="OnAutoLayoutClick" ToolTipService.ToolTip="Auto-arrange nodes (Right-click or Shift+F10 for layout options)"
                             AutomationProperties.Name="Auto-arrange nodes"
                             RightTapped="OnAutoLayoutButtonRightTapped"
                             Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Foreground="#EDF2F4">

@@ -315,7 +315,13 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             (Step3Badge, OnPipelineStepBadgeRightTapped),
             (TocCountButton, OnTocCountTextRightTapped),
             (MarkdownFilesCombo, OnMarkdownFilesComboRightTapped),
+            // Shift+F10 on a focused Code / Split / Preview item bubbles up to the bar.
+            (CenterViewSelector, OnCenterViewSelectorRightTapped),
             (HistoryCountButton, OnHistoryCountTextRightTapped),
+            // The pane splitters take focus (arrow keys resize); their width presets were mouse only.
+            (LeftSplitter, OnLeftSplitterRightTapped),
+            (RightSplitter, OnRightSplitterRightTapped),
+            (SplitViewSplitter, OnSplitViewSplitterRightTapped),
         })
             Services.KeyboardContextMenu.Bridge(pill, handler);
         // A double-click is left to the boxes (it selects a word); the path actions are in the menu.
@@ -1672,14 +1678,43 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             };
             pickers[i] = picker;
 
+            // The swatch shows its hex code and is named after its element, so the eight colours can
+            // be read (and told apart by a screen reader, which used to hear eight unnamed buttons).
+            var hexText = new TextBlock
+            {
+                FontFamily = new FontFamily("Cascadia Mono, Consolas"),
+                FontSize = 11,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            // The colour is an inner chip, not the button's Background: the button's hover and
+            // pressed states replace its Background, which hid the colour under the pointer.
+            var chip = new Border { CornerRadius = new CornerRadius(3), Child = hexText };
             var swatch = new Button
             {
                 Width = 92, Height = 30,
-                Background = new SolidColorBrush(picker.Color),
+                Padding = new Thickness(2),
+                HorizontalContentAlignment = HorizontalAlignment.Stretch,
+                VerticalContentAlignment = VerticalAlignment.Stretch,
+                Content = chip,
                 BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(60, 128, 128, 128)),
                 BorderThickness = new Thickness(1),
             };
-            picker.ColorChanged += (_, args) => swatch.Background = new SolidColorBrush(args.NewColor);
+            var (elementLabel, elementHint) = (elements[i].Label, elements[i].Hint);
+            void ShowSwatch(Windows.UI.Color color)
+            {
+                var hex = Hex(color);
+                chip.Background = new SolidColorBrush(color);
+                hexText.Text = hex;
+                // Relative luminance picks black or white text, whichever stays readable on the colour.
+                double Lin(byte c) { var v = c / 255.0; return v <= 0.03928 ? v / 12.92 : Math.Pow((v + 0.055) / 1.055, 2.4); }
+                var luminance = 0.2126 * Lin(color.R) + 0.7152 * Lin(color.G) + 0.0722 * Lin(color.B);
+                hexText.Foreground = new SolidColorBrush(luminance > 0.179 ? Microsoft.UI.Colors.Black : Microsoft.UI.Colors.White);
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(swatch, $"{elementLabel} colour, {hex}");
+                ToolTipService.SetToolTip(swatch, $"{elementLabel}: {elementHint} · {hex} · click to change");
+            }
+            ShowSwatch(picker.Color);
+            picker.ColorChanged += (_, args) => ShowSwatch(args.NewColor);
             swatch.Flyout = new Flyout { Content = picker };
 
             var label = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
@@ -2974,8 +3009,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         copyPathItem.Click += (_, _) =>
         {
-            _ = Services.ClipboardWriter.TrySetTextAsync(path);
-            AnnounceStatus($"Copied output file path: {Path.GetFileName(path)}");
+            CopyAndAnnounce(path, $"Copied output file path: {Path.GetFileName(path)}");
         };
         menu.Items.Add(copyPathItem);
 
@@ -2987,8 +3021,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         copyNameItem.Click += (_, _) =>
         {
             var fileName = Path.GetFileName(path);
-            _ = Services.ClipboardWriter.TrySetTextAsync(fileName);
-            AnnounceStatus($"Copied file name: {fileName}");
+            CopyAndAnnounce(fileName, $"Copied file name: {fileName}");
         };
         menu.Items.Add(copyNameItem);
 
@@ -3002,8 +3035,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             var dir = Path.GetDirectoryName(path) ?? string.Empty;
             if (!string.IsNullOrEmpty(dir))
             {
-                _ = Services.ClipboardWriter.TrySetTextAsync(dir);
-                AnnounceStatus($"Copied folder path: {dir}");
+                CopyAndAnnounce(dir, $"Copied folder path: {dir}");
             }
         };
         menu.Items.Add(copyDirItem);
@@ -3912,6 +3944,21 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
     }
 
+    // Copies, then says so on the status line, or says why not. The copy commands used to fire
+    // the copy and announce "Copied ..." straight away, so a clipboard held by another app (a
+    // clipboard manager, a remote desktop session) still read as a success and nothing was copied.
+    private async void CopyAndAnnounce(string text, string message)
+    {
+        var error = await Services.ClipboardWriter.TrySetTextAsync(text);
+        if (error is null)
+        {
+            AnnounceStatus(message);
+            return;
+        }
+        ViewModel.StatusText = $"Couldn't copy: {error}";
+        ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
+    }
+
     private void FillInputFileMenu(MenuFlyout menu)
     {
         var path = ViewModel.InputFilePath;
@@ -3930,8 +3977,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             };
             copyPathItem.Click += (_, _) =>
             {
-                _ = Services.ClipboardWriter.TrySetTextAsync(path);
-                AnnounceStatus($"Copied path: {fileName}");
+                CopyAndAnnounce(path, $"Copied path: {fileName}");
             };
             menu.Items.Add(copyPathItem);
 
@@ -3942,8 +3988,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             };
             copyNameItem.Click += (_, _) =>
             {
-                _ = Services.ClipboardWriter.TrySetTextAsync(fileName);
-                AnnounceStatus($"Copied file name: {fileName}");
+                CopyAndAnnounce(fileName, $"Copied file name: {fileName}");
             };
             menu.Items.Add(copyNameItem);
 
@@ -3956,8 +4001,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 };
                 copyFolderItem.Click += (_, _) =>
                 {
-                    _ = Services.ClipboardWriter.TrySetTextAsync(folder);
-                    AnnounceStatus($"Copied folder path: {folder}");
+                    CopyAndAnnounce(folder, $"Copied folder path: {folder}");
                 };
                 menu.Items.Add(copyFolderItem);
 
@@ -4055,8 +4099,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             };
             copyPathItem.Click += (_, _) =>
             {
-                _ = Services.ClipboardWriter.TrySetTextAsync(folder);
-                AnnounceStatus($"Copied output folder path: {folder}");
+                CopyAndAnnounce(folder, $"Copied output folder path: {folder}");
             };
             menu.Items.Add(copyPathItem);
 
@@ -4147,8 +4190,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             if (hasSource)
             {
-                _ = Services.ClipboardWriter.TrySetTextAsync(sourceText);
-                AnnounceStatus($"Copied detected source: {sourceText}");
+                CopyAndAnnounce(sourceText, $"Copied detected source: {sourceText}");
             }
         };
         menu.Items.Add(copySourceItem);
@@ -6202,8 +6244,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             {
                 if (!string.IsNullOrWhiteSpace(ViewModel.InputFilePath))
                 {
-                    _ = Services.ClipboardWriter.TrySetTextAsync(ViewModel.InputFilePath);
-                    AnnounceStatus($"Copied path: {System.IO.Path.GetFileName(ViewModel.InputFilePath)}");
+                    CopyAndAnnounce(ViewModel.InputFilePath, $"Copied path: {System.IO.Path.GetFileName(ViewModel.InputFilePath)}");
                 }
                 else
                 {
@@ -6223,8 +6264,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 if (string.IsNullOrWhiteSpace(stats)) stats = ViewModel.WordCountText;
                 if (!string.IsNullOrWhiteSpace(stats))
                 {
-                    _ = Services.ClipboardWriter.TrySetTextAsync(stats);
-                    AnnounceStatus($"Copied document statistics: {stats}");
+                    CopyAndAnnounce(stats, $"Copied document statistics: {stats}");
                 }
             }, keywords: "words characters reading time count stats"),
 
@@ -6730,8 +6770,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             };
             copyPathItem.Click += (_, _) =>
             {
-                _ = Services.ClipboardWriter.TrySetTextAsync(path);
-                AnnounceStatus($"Copied file path: {System.IO.Path.GetFileName(path)}");
+                CopyAndAnnounce(path, $"Copied file path: {System.IO.Path.GetFileName(path)}");
             };
             menu.Items.Add(copyPathItem);
 
@@ -6828,8 +6867,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             if (hasSelected && selectedPath is not null)
             {
-                _ = Services.ClipboardWriter.TrySetTextAsync(selectedPath);
-                AnnounceStatus($"Copied path: {System.IO.Path.GetFileName(selectedPath)}");
+                CopyAndAnnounce(selectedPath, $"Copied path: {System.IO.Path.GetFileName(selectedPath)}");
             }
         };
         menu.Items.Add(copyPathItem);
@@ -7732,7 +7770,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         string display = activeSection.Level > 0 ? $"§ {activeSection.Title}" : "§ Intro";
         StatusSectionBreadcrumbText.Text = display;
-        ToolTipService.SetToolTip(StatusSectionBreadcrumbButton, $"Section '{activeSection.Title}' · {activeSection.WordCount} words ({activeSection.WordPercentage:0.#}%) · ~{activeSection.ReadingTimeMinutes:0.#}m read · Click to jump to line {activeSection.LineNumber}, right-click for options");
+        ToolTipService.SetToolTip(StatusSectionBreadcrumbButton, $"Section '{activeSection.Title}' · {activeSection.WordCount} words ({activeSection.WordPercentage:0.#}%) · ~{activeSection.ReadingTimeMinutes:0.#}m read · Click to jump to line {activeSection.LineNumber}, right-click or Shift+F10 for options");
         StatusSectionBreadcrumbButton.Visibility = Visibility.Visible;
         StatusSectionBreadcrumbDivider.Visibility = Visibility.Visible;
     }
@@ -7777,8 +7815,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = PasteTextBox?.Text ?? string.Empty;
             var summary = MarkSmith.Services.TextSearch.FormatMarkdownSectionBudgetsSummary(text);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus("Copied Markdown section budgets to clipboard.");
+            CopyAndAnnounce(summary, "Copied Markdown section budgets to clipboard.");
         };
         menu.Items.Add(copySummaryItem);
 
@@ -7791,8 +7828,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = PasteTextBox?.Text ?? string.Empty;
             var summary = MarkSmith.Services.TextSearch.FormatFootnoteAndReferenceIntegritySummary(text);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus("Copied footnote & reference link integrity audit to clipboard.");
+            CopyAndAnnounce(summary, "Copied footnote & reference link integrity audit to clipboard.");
         };
         menu.Items.Add(auditFootnotesItem);
 
@@ -7806,8 +7842,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             var text = PasteTextBox?.Text ?? string.Empty;
             var elapsed = Math.Max(0.1, (DateTime.UtcNow - _sessionStartTime).TotalMinutes);
             var forecast = MarkSmith.Services.TextSearch.CalculateSessionVelocityForecast(text, _sessionStartWordCount, elapsed);
-            _ = Services.ClipboardWriter.TrySetTextAsync(forecast.Summary);
-            AnnounceStatus("Copied session velocity forecast to clipboard.");
+            CopyAndAnnounce(forecast.Summary, "Copied session velocity forecast to clipboard.");
         };
         menu.Items.Add(sessionVelocityItem);
 
@@ -7820,8 +7855,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = PasteTextBox?.Text ?? string.Empty;
             var summary = MarkSmith.Services.TextSearch.FormatReadabilityScorecardSummary(text);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus("Copied readability scorecard to clipboard.");
+            CopyAndAnnounce(summary, "Copied readability scorecard to clipboard.");
         };
         menu.Items.Add(readabilityScorecardItem);
 
@@ -7834,8 +7868,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = PasteTextBox?.Text ?? string.Empty;
             var summary = MarkSmith.Services.TextSearch.FormatSentenceFlowSummary(text);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus("Copied sentence flow cadence audit to clipboard.");
+            CopyAndAnnounce(summary, "Copied sentence flow cadence audit to clipboard.");
         };
         menu.Items.Add(sentenceCadenceItem);
 
@@ -7848,8 +7881,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = PasteTextBox?.Text ?? string.Empty;
             var summary = MarkSmith.Services.TextSearch.FormatConflictMarkerSummary(text);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(conflictMarkersItem);
 
@@ -7862,8 +7894,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = PasteTextBox?.Text ?? string.Empty;
             var summary = MarkSmith.Services.TextSearch.FormatReadabilitySummary(text);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(readabilityMetricsItem);
 
@@ -7876,8 +7907,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = PasteTextBox?.Text ?? string.Empty;
             var summary = MarkSmith.Services.TextSearch.FormatHeadingOutlineBalanceSummary(text);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(headingOutlineBalanceItem);
 
@@ -7890,8 +7920,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = PasteTextBox?.Text ?? string.Empty;
             var summary = MarkSmith.Services.TextSearch.FormatCodeFenceLanguageCoverageSummary(text);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(codeFenceCoverageItem);
 
@@ -7904,8 +7933,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = PasteTextBox?.Text ?? string.Empty;
             var summary = MarkSmith.Services.TextSearch.FormatListIndentationSummary(text);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(listIndentationItem);
 
@@ -7918,8 +7946,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = PasteTextBox?.Text ?? string.Empty;
             var summary = MarkSmith.Services.TextSearch.FormatTableAlignmentSummary(text);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(tableAlignmentItem);
 
@@ -7932,8 +7959,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = PasteTextBox?.Text ?? string.Empty;
             var summary = MarkSmith.Services.TextSearch.FormatTaskListProgressSummary(text);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(taskListProgressItem);
 
@@ -7946,8 +7972,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = PasteTextBox?.Text ?? string.Empty;
             var summary = MarkSmith.Services.TextSearch.FormatFootnoteLinkageSummary(text);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(footnoteLinkageItem);
 
@@ -7960,8 +7985,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = PasteTextBox?.Text ?? string.Empty;
             var summary = MarkSmith.Services.TextSearch.FormatFrontmatterSchemaSummary(text);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(frontmatterSchemaItem);
 
@@ -7974,8 +7998,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = PasteTextBox?.Text ?? string.Empty;
             var summary = MarkSmith.Services.TextSearch.FormatTocAnchorSummary(text);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(tocDepthAnchorItem);
 
@@ -7988,8 +8011,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = PasteTextBox?.Text ?? string.Empty;
             var summary = MarkSmith.Services.TextSearch.FormatReferenceLinkIntegritySummary(text);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(referenceLinkIntegrityItem);
 
@@ -8002,8 +8024,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = PasteTextBox?.Text ?? string.Empty;
             var summary = MarkSmith.Services.TextSearch.FormatSyntaxAmbiguitySummary(text);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(syntaxAmbiguityItem);
 
@@ -8016,8 +8037,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = PasteTextBox?.Text ?? string.Empty;
             var summary = MarkSmith.Services.TextSearch.FormatMathFormulaSummary(text);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(mathFormulaComplexityItem);
 
@@ -8030,8 +8050,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = PasteTextBox?.Text ?? string.Empty;
             var summary = MarkSmith.Services.TextSearch.FormatTableAlignmentAndColumnSpacingSummary(text);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(tableAlignmentSpacingItem);
 
@@ -8044,8 +8063,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = PasteTextBox?.Text ?? string.Empty;
             var summary = MarkSmith.Services.TextSearch.FormatDefinitionListSummary(text);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(definitionListConsistencyItem);
 
@@ -8058,8 +8076,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = PasteTextBox?.Text ?? string.Empty;
             var summary = MarkSmith.Services.TextSearch.FormatFootnoteReferenceSummary(text);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(footnoteReferenceConsistencyItem);
 
@@ -8072,8 +8089,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = PasteTextBox?.Text ?? string.Empty;
             var summary = MarkSmith.Services.TextSearch.FormatAdmonitionCalloutSummary(text);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(admonitionCalloutItem);
 
@@ -8086,8 +8102,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = PasteTextBox?.Text ?? string.Empty;
             var summary = MarkSmith.Services.TextSearch.FormatImageAccessibilitySummary(text);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(imageAccessibilityItem);
 
@@ -8311,8 +8326,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             string detail = isMixed
                 ? $"{summary} ({crlfCount} CRLF, {lfCount} LF) · {crlfCount + lfCount} lines total"
                 : $"{summary} · No BOM";
-            _ = Services.ClipboardWriter.TrySetTextAsync(detail);
-            AnnounceStatus($"Copied document format: {detail}");
+            CopyAndAnnounce(detail, $"Copied document format: {detail}");
         };
         menu.Items.Add(copyFormatItem);
 
@@ -8531,8 +8545,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         copyIndentItem.Click += (_, _) =>
         {
             string summary = _currentIndentSummary;
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus($"Copied indentation format: {summary}");
+            CopyAndAnnounce(summary, $"Copied indentation format: {summary}");
         };
         menu.Items.Add(copyIndentItem);
 
@@ -8911,8 +8924,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             if (!string.IsNullOrEmpty(ReplaceTextBox.Text))
             {
-                _ = Services.ClipboardWriter.TrySetTextAsync(ReplaceTextBox.Text);
-                AnnounceStatus("Copied replacement text.");
+                CopyAndAnnounce(ReplaceTextBox.Text, "Copied replacement text.");
             }
         };
         menu.Items.Add(copyItem);
@@ -8950,8 +8962,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private void OnFindCountButtonClick(object sender, RoutedEventArgs e)
     {
         if (FindCountText is null || string.IsNullOrWhiteSpace(FindCountText.Text)) return;
-        _ = Services.ClipboardWriter.TrySetTextAsync(FindCountText.Text);
-        AnnounceStatus($"Copied search count: {FindCountText.Text}");
+        CopyAndAnnounce(FindCountText.Text, $"Copied search count: {FindCountText.Text}");
     }
 
     private void OnFindCountTextRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
@@ -8967,8 +8978,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         copyCountItem.Click += (_, _) =>
         {
-            _ = Services.ClipboardWriter.TrySetTextAsync(countStr);
-            AnnounceStatus($"Copied search count: {countStr}");
+            CopyAndAnnounce(countStr, $"Copied search count: {countStr}");
         };
         menu.Items.Add(copyCountItem);
 
@@ -9026,8 +9036,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 var len = _findMatchIndex < _findMatchLengths.Count ? _findMatchLengths[_findMatchIndex] : (FindTextBox?.Text.Length ?? 0);
                 var fullText = PasteTextBox?.Text ?? "";
                 var summary = MarkSmith.Services.TextSearch.FormatMatchInspectorSummary(fullText, offset, len, _findMatchIndex + 1, _findMatches.Count);
-                _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-                AnnounceStatus($"Match location: {summary}");
+                CopyAndAnnounce(summary, $"Match location: {summary}");
             }
         };
         menu.Items.Add(inspectItem);
@@ -9046,8 +9055,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 var len = _findMatchIndex < _findMatchLengths.Count ? _findMatchLengths[_findMatchIndex] : (FindTextBox?.Text.Length ?? 0);
                 var fullText = PasteTextBox?.Text ?? "";
                 var snippet = MarkSmith.Services.TextSearch.FormatMatchContextSnippet(fullText, offset, len, 20);
-                _ = Services.ClipboardWriter.TrySetTextAsync(snippet);
-                AnnounceStatus($"Match snippet: {snippet}");
+                CopyAndAnnounce(snippet, $"Match snippet: {snippet}");
             }
         };
         menu.Items.Add(snippetItem);
@@ -9066,8 +9074,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 var len = _findMatchIndex < _findMatchLengths.Count ? _findMatchLengths[_findMatchIndex] : (FindTextBox?.Text.Length ?? 0);
                 var fullText = PasteTextBox?.Text ?? "";
                 var lineCtx = MarkSmith.Services.TextSearch.FormatMatchLineContext(fullText, offset, len);
-                _ = Services.ClipboardWriter.TrySetTextAsync(lineCtx);
-                AnnounceStatus($"Match line: {lineCtx}");
+                CopyAndAnnounce(lineCtx, $"Match line: {lineCtx}");
             }
         };
         menu.Items.Add(lineCtxItem);
@@ -9086,8 +9093,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 MatchCaseCheck?.IsChecked == true,
                 MatchWholeWordCheck?.IsChecked == true,
                 UseRegexCheck?.IsChecked == true);
-            _ = Services.ClipboardWriter.TrySetTextAsync(queryDiag);
-            AnnounceStatus($"Search diagnostics: {queryDiag}");
+            CopyAndAnnounce(queryDiag, $"Search diagnostics: {queryDiag}");
         };
         menu.Items.Add(diagItem);
 
@@ -9100,8 +9106,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         historySummaryItem.Click += (_, _) =>
         {
             var summary = MarkSmith.Services.TextSearch.FormatSearchHistorySummary(_findHistory);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(historySummaryItem);
 
@@ -9131,8 +9136,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             var totalWords = ViewModel?.DocumentStats.Words ?? 0;
             var totalChars = ViewModel?.DocumentStats.Characters ?? 0;
             var rateStr = MarkSmith.Services.TextSearch.FormatSearchMatchRate(_findMatches.Count, totalWords, totalChars);
-            _ = Services.ClipboardWriter.TrySetTextAsync(rateStr);
-            AnnounceStatus($"Search density: {rateStr}");
+            CopyAndAnnounce(rateStr, $"Search density: {rateStr}");
         };
         menu.Items.Add(matchRateItem);
 
@@ -9146,8 +9150,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var docLen = PasteTextBox?.Text?.Length ?? 0;
             var hotspotsStr = MarkSmith.Services.TextSearch.FormatSearchMatchHotspots(_findMatches, clusterDistance: 200, totalDocLength: docLen);
-            _ = Services.ClipboardWriter.TrySetTextAsync(hotspotsStr);
-            AnnounceStatus($"Search hotspots: {hotspotsStr}");
+            CopyAndAnnounce(hotspotsStr, $"Search hotspots: {hotspotsStr}");
         };
         menu.Items.Add(matchHotspotsItem);
 
@@ -9163,8 +9166,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             var pattern = FindTextBox?.Text ?? string.Empty;
             var ignoreCase = FindComparison == StringComparison.OrdinalIgnoreCase;
             var groupsStr = MarkSmith.Services.TextSearch.FormatRegexCaptureGroupsSummary(text, pattern, ignoreCase, maxMatches: 5);
-            _ = Services.ClipboardWriter.TrySetTextAsync(groupsStr);
-            AnnounceStatus($"Regex capture groups: {groupsStr}");
+            CopyAndAnnounce(groupsStr, $"Regex capture groups: {groupsStr}");
         };
         menu.Items.Add(copyCaptureGroupsItem);
 
@@ -9221,8 +9223,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 RecomputeFindMatches();
             }
             var summary = MarkSmith.Services.TextSearch.FormatCasePreservingReplaceSummary(query, replacement, replacedCount, upperCount, titleCount, lowerCount);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(casePreserveReplaceItem);
 
@@ -9248,8 +9249,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 MarkSmith.Services.TextSearch.AuditCommonProseCleanupOpportunities(text);
             var summary = MarkSmith.Services.TextSearch.FormatProseCleanupAuditSummary(
                 doubleSpaces, smartQuotes, typographyDashes, aiFiller, repeatedWords);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditProseCleanupItem);
 
@@ -9266,8 +9266,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             bool insideBlur = ViewModel?.PortalInsideBlur == true;
             bool surroundBlur = ViewModel?.PortalFocusBlur == true;
             var summary = MarkSmith.Services.TextSearch.FormatFocusWindowReadingProfile(text, scope, insideBlur, surroundBlur);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(portalFocusProfileItem);
 
@@ -9281,8 +9280,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = PasteTextBox?.Text ?? string.Empty;
             var summary = MarkSmith.Services.TextSearch.FormatMarkdownSectionBudgetsSummary(text);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(sectionBudgetItem);
 
@@ -9296,8 +9294,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = PasteTextBox?.Text ?? string.Empty;
             var summary = MarkSmith.Services.TextSearch.FormatFootnoteAndReferenceIntegritySummary(text);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditFootnotesItem);
 
@@ -9312,8 +9309,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             var text = PasteTextBox?.Text ?? string.Empty;
             var elapsed = Math.Max(0.1, (DateTime.UtcNow - _sessionStartTime).TotalMinutes);
             var forecast = MarkSmith.Services.TextSearch.CalculateSessionVelocityForecast(text, _sessionStartWordCount, elapsed);
-            _ = Services.ClipboardWriter.TrySetTextAsync(forecast.Summary);
-            AnnounceStatus(forecast.Summary);
+            CopyAndAnnounce(forecast.Summary, forecast.Summary);
         };
         menu.Items.Add(sessionVelocityItem);
 
@@ -9327,8 +9323,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = PasteTextBox?.Text ?? string.Empty;
             var summary = MarkSmith.Services.TextSearch.FormatReadabilityScorecardSummary(text);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(readabilityScorecardItem);
 
@@ -9342,8 +9337,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = PasteTextBox?.Text ?? string.Empty;
             var summary = MarkSmith.Services.TextSearch.FormatSentenceFlowSummary(text);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(sentenceCadenceItem);
 
@@ -9357,8 +9351,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = PasteTextBox?.Text ?? string.Empty;
             var summary = MarkSmith.Services.TextSearch.FormatConflictMarkerSummary(text);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(conflictMarkersItem);
 
@@ -9372,8 +9365,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = PasteTextBox?.Text ?? string.Empty;
             var summary = MarkSmith.Services.TextSearch.FormatReadabilitySummary(text);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(readabilityMetricsItem);
 
@@ -9387,8 +9379,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = PasteTextBox?.Text ?? string.Empty;
             var summary = MarkSmith.Services.TextSearch.FormatHeadingOutlineBalanceSummary(text);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(headingOutlineBalanceItem);
 
@@ -9402,8 +9393,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = PasteTextBox?.Text ?? string.Empty;
             var summary = MarkSmith.Services.TextSearch.FormatCodeFenceLanguageCoverageSummary(text);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(codeFenceCoverageItem);
 
@@ -9417,8 +9407,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = PasteTextBox?.Text ?? string.Empty;
             var summary = MarkSmith.Services.TextSearch.FormatListIndentationSummary(text);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(listIndentationItem);
 
@@ -9432,8 +9421,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = PasteTextBox?.Text ?? string.Empty;
             var summary = MarkSmith.Services.TextSearch.FormatTableAlignmentSummary(text);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(tableAlignmentItem);
 
@@ -9447,8 +9435,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = PasteTextBox?.Text ?? string.Empty;
             var summary = MarkSmith.Services.TextSearch.FormatTaskListProgressSummary(text);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(taskListProgressItem);
 
@@ -9462,8 +9449,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = PasteTextBox?.Text ?? string.Empty;
             var summary = MarkSmith.Services.TextSearch.FormatFootnoteLinkageSummary(text);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(footnoteLinkageItem);
 
@@ -9477,8 +9463,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = PasteTextBox?.Text ?? string.Empty;
             var summary = MarkSmith.Services.TextSearch.FormatFrontmatterSchemaSummary(text);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(frontmatterSchemaItem);
 
@@ -9492,8 +9477,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = PasteTextBox?.Text ?? string.Empty;
             var summary = MarkSmith.Services.TextSearch.FormatTocAnchorSummary(text);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(tocDepthAnchorItem);
 
@@ -9507,8 +9491,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = PasteTextBox?.Text ?? string.Empty;
             var summary = MarkSmith.Services.TextSearch.FormatReferenceLinkIntegritySummary(text);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(referenceLinkIntegrityItem);
 
@@ -9522,8 +9505,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = PasteTextBox?.Text ?? string.Empty;
             var summary = MarkSmith.Services.TextSearch.FormatSyntaxAmbiguitySummary(text);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(syntaxAmbiguityItem);
 
@@ -9537,8 +9519,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = PasteTextBox?.Text ?? string.Empty;
             var summary = MarkSmith.Services.TextSearch.FormatMathFormulaSummary(text);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(mathFormulaComplexityItem);
 
@@ -9552,8 +9533,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = PasteTextBox?.Text ?? string.Empty;
             var summary = MarkSmith.Services.TextSearch.FormatTableAlignmentAndColumnSpacingSummary(text);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(tableAlignmentSpacingItem);
 
@@ -9567,8 +9547,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = PasteTextBox?.Text ?? string.Empty;
             var summary = MarkSmith.Services.TextSearch.FormatDefinitionListSummary(text);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(definitionListConsistencyItem);
 
@@ -9582,8 +9561,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = PasteTextBox?.Text ?? string.Empty;
             var summary = MarkSmith.Services.TextSearch.FormatFootnoteReferenceSummary(text);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(footnoteReferenceConsistencyItem);
 
@@ -9597,8 +9575,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = PasteTextBox?.Text ?? string.Empty;
             var summary = MarkSmith.Services.TextSearch.FormatAdmonitionCalloutSummary(text);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(admonitionCalloutItem);
 
@@ -9612,8 +9589,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = PasteTextBox?.Text ?? string.Empty;
             var summary = MarkSmith.Services.TextSearch.FormatImageAccessibilitySummary(text);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(imageAccessibilityItem);
 
@@ -9637,8 +9613,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
         var summary = MarkSmith.Services.TextSearch.FormatSafeLintFixSummary(
             trailingFixed, tabsFixed, headingsFixed, blankClustersFixed);
-        _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-        AnnounceStatus(summary);
+        CopyAndAnnounce(summary, summary);
     }
 
     private bool _suppressFindJump;
@@ -10483,8 +10458,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         copyLineItem.Click += (_, _) =>
         {
-            _ = Services.ClipboardWriter.TrySetTextAsync(lineText);
-            AnnounceStatus($"Copied line {label} to clipboard.");
+            CopyAndAnnounce(lineText, $"Copied line {label} to clipboard.");
         };
         menu.Items.Add(copyLineItem);
 
@@ -11667,8 +11641,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
 
         var formatted = string.Join(Environment.NewLine, links.Select(l => $"- [{l.Label}]({l.Url})"));
-        _ = Services.ClipboardWriter.TrySetTextAsync(formatted);
-        AnnounceStatus($"Copied {links.Count:N0} Markdown link(s) to clipboard");
+        CopyAndAnnounce(formatted, $"Copied {links.Count:N0} Markdown link(s) to clipboard");
     }
 
     private void OnStatusCopyLinksButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
@@ -11700,8 +11673,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 return;
             }
             var raw = string.Join(Environment.NewLine, links.Select(l => l.Url));
-            _ = Services.ClipboardWriter.TrySetTextAsync(raw);
-            AnnounceStatus($"Copied {links.Count:N0} raw URL(s) to clipboard");
+            CopyAndAnnounce(raw, $"Copied {links.Count:N0} raw URL(s) to clipboard");
         };
         menu.Items.Add(rawUrlsItem);
 
@@ -11735,8 +11707,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.FormatImageAccessibilitySummary(text);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditImageLinksItem);
 
@@ -11749,8 +11720,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.FormatMathDelimiterSummary(text);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditMathDelimitersItem);
 
@@ -11763,8 +11733,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.FormatReadingEaseSummary(text);
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditReadingEaseItem);
 
@@ -11777,8 +11746,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.AuditFootnoteReferenceIntegrity(text).Summary;
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditFootnotesItem);
 
@@ -11791,8 +11759,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.AuditBlockquoteCalloutsAndDepth(text).Summary;
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditBlockquoteCalloutsItem);
 
@@ -11805,8 +11772,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.AuditDefinitionListsAndGlossaryTerms(text).Summary;
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditDefinitionListsItem);
 
@@ -11819,8 +11785,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.AuditTaskListHierarchyAndProgress(text).Summary;
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditTaskListHierarchyItem);
 
@@ -11833,8 +11798,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.AuditTableColumnAlignmentSyntax(text).Summary;
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditTableAlignmentSyntaxItem);
 
@@ -11847,8 +11811,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.AuditFootnoteReferencePairing(text).Summary;
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditFootnotePairingItem);
 
@@ -11861,8 +11824,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.AuditDocumentImageAltTextAndAccessibility(text).Summary;
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditImageAltTextAccessibilityItem);
 
@@ -11875,8 +11837,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.AuditStrikethroughAndHighlightFormatting(text).Summary;
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditStrikethroughHighlightItem);
 
@@ -11889,8 +11850,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.AuditBlockquoteNestingAndCallouts(text).Summary;
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditBlockquoteNestingItem);
 
@@ -11903,8 +11863,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.AuditDefinitionListContinuityAndSpacing(text).Summary;
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditDefinitionListItem);
 
@@ -11917,8 +11876,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.AuditFootnoteOrderAndOrphans(text).Summary;
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditFootnoteOrderItem);
 
@@ -11931,8 +11889,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.AuditInlineMathAndTexSyntax(text).Summary;
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditMathSyntaxItem);
 
@@ -11945,8 +11902,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.AuditHeaderAnchorsAndTocSync(text).Summary;
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditHeaderAnchorTocItem);
 
@@ -11959,8 +11915,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.AuditCalloutDepthAndSemantics(text).Summary;
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditCalloutSemanticsItem);
 
@@ -11973,8 +11928,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.AuditImageAccessibilityAndCaptions(text).Summary;
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditImageAccessibilityItem);
 
@@ -11987,8 +11941,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.AuditFootnoteAndReferenceDefinitions(text).Summary;
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditFootnoteRefItem);
 
@@ -12001,8 +11954,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.AuditTableAlignmentAndDelimiters(text).Summary;
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditTableAlignmentItem);
 
@@ -12015,8 +11967,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.AuditTaskListPriorityAndDueDates(text).Summary;
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditTaskListPriorityItem);
 
@@ -12029,8 +11980,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.AuditBlockquoteCalloutsAndAttribution(text).Summary;
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditBlockquoteCalloutItem);
 
@@ -12043,8 +11993,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownHtmlEntities(text).Summary; // AuditHtmlEntitiesAndEscapedCharacters
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditHtmlEntitiesItem);
 
@@ -12057,8 +12006,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.AuditFootnoteReferencesAndDefinitions(text).Summary;
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditFootnoteSequenceItem);
 
@@ -12071,8 +12019,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.AuditListNestingAndMarkerSequence(text).Summary;
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditListNestingItem);
 
@@ -12085,8 +12032,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownInlineHtmlSecurity(text).Summary;
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditInlineHtmlSecurityItem);
 
@@ -12099,8 +12045,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownTaskListProgression(text).Summary;
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditTaskListProgressionItem);
         var auditLinkReferencesItem = new MenuFlyoutItem
@@ -12112,8 +12057,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownLinkReferenceDefinitions(text).Summary;
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditLinkReferencesItem);
         var auditFootnoteDefsItem = new MenuFlyoutItem
@@ -12125,8 +12069,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownFootnoteDefinitions(text).Summary;
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditFootnoteDefsItem);
         var auditMathDelimiterBalanceItem = new MenuFlyoutItem
@@ -12138,8 +12081,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownMathDelimiters(text).Summary;
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditMathDelimiterBalanceItem);
 
@@ -12152,8 +12094,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownStrikethroughAndUnderline(text).Summary;
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditStrikethroughItem);
 
@@ -12166,8 +12107,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var text = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownTaskLists(text).Summary;
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditTaskListsItem);
 
@@ -12180,8 +12120,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var docText = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownFootnotes(docText).Summary;
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditFootnotesIntegrityItem);
 
@@ -12194,8 +12133,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var docText = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownBlockquoteNesting(docText).Summary;
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditBlockquoteHierarchyItem);
 
@@ -12208,8 +12146,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var docText = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownHorizontalRules(docText).Summary;
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditHorizontalRulesItem);
 
@@ -12222,8 +12159,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var docText = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownDefinitionLists(docText).Summary;
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditDefinitionListsConsistencyItem);
         var auditAbbreviationsConsistencyItem = new MenuFlyoutItem
@@ -12235,8 +12171,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var docText = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownAbbreviations(docText).Summary;
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditAbbreviationsConsistencyItem);
         var auditTableCellWrappingConsistencyItem = new MenuFlyoutItem
@@ -12248,8 +12183,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var docText = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownTableCellWrapping(docText).Summary;
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditTableCellWrappingConsistencyItem);
         var auditFootnoteBidirectionalLinksItem = new MenuFlyoutItem
@@ -12261,8 +12195,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var docText = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownFootnoteBidirectionalLinks(docText).Summary;
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditFootnoteBidirectionalLinksItem);
 
@@ -12275,8 +12208,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var docText = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownInlineHtmlSanitization(docText).Summary;
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditInlineHtmlSanitizationItem);
 
@@ -12289,8 +12221,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var docText = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownTaskListFormatting(docText).Summary;
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditTaskListFormattingItem);
 
@@ -12303,8 +12234,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         {
             var docText = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownTablePipeAlignment(docText).Summary;
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditTablePipeAlignmentItem);
 
@@ -12317,8 +12247,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         {
             var docText = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownFootnoteDefinitionParity(docText).Summary;
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditFootnoteDefinitionParityItem);
 
@@ -12331,8 +12260,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         {
             var docText = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownHtmlSanitization(docText).Summary;
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditHtmlSanitizationItem);
 
@@ -12345,8 +12273,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         {
             var docText = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownYamlFrontmatterSchema(docText).Summary;
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditYamlFrontmatterSchemaItem);
         var auditTableColumnAlignmentStrictnessItem = new MenuFlyoutItem
@@ -12358,8 +12285,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         {
             var docText = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownTableColumnAlignmentStrictness(docText).Summary;
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditTableColumnAlignmentStrictnessItem);
         var auditFootnoteSequentialNumberingItem = new MenuFlyoutItem
@@ -12371,8 +12297,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         {
             var docText = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownFootnoteSequentialNumbering(docText).Summary;
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditFootnoteSequentialNumberingItem);
         var auditBlockquoteAlertCalloutsItem = new MenuFlyoutItem
@@ -12384,8 +12309,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         {
             var docText = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownBlockquoteAlertCallouts(docText).Summary;
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditBlockquoteAlertCalloutsItem);
         var auditTaskListPrioritiesItem = new MenuFlyoutItem
@@ -12397,8 +12321,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         {
             var docText = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownTaskListPriorities(docText).Summary;
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditTaskListPrioritiesItem);
         var auditFormFieldsItem = new MenuFlyoutItem
@@ -12410,8 +12333,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         {
             var docText = EditorDocument();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownFormFields(docText).Summary;
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            AnnounceStatus(summary);
+            CopyAndAnnounce(summary, summary);
         };
         menu.Items.Add(auditFormFieldsItem);
 
@@ -12520,8 +12442,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         var formatted = string.Join(
             Environment.NewLine + Environment.NewLine,
             blocks.Select(b => $"```{b.Language}{Environment.NewLine}{b.Code}{Environment.NewLine}```"));
-        _ = Services.ClipboardWriter.TrySetTextAsync(formatted);
-        AnnounceStatus($"Copied {blocks.Count:N0} fenced code block(s) ({totalLines:N0} lines) to clipboard");
+        CopyAndAnnounce(formatted, $"Copied {blocks.Count:N0} fenced code block(s) ({totalLines:N0} lines) to clipboard");
     }
 
     private void OnStatusCopyCodeButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
@@ -12554,8 +12475,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             }
             var raw = string.Join(Environment.NewLine + Environment.NewLine, blocks.Select(b => b.Code));
             var totalLines = blocks.Sum(b => b.LineCount);
-            _ = Services.ClipboardWriter.TrySetTextAsync(raw);
-            AnnounceStatus($"Copied {blocks.Count:N0} raw code snippet(s) ({totalLines:N0} lines) to clipboard");
+            CopyAndAnnounce(raw, $"Copied {blocks.Count:N0} raw code snippet(s) ({totalLines:N0} lines) to clipboard");
         };
         menu.Items.Add(rawCodeItem);
 
@@ -12585,8 +12505,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             {
                 sb.AppendLine($"| `{g.Key}` | {g.Count():N0} | {g.Sum(x => x.LineCount):N0} |");
             }
-            _ = Services.ClipboardWriter.TrySetTextAsync(sb.ToString().TrimEnd());
-            AnnounceStatus($"Copied Code Language Breakdown ({grouped.Count:N0} languages, {blocks.Count:N0} blocks) to clipboard");
+            CopyAndAnnounce(sb.ToString().TrimEnd(), $"Copied Code Language Breakdown ({grouped.Count:N0} languages, {blocks.Count:N0} blocks) to clipboard");
         };
         menu.Items.Add(breakdownItem);
 
@@ -12704,8 +12623,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
 
         var totalRows = tables.Sum(t => t.Rows.Count);
         var combined = string.Join(Environment.NewLine + Environment.NewLine, tables.Select(t => t.RawTable));
-        _ = Services.ClipboardWriter.TrySetTextAsync(combined);
-        AnnounceStatus($"Copied {tables.Count:N0} Markdown table(s) ({totalRows:N0} data rows) to clipboard");
+        CopyAndAnnounce(combined, $"Copied {tables.Count:N0} Markdown table(s) ({totalRows:N0} data rows) to clipboard");
     }
 
     private void OnStatusCopyTablesButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
@@ -12749,8 +12667,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 }
             }
             var totalRows = tables.Sum(t => t.Rows.Count);
-            _ = Services.ClipboardWriter.TrySetTextAsync(sb.ToString().TrimEnd());
-            AnnounceStatus($"Copied {tables.Count:N0} table(s) ({totalRows:N0} rows) as TSV for Excel/Sheets");
+            CopyAndAnnounce(sb.ToString().TrimEnd(), $"Copied {tables.Count:N0} table(s) ({totalRows:N0} rows) as TSV for Excel/Sheets");
         };
         menu.Items.Add(copyTsvItem);
 
@@ -12777,8 +12694,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 var hdrPreview = string.Join(", ", t.Headers.Select(h => h.Replace("|", "\\|")));
                 sb.AppendLine($"| #{idx + 1} | {t.Headers.Count:N0} | {t.Rows.Count:N0} | {hdrPreview} |");
             }
-            _ = Services.ClipboardWriter.TrySetTextAsync(sb.ToString().TrimEnd());
-            AnnounceStatus($"Copied Table Inventory Summary ({tables.Count:N0} tables) to clipboard");
+            CopyAndAnnounce(sb.ToString().TrimEnd(), $"Copied Table Inventory Summary ({tables.Count:N0} tables) to clipboard");
         };
         menu.Items.Add(copySummaryItem);
 
@@ -12862,8 +12778,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         int done = tasks.Count(t => t.IsCompleted);
         int pct = (int)Math.Round(done * 100.0 / tasks.Count);
         var combined = string.Join(Environment.NewLine, tasks.Select(t => t.RawLine));
-        _ = Services.ClipboardWriter.TrySetTextAsync(combined);
-        AnnounceStatus($"Copied {tasks.Count:N0} task(s) ({done:N0}/{tasks.Count:N0} completed · {pct}%) to clipboard");
+        CopyAndAnnounce(combined, $"Copied {tasks.Count:N0} task(s) ({done:N0}/{tasks.Count:N0} completed · {pct}%) to clipboard");
     }
 
     private void OnStatusCopyTasksButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
@@ -12894,8 +12809,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 AnnounceStatus("No open/pending task list items found in document");
                 return;
             }
-            _ = Services.ClipboardWriter.TrySetTextAsync(string.Join(Environment.NewLine, pending.Select(t => t.RawLine)));
-            AnnounceStatus($"Copied {pending.Count:N0} open/pending task(s) to clipboard");
+            CopyAndAnnounce(string.Join(Environment.NewLine, pending.Select(t => t.RawLine)), $"Copied {pending.Count:N0} open/pending task(s) to clipboard");
         };
         menu.Items.Add(copyPendingItem);
 
@@ -12912,8 +12826,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 AnnounceStatus("No completed task list items found in document");
                 return;
             }
-            _ = Services.ClipboardWriter.TrySetTextAsync(string.Join(Environment.NewLine, completed.Select(t => t.RawLine)));
-            AnnounceStatus($"Copied {completed.Count:N0} completed task(s) to clipboard");
+            CopyAndAnnounce(string.Join(Environment.NewLine, completed.Select(t => t.RawLine)), $"Copied {completed.Count:N0} completed task(s) to clipboard");
         };
         menu.Items.Add(copyCompletedItem);
 
@@ -12943,8 +12856,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 var safeText = t.TaskText.Replace("|", "\\|");
                 sb.AppendLine($"| {statusBadge} | Ln {t.LineNumber} | {safeText} |");
             }
-            _ = Services.ClipboardWriter.TrySetTextAsync(sb.ToString().TrimEnd());
-            AnnounceStatus($"Copied Task Progress Summary ({done:N0}/{tasks.Count:N0} · {pct}%) to clipboard");
+            CopyAndAnnounce(sb.ToString().TrimEnd(), $"Copied Task Progress Summary ({done:N0}/{tasks.Count:N0} · {pct}%) to clipboard");
         };
         menu.Items.Add(copySummaryTableItem);
 
@@ -13140,8 +13052,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         int displayCount = exprs.Count(m => m.IsDisplay);
         int inlineCount = exprs.Count - displayCount;
         var output = string.Join(Environment.NewLine + Environment.NewLine, exprs.Select(m => m.RawDelimited));
-        _ = Services.ClipboardWriter.TrySetTextAsync(output);
-        AnnounceStatus($"Copied {exprs.Count:N0} LaTeX math expression(s) ({displayCount:N0} display, {inlineCount:N0} inline) to clipboard");
+        CopyAndAnnounce(output, $"Copied {exprs.Count:N0} LaTeX math expression(s) ({displayCount:N0} display, {inlineCount:N0} inline) to clipboard");
     }
 
     private void OnStatusCopyMathButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
@@ -13172,8 +13083,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 AnnounceStatus("No display math blocks ($$...$$) found in document");
                 return;
             }
-            _ = Services.ClipboardWriter.TrySetTextAsync(string.Join(Environment.NewLine + Environment.NewLine, displayOnly.Select(m => m.RawDelimited)));
-            AnnounceStatus($"Copied {displayOnly.Count:N0} display math block(s) to clipboard");
+            CopyAndAnnounce(string.Join(Environment.NewLine + Environment.NewLine, displayOnly.Select(m => m.RawDelimited)), $"Copied {displayOnly.Count:N0} display math block(s) to clipboard");
         };
         menu.Items.Add(copyDisplayItem);
 
@@ -13190,8 +13100,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 AnnounceStatus("No inline math expressions ($...$) found in document");
                 return;
             }
-            _ = Services.ClipboardWriter.TrySetTextAsync(string.Join(Environment.NewLine, inlineOnly.Select(m => m.RawDelimited)));
-            AnnounceStatus($"Copied {inlineOnly.Count:N0} inline math expression(s) to clipboard");
+            CopyAndAnnounce(string.Join(Environment.NewLine, inlineOnly.Select(m => m.RawDelimited)), $"Copied {inlineOnly.Count:N0} inline math expression(s) to clipboard");
         };
         menu.Items.Add(copyInlineItem);
 
@@ -13220,8 +13129,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 var cleanExpr = m.InnerExpression.Replace("\r", " ").Replace("\n", " ").Replace("|", "\\|");
                 sb.AppendLine($"| {i + 1} | {mode} | Ln {m.LineNumber} | `{cleanExpr}` |");
             }
-            _ = Services.ClipboardWriter.TrySetTextAsync(sb.ToString().TrimEnd());
-            AnnounceStatus($"Copied Math Inventory Table ({exprs.Count:N0} expressions) to clipboard");
+            CopyAndAnnounce(sb.ToString().TrimEnd(), $"Copied Math Inventory Table ({exprs.Count:N0} expressions) to clipboard");
         };
         menu.Items.Add(copyTableItem);
 
@@ -13358,8 +13266,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         int admonitionCount = blocks.Count(b => b.IsAdmonition);
         int quoteCount = blocks.Count - admonitionCount;
         var output = string.Join(Environment.NewLine + Environment.NewLine, blocks.Select(b => b.RawBlock));
-        _ = Services.ClipboardWriter.TrySetTextAsync(output);
-        AnnounceStatus($"Copied {blocks.Count:N0} callout/quote block(s) ({admonitionCount:N0} admonition, {quoteCount:N0} quote) to clipboard");
+        CopyAndAnnounce(output, $"Copied {blocks.Count:N0} callout/quote block(s) ({admonitionCount:N0} admonition, {quoteCount:N0} quote) to clipboard");
     }
 
     private void OnStatusCopyCalloutsButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
@@ -13390,8 +13297,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 AnnounceStatus("No admonition callouts (> [!TYPE]) found in document");
                 return;
             }
-            _ = Services.ClipboardWriter.TrySetTextAsync(string.Join(Environment.NewLine + Environment.NewLine, admonitions.Select(b => b.RawBlock)));
-            AnnounceStatus($"Copied {admonitions.Count:N0} admonition callout block(s) to clipboard");
+            CopyAndAnnounce(string.Join(Environment.NewLine + Environment.NewLine, admonitions.Select(b => b.RawBlock)), $"Copied {admonitions.Count:N0} admonition callout block(s) to clipboard");
         };
         menu.Items.Add(copyAdmonitionsItem);
 
@@ -13410,8 +13316,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 AnnounceStatus("No high-priority alerts ([!IMPORTANT], [!WARNING], [!CAUTION]) found in document");
                 return;
             }
-            _ = Services.ClipboardWriter.TrySetTextAsync(string.Join(Environment.NewLine + Environment.NewLine, alerts.Select(b => b.RawBlock)));
-            AnnounceStatus($"Copied {alerts.Count:N0} high-priority alert callout(s) to clipboard");
+            CopyAndAnnounce(string.Join(Environment.NewLine + Environment.NewLine, alerts.Select(b => b.RawBlock)), $"Copied {alerts.Count:N0} high-priority alert callout(s) to clipboard");
         };
         menu.Items.Add(copyAlertsItem);
 
@@ -13439,8 +13344,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 var cleanSummary = b.SummaryText.Replace("\r", " ").Replace("\n", " ").Replace("|", "\\|");
                 sb.AppendLine($"| {idx + 1} | `{b.CalloutType}` | Ln {b.StartLine} | {b.LineCount} | {cleanSummary} |");
             }
-            _ = Services.ClipboardWriter.TrySetTextAsync(sb.ToString().TrimEnd());
-            AnnounceStatus($"Copied Callout Inventory Table ({blocks.Count:N0} blocks) to clipboard");
+            CopyAndAnnounce(sb.ToString().TrimEnd(), $"Copied Callout Inventory Table ({blocks.Count:N0} blocks) to clipboard");
         };
         menu.Items.Add(copyTableItem);
 
@@ -13533,8 +13437,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         int mdCount = images.Count(img => img.SyntaxType == "Markdown");
         int htmlCount = images.Count - mdCount;
         var output = string.Join(Environment.NewLine, images.Select(img => img.RawTag));
-        _ = Services.ClipboardWriter.TrySetTextAsync(output);
-        AnnounceStatus($"Copied {images.Count:N0} image reference(s) ({mdCount:N0} Markdown, {htmlCount:N0} HTML) to clipboard");
+        CopyAndAnnounce(output, $"Copied {images.Count:N0} image reference(s) ({mdCount:N0} Markdown, {htmlCount:N0} HTML) to clipboard");
     }
 
     private void OnStatusCopyImagesButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
@@ -13565,8 +13468,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 AnnounceStatus("No image URLs or file paths found in document");
                 return;
             }
-            _ = Services.ClipboardWriter.TrySetTextAsync(string.Join(Environment.NewLine, images.Select(img => img.SourceUrl)));
-            AnnounceStatus($"Copied {images.Count:N0} image URL(s)/path(s) to clipboard");
+            CopyAndAnnounce(string.Join(Environment.NewLine, images.Select(img => img.SourceUrl)), $"Copied {images.Count:N0} image URL(s)/path(s) to clipboard");
         };
         menu.Items.Add(copyUrlsItem);
 
@@ -13584,8 +13486,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 return;
             }
             var lines = missingAlt.Select(img => $"Ln {img.LineNumber}: {img.RawTag}");
-            _ = Services.ClipboardWriter.TrySetTextAsync(string.Join(Environment.NewLine, lines));
-            AnnounceStatus($"Copied {missingAlt.Count:N0} image(s) missing alt text to clipboard");
+            CopyAndAnnounce(string.Join(Environment.NewLine, lines), $"Copied {missingAlt.Count:N0} image(s) missing alt text to clipboard");
         };
         menu.Items.Add(copyMissingAltItem);
 
@@ -13615,8 +13516,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 var cleanSrc = img.SourceUrl.Replace("|", "\\|");
                 sb.AppendLine($"| {idx + 1} | `{img.SyntaxType}` | Ln {img.LineNumber} | {cleanAlt} | `{cleanSrc}` |");
             }
-            _ = Services.ClipboardWriter.TrySetTextAsync(sb.ToString().TrimEnd());
-            AnnounceStatus($"Copied Image Asset Inventory Table ({images.Count:N0} images) to clipboard");
+            CopyAndAnnounce(sb.ToString().TrimEnd(), $"Copied Image Asset Inventory Table ({images.Count:N0} images) to clipboard");
         };
         menu.Items.Add(copyTableItem);
 
@@ -13798,8 +13698,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                     : $"UNREFERENCED DEFINITION (defined on Ln {fn.DefinitionLine})";
                 sb.AppendLine($"[^{fn.Id}] — {status}");
             }
-            _ = Services.ClipboardWriter.TrySetTextAsync(sb.ToString().TrimEnd());
-            AnnounceStatus($"Copied {issues.Count:N0} footnote audit issue(s) to clipboard");
+            CopyAndAnnounce(sb.ToString().TrimEnd(), $"Copied {issues.Count:N0} footnote audit issue(s) to clipboard");
         };
         menu.Items.Add(copyAuditItem);
 
@@ -13832,8 +13731,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 var cleanDef = string.IsNullOrWhiteSpace(fn.DefinitionText) ? "_(none)_" : fn.DefinitionText.Replace("|", "\\|");
                 sb.AppendLine($"| {idx + 1} | `[^{fn.Id}]` | {fn.ReferenceCount} | {refLinesStr} | {defLineStr} | {status} | {cleanDef} |");
             }
-            _ = Services.ClipboardWriter.TrySetTextAsync(sb.ToString().TrimEnd());
-            AnnounceStatus($"Copied Footnote Inventory Table ({footnotes.Count:N0} footnotes) to clipboard");
+            CopyAndAnnounce(sb.ToString().TrimEnd(), $"Copied Footnote Inventory Table ({footnotes.Count:N0} footnotes) to clipboard");
         };
         menu.Items.Add(copyTableItem);
 
@@ -14023,8 +13921,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 AnnounceStatus("No ```mermaid diagram blocks found in document");
                 return;
             }
-            _ = Services.ClipboardWriter.TrySetTextAsync(string.Join(Environment.NewLine + Environment.NewLine, mermaids.Select(m => m.RawBlock)));
-            AnnounceStatus($"Copied {mermaids.Count:N0} Mermaid diagram block(s) to clipboard");
+            CopyAndAnnounce(string.Join(Environment.NewLine + Environment.NewLine, mermaids.Select(m => m.RawBlock)), $"Copied {mermaids.Count:N0} Mermaid diagram block(s) to clipboard");
         };
         menu.Items.Add(copyMermaidOnlyItem);
 
@@ -14041,8 +13938,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 AnnounceStatus("No :::smartart / :::chart / :::shapes wrapper blocks found in document");
                 return;
             }
-            _ = Services.ClipboardWriter.TrySetTextAsync(string.Join(Environment.NewLine + Environment.NewLine, wrappers.Select(w => w.RawBlock)));
-            AnnounceStatus($"Copied {wrappers.Count:N0} ::: visual wrapper block(s) to clipboard");
+            CopyAndAnnounce(string.Join(Environment.NewLine + Environment.NewLine, wrappers.Select(w => w.RawBlock)), $"Copied {wrappers.Count:N0} ::: visual wrapper block(s) to clipboard");
         };
         menu.Items.Add(copyWrappersOnlyItem);
 
@@ -14072,8 +13968,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 var cleanSub = d.SubType.Replace("|", "\\|");
                 sb.AppendLine($"| {idx + 1} | `{d.Kind}` | `{cleanSub}` | {d.LineCount} | Ln {d.StartLine}–{d.EndLine} |");
             }
-            _ = Services.ClipboardWriter.TrySetTextAsync(sb.ToString().TrimEnd());
-            AnnounceStatus($"Copied Diagram Inventory Table ({diagrams.Count:N0} blocks) to clipboard");
+            CopyAndAnnounce(sb.ToString().TrimEnd(), $"Copied Diagram Inventory Table ({diagrams.Count:N0} blocks) to clipboard");
         };
         menu.Items.Add(copyTableItem);
 
@@ -14115,8 +14010,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         var selected = PasteTextBox?.SelectedText;
         if (!string.IsNullOrEmpty(selected))
         {
-            _ = Services.ClipboardWriter.TrySetTextAsync(selected);
-            AnnounceStatus($"Copied selection ({selected.Length:N0} chars) to clipboard");
+            CopyAndAnnounce(selected, $"Copied selection ({selected.Length:N0} chars) to clipboard");
             return;
         }
 
@@ -14153,8 +14047,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 AnnounceStatus("Document is empty — nothing to copy");
                 return;
             }
-            _ = Services.ClipboardWriter.TrySetTextAsync(md);
-            AnnounceStatus($"Copied Markdown ({ViewModel.DocumentStats.Words:N0} words) to clipboard");
+            CopyAndAnnounce(md, $"Copied Markdown ({ViewModel.DocumentStats.Words:N0} words) to clipboard");
         };
         menu.Items.Add(copyMdItem);
 
@@ -14176,8 +14069,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             var detail = ViewModel.DocumentStatsDetail;
             if (!string.IsNullOrWhiteSpace(detail))
             {
-                _ = Services.ClipboardWriter.TrySetTextAsync(detail);
-                AnnounceStatus("Copied document statistics breakdown to clipboard");
+                CopyAndAnnounce(detail, "Copied document statistics breakdown to clipboard");
             }
         };
         menu.Items.Add(copyStatsItem);
@@ -14250,8 +14142,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             return;
         }
 
-        _ = Services.ClipboardWriter.TrySetTextAsync(toc);
-        AnnounceStatus($"Copied Markdown Table of Contents ({count:N0} headings) to clipboard");
+        CopyAndAnnounce(toc, $"Copied Markdown Table of Contents ({count:N0} headings) to clipboard");
     }
 
     private void OnStatusCopyTocButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
@@ -14282,8 +14173,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 AnnounceStatus("No Markdown headings found in document");
                 return;
             }
-            _ = Services.ClipboardWriter.TrySetTextAsync(outline);
-            AnnounceStatus($"Copied plain heading outline ({count:N0} headings) to clipboard");
+            CopyAndAnnounce(outline, $"Copied plain heading outline ({count:N0} headings) to clipboard");
         };
         menu.Items.Add(plainItem);
 
@@ -14322,34 +14212,33 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
         var titlePanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
-        titlePanel.Children.Add(new FontIcon { Glyph = "\uE8D2", FontSize = 15, Foreground = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"] });
+        titlePanel.Children.Add(new FontIcon { Glyph = "\uE8D2", FontSize = 15 }.Themed(FontIcon.ForegroundProperty, "AccentFillColorDefaultBrush"));
         titlePanel.Children.Add(new TextBlock { Text = "Document Metrics", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, FontSize = 14 });
         header.Children.Add(titlePanel);
 
         var badgesRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
+        // Theme brushes from ThemeBrush, not Application.Current.Resources: the latter returns the
+        // theme the app started in, so after Windows switched light/dark this card kept the old colours.
         var readingBadge = new Border
         {
-            Background = (Brush)Application.Current.Resources["SubtleFillColorSecondaryBrush"],
             CornerRadius = new CornerRadius(4),
             Padding = new Thickness(6, 2, 6, 2)
-        };
+        }.Themed(Border.BackgroundProperty, "SubtleFillColorSecondaryBrush");
         readingBadge.Child = new TextBlock
         {
             Text = $"{stats.ReadingTimeText} read",
             FontSize = 11,
-            Foreground = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"],
             FontWeight = Microsoft.UI.Text.FontWeights.Medium
-        };
+        }.Themed(TextBlock.ForegroundProperty, "AccentTextFillColorPrimaryBrush");
         badgesRow.Children.Add(readingBadge);
 
         int speakMinutes = stats.Words <= 0 ? 0 : Math.Max(1, (int)Math.Ceiling(stats.Words / 130.0));
         string speakText = stats.Words <= 0 ? "0 min speak" : $"~{speakMinutes} min speak";
         var speakingBadge = new Border
         {
-            Background = (Brush)Application.Current.Resources["SubtleFillColorSecondaryBrush"],
             CornerRadius = new CornerRadius(4),
             Padding = new Thickness(6, 2, 6, 2)
-        };
+        }.Themed(Border.BackgroundProperty, "SubtleFillColorSecondaryBrush");
         speakingBadge.Child = new TextBlock
         {
             Text = speakText,
@@ -14384,6 +14273,11 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             var textStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
             var valBlock = new TextBlock { Text = val, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, FontSize = 13 };
             var lblBlock = new TextBlock { Text = label, FontSize = 11, Opacity = 0.7 };
+            // One stop per statistic for a screen reader ("Words: 1,204"), not a bare number
+            // followed by a separate label it couldn't tie back to it.
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(valBlock, $"{label}: {val}");
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetAccessibilityView(lblBlock, Microsoft.UI.Xaml.Automation.Peers.AccessibilityView.Raw);
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetAccessibilityView(icon, Microsoft.UI.Xaml.Automation.Peers.AccessibilityView.Raw);
             textStack.Children.Add(valBlock);
             textStack.Children.Add(lblBlock);
 
@@ -14432,9 +14326,9 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         copyWordsBtn.Click += (_, _) =>
         {
             flyout.Hide();
-            _ = Services.ClipboardWriter.TrySetTextAsync($"{stats.Words:N0} words");
-            AnnounceStatus($"Copied word count: {stats.Words:N0} words");
+            CopyAndAnnounce($"{stats.Words:N0} words", $"Copied word count: {stats.Words:N0} words");
         };
+        ToolTipService.SetToolTip(copyWordsBtn, $"Copy “{stats.Words:N0} words” to the clipboard");
         btnBar.Children.Add(copyWordsBtn);
 
         var copySummaryBtn = new Button
@@ -14455,14 +14349,17 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         {
             flyout.Hide();
             var detail = ViewModel.DocumentStatsDetail;
-            _ = Services.ClipboardWriter.TrySetTextAsync(detail);
-            AnnounceStatus("Copied document statistics to clipboard");
+            CopyAndAnnounce(detail, "Copied document statistics to clipboard");
         };
+        ToolTipService.SetToolTip(copySummaryBtn, "Copy every statistic as text");
         btnBar.Children.Add(copySummaryBtn);
 
         root.Children.Add(btnBar);
 
         flyout.Content = root;
+        // The flyout lives in the popup layer, outside the tracked window tree, so its buttons need
+        // the hover/press polish applied when it opens.
+        Services.HoverPolish.AttachOnOpen(flyout);
         flyout.ShowAt(target);
     }
 
@@ -14482,8 +14379,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         copySummaryItem.Click += (_, _) =>
         {
             var text = !string.IsNullOrWhiteSpace(summary) ? summary : words;
-            _ = Services.ClipboardWriter.TrySetTextAsync(text);
-            AnnounceStatus($"Copied document statistics: {text}");
+            CopyAndAnnounce(text, $"Copied document statistics: {text}");
         };
         menu.Items.Add(copySummaryItem);
 
@@ -14496,8 +14392,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             };
             copyWordsItem.Click += (_, _) =>
             {
-                _ = Services.ClipboardWriter.TrySetTextAsync(words);
-                AnnounceStatus($"Copied word count: {words}");
+                CopyAndAnnounce(words, $"Copied word count: {words}");
             };
             menu.Items.Add(copyWordsItem);
         }
@@ -14514,8 +14409,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             };
             copyLinesItem.Click += (_, _) =>
             {
-                _ = Services.ClipboardWriter.TrySetTextAsync(lines);
-                AnnounceStatus($"Copied line count: {lines}.");
+                CopyAndAnnounce(lines, $"Copied line count: {lines}.");
             };
             menu.Items.Add(copyLinesItem);
         }
@@ -14536,8 +14430,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                     };
                     copyCharsItem.Click += (_, _) =>
                     {
-                        _ = Services.ClipboardWriter.TrySetTextAsync(part);
-                        AnnounceStatus($"Copied characters: {part}");
+                        CopyAndAnnounce(part, $"Copied characters: {part}");
                     };
                     menu.Items.Add(copyCharsItem);
                 }
@@ -14550,8 +14443,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                     };
                     copyReadItem.Click += (_, _) =>
                     {
-                        _ = Services.ClipboardWriter.TrySetTextAsync(part);
-                        AnnounceStatus($"Copied reading time: {part}");
+                        CopyAndAnnounce(part, $"Copied reading time: {part}");
                     };
                     menu.Items.Add(copyReadItem);
                 }
@@ -14653,8 +14545,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         };
         copyPosItem.Click += (_, _) =>
         {
-            _ = Services.ClipboardWriter.TrySetTextAsync(pos);
-            AnnounceStatus($"Copied cursor position: {pos}");
+            CopyAndAnnounce(pos, $"Copied cursor position: {pos}");
         };
         menu.Items.Add(copyPosItem);
 
@@ -14675,8 +14566,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 var line = text.Substring(start, Math.Max(0, end - start));
                 if (!string.IsNullOrEmpty(line))
                 {
-                    _ = Services.ClipboardWriter.TrySetTextAsync(line);
-                    AnnounceStatus("Copied current line text.");
+                    CopyAndAnnounce(line, "Copied current line text.");
                 }
             }
         };
@@ -14809,12 +14699,14 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         var previewText = new TextBlock
         {
             FontSize = 11.5,
-            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
             TextWrapping = TextWrapping.NoWrap,
             TextTrimming = TextTrimming.CharacterEllipsis,
             FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Cascadia Mono, Consolas, monospace"),
             Margin = new Thickness(0, 2, 0, 0)
-        };
+        }.Themed(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
+        // Polite live region: a screen reader hears where Go will land as the number is typed.
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetLiveSetting(previewText, Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Polite);
+        Services.TrimmedTextToolTip.Attach(previewText);
 
         string GetLinePreview(int lineNum)
         {
@@ -14833,24 +14725,40 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             return string.IsNullOrEmpty(preview) ? "(blank line)" : preview;
         }
 
-        void UpdatePreview()
+        // The preview and Go read the box the same way. Out-of-range or unreadable input used to be
+        // clamped (or ignored) without a word, so "500" in an 80-line file silently went to line 80.
+        (int Line, int Col, string Note) Resolve()
         {
             var raw = lineColBox.Text?.Trim() ?? string.Empty;
             int targetLine = currentLine;
             int targetCol = 1;
+            bool readable = raw.Length == 0;
             if (raw.Contains(':') || raw.Contains(','))
             {
                 var parts = raw.Split(new[] { ':', ',' }, StringSplitOptions.RemoveEmptyEntries);
-                if (parts.Length > 0 && int.TryParse(parts[0].Trim(), out int l)) targetLine = l;
+                if (parts.Length > 0 && int.TryParse(parts[0].Trim(), out int l)) { targetLine = l; readable = true; }
                 if (parts.Length > 1 && int.TryParse(parts[1].Trim(), out int c)) targetCol = c;
             }
             else if (int.TryParse(raw, out int l))
             {
                 targetLine = l;
+                readable = true;
             }
-            targetLine = Math.Clamp(targetLine, 1, totalLines);
-            targetCol = Math.Max(1, targetCol);
-            previewText.Text = $"Line {targetLine}, Col {targetCol}: {GetLinePreview(targetLine)}";
+            var note = !readable ? $"Not a line number, so Go stays on line {currentLine}. "
+                : targetLine > totalLines ? $"Only {totalLines:N0} line{(totalLines == 1 ? "" : "s")}. "
+                : targetLine < 1 ? "Lines start at 1. "
+                : "";
+            return (Math.Clamp(targetLine, 1, totalLines), Math.Max(1, targetCol), note);
+        }
+
+        void UpdatePreview()
+        {
+            var (targetLine, targetCol, note) = Resolve();
+            var updated = $"{note}Line {targetLine}, Col {targetCol}: {GetLinePreview(targetLine)}";
+            if (updated == previewText.Text) return;
+            previewText.Text = updated;
+            Microsoft.UI.Xaml.Automation.Peers.FrameworkElementAutomationPeer.FromElement(previewText)
+                ?.RaiseAutomationEvent(Microsoft.UI.Xaml.Automation.Peers.AutomationEvents.LiveRegionChanged);
         }
 
         UpdatePreview();
@@ -14863,20 +14771,27 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         };
 
         var quickButtons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
-        var startBtn = new Button { Content = "Start (1:1)", Padding = new Thickness(6, 2, 6, 2), FontSize = 11 };
-        startBtn.Click += (_, _) => lineColBox.Text = "1:1";
-        quickButtons.Children.Add(startBtn);
+        // A quick-pick fills the box and puts the caret back in it, so Enter goes there. Focus used
+        // to stay on the button, where Enter just clicked it again.
+        void AddQuickPick(string label, int line, string tip)
+        {
+            var button = new Button { Content = label, Padding = new Thickness(6, 2, 6, 2), FontSize = 11 };
+            ToolTipService.SetToolTip(button, $"{tip} · then Enter to go");
+            button.Click += (_, _) =>
+            {
+                lineColBox.Text = $"{line}:1";
+                lineColBox.Focus(FocusState.Keyboard);
+                lineColBox.SelectAll();
+            };
+            quickButtons.Children.Add(button);
+        }
 
+        AddQuickPick("Start (1:1)", 1, "Fill in line 1, column 1");
         if (totalLines > 1)
         {
             int mid = Math.Max(1, totalLines / 2);
-            var midBtn = new Button { Content = $"Mid ({mid})", Padding = new Thickness(6, 2, 6, 2), FontSize = 11 };
-            midBtn.Click += (_, _) => lineColBox.Text = $"{mid}:1";
-            quickButtons.Children.Add(midBtn);
-
-            var endBtn = new Button { Content = $"End ({totalLines})", Padding = new Thickness(6, 2, 6, 2), FontSize = 11 };
-            endBtn.Click += (_, _) => lineColBox.Text = $"{totalLines}:1";
-            quickButtons.Children.Add(endBtn);
+            AddQuickPick($"Mid ({mid})", mid, $"Fill in the middle line, {mid:N0}");
+            AddQuickPick($"End ({totalLines})", totalLines, $"Fill in the last line, {totalLines:N0}");
         }
 
         container.Children.Add(lineColBox);
@@ -14896,21 +14811,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         void Submit()
         {
             dialog.Hide();
-            var raw = lineColBox.Text?.Trim() ?? string.Empty;
-            int targetLine = currentLine;
-            int targetCol = 1;
-            if (raw.Contains(':') || raw.Contains(','))
-            {
-                var parts = raw.Split(new[] { ':', ',' }, StringSplitOptions.RemoveEmptyEntries);
-                if (parts.Length > 0 && int.TryParse(parts[0].Trim(), out int l)) targetLine = l;
-                if (parts.Length > 1 && int.TryParse(parts[1].Trim(), out int c)) targetCol = c;
-            }
-            else if (int.TryParse(raw, out int l))
-            {
-                targetLine = l;
-            }
-            targetLine = Math.Clamp(targetLine, 1, totalLines);
-            targetCol = Math.Max(1, targetCol);
+            var (targetLine, targetCol, _) = Resolve();
             GoToDocumentPosition(targetLine, targetCol);
             AnnounceStatus($"Jumped to Line {targetLine}, Column {targetCol}");
         }
@@ -15681,8 +15582,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
     {
         var widthText = PreviewWidthText?.Text ?? string.Empty;
         if (string.IsNullOrWhiteSpace(widthText) || widthText.StartsWith("—", StringComparison.Ordinal)) return;
-        _ = Services.ClipboardWriter.TrySetTextAsync(widthText);
-        AnnounceStatus($"Copied preview width: {widthText}");
+        CopyAndAnnounce(widthText, $"Copied preview width: {widthText}");
     }
 
     private void OnPreviewWidthBadgeRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
@@ -16666,7 +16566,8 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 }
                 else
                 {
-                    tableModel = Services.SpreadsheetService.ParseCsv(await File.ReadAllTextAsync(filePath));
+                    // Shared read: a CSV still open in Excel can't be read with File.ReadAllText.
+                    tableModel = Services.SpreadsheetService.ParseCsv(await MarkSmith.Services.SharedFile.ReadAllTextAsync(filePath));
                 }
 
                 var tableMd = Services.SpreadsheetService.ToMarkdownTable(tableModel);
@@ -16937,7 +16838,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             else
             {
                 // CSV (or .tsv / .txt treated as CSV with auto-delimiter detection)
-                var text = await File.ReadAllTextAsync(filePath);
+                var text = await MarkSmith.Services.SharedFile.ReadAllTextAsync(filePath);
                 model = Services.SpreadsheetService.ParseCsv(text);
             }
 

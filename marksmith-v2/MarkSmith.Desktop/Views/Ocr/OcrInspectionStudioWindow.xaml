@@ -50,7 +50,7 @@
                 <Button x:Name="PrevPageButton" Click="OnPrevPageClick"
                         Padding="8,4" CornerRadius="4"
                         AutomationProperties.Name="Previous page"
-                        ToolTipService.ToolTip="Previous page (Left Arrow or Page Up) · Right-click for page navigation"
+                        ToolTipService.ToolTip="Previous page (Left Arrow or Page Up) · Right-click or Shift+F10 for page navigation"
                         RightTapped="OnPrevPageButtonRightTapped">
                     <StackPanel Orientation="Horizontal" Spacing="5">
                         <FontIcon Glyph="&#xE76B;" FontSize="10" />
@@ -72,7 +72,7 @@
                 <Button x:Name="NextPageButton" Click="OnNextPageClick"
                         Padding="8,4" CornerRadius="4"
                         AutomationProperties.Name="Next page"
-                        ToolTipService.ToolTip="Next page (Right Arrow or Page Down) · Right-click for page navigation"
+                        ToolTipService.ToolTip="Next page (Right Arrow or Page Down) · Right-click or Shift+F10 for page navigation"
                         RightTapped="OnNextPageButtonRightTapped">
                     <StackPanel Orientation="Horizontal" Spacing="5">
                         <TextBlock x:Name="NextPageLabelText" Text="Next" FontSize="11.5" />
@@ -340,7 +340,7 @@
                         <Button x:Name="CopyMarkdownButton" Grid.Column="2" Click="OnCopyMarkdownClick"
                                 Padding="8,4" CornerRadius="4" FontSize="11.5"
                                 AutomationProperties.Name="Copy live Markdown preview"
-                                ToolTipService.ToolTip="Copy live Markdown preview to clipboard (Ctrl+Shift+C) · Right-click for export options"
+                                ToolTipService.ToolTip="Copy live Markdown preview to clipboard (Ctrl+Shift+C) · Right-click or Shift+F10 for export options"
                                 RightTapped="OnCopyMarkdownButtonRightTapped">
                             <StackPanel Orientation="Horizontal" Spacing="5">
                                 <FontIcon x:Name="CopyMarkdownIcon" Glyph="&#xE8C8;" FontSize="11" />

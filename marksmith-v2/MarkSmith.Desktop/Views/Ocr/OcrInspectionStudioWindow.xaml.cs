@@ -57,6 +57,8 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
     private CancellationTokenSource? _idleLaserCts;
     private CancellationTokenSource? _playbackCts;
     private OcrInspectionElement? _selectedElement;
+    // Discard, Esc and the X all cancel the import. After reclassifying, CloseGuard asks first.
+    private readonly Action _requestClose;
     private int _imagePixelWidth = 960;
     private int _imagePixelHeight = 1320;
     private bool _isReviewMode = false;
@@ -119,6 +121,11 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         };
 
         RootGrid.PreviewKeyDown += OnRootKeyDown;
+
+        _requestClose = CloseGuard.Attach(this,
+            () => _session.TotalReclassifications > 0 && !_decisionTcs.Task.IsCompleted,
+            () => { CompleteImport(); return true; },
+            "reviewed text");
     }
 
     private void ConfigureWindowChrome()
@@ -569,6 +576,9 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         var page = _session.CurrentPage;
         if (page is null) return;
 
+        // Rebuilding the cards removes the focused one; remember to put focus back afterwards.
+        bool focusWasOnCard = IsFocusWithinElementCards();
+
         ElementsCanvas.Children.Clear();
         ElementCardsPanel.Children.Clear();
         _canvasElementFrames.Clear();
@@ -621,6 +631,39 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         UpdatePageFlickingState();
         UpdateLiveMarkdownPreview();
         UpdateSessionTelemetry();
+
+        if (focusWasOnCard && !FocusSelectedCard())
+        {
+            // A page with no elements has no card to land on.
+            Control? fallback = NextPageButton is { IsEnabled: true } ? NextPageButton
+                : PrevPageButton is { IsEnabled: true } ? PrevPageButton
+                : ImportCtaButton;
+            fallback?.Focus(FocusState.Keyboard);
+        }
+    }
+
+    private bool IsFocusWithinElementCards()
+    {
+        if (RootGrid.XamlRoot is null || ElementCardsPanel is null) return false;
+        for (var node = FocusManager.GetFocusedElement(RootGrid.XamlRoot) as DependencyObject;
+             node is not null; node = VisualTreeHelper.GetParent(node))
+        {
+            if (ReferenceEquals(node, ElementCardsPanel)) return true;
+        }
+        return false;
+    }
+
+    /// <summary>Puts keyboard focus on the selected element's card (its reclassify box).</summary>
+    private bool FocusSelectedCard()
+    {
+        if (_selectedElement is null ||
+            !_inspectorCards.TryGetValue(_selectedElement, out var card) ||
+            card.Child is not StackPanel { Children.Count: > 1 } stack ||
+            stack.Children[1] is not ComboBox combo)
+        {
+            return false;
+        }
+        return combo.Focus(FocusState.Keyboard);
     }
 
     private static string DescribeElementForAccessibility(OcrInspectionElement elem) =>
@@ -630,7 +673,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
     private static string DescribeElementToolTip(OcrInspectionElement elem) =>
         $"#{elem.Id} · {elem.KindDisplayName} ({elem.WordCount} words)" +
         (elem.IsReclassified ? $" — Reclassified from {elem.OriginalKind}" : string.Empty) +
-        "\nClick to select · Right-click for actions · Keys 1–8 to reclassify · R to reset";
+        "\nClick to select · Right-click or Shift+F10 for actions · Keys 1–8 to reclassify · R to reset";
 
     private Border CreateCanvasElementFrame(OcrInspectionElement elem)
     {
@@ -775,6 +818,13 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             if (opt.Kind == elem.Kind) selectedIdx = i;
         }
         combo.SelectedIndex = selectedIdx;
+
+        // Tabbing onto a card selects its element, so 1–8, R, Ctrl+C and Shift+F10 act on the card
+        // that has focus rather than on whichever element was selected before.
+        combo.GotFocus += (_, _) =>
+        {
+            if (!ReferenceEquals(_selectedElement, elem)) SelectElement(elem);
+        };
 
         combo.SelectionChanged += (_, _) =>
         {
@@ -2107,7 +2157,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         }
         int idx = page.Elements.IndexOf(_selectedElement);
         int prevIdx = idx <= 0 ? page.Elements.Count - 1 : idx - 1;
-        SelectElement(page.Elements[prevIdx]);
+        SelectElementKeepingCardFocus(page.Elements[prevIdx]);
     }
 
     private void SelectNextElement()
@@ -2121,10 +2171,25 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         }
         int idx = page.Elements.IndexOf(_selectedElement);
         int nextIdx = (idx < 0 || idx >= page.Elements.Count - 1) ? 0 : idx + 1;
-        SelectElement(page.Elements[nextIdx]);
+        SelectElementKeepingCardFocus(page.Elements[nextIdx]);
+    }
+
+    // Up/Down (and [ ]) from inside a card take keyboard focus along to the newly selected card;
+    // otherwise focus stayed on the old card while the highlight moved on.
+    private void SelectElementKeepingCardFocus(OcrInspectionElement elem)
+    {
+        bool focusWasOnCard = IsFocusWithinElementCards();
+        SelectElement(elem);
+        if (focusWasOnCard) FocusSelectedCard();
     }
 
     private void OnImportCtaClick(object sender, RoutedEventArgs e)
+    {
+        CompleteImport();
+        this.Close();
+    }
+
+    private void CompleteImport()
     {
         string finalMarkdown = _session.GetDocumentMarkdown();
         _decisionTcs.TrySetResult(new OcrInspectionResult(
@@ -2132,18 +2197,11 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             Markdown: finalMarkdown,
             PageCount: _session.Pages.Count,
             ReclassifiedCount: _session.TotalReclassifications));
-        this.Close();
     }
 
-    private void OnDiscardClick(object sender, RoutedEventArgs e)
-    {
-        _decisionTcs.TrySetResult(new OcrInspectionResult(
-            Imported: false,
-            Markdown: string.Empty,
-            PageCount: _session.Pages.Count,
-            ReclassifiedCount: 0));
-        this.Close();
-    }
+    // The Closed handler reports the discard; going through the guard means reclassifications
+    // are never thrown away by a stray Esc.
+    private void OnDiscardClick(object sender, RoutedEventArgs e) => _requestClose();
 
     private bool IsTextOrComboInputFocused()
     {
@@ -2217,16 +2275,22 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             }
 
             // Context menu key (Application or Shift+F10) for the selected element
-            if (e.Key == Windows.System.VirtualKey.Application || (e.Key == Windows.System.VirtualKey.F10 && shift))
+            if (KeyboardContextMenu.IsContextMenuKey(e.Key))
             {
                 // Toolbar/footer buttons with their own menus (Prev/Next page, Discard, Import…) open those.
                 if (KeyboardContextMenu.IsFromBridgedControl(e)) return;
+                e.Handled = true;
                 if (_selectedElement is not null &&
                     _inspectorCards.TryGetValue(_selectedElement, out var card) &&
                     card.ContextFlyout is MenuFlyout flyout)
                 {
-                    e.Handled = true;
                     flyout.ShowAt(card, new FlyoutShowOptions { Placement = FlyoutPlacementMode.BottomEdgeAlignedLeft });
+                }
+                else if (PageSheetBorder is not null)
+                {
+                    // Nothing selected: the page's own menu (copy, reset, page nav, import) rather
+                    // than nothing at all.
+                    KeyboardContextMenu.Invoke(PageSheetBorder, OnPageSheetRightTapped);
                 }
                 return;
             }

@@ -58,7 +58,7 @@ public static class PluginFileReader
     public static async Task<ImportedDocument> ImportAsync(string path)
     {
         if (IsMarkdownFile(path))
-            return new ImportedDocument(await File.ReadAllTextAsync(path), null, null);
+            return new ImportedDocument(await Services.SharedFile.ReadAllTextAsync(path), null, null);
 
         string full;
         try { full = Path.GetFullPath(path); } catch { full = path; }
@@ -110,7 +110,7 @@ public static class PluginFileReader
 
         if (ext is "html" or "htm")
         {
-            var html = await File.ReadAllTextAsync(path);
+            var html = await Services.SharedFile.ReadAllTextAsync(path);
             var mediaDir = MediaDirFor(path);
             var docDir = Path.GetDirectoryName(path) ?? ".";
             var saved = new int[1];
@@ -152,7 +152,7 @@ public static class PluginFileReader
             finally { ImportGate.Release(); }
         }
 
-        return new ImportedDocument(await File.ReadAllTextAsync(path), null, null);
+        return new ImportedDocument(await Services.SharedFile.ReadAllTextAsync(path), null, null);
     }
 
     // "<name>_media" beside the file, like the Word importer — unless it sits somewhere transient

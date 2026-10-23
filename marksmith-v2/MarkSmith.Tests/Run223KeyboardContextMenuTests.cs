@@ -138,6 +138,8 @@ public class Run223KeyboardContextMenuTests
     {
         var code = File.ReadAllText(Path.Combine(DesktopDir(), relativeCode));
         var key = code.IndexOf("VirtualKey.F10", StringComparison.Ordinal);
+        // Run #238: the OCR studio tests the key with the shared helper instead.
+        if (key < 0) key = code.IndexOf("KeyboardContextMenu.IsContextMenuKey(e.Key)", StringComparison.Ordinal);
         Assert.True(key > 0, relativeCode);
         var guard = code.IndexOf("KeyboardContextMenu.IsFromBridgedControl(e)) return;", key, StringComparison.Ordinal);
         Assert.True(guard > key && guard - key < 400, $"{relativeCode}: the Shift+F10 branch must check IsFromBridgedControl first");

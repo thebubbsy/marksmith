@@ -74,7 +74,8 @@ public sealed partial class HistoryWindow : Window
             (SelectedHeaderButton, OnTimelineHeaderRightTapped),
             (TimelineFilterStatusPill, OnTimelineFilterStatusPillRightTapped),
             (CommitShaCopyPill, OnDiffSummaryRightTapped),
-            (ChangeStepperButton, OnChangeStepperButtonRightTapped));
+            (ChangeStepperButton, OnChangeStepperButtonRightTapped),
+            (DocumentsRefreshButton, OnDocumentsHeaderRightTapped));
         TextBoxMenu.Attach(SearchBox, FillSearchBoxMenu);
         Title = "Version History — MarkSmith";
         _main = mainViewModel;
@@ -1691,6 +1692,12 @@ public sealed partial class HistoryWindow : Window
         {
             e.Handled = true;
             _ = CopyVersionMarkdownAsync(copyTarget, CopyToolbarButton, CopyToolbarIcon);
+        }
+        else if (e.Key == VirtualKey.F5 && !isCtrl && !isAlt)
+        {
+            // Advertised as F5 on the version and Documents-header menus.
+            e.Handled = true;
+            _ = RefreshHistoryAsync();
         }
         else if (e.Key == VirtualKey.F7 || (isAlt && e.Key == VirtualKey.Down))
         {
@@ -4187,13 +4194,7 @@ var auditResourceDisposalLeaksItem = new MenuFlyoutItem
             Icon = new FontIcon { Glyph = "\uE72C" },
             KeyboardAcceleratorTextOverride = "F5"
         };
-        refresh.Click += async (_, _) =>
-        {
-            if (_vm.SelectedFile is { } file)
-                await _vm.ShowFileAsync(file.Summary.FilePath);
-            else
-                await _vm.LoadCommand.ExecuteAsync(null);
-        };
+        refresh.Click += async (_, _) => await RefreshHistoryAsync();
         menu.Items.Add(refresh);
 
         var checkpoint = new MenuFlyoutItem
@@ -4245,11 +4246,32 @@ var auditResourceDisposalLeaksItem = new MenuFlyoutItem
         menu.ShowAt(fe, new FlyoutShowOptions { Position = KeyboardContextMenu.PointIn(e, fe) });
     }
 
+    // F5 and the menus' Refresh: reload the open document's versions, or the documents list when
+    // none is open. Skipped while a load is running so a held key doesn't stack reloads.
+    private async Task RefreshHistoryAsync()
+    {
+        if (_vm.IsLoading) return;
+        if (_vm.SelectedFile is { } file)
+            await _vm.ShowFileAsync(file.Summary.FilePath);
+        else
+            await _vm.LoadCommand.ExecuteAsync(null);
+        // Said aloud too: a reload that changes nothing is otherwise silent. A failed read already
+        // shows its own error in the documents pane.
+        if (!_vm.HasLoadError)
+            _vm.ShowNotice(_vm.SelectedFile is { } shown
+                ? $"Refreshed {shown.FileName}: {shown.VersionCountLabel}."
+                : "Refreshed the documents list.");
+    }
+
     private void OnDocumentsHeaderDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
     {
         e.Handled = true;
-        _ = _vm.LoadCommand.ExecuteAsync(null);
+        // A double-click on the refresh button already refreshed through its Click.
+        if (IsWithin(e.OriginalSource as DependencyObject, DocumentsRefreshButton)) return;
+        _ = RefreshHistoryAsync();
     }
+
+    private void OnDocumentsRefreshButtonClick(object sender, RoutedEventArgs e) => _ = RefreshHistoryAsync();
 
     private void OnDocumentsHeaderRightTapped(object sender, RightTappedRoutedEventArgs e)
     {
@@ -4263,7 +4285,7 @@ var auditResourceDisposalLeaksItem = new MenuFlyoutItem
             Icon = new FontIcon { Glyph = "\uE72C" },
             KeyboardAcceleratorTextOverride = "F5"
         };
-        refresh.Click += async (_, _) => await _vm.LoadCommand.ExecuteAsync(null);
+        refresh.Click += async (_, _) => await RefreshHistoryAsync();
         menu.Items.Add(refresh);
 
         if (_vm.SelectedFile is { } file && !file.IsScratch)

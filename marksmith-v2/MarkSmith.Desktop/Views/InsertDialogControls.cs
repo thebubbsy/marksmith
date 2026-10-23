@@ -65,7 +65,6 @@ public abstract class InsertDialogBody : UserControl
             TextWrapping = TextWrapping.Wrap,
             IsTextSelectionEnabled = true,
         }.Themed(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
-        AutomationProperties.SetName(_preview, "Markdown preview");
 
         _problem = new TextBlock
         {
@@ -190,9 +189,11 @@ public abstract class InsertDialogBody : UserControl
         {
             var rootElem = XamlRoot;
             var focusedElem = rootElem is null ? null : FocusManager.GetFocusedElement(rootElem) as DependencyObject;
+            // The preview is selectable too: a partial selection there copies just that part.
             bool hasTextSelection = focusedElem switch
             {
                 TextBox tb => tb.SelectionLength > 0,
+                TextBlock tbk => tbk.SelectedText.Length > 0,
                 _ => false
             };
 
@@ -271,6 +272,9 @@ public abstract class InsertDialogBody : UserControl
         // An empty card read as broken; say plainly that nothing has been chosen yet.
         var snippet = Snippet.Trim('\n');
         _preview.Text = snippet.Length == 0 ? "Nothing yet" : snippet;
+        // Named after what it shows: a fixed "Markdown preview" name hid the snippet itself from
+        // screen readers, so the one card that says what Insert will do read the same every time.
+        AutomationProperties.SetName(_preview, snippet.Length == 0 ? "Inserts nothing yet" : $"Inserts: {snippet}");
         _preview.Opacity = snippet.Length == 0 ? 0.6 : 1;
 
         bool canCopy = snippet.Length > 0;
@@ -383,17 +387,14 @@ public abstract class InsertDialogBody : UserControl
         return (int)Math.Round(Math.Clamp(v, box.Minimum, box.Maximum));
     }
 
-    protected static TextBlock CountBadge()
+    // No fixed AutomationProperties.Name: a TextBlock is read by its text, so screen readers hear
+    // "3 steps" instead of a fixed generic label that hid the number.
+    protected static TextBlock CountBadge() => new()
     {
-        var tb = new TextBlock
-        {
-            FontSize = 12,
-            Opacity = 0.6,
-            HorizontalAlignment = HorizontalAlignment.Right,
-        };
-        AutomationProperties.SetName(tb, "Item count");
-        return tb;
-    }
+        FontSize = 12,
+        Opacity = 0.6,
+        HorizontalAlignment = HorizontalAlignment.Right,
+    };
 
     protected static TextBox MultilineBox(string text, string placeholder, bool monospace = false)
     {

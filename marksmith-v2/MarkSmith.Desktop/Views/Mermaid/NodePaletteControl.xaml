@@ -78,7 +78,7 @@
                             PointerPressed="OnRowPointerPressed"
                             PointerReleased="OnRowPointerReleased"
                             RightTapped="OnRowRightTapped"
-                            ToolTipService.ToolTip="Click to add to the middle of the canvas, right-click for options, or drag where you want it">
+                            ToolTipService.ToolTip="Click or Enter to add to the middle of the canvas, right-click or Shift+F10 for options, or drag where you want it">
                         <Border.BackgroundTransition>
                             <BrushTransition Duration="0:0:0.12" />
                         </Border.BackgroundTransition>

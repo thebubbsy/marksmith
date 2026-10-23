@@ -16,7 +16,9 @@ public static class CloseGuard
     /// <param name="what">What's on the canvas, for the copy ("diagram", "SmartArt graphic").</param>
     /// <param name="alsoExportsOrCopies">The studio can also export or copy the work, so the copy
     /// names those ways out too.</param>
-    public static void Attach(Window window, Func<bool> hasUnkeptWork, Func<bool> insert, string what,
+    /// <returns>A close request for the studio's own Discard / Esc paths. <c>Window.Close()</c>
+    /// doesn't raise <c>AppWindow.Closing</c>, so those paths would close without asking.</returns>
+    public static Action Attach(Window window, Func<bool> hasUnkeptWork, Func<bool> insert, string what,
         bool alsoExportsOrCopies = false)
     {
         bool allowClose = false, asking = false;
@@ -25,11 +27,26 @@ public static class CloseGuard
         {
             if (allowClose || !hasUnkeptWork()) return;
             e.Cancel = true;
+            Ask();
+        };
+
+        return () =>
+        {
+            if (allowClose || !hasUnkeptWork())
+            {
+                allowClose = true;
+                window.Close();
+            }
+            else Ask();
+        };
+
+        void Ask()
+        {
             // One ContentDialog per window: with another one up, the X leaves it in front.
             if (asking || HoverPolish.IsContentDialogOpen(window.Content?.XamlRoot)) return;
             asking = true;
             _ = AskAsync();
-        };
+        }
 
         async Task AskAsync()
         {
