@@ -16644,3 +16644,7 @@ Studio through Insert ▸ Diagrams and studios ▸ SmartArt Studio… (UIA Invok
 3. Live OCR page-flip focus check with a 2-page PDF (carried over since #239).
 
 **Total user-visible improvements: 9.**
+
+**Release (same run):** tagged **v3.58.0** on `8147ab6`; Release workflow run 40019282821 succeeded;
+user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.58.0). `MarksmithBaseVersion` is now 3.59.0.
