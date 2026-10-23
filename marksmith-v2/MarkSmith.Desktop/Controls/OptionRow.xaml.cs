@@ -199,10 +199,7 @@ public sealed partial class OptionRow : UserControl
                 Text = "Copy setting name",
                 Icon = new FontIcon { Glyph = "\uE8C8" }
             };
-            copyHeaderItem.Click += async (_, _) =>
-            {
-                await MarkSmith.Services.ClipboardWriter.TrySetTextAsync(Header);
-            };
+            copyHeaderItem.Click += (_, _) => MarkSmith.Services.CopyFeedback.CopyWithBubble(this, Header, "Copied setting name");
             menu.Items.Add(copyHeaderItem);
         }
 
@@ -213,10 +210,7 @@ public sealed partial class OptionRow : UserControl
                 Text = "Copy description",
                 Icon = new FontIcon { Glyph = "\uE8C8" }
             };
-            copyDescItem.Click += async (_, _) =>
-            {
-                await MarkSmith.Services.ClipboardWriter.TrySetTextAsync(Description);
-            };
+            copyDescItem.Click += (_, _) => MarkSmith.Services.CopyFeedback.CopyWithBubble(this, Description, "Copied description");
             menu.Items.Add(copyDescItem);
         }
 

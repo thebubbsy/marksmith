@@ -16541,3 +16541,106 @@ Pre-existing Marksmith instances (13632, and the stale 12896 from an abandoned #
 **Release (same run):** tagged **v3.57.0** on `e591321`; Release workflow run 40010752235 succeeded;
 user-facing notes prepended to the generated body
 (https://github.com/thebubbsy/marksmith/releases/tag/v3.57.0). `MarksmithBaseVersion` is now 3.58.0.
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #243 (2026-10-24, 07:00–07:40 AEDT)
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running in the Claude desktop app. The task template asks for
+  "Antigravity AI Agent (Google DeepMind)"; that would be untrue for this run, so the real identity is recorded.
+- Modes: Scheduled Hourly Automation Routine (bypass-permissions, no live user)
+- Trigger: scheduled task `commit-to-main-ship-improvement--r4efinement`
+- Agents used: 1 (one session acting as orchestrator, coding worker and skeptical reviewer; no
+  subagents). Session `71141103-e6f0-41c7-8639-15266166c2f4`.
+- Worked in a fresh `--filter=blob:none` clone of `origin/main` (`%TEMP%\ms243`). The temp drive was at
+  100% (1.6 GB free), so the pushed scratch folders of runs #233–#242 were deleted first (5.7 GB free after).
+
+**Delivered (user-visible):**
+1. **Shape Studio: about 110 copies stop claiming "Copied …" when nothing was copied.** Each one threw
+   away the clipboard result (`_ = ClipboardWriter.TrySetTextAsync(...)`) and then wrote "Copied angle: 45°",
+   "Copied #FF0000 to clipboard" and so on. With another app holding the clipboard the status line now says
+   "Couldn't copy angle: 45°. Another app is holding the clipboard. Try again in a moment." The label's and
+   preset category's "Copy" menu items (a bare `Clipboard.SetContent` inside an empty `catch`) do the same.
+2. **SmartArt Studio: about 110 copies report honestly**, including the ~100 audit and outline commands that put their
+   result on the clipboard.
+3. **Mind Map: about 105 copies report honestly**, including the status-pill and search-count copies that
+   threw out of their click handler on a busy clipboard.
+4. **Studio Copy buttons only tick after a real copy.** SmartArt's Copy outline bullets, Copy SmartArt
+   block and Copy SVG (all three sizes and the Data URI) showed the green tick even when the copy failed (the
+   Data URI copy threw instead). Mind Map's two connection-style copies did the same. They now show
+   "⚠ Busy" plus the reason on the status line.
+5. **Audit results survive a failed copy.** Commands whose result is also copied (grid snap, layer stack,
+   hierarchy metrics…) keep their result on the status line and add "Not copied to the clipboard: …"
+   instead of replacing it.
+6. **Suite Hub's ~90 audit and path copies warn on a busy clipboard.** Each one showed a green "Copied …"
+   notification whatever happened. A failure now shows the amber notification with the reason.
+7. **The last silent copies confirm.** Settings rows (Copy setting name / description), Settings menus
+   (purchase link, license key, sync subfolder, PDF header/footer, page name), the Image insert dialog (alt
+   text, image path), the SmartArt insert dialog (outline text, layout name), the extension guide's
+   "Copy Step 1 instructions" and the Export button's "Copy export status" said nothing either way. They now
+   show the small copy bubble (tick or warning) and screen readers hear it. Copy plugin ID and the plugins
+   folder button no longer confirm a copy that failed.
+8. **Mind Map "Copy connection style" says what it copied** on the status line (it only flashed the button).
+9. **Shape Studio "Copy category name" names the category** when none is picked ("Copied 'All'", was "Copied ''").
+
+**Implementation summary.**
+- Core `Services/CopyStatusText.cs` (new): `Failed(message, error)` turns "Copied X to clipboard" into
+  "Couldn't copy X. {reason}", and a result line into "{result}. Not copied to the clipboard: {reason}".
+- Shape / SmartArt / Mind Map windows: new private `CopyAndReport(text, message?, tickButton?, tickLabel?)`
+  (awaits `ClipboardWriter.TrySetTextAsync`, sets the status from the real result, ticks from it). The ~320
+  call sites were rewritten by script (`_ = TrySetTextAsync(x)` + `ViewModel.StatusMessage = y` →
+  `CopyAndReport(x, y)`; bare DataPackage + `ClipboardWriter.Set` / `Clipboard.SetContent` blocks likewise;
+  try/catch wrappers left empty by that were removed), then the six button-tick copies by hand.
+- `Views/SuiteHubView.xaml.cs`: 88 `await TrySetTextAsync(x)` + `SetNotification(msg, success: true)` pairs now
+  pass `success: clipboardError is null` and the `CopyStatusText.Failed` sentence.
+- `Controls/OptionRow.xaml.cs`, `Views/SettingsView.xaml.cs`, `Views/ImageInsertControl.cs`,
+  `Views/SmartArtInsertControl.cs`, `Views/ExtensionSetupView.xaml.cs`, `MainWindow.xaml.cs`: `CopyFeedback.CopyWithBubble`
+  (MainWindow anchors it to `ExportSplitButton` rather than rewriting the status text, which would clear the
+  export's Open/Show actions).
+- `Views/History/HistoryWindow.xaml.cs`: the four redundant `try { CopyAndNotify(...) } catch { }` wrappers
+  noted by run #242 removed.
+- Tests: new `Run243HonestStudioCopiesTests` (26 cases): behavioural `CopyStatusText.Failed` cases; no
+  discarded/bare/throwing clipboard writes left in the three studios; each studio's `CopyAndReport` awaits,
+  reports and ticks from the result; SmartArt/Mind Map buttons tick from the result; seven files have no
+  result-discarding awaited copy; bubble anchors; Suite Hub's ≥80 honest notifications; History wrappers gone.
+
+**Skeptical review.**
+- Focus traps: nothing collapses or disables. The bubble is `FlyoutShowMode.Transient` and never takes focus.
+- Key swallowing: no key handler changed. Settings' plugin-card Ctrl+C still sets `Handled` before its await.
+- Flyouts / HoverPolish: no new buttons. The bubble skips itself if its anchor left the tree.
+- Theme: tick and warning colours come from the existing `ThemeBrush` paths in `CopyFeedback`.
+- Async: `CopyAndReport` is `async void` at the event boundary like `CopyAndAnnounce`. On success
+  `TrySetAsync` finishes synchronously, so the status line updates in the same tick as before. A failure lands
+  after ~0.8 s of retries; with no message it reads the status line *then*, so a status set later in the same
+  handler is the one it amends. It null-checks `ViewModel` after the await. `text ?? string.Empty` avoids
+  the `SetText(null)` throw that the discarded tasks used to hide.
+- Not changed: Splash's "Copy application version" copies the literal "MarkSmith Desktop"; noted below.
+
+**Verified.** Desktop built to `%TEMP%\ms_run243\b` with 0 errors. Full suite (no OutDir): 5888 passed, 11
+failed, 1 skipped. The 11 are the known path cases: 7 `GovernanceDocsSyncTests` (gitignored governance docs
+absent from a clone) and the 4 stale `SuiteHubAndTourPolishTests.Run216–219` cases. All 26 Run243 tests pass.
+Live UIA on scratch PID 17956 (fresh `MARKSMITH_CONFIG_DIR`, `doc243.md`): skipped the tour, opened SmartArt
+Studio through Insert ▸ Diagrams and studios ▸ SmartArt Studio… (UIA Invoke/Expand), invoked
+"Copy outline bullets" and the status bar read "Copied outline bullets to clipboard."
+- **Not verified live:** the busy-clipboard path. The held-clipboard invoke was overtaken by user input. The
+  user came back to the PC (idle 1.9 s); the scratch window was in front and got four "New Node" children and
+  a rename box. The instance was stopped at once and nothing more was sent. Source and behavioural tests cover
+  the failure path.
+- **Process slip:** the successful live copy replaced the user's clipboard contents. The clipboard was not
+  saved first, against run #229's rule. Next run: save `Get-Clipboard -Raw` to a scratch file *before* any
+  copy test and restore it (reading back to confirm), or test only the held-clipboard path, which never writes.
+- Pre-existing Marksmith instances were not touched.
+
+**Noticed, not fixed:**
+- Many studio audit commands put their result on the clipboard without saying so in the menu text. That
+  replaces whatever the user had copied. Consider saying "(copies the result)" in the menu text, or dropping
+  the silent copy.
+- Splash's "Copy application version" copies "MarkSmith Desktop" with no version number.
+- A user at the PC can't tell the scratch window from their own: check idle time right before each live step.
+
+**Next up (Run #244):**
+1. Live check of a studio busy-clipboard message with the held-clipboard rig (no writes) while the user is idle.
+2. Decide on the audit commands' silent clipboard writes (menu wording, or stop copying).
+3. Live OCR page-flip focus check with a 2-page PDF (carried over since #239).
+
+**Total user-visible improvements: 9.**

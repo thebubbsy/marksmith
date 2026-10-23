@@ -309,7 +309,7 @@ public sealed class SmartArtInsertControl : InsertDialogBody
             Text = "Copy outline text",
             Icon = new FontIcon { Glyph = "\uE8C8" }
         };
-        copyItem.Click += async (_, _) => await ClipboardWriter.TrySetTextAsync(_box.Text);
+        copyItem.Click += (_, _) => CopyFeedback.CopyWithBubble(_box, _box.Text, "Copied outline text");
         menu.Items.Add(copyItem);
 
         if (position.HasValue)
@@ -381,7 +381,7 @@ public sealed class SmartArtInsertControl : InsertDialogBody
             Text = "Copy outline text",
             Icon = new FontIcon { Glyph = "\uE8C8" }
         };
-        copyOutline.Click += async (_, _) => await ClipboardWriter.TrySetTextAsync(_box.Text);
+        copyOutline.Click += (_, _) => CopyFeedback.CopyWithBubble(_box, _box.Text, "Copied outline text");
         menu.Items.Add(copyOutline);
 
         menu.ShowAt(anchor, KeyboardContextMenu.PointIn(e, anchor));
@@ -446,7 +446,7 @@ public sealed class SmartArtInsertControl : InsertDialogBody
             Text = "Copy layout name",
             Icon = new FontIcon { Glyph = "\uE8C8" }
         };
-        copyLayoutName.Click += async (_, _) => await ClipboardWriter.TrySetTextAsync(_layout.Name);
+        copyLayoutName.Click += (_, _) => CopyFeedback.CopyWithBubble(this, _layout.Name, $"Copied layout name: {_layout.Name}");
         menu.Items.Add(copyLayoutName);
 
         menu.ShowAt(anchor, KeyboardContextMenu.PointIn(e, anchor));

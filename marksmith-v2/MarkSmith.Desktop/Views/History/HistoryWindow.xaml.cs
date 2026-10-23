@@ -431,11 +431,7 @@ public sealed partial class HistoryWindow : Window
             };
             copyPath.Click += (_, _) =>
             {
-                try
-                {
-                    CopyAndNotify(file.Detail, "Copied file path to clipboard.");
-                }
-                catch { }
+                CopyAndNotify(file.Detail, "Copied file path to clipboard.");
             };
             menu.Items.Add(copyPath);
         }
@@ -2834,11 +2830,7 @@ public sealed partial class HistoryWindow : Window
         };
         copyInfo.Click += (_, _) =>
         {
-            try
-            {
-                CopyAndNotify($"{item.TimestampLabel} — {item.Snippet}", $"Copied version info for {item.TimestampLabel}.");
-            }
-            catch { }
+            CopyAndNotify($"{item.TimestampLabel} — {item.Snippet}", $"Copied version info for {item.TimestampLabel}.");
         };
         menu.Items.Add(copyInfo);
 
@@ -2867,11 +2859,7 @@ public sealed partial class HistoryWindow : Window
 
     private void CopyVersionDelta(VersionItemViewModel item)
     {
-        try
-        {
-            CopyAndNotify(item.DeltaBadge, $"Copied line delta {item.DeltaBadge} to clipboard.");
-        }
-        catch { }
+        CopyAndNotify(item.DeltaBadge, $"Copied line delta {item.DeltaBadge} to clipboard.");
     }
 
     private void OnVersionDeltaBadgeRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -4180,11 +4168,7 @@ var auditResourceDisposalLeaksItem = new MenuFlyoutItem
             };
             copyPath.Click += (_, _) =>
             {
-                try
-                {
-                    CopyAndNotify(file.Summary.FilePath, "Copied file path to clipboard.");
-                }
-                catch { }
+                CopyAndNotify(file.Summary.FilePath, "Copied file path to clipboard.");
             };
             menu.Items.Add(copyPath);
         }

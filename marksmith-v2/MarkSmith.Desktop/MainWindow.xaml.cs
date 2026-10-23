@@ -6594,10 +6594,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             Text = "Copy export status",
             Icon = new FontIcon { Glyph = "\uE8C8" }
         };
-        copyStatusItem.Click += async (_, _) =>
-        {
-            await MarkSmith.Services.ClipboardWriter.TrySetTextAsync(ViewModel.StatusText ?? "Exporting...");
-        };
+        // A bubble, not the status line: rewriting the status text would clear the export's actions.
+        copyStatusItem.Click += (_, _) => MarkSmith.Services.CopyFeedback.CopyWithBubble(
+            ExportSplitButton, ViewModel.StatusText ?? "Exporting...", "Copied export status");
         menu.Items.Add(copyStatusItem);
 
         if (sender is FrameworkElement fe)

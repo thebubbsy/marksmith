@@ -490,7 +490,7 @@ public sealed class ImageInsertControl : InsertDialogBody
             Icon = new FontIcon { Glyph = "\uE8C8" },
             IsEnabled = _alt.Text.Length > 0,
         };
-        copyAltItem.Click += async (_, _) => await ClipboardWriter.TrySetTextAsync(_alt.Text);
+        copyAltItem.Click += (_, _) => CopyFeedback.CopyWithBubble(_alt, _alt.Text, "Copied alt text");
         menu.Items.Add(copyAltItem);
 
         var clearAltItem = new MenuFlyoutItem
@@ -511,7 +511,7 @@ public sealed class ImageInsertControl : InsertDialogBody
             Text = "Copy image path or URL",
             Icon = new FontIcon { Glyph = "\uE8C8" },
         };
-        copyItem.Click += async (_, _) => await ClipboardWriter.TrySetTextAsync(Source);
+        copyItem.Click += (_, _) => CopyFeedback.CopyWithBubble(this, Source, "Copied image path");
         return copyItem;
     }
 

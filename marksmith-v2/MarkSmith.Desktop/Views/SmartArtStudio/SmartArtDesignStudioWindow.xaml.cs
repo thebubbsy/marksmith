@@ -13,6 +13,27 @@ namespace MarkSmith.Views.SmartArtStudio
 {
     public sealed partial class SmartArtDesignStudioWindow : Window
     {
+        // Copies text and reports it on the status line. These copies used to discard ClipboardWriter's
+        // result, so a busy clipboard still said "Copied ...". With no message, the command has already
+        // put its result on the status line; a failed copy is added to it. A tick button shows a tick
+        // or "Busy" from the real result (it used to tick even when nothing was copied).
+        private async void CopyAndReport(string? text, string? message = null, Button? tickButton = null, string? tickLabel = null)
+        {
+            var error = await MarkSmith.Services.ClipboardWriter.TrySetTextAsync(text ?? string.Empty);
+            if (ViewModel is null) return;
+            if (error is null)
+            {
+                if (message is not null) ViewModel.StatusMessage = message;
+            }
+            else
+            {
+                ViewModel.StatusMessage = MarkSmith.Services.CopyStatusText.Failed(message ?? ViewModel.StatusMessage, error);
+            }
+            if (tickButton is null) return;
+            if (tickLabel is null) MarkSmith.Services.CopyFeedback.ApplyButtonTick(tickButton, error);
+            else MarkSmith.Services.CopyFeedback.ApplyButtonTick(tickButton, error, tickLabel);
+        }
+
         public SmartArtDesignStudioViewModel ViewModel { get; }
         private bool _isWebViewReady;
         private string? _customHexOverride;
@@ -235,8 +256,7 @@ namespace MarkSmith.Views.SmartArtStudio
             };
             copyQueryItem.Click += (_, _) =>
             {
-                _ = Services.ClipboardWriter.TrySetTextAsync(LayoutSearch.Text);
-                ViewModel.StatusMessage = $"Copied search query: {LayoutSearch.Text}";
+                CopyAndReport(LayoutSearch.Text, $"Copied search query: {LayoutSearch.Text}");
             };
             menu.Items.Add(copyQueryItem);
 
@@ -442,8 +462,7 @@ namespace MarkSmith.Views.SmartArtStudio
             };
             copyItem.Click += (_, _) =>
             {
-                _ = MarkSmith.Services.ClipboardWriter.TrySetTextAsync(ViewModel.SelectedCategory);
-                ViewModel.StatusMessage = $"Copied category name '{ViewModel.SelectedCategory}'.";
+                CopyAndReport(ViewModel.SelectedCategory, $"Copied category name '{ViewModel.SelectedCategory}'.");
             };
             menu.Items.Add(copyItem);
 
@@ -1570,8 +1589,7 @@ namespace MarkSmith.Views.SmartArtStudio
             {
                 if (ViewModel.SelectedNode is { } node)
                 {
-                    _ = Services.ClipboardWriter.TrySetTextAsync(node.Text ?? "");
-                    ViewModel.StatusMessage = $"Copied: {node.Text}";
+                    CopyAndReport(node.Text ?? "", $"Copied: {node.Text}");
                 }
             };
             menu.Items.Add(copyItem);
@@ -2037,8 +2055,7 @@ namespace MarkSmith.Views.SmartArtStudio
             var copyItem = new MenuFlyoutItem { Text = "Copy text", Icon = new FontIcon { Glyph = "\uE8C8" }, IsEnabled = hasText };
             copyItem.Click += (_, _) =>
             {
-                _ = Services.ClipboardWriter.TrySetTextAsync(text);
-                ViewModel.StatusMessage = $"Copied: {text}";
+                CopyAndReport(text, $"Copied: {text}");
             };
             menu.Items.Add(copyItem);
 
@@ -2337,8 +2354,7 @@ namespace MarkSmith.Views.SmartArtStudio
             };
             copyTitleItem.Click += (_, _) =>
             {
-                _ = Services.ClipboardWriter.TrySetTextAsync(ViewModel.PreviewTitle ?? "");
-                ViewModel.StatusMessage = "Copied layout title to clipboard";
+                CopyAndReport(ViewModel.PreviewTitle ?? "", "Copied layout title to clipboard");
             };
             menu.Items.Add(copyTitleItem);
 
@@ -2394,8 +2410,7 @@ namespace MarkSmith.Views.SmartArtStudio
             {
                 if (!string.IsNullOrWhiteSpace(node.Text))
                 {
-                    _ = Services.ClipboardWriter.TrySetTextAsync(node.Text);
-                    ViewModel.StatusMessage = $"Copied \"{node.Text}\" to clipboard.";
+                    CopyAndReport(node.Text, $"Copied \"{node.Text}\" to clipboard.");
                 }
             };
             menu.Items.Add(copyTextItem);
@@ -2411,8 +2426,7 @@ namespace MarkSmith.Views.SmartArtStudio
                 if (!string.IsNullOrWhiteSpace(node.Text))
                 {
                     var indent = new string(' ', Math.Max(0, node.Depth) * 2);
-                    _ = Services.ClipboardWriter.TrySetTextAsync($"{indent}* {node.Text}");
-                    ViewModel.StatusMessage = $"Copied \"{node.Text}\" bullet to clipboard.";
+                    CopyAndReport($"{indent}* {node.Text}", $"Copied \"{node.Text}\" bullet to clipboard.");
                 }
             };
             menu.Items.Add(copyBulletItem);
@@ -2753,18 +2767,7 @@ namespace MarkSmith.Views.SmartArtStudio
         {
             string md = (ViewModel.MarkdownText ?? "").Trim();
             if (string.IsNullOrEmpty(md)) return;
-            try
-            {
-                var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-                dp.SetText(md);
-                Services.ClipboardWriter.Set(dp);
-                ViewModel.StatusMessage = "Copied outline bullets to clipboard.";
-                if (CopyOutlineMarkdownButton is not null)
-                {
-                    Services.CopyFeedback.ApplyButtonTick(CopyOutlineMarkdownButton, null);
-                }
-            }
-            catch { }
+            CopyAndReport(md, "Copied outline bullets to clipboard.", CopyOutlineMarkdownButton);
         }
 
         private void CopySmartArtBlock()
@@ -2774,18 +2777,7 @@ namespace MarkSmith.Views.SmartArtStudio
                 ViewModel.StatusMessage = err;
                 return;
             }
-            try
-            {
-                var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-                dp.SetText(block.Trim());
-                Services.ClipboardWriter.Set(dp);
-                ViewModel.StatusMessage = $"Copied {name} SmartArt Markdown block to clipboard.";
-                if (CopySmartArtBlockButton is not null)
-                {
-                    Services.CopyFeedback.ApplyButtonTick(CopySmartArtBlockButton, null);
-                }
-            }
-            catch { }
+            CopyAndReport(block.Trim(), $"Copied {name} SmartArt Markdown block to clipboard.", CopySmartArtBlockButton);
         }
 
         private void OnExportSvgButtonClick(object sender, RoutedEventArgs e)
@@ -2990,14 +2982,7 @@ namespace MarkSmith.Views.SmartArtStudio
             if (string.IsNullOrWhiteSpace(svg)) return;
             string b64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(svg));
             string uri = "data:image/svg+xml;base64," + b64;
-            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-            dp.SetText(uri);
-            Services.ClipboardWriter.Set(dp);
-            ViewModel.StatusMessage = $"Copied SVG Data URI to clipboard ({uri.Length} chars).";
-            if (ExportSvgButton is not null)
-            {
-                Services.CopyFeedback.ApplyButtonTick(ExportSvgButton, null);
-            }
+            CopyAndReport(uri, $"Copied SVG Data URI to clipboard ({uri.Length} chars).", ExportSvgButton);
         }
 
         private async void OnSaveSvgFileClick(object sender, RoutedEventArgs e)
@@ -3055,18 +3040,7 @@ namespace MarkSmith.Views.SmartArtStudio
         {
             string svg = GetExportSvg(scale);
             if (string.IsNullOrWhiteSpace(svg)) return;
-            try
-            {
-                var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-                dp.SetText(svg);
-                Services.ClipboardWriter.Set(dp);
-                ViewModel.StatusMessage = $"Copied {label} to clipboard ({svg.Length} bytes).";
-                if (ExportSvgButton is not null)
-                {
-                    Services.CopyFeedback.ApplyButtonTick(ExportSvgButton, null);
-                }
-            }
-            catch { }
+            CopyAndReport(svg, $"Copied {label} to clipboard ({svg.Length} bytes).", ExportSvgButton);
         }
 
         // Window-level shortcuts: Delete/Backspace = delete node, F2 = rename, Ctrl+D = duplicate,
@@ -3147,8 +3121,7 @@ namespace MarkSmith.Views.SmartArtStudio
             {
                 if (ViewModel.SelectedNode is { } selected && !string.IsNullOrWhiteSpace(selected.Text))
                 {
-                    _ = Services.ClipboardWriter.TrySetTextAsync(selected.Text);
-                    ViewModel.StatusMessage = $"Copied \"{selected.Text}\" to clipboard.";
+                    CopyAndReport(selected.Text, $"Copied \"{selected.Text}\" to clipboard.");
                     e.Handled = true;
                     return;
                 }
@@ -3317,8 +3290,7 @@ namespace MarkSmith.Views.SmartArtStudio
         {
             e.Handled = true;
             var summary = $"{ViewModel.StatusMessage} — {ViewModel.OutlineSummaryText}";
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            ViewModel.StatusMessage = "Copied status & outline summary to clipboard";
+            CopyAndReport(summary, "Copied status & outline summary to clipboard");
         }
 
         private void OnStatusBarRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -3339,8 +3311,7 @@ namespace MarkSmith.Views.SmartArtStudio
             };
             copyStatusItem.Click += (_, _) =>
             {
-                _ = Services.ClipboardWriter.TrySetTextAsync(ViewModel.StatusMessage ?? "");
-                ViewModel.StatusMessage = "Copied status message to clipboard";
+                CopyAndReport(ViewModel.StatusMessage ?? "", "Copied status message to clipboard");
             };
             menu.Items.Add(copyStatusItem);
 
@@ -3351,8 +3322,7 @@ namespace MarkSmith.Views.SmartArtStudio
             };
             copySummaryItem.Click += (_, _) =>
             {
-                _ = Services.ClipboardWriter.TrySetTextAsync(ViewModel.OutlineSummaryText ?? "");
-                ViewModel.StatusMessage = "Copied outline summary to clipboard";
+                CopyAndReport(ViewModel.OutlineSummaryText ?? "", "Copied outline summary to clipboard");
             };
             menu.Items.Add(copySummaryItem);
 
@@ -3394,8 +3364,7 @@ namespace MarkSmith.Views.SmartArtStudio
             else
             {
                 var txt = ViewModel.LayoutCountText ?? string.Empty;
-                _ = Services.ClipboardWriter.TrySetTextAsync(txt);
-                ViewModel.StatusMessage = $"Copied layout count: {txt}";
+                CopyAndReport(txt, $"Copied layout count: {txt}");
             }
         }
 
@@ -3414,8 +3383,7 @@ namespace MarkSmith.Views.SmartArtStudio
             };
             copyCountItem.Click += (_, _) =>
             {
-                _ = Services.ClipboardWriter.TrySetTextAsync(countText);
-                ViewModel.StatusMessage = $"Copied layout count: {countText}";
+                CopyAndReport(countText, $"Copied layout count: {countText}");
             };
             menu.Items.Add(copyCountItem);
 
@@ -3489,8 +3457,7 @@ namespace MarkSmith.Views.SmartArtStudio
             };
             copySummaryItem.Click += (_, _) =>
             {
-                _ = Services.ClipboardWriter.TrySetTextAsync(summaryText);
-                ViewModel.StatusMessage = $"Copied outline summary: {summaryText}";
+                CopyAndReport(summaryText, $"Copied outline summary: {summaryText}");
             };
             menu.Items.Add(copySummaryItem);
 
@@ -3545,8 +3512,7 @@ namespace MarkSmith.Views.SmartArtStudio
             }
             else if (!string.IsNullOrEmpty(ViewModel.PreviewTitle))
             {
-                _ = Services.ClipboardWriter.TrySetTextAsync(ViewModel.PreviewTitle);
-                ViewModel.StatusMessage = $"Copied layout title: {ViewModel.PreviewTitle}";
+                CopyAndReport(ViewModel.PreviewTitle, $"Copied layout title: {ViewModel.PreviewTitle}");
             }
         }
 
@@ -3565,8 +3531,7 @@ namespace MarkSmith.Views.SmartArtStudio
             };
             copyNameItem.Click += (_, _) =>
             {
-                _ = Services.ClipboardWriter.TrySetTextAsync(title);
-                ViewModel.StatusMessage = $"Copied layout title: {title}";
+                CopyAndReport(title, $"Copied layout title: {title}");
             };
             menu.Items.Add(copyNameItem);
 
@@ -3719,8 +3684,7 @@ namespace MarkSmith.Views.SmartArtStudio
             };
             copyPaletteItem.Click += (_, _) =>
             {
-                _ = Services.ClipboardWriter.TrySetTextAsync(ViewModel.SelectedPalette);
-                ViewModel.StatusMessage = $"Copied palette: {ViewModel.SelectedPalette}";
+                CopyAndReport(ViewModel.SelectedPalette, $"Copied palette: {ViewModel.SelectedPalette}");
             };
             paletteSubmenu.Items.Add(copyPaletteItem);
 
@@ -4251,16 +4215,14 @@ namespace MarkSmith.Views.SmartArtStudio
                 }
             }
             string summary = $"{totalWords} words, {totalChars} characters, {ViewModel.OutlineRows.Count} nodes";
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            ViewModel.StatusMessage = $"Copied outline metrics: {summary}";
+            CopyAndReport(summary, $"Copied outline metrics: {summary}");
         }
 
         private void OnCopyPlainOutlineTextClick(object sender, RoutedEventArgs e)
         {
             var plainLines = ViewModel.OutlineRows.Select(r => new string(' ', r.Depth * 2) + (r.Text ?? "")).ToList();
             string plainText = string.Join(Environment.NewLine, plainLines);
-            _ = Services.ClipboardWriter.TrySetTextAsync(plainText);
-            ViewModel.StatusMessage = $"Copied plain text outline ({plainLines.Count} lines).";
+            CopyAndReport(plainText, $"Copied plain text outline ({plainLines.Count} lines).");
         }
 
         private void OnOutlineStatsPillTapped(object sender, TappedRoutedEventArgs e)
@@ -4313,8 +4275,7 @@ namespace MarkSmith.Views.SmartArtStudio
             int maxDepth = count > 0 ? ViewModel.OutlineRows.Max(r => r.Depth) : 0;
             string layoutName = ViewModel.SelectedLayout?.DisplayName ?? "SmartArt";
             string summary = $"{count} nodes (max depth {maxDepth}) · {layoutName}";
-            _ = Services.ClipboardWriter.TrySetTextAsync(summary);
-            ViewModel.StatusMessage = $"Copied outline summary: {summary}";
+            CopyAndReport(summary, $"Copied outline summary: {summary}");
         }
 
         private void OnPromoteAllClick(object sender, RoutedEventArgs e)
@@ -4490,15 +4451,7 @@ namespace MarkSmith.Views.SmartArtStudio
         {
             string markdown = ViewModel.MarkdownText ?? "";
             var (_, _, _, _, summary) = SmartArtDesignStudioViewModel.AnalyzeHierarchyMetrics(markdown);
-            try
-            {
-                Services.ClipboardWriter.TrySetTextAsync(summary);
-                ViewModel.StatusMessage = $"✓ {summary}";
-            }
-            catch
-            {
-                ViewModel.StatusMessage = summary;
-            }
+            CopyAndReport(summary, $"✓ {summary}");
         }
 
         private void OnCopyOutlineRootsOnlyClick(object sender, RoutedEventArgs e)
@@ -4507,15 +4460,7 @@ namespace MarkSmith.Views.SmartArtStudio
             var rootsOnly = SmartArtDesignStudioViewModel.FormatOutlineAtMaxDepth(markdown, 1);
             if (!string.IsNullOrWhiteSpace(rootsOnly))
             {
-                try
-                {
-                    Services.ClipboardWriter.TrySetTextAsync(rootsOnly);
-                    ViewModel.StatusMessage = "✓ Copied top-level outline roots to clipboard.";
-                }
-                catch
-                {
-                    ViewModel.StatusMessage = rootsOnly;
-                }
+                CopyAndReport(rootsOnly, "✓ Copied top-level outline roots to clipboard.");
             }
             else
             {
@@ -4527,75 +4472,35 @@ namespace MarkSmith.Views.SmartArtStudio
         {
             string markdown = ViewModel.MarkdownText ?? "";
             var summary = SmartArtDesignStudioViewModel.FormatOutlineLineLengthAuditSummary(markdown, 40);
-            try
-            {
-                Services.ClipboardWriter.TrySetTextAsync(summary);
-                ViewModel.StatusMessage = $"✓ Copied line length audit: {summary}";
-            }
-            catch
-            {
-                ViewModel.StatusMessage = summary;
-            }
+            CopyAndReport(summary, $"✓ Copied line length audit: {summary}");
         }
 
         private void OnCopyOutlineHierarchyBreakdownClick(object sender, RoutedEventArgs e)
         {
             string markdown = ViewModel.MarkdownText ?? "";
             var summary = SmartArtDesignStudioViewModel.FormatOutlineHierarchyBreakdown(markdown);
-            try
-            {
-                Services.ClipboardWriter.TrySetTextAsync(summary);
-                ViewModel.StatusMessage = $"✓ Copied hierarchy breakdown: {summary}";
-            }
-            catch
-            {
-                ViewModel.StatusMessage = summary;
-            }
+            CopyAndReport(summary, $"✓ Copied hierarchy breakdown: {summary}");
         }
 
         private void OnAuditOutlineBranchingClick(object sender, RoutedEventArgs e)
         {
             string markdown = ViewModel.MarkdownText ?? "";
             var summary = SmartArtDesignStudioViewModel.FormatOutlineBranchingSummary(markdown);
-            try
-            {
-                Services.ClipboardWriter.TrySetTextAsync(summary);
-                ViewModel.StatusMessage = $"✓ Copied branching audit: {summary}";
-            }
-            catch
-            {
-                ViewModel.StatusMessage = summary;
-            }
+            CopyAndReport(summary, $"✓ Copied branching audit: {summary}");
         }
 
         private void OnAuditOutlineTreeBalanceClick(object sender, RoutedEventArgs e)
         {
             string markdown = ViewModel.MarkdownText ?? "";
             var summary = SmartArtDesignStudioViewModel.FormatOutlineBalanceSummary(markdown);
-            try
-            {
-                Services.ClipboardWriter.TrySetTextAsync(summary);
-                ViewModel.StatusMessage = $"✓ Copied balance audit: {summary}";
-            }
-            catch
-            {
-                ViewModel.StatusMessage = summary;
-            }
+            CopyAndReport(summary, $"✓ Copied balance audit: {summary}");
         }
 
         private void OnAuditOutlineDepthDistributionClick(object sender, RoutedEventArgs e)
         {
             string markdown = ViewModel.MarkdownText ?? "";
             var summary = SmartArtDesignStudioViewModel.FormatOutlineDepthDistributionSummary(markdown);
-            try
-            {
-                Services.ClipboardWriter.TrySetTextAsync(summary);
-                ViewModel.StatusMessage = $"✓ Copied depth audit: {summary}";
-            }
-            catch
-            {
-                ViewModel.StatusMessage = summary;
-            }
+            CopyAndReport(summary, $"✓ Copied depth audit: {summary}");
         }
 
         private void OnReverseHierarchyOutlineClick(object sender, RoutedEventArgs e)
@@ -4610,8 +4515,7 @@ namespace MarkSmith.Views.SmartArtStudio
             ViewModel.PushUndo();
             ViewModel.MarkdownText = reversed;
             var summary = SmartArtDesignStudioViewModel.FormatHierarchyReverseSummary(blockCount, lineCount);
-            Services.ClipboardWriter.TrySetTextAsync(summary);
-            ViewModel.StatusMessage = $"✓ {summary}";
+            CopyAndReport(summary, $"✓ {summary}");
         }
 
         private void OnDeduplicateOutlineClick(object sender, RoutedEventArgs e)
@@ -4624,8 +4528,7 @@ namespace MarkSmith.Views.SmartArtStudio
                 ViewModel.PushUndo();
                 ViewModel.MarkdownText = deduped;
             }
-            Services.ClipboardWriter.TrySetTextAsync(summary);
-            ViewModel.StatusMessage = $"✓ {summary}";
+            CopyAndReport(summary, $"✓ {summary}");
         }
 
         private void OnSplitLongOutlineClick(object sender, RoutedEventArgs e)
@@ -4638,8 +4541,7 @@ namespace MarkSmith.Views.SmartArtStudio
                 ViewModel.PushUndo();
                 ViewModel.MarkdownText = splitMd;
             }
-            Services.ClipboardWriter.TrySetTextAsync(summary);
-            ViewModel.StatusMessage = $"✓ {summary}";
+            CopyAndReport(summary, $"✓ {summary}");
         }
 
         private void OnAutoNumberOutlineClick(object sender, RoutedEventArgs e)
@@ -4659,16 +4561,14 @@ namespace MarkSmith.Views.SmartArtStudio
                 ViewModel.MarkdownText = numberedMd;
             }
             var summary = SmartArtDesignStudioViewModel.FormatOutlineNumberingSummary(numberedNodes, maxDepth, stripped);
-            Services.ClipboardWriter.TrySetTextAsync(summary);
-            ViewModel.StatusMessage = $"✓ {summary}";
+            CopyAndReport(summary, $"✓ {summary}");
         }
 
         private void OnRecommendLayoutsOutlineClick(object sender, RoutedEventArgs e)
         {
             string markdown = ViewModel.MarkdownText ?? "";
             var summary = SmartArtDesignStudioViewModel.FormatLayoutRecommendationSummary(markdown);
-            Services.ClipboardWriter.TrySetTextAsync(summary);
-            ViewModel.StatusMessage = $"✓ {summary}";
+            CopyAndReport(summary, $"✓ {summary}");
         }
 
         private void OnStructureByDelimiterOutlineClick(object sender, RoutedEventArgs e)
@@ -4679,408 +4579,357 @@ namespace MarkSmith.Views.SmartArtStudio
             {
                 ViewModel.MarkdownText = structured;
             }
-            Services.ClipboardWriter.TrySetTextAsync(summary);
-            ViewModel.StatusMessage = $"✓ {summary}";
+            CopyAndReport(summary, $"✓ {summary}");
         }
 
         private void OnBalanceOutlineDepthClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var (_, adjusted, summary) = ViewModel.BalanceOutlineNestingDepth(maxDepth: 2, mergeIntoParent: false);
-            Services.ClipboardWriter.TrySetTextAsync(summary);
-            ViewModel.StatusMessage = $"✓ {summary}";
+            CopyAndReport(summary, $"✓ {summary}");
         }
 
         private void OnAuditTokenDensityClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditOutlineTokenDensity();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditAspectRatioFitClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditLayoutAspectRatio();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditCharBudgetsClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditNodeCharacterBudgets();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnRecommendIconsOutlineClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.RecommendIconsForOutline();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditBranchingFactorClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditHierarchyBranchingFactor();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditContainerDensityClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditContainerDensityFit();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditSiblingVarianceClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditSiblingTextLengthVariance();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditLinearFlowMonotonicityClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditLinearFlowMonotonicity();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditCyclicFlowContinuityClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditCyclicFlowContinuity();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditMatrixQuadrantBalanceClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditMatrixQuadrantBalance();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnNormalizeMatrixQuadrantsClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.NormalizeMatrixQuadrantHeaders();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditPyramidProportionalityClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditPyramidStageProportionality();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditVennCompletenessClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditVennDiagramCompleteness();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditTimelineChronologyClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditTimelineMilestoneChronology();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditCyclicConvergenceClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditCyclicProcessConvergence();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditHierarchySpanClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditHierarchySpanOfControl();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditTypographyFontFitClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditLayoutTypographyAndFontFit();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditColorHierarchyClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditColorHierarchyAndGradients();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditLinearFlowRhythmClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditLinearFlowChevronRhythm();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditRadialCycleBalanceClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditRadialCycleOrbitalBalance();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditPyramidTaperingClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditPyramidTaperingAndMassBalance();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditMatrixQuadrantSymmetryClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditMatrixQuadrantSymmetry();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditVennOverlapClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditVennDiagramOverlapAndSetBalance();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditProcessSequencePacingClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditProcessSequencePacing();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnAuditHierarchyBranchingClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditHierarchyAspectAndBranching();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnOutlineStatsAuditTimelineChronologyClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditTimelineMilestoneChronologyAndSpacing();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnOutlineStatsAuditCycleIntervalClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditCycleIntervalAndRadialChords();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnOutlineStatsAuditQuadrantGridBalanceClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditQuadrantGridBalance();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnOutlineStatsAuditFunnelPyramidProgressionClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditFunnelPyramidProgression();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnOutlineStatsAuditVennRadialBalanceClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditVennRadialIntersectionBalance();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnOutlineStatsAuditListTextDensityBalanceClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditListTextDensityBalance();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnOutlineStatsAuditProcessStepFlowClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditProcessStepFlowAndTransitions();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnOutlineStatsAuditHierarchyBalanceClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditHierarchyIndentationAndChildBalance();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnOutlineStatsAuditCycleSequenceClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditCycleSequenceAndClosure();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnOutlineStatsAuditMatrixQuadrantClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditMatrixQuadrantBalance();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnOutlineStatsAuditFunnelPyramidClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditFunnelPyramidVolumeProgression();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnOutlineStatsAuditTimelineIntervalsClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditTimelineChronologyAndIntervals();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnOutlineStatsAuditRadialSymmetryClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditRadialHubSpokeSymmetry();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnOutlineStatsAuditChevronProcessFlowClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditChevronProcessFlowAndSpacing();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnOutlineStatsAuditFunnelPyramidProportionsClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditFunnelPyramidProportions();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnOutlineStatsAuditMatrixCellSymmetryClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditMatrixCellSymmetry();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnOutlineStatsAuditHierarchyOrgChartBalanceClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditHierarchyOrgChartBalance();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnOutlineStatsAuditAlternatingFlowClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditAlternatingFlowAndRhythm();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnOutlineStatsAuditRadialGearCycleClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditRadialGearCycleEngagement();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnOutlineStatsAuditFunnelPyramidTaperClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditFunnelPyramidVolumeTapering();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnOutlineStatsAuditMatrixQuadrantBalanceClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditMatrixQuadrantSymmetryAndBalance();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnOutlineStatsAuditVennOverlapSymmetryClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditVennDiagramOverlapSymmetry();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnOutlineStatsAuditHierarchyBranchingClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditHierarchyTreeDepthAndBranchingBalance();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
         private void OnOutlineStatsAuditCycleRadialAngularClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var result = ViewModel.AuditCycleRadialAngularEquidistance();
-            Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-            ViewModel.StatusMessage = $"✓ {result.Summary}";
+            CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 
 
@@ -5088,16 +4937,14 @@ namespace MarkSmith.Views.SmartArtStudio
     {
         if (ViewModel == null) return;
         var result = ViewModel.AuditProcessFlowChevronUniformity();
-        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-        ViewModel.StatusMessage = $"✓ {result.Summary}";
+        CopyAndReport(result.Summary, $"✓ {result.Summary}");
     }
 
     private void OnOutlineStatsAuditTargetBullseyeProgressionClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel == null) return;
         var result = ViewModel.AuditTargetBullseyeRadiusProgression();
-        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-        ViewModel.StatusMessage = $"✓ {result.Summary}";
+        CopyAndReport(result.Summary, $"✓ {result.Summary}");
     }
 
 
@@ -5110,9 +4957,7 @@ namespace MarkSmith.Views.SmartArtStudio
 
         var result = ViewModel.AuditPyramidLayerProportionality();
 
-        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-
-        ViewModel.StatusMessage = $"✓ {result.Summary}";
+        CopyAndReport(result.Summary, $"✓ {result.Summary}");
 
     }
 
@@ -5129,103 +4974,90 @@ namespace MarkSmith.Views.SmartArtStudio
     {
         if (ViewModel == null) return;
         var result = ViewModel.AuditFunnelStageProportionality();
-        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-        ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+        CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
     }
     private void OnOutlineStatsAuditPyramidHierarchyGeometryClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel == null) return;
         var result = ViewModel.AuditPyramidHierarchyGeometry();
-        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-        ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+        CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
     }
 
     private void OnOutlineStatsAuditChevronProcessStrideGeometryClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel == null) return;
         var result = ViewModel.AuditChevronProcessStrideGeometry();
-        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-        ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+        CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
     }
 
     private void OnOutlineStatsAuditTargetBullseyeRingGeometryClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel == null) return;
         var result = ViewModel.AuditTargetBullseyeRingGeometry();
-        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-        ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+        CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
     }
 
     private void OnOutlineStatsAuditMatrixCentroidBalanceClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel == null) return;
         var result = ViewModel.AuditMatrixAxisLabelAndCentroidBalance();
-        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-        ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+        CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
     }
 
     private void OnOutlineStatsAuditCycleProcessDirectionalityClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel == null) return;
         var result = ViewModel.AuditCycleProcessDirectionality();
-        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-        ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+        CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
     }
 
     private void OnOutlineStatsAuditMatrixQuadrantCoordinateParityClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel == null) return;
         var result = ViewModel.AuditMatrixQuadrantCoordinateParity();
-        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-        ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+        CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
     }
 
     private void OnOutlineStatsAuditVennDiagramSetIntersectionClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel == null) return;
         var result = ViewModel.AuditVennDiagramSetIntersection();
-        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-        ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+        CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
     }
 
     private void OnOutlineStatsAuditChevronProcessMilestoneProgressionClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel == null) return;
         var result = ViewModel.AuditChevronProcessMilestoneProgression();
-        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-        ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+        CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
     }
 
     private void OnOutlineStatsAuditHierarchyTreeFanOutRatioClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel == null) return;
         var result = ViewModel.AuditHierarchyTreeFanOutRatio();
-        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-        ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+        CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
     }
 
     private void OnOutlineStatsAuditSegmentedCycleAngleSlicingClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel == null) return;
         var result = ViewModel.AuditSegmentedCycleAngleSlicing();
-        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-        ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+        CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
     }
 
     private void OnOutlineStatsAuditMatrixQuadrantDistributionClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel == null) return;
         var result = ViewModel.AuditMatrixQuadrantDistribution();
-        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-        ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+        CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
     }
 
     private void OnOutlineStatsAuditPyramidFunnelHierarchyInversionClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel == null) return;
         var result = ViewModel.AuditPyramidFunnelHierarchyInversion();
-        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-        ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+        CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
     }
 
 
@@ -5234,16 +5066,14 @@ namespace MarkSmith.Views.SmartArtStudio
     {
         if (ViewModel == null) return;
         var result = ViewModel.AuditPyramidApexProportionality();
-        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-        ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+        CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
     }
 
     private void OnOutlineStatsAuditGearMechanismGeometryClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel == null) return;
         var result = ViewModel.AuditGearMechanismGeometry();
-        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-        ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+        CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
     }
 
 
@@ -5251,24 +5081,21 @@ namespace MarkSmith.Views.SmartArtStudio
     {
         if (ViewModel == null) return;
         var result = ViewModel.AuditChevronProcessGeometry();
-        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-        ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+        CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
     }
 
     private void OnOutlineStatsAuditMatrixQuadrantGeometryClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel == null) return;
         var result = ViewModel.AuditMatrixQuadrantGeometry();
-        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-        ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+        CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
     }
 
     private void OnOutlineStatsAuditVennGeometryClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel == null) return;
         var result = ViewModel.AuditVennDiagramGeometry();
-        _ = Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-        ViewModel.StatusMessage = $"\u2713 {result.Summary}";
+        CopyAndReport(result.Summary, $"\u2713 {result.Summary}");
     }
 
     private void OnOutlineSearchBoxTextChanged(object sender, TextChangedEventArgs e)
