@@ -175,7 +175,7 @@
                             IsHitTestVisible="True"
                             DoubleTapped="OnDocumentsHeaderDoubleTapped"
                             RightTapped="OnDocumentsHeaderRightTapped"
-                            ToolTipService.ToolTip="Documents header · Double-click to refresh file list, right-click for options">
+                            ToolTipService.ToolTip="Documents header · Double-click or F5 to refresh the list · Right-click for options">
                         <TextBlock Text="DOCUMENTS" FontSize="11" FontWeight="Bold" CharacterSpacing="60"
                                    Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
                     </Border>

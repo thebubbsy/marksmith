@@ -35,6 +35,9 @@ public sealed partial class SettingsView : UserControl
             (CheckButton, OnCheckButtonRightTapped),
             (VersionButton, OnAboutHeaderRightTapped),
             (PdfPagePreviewButton, OnPdfPagePreviewRightTapped));
+        // The page list's own menu (open, next / previous page, copy name) was right-click only.
+        foreach (var navItem in Nav.MenuItems.OfType<NavigationViewItem>())
+            KeyboardContextMenu.Bridge(navItem, OnNavItemRightTapped);
         DataContext = App.ViewModel;
         VersionText.Text = $"Version {App.Updates.CurrentDisplayVersion}";
         AutomationProperties.SetName(VersionButton, $"Copy version details, {VersionText.Text}");
@@ -1484,10 +1487,13 @@ public sealed partial class SettingsView : UserControl
         Nav.SelectedItem = item;
         var menu = new MenuFlyout();
 
+        // Ctrl+1 to Ctrl+7 jump to the pages in list order (OnSettingsKeyDown).
+        var pageIndex = Nav.MenuItems.IndexOf(item);
         var openPage = new MenuFlyoutItem
         {
             Text = $"Open {item.Content} page",
-            Icon = new FontIcon { Glyph = "\uE8E5" }
+            Icon = new FontIcon { Glyph = "\uE8E5" },
+            KeyboardAcceleratorTextOverride = pageIndex is >= 0 and < 7 ? $"Ctrl+{pageIndex + 1}" : ""
         };
         openPage.Click += (_, _) => Nav.SelectedItem = item;
         menu.Items.Add(openPage);

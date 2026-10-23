@@ -38,6 +38,7 @@ public sealed partial class ExtensionSetupView : UserControl
             (OpenFolderButton, OnOpenFolderButtonRightTapped),
             (TurnOnButton, OnTurnOnButtonRightTapped),
             (CheckNowButton, OnStatusCardRightTapped),
+            (GuideHyperlink, OnGuideHyperlinkRightTapped),
             (Step1Badge, OnStepBadgeRightTapped),
             (Step2Badge, OnStepBadgeRightTapped),
             (Step3Badge, OnStepBadgeRightTapped));

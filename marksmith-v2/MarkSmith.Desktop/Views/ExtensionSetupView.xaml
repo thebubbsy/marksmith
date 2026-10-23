@@ -180,9 +180,9 @@
             </Grid>
         </Border>
 
-        <HyperlinkButton Click="OnOpenGuideClick" Padding="0" Margin="0,-6,0,0"
+        <HyperlinkButton x:Name="GuideHyperlink" Click="OnOpenGuideClick" Padding="0" Margin="0,-6,0,0"
                          RightTapped="OnGuideHyperlinkRightTapped"
-                         ToolTipService.ToolTip="Permissions, options and troubleshooting (Right-click for options)"
+                         ToolTipService.ToolTip="Permissions, options and troubleshooting · Right-click or Shift+F10 for options"
                          AutomationProperties.Name="Read the full extension guide">
             <StackPanel Orientation="Horizontal" Spacing="6">
                 <TextBlock Text="Read the full extension guide" />

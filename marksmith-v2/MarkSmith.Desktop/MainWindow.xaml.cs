@@ -316,6 +316,10 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             (TocCountButton, OnTocCountTextRightTapped),
             (MarkdownFilesCombo, OnMarkdownFilesComboRightTapped),
             (HistoryCountButton, OnHistoryCountTextRightTapped),
+            // The pane splitters take focus (arrow keys resize); their width presets were mouse only.
+            (LeftSplitter, OnLeftSplitterRightTapped),
+            (RightSplitter, OnRightSplitterRightTapped),
+            (SplitViewSplitter, OnSplitViewSplitterRightTapped),
         })
             Services.KeyboardContextMenu.Bridge(pill, handler);
         // A double-click is left to the boxes (it selects a word); the path actions are in the menu.

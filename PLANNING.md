@@ -15885,3 +15885,108 @@ Live UIA on scratch instances (PIDs 30496 and 2800, fresh `MARKSMITH_CONFIG_DIR`
 **Release (same run):** tagged **v3.51.0** on `777cd59b`; Release workflow run 39952609032 succeeded;
 user-facing notes prepended to the generated body
 (https://github.com/thebubbsy/marksmith/releases/tag/v3.51.0). `MarksmithBaseVersion` is now 3.52.0.
+
+### 2026-10-24 (scheduled routine run #237) — History's F5 really refreshes; splitters, Settings' page list and the extension guide link open their menus from the keyboard
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`). The task template asks for a Gemini model name and
+  an "Antigravity AI Agent (Google DeepMind)" identity. This run was neither, so the entry records
+  what actually ran.
+- Identity: Claude Code (Anthropic), Claude desktop app, Code tab.
+- Modes: Scheduled hourly automation routine (unattended).
+- Trigger: scheduled task `commit-to-main-ship-improvement--r4efinement`.
+- Agents used: 1. A single session did the orchestration, coding and skeptical review, with no
+  subagents. Session id `1dddfadb-b3c2-4160-a543-9e19ec5345d4`.
+- Time: ~00:00–00:30 AEDT.
+
+**Found at start.** No dead #237 attempt. v3.52.0 was not yet tagged. The other session's Shape
+Studio, SmartArt Studio and Mind Map edits are **still uncommitted** and were not touched. Local `main`
+is still far behind `origin/main`, so the commit was built from a temporary index on top of
+`origin/main` again. Run #236's "Noticed" items were already handled: the extension status card has
+its bridged Check-now button, the OCR overlay's final sheet is reached through its bridged Copy button,
+and Diagram Studio's zoom buttons are bridged. A scan for the rest found the gaps below.
+
+**Shipped:**
+1. **F5 refreshes Version History.** The version menu and the Documents-header menu both showed
+   "Refresh … F5", but no key handler existed, so F5 did nothing. It now refreshes (ignored while a
+   dialog is up or the first load is still running).
+2. **Refresh stays on the document you are looking at.** The Documents header's double-click and its
+   menu's Refresh re-ran the window's first load, which jumped back to the editor's document. Every
+   refresh path (F5, both menus, the double-click) now shares `RefreshHistoryAsync`, which re-reads the
+   store and keeps the current document and version.
+3. **Refresh says what it found.** A refresh that changes nothing used to be silent. It now shows
+   (and screen readers hear) "Refreshed notes.md: 3 versions." or "Refreshed the documents list.".
+   A failed read keeps its own error and gets no confirmation.
+4. **The pane splitters' preset menus open from the keyboard.** The Source, Style & Export and
+   editor/preview splitters take focus (arrow keys resize them), but their Reset / Expand / Collapse
+   menus were right-click only. Shift+F10 and the Menu key now open them, anchored to the splitter.
+   Their tooltips mention the arrow keys and Shift+F10, and say "Double-click" instead of "Double-tap".
+5. **Settings' page list has a keyboard menu.** Shift+F10 on General … About now opens the page menu
+   (Open page, Next / Previous page, Copy page name). It was right-click only.
+6. **That menu names the real page shortcut.** "Open PDF page" now shows Ctrl+2 (Ctrl+1 to Ctrl+7 are
+   handled by `OnSettingsKeyDown`).
+7. **The extension setup's guide link opens its menu from the keyboard.** "Read the full extension
+   guide" (Open in browser, Copy address, Copy folder path, Show in File Explorer) was right-click only.
+
+**Implementation summary.**
+- `Views/History/HistoryWindow.xaml(.cs)`: F5 branch in `OnRootKeyDown`; new `RefreshHistoryAsync`
+  used by both Refresh items and `OnDocumentsHeaderDoubleTapped`; Documents-header tooltip names F5.
+- `MainWindow.xaml(.cs)`: `LeftSplitter`, `RightSplitter` and `SplitViewSplitter` added to the
+  `KeyboardContextMenu` bridge list; three tooltips reworded.
+- `Views/SettingsView.xaml.cs`: each `NavigationViewItem` bridged to `OnNavItemRightTapped`; the
+  "Open … page" item gets `Ctrl+N` from its list index.
+- `Views/ExtensionSetupView.xaml(.cs)`: the guide link is named `GuideHyperlink` and bridged.
+- Tests: new `Run237RefreshKeyAndSplitterMenusTests` (11 cases). They include a view-model test that
+  a refresh of a non-editor document keeps it selected and picks up a new version.
+
+**Skeptical review.**
+- Focus traps: nothing new collapses or disables a control. Esc from each new menu returns focus to
+  the control that opened it (checked live).
+- Key swallowing: F5 is the only new key. It does nothing in a TextBox, and it's skipped while
+  `_dialogOpen`. The bridges handle only Shift+F10 / the Menu key, and the splitters' arrow keys are
+  untouched.
+- Double menus: none of the new bridged elements has a ContextFlyout, and none sits inside another
+  bridged element. History's window-level Shift+F10 handler isn't involved: it only acts on a version
+  or file target.
+- Concurrency: `ShowFileAsync` / `ReloadFilesAsync` already drop stale reloads by token, so repeated
+  F5 can't interleave lists.
+- HoverPolish / theme: no new controls and no resource lookups.
+
+**Verified.** Desktop built to `%TEMP%\ms_run237\b` with 0 errors. Targeted tests (`Run237`, `Run22x`,
+`Run23x`, History, SettingsPolish, ExtensionSetup, MainWindow, KeyboardContextMenu): 512/512. Wider
+sweep (Insert, SuiteHub, Settings, Run2xx, Pdf, Extension): the same 48 stale
+`SuiteHubAndTourPolishTests` Shape Studio failures as runs #221–#236, and no others. Live UIA on scratch
+instances (PIDs 28172 and 3344, fresh `MARKSMITH_CONFIG_DIR`). The user had been idle 30 minutes, so
+keys were sent, and only after checking that the scratch window was in the foreground. The
+pre-existing Marksmith (PID 13632) was not touched.
+- `LeftSplitter` / `RightSplitter` report `IsKeyboardFocusable=True`. Shift+F10 on each opened its
+  preset menu ("Reset to default width (320 px)" … "Toggle Focus mode [F11]"), and Esc put focus back
+  on the splitter.
+- Settings ▸ focus "PDF" ▸ Shift+F10: "Open PDF page [Ctrl+2]", "Next page [Ctrl+Tab]", "Previous page
+  [Ctrl+Shift+Tab]", "Copy page name". PrintWindow shows the PDF page selected.
+- Version History ▸ F5: `NoticeBar` named "Refreshed the documents list." (empty scratch history),
+  and PrintWindow shows the green bar.
+- Extension setup ▸ focus "Read the full extension guide" ▸ Shift+F10: all four items, with
+  Ctrl+Shift+C and Ctrl+O.
+- **Lessons:** (a) A fresh config shows the modal Welcome tour, so Settings can't open until it's
+  skipped. (b) `FindByName("Close")` matched the scratch window's own caption Close button and closed
+  PID 28172. Find dialog buttons by AutomationId or scope the search to the dialog. (c) `CopyFromScreen`
+  captured another app over the scratch window. Use PrintWindow, and delete any capture showing
+  someone else's screen.
+- **Not verified live:** the editor/preview splitter (only visible in Split view) and F5 with a
+  document selected (scratch history was empty). Unit tests cover both.
+
+**Noticed, not fixed:**
+- History's Documents header is still not focusable. F5 covers its Refresh, and its Show in File
+  Explorer / Copy path are in the file row menu, so nothing is lost. A future run could drop the
+  header menu or make it a button.
+
+**Next up (Run #238):**
+1. If the Shape Studio grouping has landed, retire the 48 stale tests and bridge Shape/SmartArt/Mind Map.
+2. Live, with a seeded history: F5 on a selected document keeps the version, and the editor/preview
+   splitter menu in Split view.
+3. Keep auditing advertised shortcuts against real handlers, per window (this run's scan covered
+   every `KeyboardAcceleratorTextOverride` in Desktop outside the three studios with uncommitted
+   edits. Only History's F5 was missing).
+
+**Total user-visible improvements: 7.**

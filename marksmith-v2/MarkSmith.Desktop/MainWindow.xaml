@@ -553,7 +553,7 @@
             </Grid>
 
             <controls:GridSplitter x:Name="LeftSplitter" AutomationProperties.Name="Resize the Source pane" Grid.Column="1" Width="16" Background="Transparent" ResizeBehavior="BasedOnAlignment" ResizeDirection="Auto"
-                                   ToolTipService.ToolTip="Drag to resize the Source pane (Double-tap to reset to 320 px, Right-click for presets)"
+                                   ToolTipService.ToolTip="Drag or use the arrow keys to resize the Source pane · Double-click to reset to 320 px · Right-click or Shift+F10 for presets"
                                    DoubleTapped="OnLeftSplitterDoubleTapped"
                                    RightTapped="OnLeftSplitterRightTapped" />
 
@@ -944,7 +944,7 @@
                                                Background="Transparent" ResizeBehavior="BasedOnAlignment" ResizeDirection="Auto"
                                                DoubleTapped="OnSplitViewSplitterDoubleTapped"
                                                RightTapped="OnSplitViewSplitterRightTapped"
-                                               ToolTipService.ToolTip="Drag to resize the editor / preview split · Double-click for 50/50 · Right-click for presets" />
+                                               ToolTipService.ToolTip="Drag or use the arrow keys to resize the editor / preview split · Double-click for 50/50 · Right-click or Shift+F10 for presets" />
                         <Grid Grid.Column="2" x:Name="PreviewColumn" RowSpacing="8">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
@@ -1344,7 +1344,7 @@
 
 
             <controls:GridSplitter x:Name="RightSplitter" AutomationProperties.Name="Resize the Style &amp; Export pane" Grid.Column="3" Width="16" Background="Transparent" ResizeBehavior="BasedOnAlignment" ResizeDirection="Auto"
-                                   ToolTipService.ToolTip="Drag to resize the Style &amp; Export pane (Double-tap to reset to 380 px, Right-click for presets)"
+                                   ToolTipService.ToolTip="Drag or use the arrow keys to resize the Style &amp; Export pane · Double-click to reset to 380 px · Right-click or Shift+F10 for presets"
                                    DoubleTapped="OnRightSplitterDoubleTapped"
                                    RightTapped="OnRightSplitterRightTapped" />
 
