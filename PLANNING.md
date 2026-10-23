@@ -16095,3 +16095,7 @@ so keys were sent only after a foreground-PID check). The pre-existing Marksmith
 3. If the Shape Studio work has landed, retire the 48 stale tests and run the same tooltip sweep there.
 
 **Total user-visible improvements: 7.**
+
+**Release (same run):** tagged **v3.53.0** on `76cc1972`; Release workflow run 39971779226 succeeded;
+user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.53.0). `MarksmithBaseVersion` is now 3.54.0.
