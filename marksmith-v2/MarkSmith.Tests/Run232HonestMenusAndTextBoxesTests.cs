@@ -173,7 +173,7 @@ public class Run232HonestMenusAndTextBoxesTests
     [Fact]
     public void Settings_pdf_preview_cycle_follows_the_position_menu_order()
     {
-        var body = Method(Read("Views", "SettingsView.xaml.cs"), "OnPdfPagePreviewDoubleTapped");
+        var body = Method(Read("Views", "SettingsView.xaml.cs"), "OnPdfPagePreviewClick");
         Assert.Contains("PdfPageNumberPositions", body);
         Assert.DoesNotContain("\"BottomCenter\"", body);
         Assert.DoesNotContain("switch", body);

@@ -1588,7 +1588,8 @@ public sealed partial class SuiteHubView : UserControl
 
     {
 
-        var status = $"MarkSmith WinUI 3 Desktop Engine: Active · {VersionText?.Text ?? "Version 3.0.0"} · All Studios Ready";
+        // Only what is known: nothing here checks the studios, so the copy no longer claims they are ready.
+        var status = $"MarkSmith desktop · {VersionText?.Text} · {LicenseText?.Text} · .NET {Environment.Version}";
 
         CopyToClipboard(status, "Copied suite health status.");
 
@@ -1618,7 +1619,7 @@ public sealed partial class SuiteHubView : UserControl
 
         {
 
-            var diag = $"MarkSmith Engine: Ready{Environment.NewLine}Version: {VersionText?.Text ?? "3.0.0"}{Environment.NewLine}License: {LicenseText?.Text ?? "Free plan"}{Environment.NewLine}Platform: WinUI 3 Desktop x64{Environment.NewLine}.NET Runtime: {Environment.Version}";
+            var diag = $"MarkSmith desktop{Environment.NewLine}{VersionText?.Text}{Environment.NewLine}License: {LicenseText?.Text}{Environment.NewLine}Platform: WinUI 3 desktop, {System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture}{Environment.NewLine}.NET runtime: {Environment.Version}";
 
             CopyToClipboard(diag, "Copied system diagnostics.");
 

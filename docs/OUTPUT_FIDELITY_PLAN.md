@@ -1,17 +1,19 @@
-# Output Fidelity Plan: polisher runs #236 to #285
+# Output Fidelity Plan: polisher runs R1 to R50
 
 **Owner's call (2026-10-23):** the next 50 runs of the scheduled polisher are about one thing: **what
 the Word document looks like when the user opens it.** The Markdown Torture Test output looks worse
 today than it did 12 weeks ago, which means the product is failing at its only job.
 
-This file **overrides** the "Next up (Run #236)" list (runs #234 and #235 shipped desktop work before this plan landed) at the end of `PLANNING.md` and the run #220
-standing rules wherever they conflict. Every run from #236 to #285 reads this file first.
+**Run numbering:** R1 is the first polisher run after this plan lands on `main`, and R50 is the 50th. Record the absolute run number alongside it, e.g. "run #237 (R1)".
+
+This file **overrides** the latest "Next up" list in `PLANNING.md` and the run #220
+standing rules wherever they conflict. Every run from R1 to R50 reads this file first.
 
 ---
 
 ## 1. Why we are here (what went wrong)
 
-- **The polisher drifted off the product.** Runs #150 to #235 (about 85 runs) went into desktop
+- **The polisher drifted off the product.** Runs #150 to the latest run (about 85 runs) went into desktop
   chrome: Audit menus, then Diagnostics submenus, then Shift+F10 menus, accelerator columns and
   keyboard reachability. In that time almost nothing touched `DocxExportService`. The last real
   DOCX-look work was the 2026-10-10 batch (`polish(docx): Word documents that print properly`, and
@@ -82,7 +84,7 @@ The product promise: **the output looks like a careful person built it in Word b
 
 ## 3. The governance rules (restored; still binding)
 
-Restored from the deleted `AGENTS.md` (`git show e3bdc2f0^:AGENTS.md`). Run #237 writes them into
+Restored from the deleted `AGENTS.md` (`git show e3bdc2f0^:AGENTS.md`). Run R2 writes them into
 `docs/MD_ENGINE_GOVERNANCE.md`.
 
 1. **Fidelity is the product.** Output that is 95% right is a document the user has to fix.
@@ -107,7 +109,7 @@ Restored from the deleted `AGENTS.md` (`git show e3bdc2f0^:AGENTS.md`). Run #237
 
 ---
 
-## 4. The per-run loop (every run, #236 to #285)
+## 4. The per-run loop (every run, R1 to R50)
 
 Each run fixes **one visible defect class** end to end. Keep the run notes short.
 
@@ -115,7 +117,7 @@ Each run fixes **one visible defect class** end to end. Keep the run notes short
    Word itself (COM `Documents.Open` → `SaveAs2(..., 17)` for PDF), then rasterise each page to PNG
    (`pdftoppm`, or `Windows.Data.Pdf`). Do not judge from LibreOffice or the HTML preview.
    - `C:\Users\Tony\OneDrive\Documents\Markdown Torture Test.docx`: the owner's torture test.
-     **This is the document that gets judged.** Run #236 finds its Markdown source. If no `.md` sits
+     **This is the document that gets judged.** Run R1 finds its Markdown source. If no `.md` sits
      beside it, extract the text and rebuild the source faithfully into
      `tests/fidelity/corpus/torture-test.md`, then confirm it against the docx section by section.
    - `tests/fidelity/corpus/word-torture-2026-07.md`, `examples/gauntlet.md`,
@@ -155,13 +157,13 @@ Each run fixes **one visible defect class** end to end. Keep the run notes short
 Runs may finish early or slip within a phase. Each run still ships exactly one defect class. If a
 phase runs out of defects, pull from the next phase. Never pull desktop work.
 
-### Phase 0: Baseline and governance (#236 to #238)
-- **#236: Word render harness and baseline.** Write `tools/fidelity/render-word.ps1`: md → docx (CLI)
+### Phase 0: Baseline and governance (R1 to R3)
+- **R1: Word render harness and baseline.** Write `tools/fidelity/render-word.ps1`: md → docx (CLI)
   → Word PDF → PNG per page, and an HTML contact sheet. Locate or rebuild the torture-test source.
   Render it with today's engine **and** v2.9.0 (`git worktree add … 9839b380`, harness against
   `marksmith-v2/MdToPdf.Core`). Score both on the §6 sheet. Commit the scorecard and the harness. The
   PNGs stay out of the repo, or go in `tests/fidelity/baseline/` only if they are small.
-- **#237: Restore governance.** Write `docs/MD_ENGINE_GOVERNANCE.md` from §3 plus the AGENTS.md
+- **R2: Restore governance.** Write `docs/MD_ENGINE_GOVERNANCE.md` from §3 plus the AGENTS.md
   §3/§4 material that still applies to `MarkSmith.Core`: the dual-pipeline contract, the block-wrapper
   catalogue (`:::smartart`, `:::workflow`, `:::tabs`, `:::columns`, and others), the inline syntaxes,
   Markdig AST / HtmlSanitizer, AmbiguityDetector / AppSettings. `GovernanceDocsSyncTests` goes green
@@ -172,12 +174,12 @@ phase runs out of defects, pull from the next phase. Never pull desktop work.
   same commit and confirm with `git ls-files docs/MD_ENGINE_GOVERNANCE.md`. The content is the engine
   contract, with no secrets or business plans. If the owner has said it must stay private, ask them
   instead of shipping a local-only doc. Never skip the tests.
-- **#238: Fidelity regression gate.** Add a `TortureFidelityTests` class that exports the torture
+- **R3: Fidelity regression gate.** Add a `TortureFidelityTests` class that exports the torture
   corpus and asserts the structural invariants from §2. It should fail today on the §1 regressions,
   marked as `Skip` with the run number that will fix each one. Never skip anything else, and remove each
   `Skip` when that defect is fixed.
 
-### Phase 1: Undo the regressions (#239 to #248)
+### Phase 1: Undo the regressions (R4 to R13)
 Targets, in this order unless the Word scorecard says otherwise:
 1. Task lists inside blockquotes and callouts keep one item per paragraph, with checkboxes.
 2. Fenced code inside blockquotes keeps its block styling and syntax/diff colouring.
@@ -188,36 +190,36 @@ Targets, in this order unless the Word scorecard says otherwise:
 6. Quotes and code blocks inside list items indent under their item at every nesting level.
 7. Unsupported Mermaid families (stateDiagram-v2 first) render as a picture instead of raw source.
    Then raise ShapeForge coverage family by family in Phase 4.
-8. Any further regression the #236 July/today comparison shows.
+8. Any further regression the R1 July/today comparison shows.
 
-### Phase 2: Typography and rhythm (#249 to #258)
+### Phase 2: Typography and rhythm (R14 to R23)
 Theme defaults as a whole: body and mono fonts, sizes, line spacing, heading scale and spacing,
 space before and after every block type, HR treatment, keep-with-next on headings and captions,
 widow/orphan control. Check one block type per run against the §2 table: headings, paragraphs and
 HRs, code blocks, inline code, blockquotes, callouts, tables, lists, captions and figures, front
 matter and title block.
 
-### Phase 3: Structure fidelity (#259 to #268)
+### Phase 3: Structure fidelity (R24 to R33)
 Tables: content-based column widths, header repeat, alignment, wide tables, merged and empty cells,
 block content in cells. Lists: deep mixed nesting, restarts, task lists, loose versus tight. Footnotes:
 multi-paragraph, code inside a footnote, numbering. Definition lists. Deeply nested blockquotes.
 `:::tabs` / `:::columns` / `:::smartart` / `:::workflow` in Word.
 
-### Phase 4: Math and diagrams in Word (#269 to #276)
+### Phase 4: Math and diagrams in Word (R34 to R41)
 OMML rendering as Word displays it: matrices, `\begin{aligned}`, mhchem, inline baseline. ShapeForge
 across every Mermaid family the gauntlet uses: flowchart with subgraphs, state, sequence, class, ER,
 gantt and pie. Each family is either native shapes or a captioned picture, never source text.
 Re-check the 66/76/208 benchmark after every ShapeForge change.
 
-### Phase 5: Real AI-paste corpus (#277 to #282)
+### Phase 5: Real AI-paste corpus (R42 to R47)
 Exports from ChatGPT, Claude, Gemini and Copilot (`examples/chatgpt-export.md`, plus fresh real pastes
 the owner supplies): artifact repair, KaTeX copy duplication, emoji and `NoEmoji`, and RTL. Judge
 whether the page looks like a person made it.
 
-### Phase 6: Lock it in (#283 to #285)
+### Phase 6: Lock it in (R48 to R50)
 - Freeze the Word-render baseline. Every remaining `Skip` in `TortureFidelityTests` is either fixed or
   explained.
-- Compare the final scorecard with the #236 baseline and with v2.9.0. Every section must score at
+- Compare the final scorecard with the R1 baseline and with v2.9.0. Every section must score at
   least as well as July.
 - Write a short summary of all 50 runs for the owner: before/after contact sheets and what is still
   weak. Cut a release.
@@ -226,9 +228,9 @@ whether the page looks like a person made it.
 
 ## 6. Scorecard (update every run)
 
-Score 0 to 3 as seen in Word. Columns: July (v2.9.0), the #236 baseline, then the latest run.
+Score 0 to 3 as seen in Word. Columns: July (v2.9.0), the R1 baseline, then the latest run.
 
-| Torture section | July | #236 | Latest | Notes |
+| Torture section | July | R1 | Latest | Notes |
 |---|---|---|---|---|
 | 1. Aligned table, mixed formatting | | | | |
 | 2. Task list with nesting | | | | |
@@ -240,7 +242,7 @@ Score 0 to 3 as seen in Word. Columns: July (v2.9.0), the #236 baseline, then th
 | 8. Mixed ordered/unordered deep nesting | | | | |
 | 9. Table with code, emoji, `<br>` | | | | |
 | 10. Kitchen sink (quote + table + tasks + diff) | | | | |
-| Owner's torture test: remaining sections | | | | add rows in #236 |
+| Owner's torture test: remaining sections | | | | add rows in R1 |
 | Page flow / headers / footers | | | | |
 
 ---
@@ -248,5 +250,5 @@ Score 0 to 3 as seen in Word. Columns: July (v2.9.0), the #236 baseline, then th
 ## 7. If the routine prompt says something different
 
 The scheduled task (`commit-to-main-ship-improvement--r4efinement`) still asks for a "3-block cycle"
-across UI surfaces. For runs #236 to #285, this file wins. If you are the routine and you read this:
+across UI surfaces. For runs R1 to R50, this file wins. If you are the routine and you read this:
 follow §4 and §5 and record which phase you are in.

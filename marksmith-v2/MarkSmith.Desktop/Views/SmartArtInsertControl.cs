@@ -67,6 +67,7 @@ public sealed class SmartArtInsertControl : InsertDialogBody
         AutomationProperties.SetName(examplesButton, "Start from an example");
         ToolTipService.SetToolTip(examplesButton, "Start from an example: fills in a layout and an outline that suits it");
         examplesButton.RightTapped += OnExamplesButtonRightTapped;
+        KeyboardContextMenu.Bridge(examplesButton, OnExamplesButtonRightTapped);
 
         var galleryHeader = new Grid();
         galleryHeader.Children.Add(new TextBlock
@@ -88,6 +89,8 @@ public sealed class SmartArtInsertControl : InsertDialogBody
         ScrollViewer.SetVerticalScrollBarVisibility(_gallery, ScrollBarVisibility.Disabled);
         ScrollViewer.SetVerticalScrollMode(_gallery, ScrollMode.Disabled);
         _gallery.RightTapped += OnGalleryRightTapped;
+        // Shift+F10 / the Menu key on a focused layout tile bubbles up to the gallery.
+        KeyboardContextMenu.Bridge(_gallery, OnGalleryRightTapped);
         foreach (var layout in SmartArt.Layouts) _gallery.Items.Add(Tile(layout));
         _gallery.SelectionChanged += (_, _) =>
         {
@@ -256,11 +259,13 @@ public sealed class SmartArtInsertControl : InsertDialogBody
             ShiftLines(direction);
             _box.Focus(FocusState.Programmatic);
         };
-        button.RightTapped += (s, e) =>
+        RightTappedEventHandler showMenu = (_, e) =>
         {
             e.Handled = true;
-            ShowIndentContextMenu(button, e.GetPosition(button));
+            ShowIndentContextMenu(button, KeyboardContextMenu.PointIn(e, button));
         };
+        button.RightTapped += showMenu;
+        KeyboardContextMenu.Bridge(button, showMenu);
         return button;
     }
 
@@ -379,7 +384,7 @@ public sealed class SmartArtInsertControl : InsertDialogBody
         copyOutline.Click += async (_, _) => await ClipboardWriter.TrySetTextAsync(_box.Text);
         menu.Items.Add(copyOutline);
 
-        menu.ShowAt(anchor, e.GetPosition(anchor));
+        menu.ShowAt(anchor, KeyboardContextMenu.PointIn(e, anchor));
     }
 
     private void OnGalleryRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -444,7 +449,7 @@ public sealed class SmartArtInsertControl : InsertDialogBody
         copyLayoutName.Click += async (_, _) => await ClipboardWriter.TrySetTextAsync(_layout.Name);
         menu.Items.Add(copyLayoutName);
 
-        menu.ShowAt(anchor, e.GetPosition(anchor));
+        menu.ShowAt(anchor, KeyboardContextMenu.PointIn(e, anchor));
     }
 
     private void OnOutlineKeyDown(object sender, KeyRoutedEventArgs e)

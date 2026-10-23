@@ -15788,19 +15788,119 @@ Live UIA on scratch instances (PIDs 18600 and 18756, fresh `MARKSMITH_CONFIG_DIR
 user-facing notes prepended to the generated body
 (https://github.com/thebubbsy/marksmith/releases/tag/v3.50.0). `MarksmithBaseVersion` is now 3.51.0.
 
-### 2026-10-23: COURSE CORRECTION. Runs #236 to #285 are about output fidelity (owner's direction)
+### 2026-10-23 (scheduled routine run #236) — Settings' PDF preview reachable by keyboard; Insert dialogs select sample numbers and leave Enter to open lists
 
-**This supersedes "Next up (Run #236)" above (runs #234 and #235 had already shipped desktop work before this landed) and the run #220 standing rules where they conflict.**
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`). The task template asks for a Gemini model name and
+  an "Antigravity AI Agent (Google DeepMind)" identity. This run was neither, so the entry records
+  what actually ran.
+- Identity: Claude Code (Anthropic), Claude desktop app, Code tab.
+- Modes: Scheduled hourly automation routine (unattended).
+- Trigger: scheduled task `commit-to-main-ship-improvement--r4efinement`.
+- Agents used: 1. A single session did the orchestration, coding and skeptical review, with no
+  subagents. Session id `53876caf-2e0f-4e0b-a989-f4b7b01f2b7d`.
+- Time: ~23:00–23:45 AEDT.
+
+**Found at start.** No dead #236 attempt (nothing newer than PLANNING.md's 22:33 stamp). v3.51.0 was
+not yet tagged. The other session's Shape Studio, SmartArt Studio and Mind Map edits are **still
+uncommitted** and were not touched. Local `main` is ~190 commits behind `origin/main`, so the commit
+was built from a temporary index on top of `origin/main` again.
+
+**Shipped:**
+1. **Settings' PDF page preview is a button.** Tab reaches it. Enter or a click moves the page number
+   to the next position (None → Bottom right → Bottom center → Top right), and Shift+F10 opens the same
+   header/footer menu as right-click. Before, it was a Border whose only actions were double-click and
+   right-click (run #235's "Next up" item 3). Screen readers hear the live "Page preview: footer …" name
+   on the focusable button.
+2. **Insert dialogs open with a number box's sample selected.** In Insert table (and the column, canvas
+   and tile-map dialogs), typing 5 into "Body rows" used to give 25 or 52, because only plain TextBoxes
+   had their sample selected. The editable Language box in Insert code block gets the same treatment.
+3. **Enter in an open dropdown picks the item instead of inserting the block.** The dialog's Enter-to-
+   insert handler runs with handled events too, so Enter on an editable ComboBox's suggestion list used
+   to insert straight away. A PreviewKeyDown now notes whether a dropdown was open.
+4. **Insert dialogs announce their red problem hint.** The hint set its name and a Polite live setting
+   but never raised `LiveRegionChanged`, so screen readers stayed silent ("Add https://", "Add at least
+   one step.").
+5. **The Inserts card has one menu.** Right-click on the card header or the Copy button opened a second
+   copy of the card's menu from `RightTapped` (mouse only), racing the card's own ContextFlyout. Now the
+   ContextFlyout alone serves right-click and Shift+F10 everywhere on the card.
+6. **The SmartArt insert dialog's menus open from the keyboard.** The Examples button, the layout gallery
+   (from a focused tile) and the Indent / Outdent buttons are bridged for Shift+F10 / the Menu key, and
+   their menus anchor to the control rather than the corner.
+7. **Suite Hub's health badge copies only what it knows.** It copied "Engine: Active … All Studios Ready"
+   (nothing checks the studios) and fell back to a made-up "Version 3.0.0". It now copies the real
+   version, plan, process architecture and .NET runtime (run #235's "Noticed" item).
+
+**Implementation summary.**
+- `Views/SettingsView.xaml(.cs)`: the preview Border sits inside `PdfPagePreviewButton`
+  (`OnPdfPagePreviewClick`, replaces `OnPdfPagePreviewDoubleTapped`); bridged in `BridgeAll`; the spoken
+  name and menu anchor follow the button.
+- `Views/InsertDialogControls.cs` (`InsertDialogBody`): `InnerTextBox` + `FocusFirstField` selection;
+  `OnBodyPreviewKeyDown` / `_enterClosesDropDown`; `LiveRegionChanged` in `Refresh`; removed the two
+  `RightTapped` handlers and `ShowSnippetContextMenu`.
+- `Views/SmartArtInsertControl.cs`: three `KeyboardContextMenu.Bridge` calls; `PointIn` replaces `GetPosition`.
+- `Views/SuiteHubView.xaml.cs`: `OnHealthStatusClick` / `OnHealthStatusRightTapped` text.
+- Tests: new `Run236PdfPreviewAndInsertDialogTests` (7 cases); `Run232` now pins `OnPdfPagePreviewClick`.
+
+**Skeptical review.**
+- Focus traps: nothing new collapses or disables a focused control.
+- Key swallowing: `OnBodyPreviewKeyDown` never sets Handled; it only records state. The flag resets on
+  every Enter. Arrow keys / Delete are untouched. The bridges handle only Shift+F10 / the Menu key.
+- Double menus: none of the new bridges sits under an element with a ContextFlyout (the snippet card's
+  Copy button is deliberately not bridged; the card's ContextFlyout already covers it).
+- HoverPolish / theme: the new Settings button is a XAML Button on the existing polish path; no raw
+  resource lookups added.
+
+**Verified.** Desktop built to `%TEMP%\ms_run236\b` with 0 errors. Targeted tests (`Run236`, `Run23x`,
+`Run223`, `SettingsPolish`): 177/177. Wider sweep (Insert, SuiteHub, Settings, Run2xx, Pdf): 864 passed,
+48 failed — the same stale `SuiteHubAndTourPolishTests` Shape Studio cases as runs #221–#235
+(checked: "Sub-string not found … SelectionAuditConnectorObstaclesItem" in ShapeDesignStudioWindow).
+Live UIA on scratch instances (PIDs 30496 and 2800, fresh `MARKSMITH_CONFIG_DIR`). The user was active
+(idle 0 s), so no keys or mouse were sent. The pre-existing Marksmith (PID 13632) was not touched.
+- Settings ▸ PDF: `PdfPagePreviewButton` is a focusable Button with the help text above. Invoke stepped
+  the "Page number position" combo through Bottom right → Bottom center → Top right → None, and the
+  button's name changed between "footer" and "header" "Page 2 of 10". PID 30496 then exited cleanly
+  mid-check (undo history flushed, no Application-log error, no new dump); most likely the active user
+  closed the window that had appeared.
+- Insert ▸ Table: the "Body rows" InputBox reported selection "[2]" on open, and PrintWindow shows the
+  2 highlighted.
+- **Lesson:** `AutomationElement.FocusedElement` is system-wide. With the scratch window in the
+  background it returned another app's window; query elements inside the scratch PID by id instead.
+- **Not verified live:** Shift+F10 on the Settings preview, the SmartArt dialog's bridges, Enter in an open
+  dropdown and the single card menu (all need keys or a right-click). Unit tests cover them.
+
+**Noticed, not fixed:**
+- `OcrExperienceOverlay`'s final Markdown sheet and `ExtensionSetupView`'s status card have menus on
+  RightTapped only; check whether Shift+F10 reaches them (they may sit under focusable children).
+- Diagram Studio's zoom panel Border menu (`OnZoomResetRightTapped`) is mouse only.
+
+**Next up (Run #237):**
+1. If the Shape Studio grouping has landed, retire the 48 stale tests and bridge Shape/SmartArt/Mind Map.
+2. Live, when the user is idle: Shift+F10 on the Settings preview and the SmartArt dialog's gallery;
+   Enter on an open Language suggestion list in Insert code block.
+3. The two "Noticed" menus above.
+
+**Total user-visible improvements: 7.**
+
+**Release (same run):** tagged **v3.51.0** on `777cd59b`; Release workflow run 39952609032 succeeded;
+user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.51.0). `MarksmithBaseVersion` is now 3.52.0.
+
+### 2026-10-23: COURSE CORRECTION. Runs R1 to R50 are about output fidelity (owner's direction)
+
+**R1 = the first polisher run after this entry lands on `main`; R50 = the 50th. Write both numbers in each run heading, e.g. "run #237 (R1)".**
+
+**This supersedes the latest "Next up" list above and the run #220 standing rules where they conflict.**
 
 The owner reports that the Markdown Torture Test looks worse in Word than it did 12 weeks ago. Runs
-#150 to #235 went into desktop menus and keyboard reachability while the DOCX output went unwatched.
+#150 to the latest run went into desktop menus and keyboard reachability while the DOCX output went unwatched.
 The next 50 runs are about **how the exported Word document looks and reads**, and about the
 Markdown to Word governance rules (restored from the deleted `AGENTS.md`).
 
 **Read `docs/OUTPUT_FIDELITY_PLAN.md` before doing anything.** It has the evidence (July v2.9.0
 compared with today), the "looks right" bar, the restored governance rules, the per-run loop (render
 in real Word, score, fix one visible defect class, structural test, re-render, check a second input),
-the phase schedule for #236 to #285, and the scorecard.
+the phase schedule for R1 to R50, and the scorecard.
 
 Short version:
 1. Paused for 50 runs: desktop menus, shortcuts, keyboard reachability and new Audit/Diagnostics items.
@@ -15810,5 +15910,5 @@ Short version:
    `tests/fidelity/corpus/word-torture-2026-07.md` and `examples/gauntlet.md`.
 4. Run notes are at most 25 lines.
 
-**Run #236:** Phase 0. Build the Word render harness, find the torture-test source, and score today's
+**Run R1:** Phase 0. Build the Word render harness, find the torture-test source, and score today's
 engine against v2.9.0 (`9839b380`).

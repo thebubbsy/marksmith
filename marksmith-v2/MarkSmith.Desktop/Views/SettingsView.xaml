@@ -260,31 +260,38 @@
                                          aligned as the page-number position says. Filled from code
                                          (RenderPdfBands) whenever a template or the position changes. -->
                                     <StackPanel x:Name="PdfPagePreviewPanel" Grid.Column="1" Spacing="4" VerticalAlignment="Center">
-                                        <Border x:Name="PdfPagePreview" Width="132" Height="172" CornerRadius="3" Padding="10,8"
-                                                Background="White" BorderThickness="1"
-                                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                                IsHitTestVisible="True"
-                                                DoubleTapped="OnPdfPagePreviewDoubleTapped"
+                                        <!-- A button so the keyboard reaches it: Enter or a click moves the page number
+                                             to the next position, Shift+F10 opens the same menu as right-click. One
+                                             action per click (a double-click used to be the only way to cycle). -->
+                                        <Button x:Name="PdfPagePreviewButton" Padding="0" MinWidth="0" MinHeight="0"
+                                                Background="Transparent" BorderThickness="0" CornerRadius="3"
+                                                HorizontalAlignment="Center"
+                                                Click="OnPdfPagePreviewClick"
                                                 RightTapped="OnPdfPagePreviewRightTapped"
-                                                ToolTipService.ToolTip="PDF header and footer preview · Double-click to cycle page number position · Right-click for options"
+                                                ToolTipService.ToolTip="PDF header and footer preview · Click to move the page number · Right-click or Shift+F10 for options"
                                                 AutomationProperties.Name="PDF page header and footer live preview"
+                                                AutomationProperties.HelpText="Moves the page number to the next position. Shift+F10 for header and footer options."
                                                 AutomationProperties.LiveSetting="Polite">
-                                            <Grid RowDefinitions="Auto,*,Auto">
-                                                <TextBlock x:Name="PdfPreviewHeader" FontSize="7" Foreground="#5F6368"
-                                                           TextTrimming="CharacterEllipsis" MaxLines="1" />
-                                                <StackPanel Grid.Row="1" Spacing="5" VerticalAlignment="Center" Margin="0,4">
-                                                    <Rectangle Height="5" Width="70" HorizontalAlignment="Left" RadiusX="1" RadiusY="1" Fill="#9AA0A6" />
-                                                    <Rectangle Height="3" RadiusX="1" RadiusY="1" Fill="#DADCE0" />
-                                                    <Rectangle Height="3" RadiusX="1" RadiusY="1" Fill="#DADCE0" />
-                                                    <Rectangle Height="3" Width="80" HorizontalAlignment="Left" RadiusX="1" RadiusY="1" Fill="#DADCE0" />
-                                                    <Rectangle Height="3" RadiusX="1" RadiusY="1" Fill="#DADCE0" Margin="0,4,0,0" />
-                                                    <Rectangle Height="3" RadiusX="1" RadiusY="1" Fill="#DADCE0" />
-                                                    <Rectangle Height="3" Width="60" HorizontalAlignment="Left" RadiusX="1" RadiusY="1" Fill="#DADCE0" />
-                                                </StackPanel>
-                                                <TextBlock x:Name="PdfPreviewFooter" Grid.Row="2" FontSize="7" Foreground="#5F6368"
-                                                           TextTrimming="CharacterEllipsis" MaxLines="1" />
-                                            </Grid>
-                                        </Border>
+                                            <Border x:Name="PdfPagePreview" Width="132" Height="172" CornerRadius="3" Padding="10,8"
+                                                    Background="White" BorderThickness="1"
+                                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                                                <Grid RowDefinitions="Auto,*,Auto">
+                                                    <TextBlock x:Name="PdfPreviewHeader" FontSize="7" Foreground="#5F6368"
+                                                               TextTrimming="CharacterEllipsis" MaxLines="1" />
+                                                    <StackPanel Grid.Row="1" Spacing="5" VerticalAlignment="Center" Margin="0,4">
+                                                        <Rectangle Height="5" Width="70" HorizontalAlignment="Left" RadiusX="1" RadiusY="1" Fill="#9AA0A6" />
+                                                        <Rectangle Height="3" RadiusX="1" RadiusY="1" Fill="#DADCE0" />
+                                                        <Rectangle Height="3" RadiusX="1" RadiusY="1" Fill="#DADCE0" />
+                                                        <Rectangle Height="3" Width="80" HorizontalAlignment="Left" RadiusX="1" RadiusY="1" Fill="#DADCE0" />
+                                                        <Rectangle Height="3" RadiusX="1" RadiusY="1" Fill="#DADCE0" Margin="0,4,0,0" />
+                                                        <Rectangle Height="3" RadiusX="1" RadiusY="1" Fill="#DADCE0" />
+                                                        <Rectangle Height="3" Width="60" HorizontalAlignment="Left" RadiusX="1" RadiusY="1" Fill="#DADCE0" />
+                                                    </StackPanel>
+                                                    <TextBlock x:Name="PdfPreviewFooter" Grid.Row="2" FontSize="7" Foreground="#5F6368"
+                                                               TextTrimming="CharacterEllipsis" MaxLines="1" />
+                                                </Grid>
+                                            </Border>
+                                        </Button>
                                         <TextBlock x:Name="PdfPreviewCaption" Style="{StaticResource SettingsHintStyle}"
                                                    HorizontalAlignment="Center" TextAlignment="Center" MaxWidth="132" />
                                     </StackPanel>
