@@ -16648,3 +16648,30 @@ Studio through Insert ▸ Diagrams and studios ▸ SmartArt Studio… (UIA Invok
 **Release (same run):** tagged **v3.58.0** on `8147ab6`; Release workflow run 40019282821 succeeded;
 user-facing notes prepended to the generated body
 (https://github.com/thebubbsy/marksmith/releases/tag/v3.58.0). `MarksmithBaseVersion` is now 3.59.0.
+
+### 2026-10-23: COURSE CORRECTION. Runs R1 to R50 are about output fidelity (owner's direction)
+
+**R1 = the first polisher run after this entry lands on `main`; R50 = the 50th. Write both numbers in each run heading, e.g. "run #NNN (R1)".**
+
+**This supersedes the latest "Next up" list above and the run #220 standing rules where they conflict.**
+
+The owner reports that the Markdown Torture Test looks worse in Word than it did 12 weeks ago. Runs
+#150 onward went into desktop menus and keyboard reachability while the DOCX output went unwatched.
+The next 50 runs are about **how the exported Word document looks and reads**, and about the
+Markdown to Word governance rules (restored from the deleted `AGENTS.md`).
+
+**Read `docs/OUTPUT_FIDELITY_PLAN.md` before doing anything.** It has the evidence (July v2.9.0
+compared with today), the "looks right" bar, the restored governance rules, the per-run loop (render
+in real Word, score, fix one visible defect class, structural test, re-render, check a second input),
+the phase schedule for R1 to R50, and the scorecard.
+
+Short version:
+1. Paused for 50 runs: desktop menus, shortcuts, keyboard reachability and new Audit/Diagnostics items.
+2. Each run fixes one visible defect class in `MarkSmith.Core` DOCX output, seen in **Word** (not
+   LibreOffice, not the preview), with before/after PNGs and an XML-level test.
+3. The reference document is `C:\Users\Tony\OneDrive\Documents\Markdown Torture Test.docx`, plus
+   `tests/fidelity/corpus/word-torture-2026-07.md` and `examples/gauntlet.md`.
+4. Run notes are at most 25 lines.
+
+**Run R1:** Phase 0. Build the Word render harness, find the torture-test source, and score today's
+engine against v2.9.0 (`9839b380`).
