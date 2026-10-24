@@ -17108,3 +17108,7 @@ Item 1 (live keyboard pass) is carried over again: the workstation was locked fo
 3. The same Shift+F10 tooltip sweep for the Diagram Studio, History and OCR Studio bridge tables, if any still say right-click only.
 
 **Total user-visible improvements: 6.**
+
+**Release (same run):** tagged **v3.62.0** on `63b9fbf`; Release workflow run 40065893549 succeeded;
+user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.62.0). `MarksmithBaseVersion` is now 3.63.0.
