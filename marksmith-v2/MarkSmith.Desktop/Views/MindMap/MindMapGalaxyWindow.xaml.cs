@@ -128,7 +128,11 @@ namespace MarkSmith.Views.MindMap
                 (NodeIconPickerButton, OnNodeIconBoxRightTapped),
                 (NodeProgressSlider, OnNodeProgressSliderRightTapped),
                 (ReverseLinkButton, OnReverseLinkButtonRightTapped),
-                (DeleteLinkButton, OnDeleteLinkButtonRightTapped));
+                (DeleteLinkButton, OnDeleteLinkButtonRightTapped),
+                (UnsavedBadge, OnUnsavedBadgeRightTapped),
+                (NodesCountButton, OnNodesCountRightTapped),
+                (LinksCountButton, OnLinksCountRightTapped));
+            UnsavedBadge.RegisterPropertyChangedCallback(UIElement.VisibilityProperty, (_, _) => MoveFocusOffUnsavedBadge());
             var iconPath = System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "app.ico");
             if (System.IO.File.Exists(iconPath)) AppWindow.SetIcon(iconPath);
             SizeForDisplay();
@@ -6063,6 +6067,10 @@ namespace MarkSmith.Views.MindMap
                 curr = !string.IsNullOrEmpty(curr.ParentId) && _nodeIndex.TryGetValue(curr.ParentId, out var parent) ? parent : null;
             }
 
+            var card = _palette.CardBackground;
+            _breadcrumbBar.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0xEE, card.R, card.G, card.B));
+            _breadcrumbBar.BorderBrush = new SolidColorBrush(_palette.HighlightBorder);
+
             _breadcrumbPanel.Children.Clear();
             for (int i = 0; i < path.Count; i++)
             {
@@ -6082,7 +6090,7 @@ namespace MarkSmith.Views.MindMap
                     {
                         Text = string.IsNullOrWhiteSpace(n.Title) ? "Untitled" : n.Title,
                         FontWeight = isCurrent ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal,
-                        Foreground = new SolidColorBrush(isCurrent ? Microsoft.UI.Colors.White : _palette.Muted)
+                        Foreground = new SolidColorBrush(isCurrent ? _palette.Text : _palette.Muted)
                     }
                 };
 
@@ -6096,12 +6104,7 @@ namespace MarkSmith.Views.MindMap
 
                 if (isCurrent)
                 {
-                    btn.DoubleTapped += (s, e) =>
-                    {
-                        e.Handled = true;
-                        ViewModel.ToggleFocusModeCommand.Execute(null);
-                    };
-                    ToolTipService.SetToolTip(btn, $"Active node: {n.Title} · Double-click to toggle Focus Mode (F)");
+                    ToolTipService.SetToolTip(btn, $"Active node: {n.Title} · Click to center");
                 }
                 else
                 {
@@ -6124,17 +6127,18 @@ namespace MarkSmith.Views.MindMap
                 }
             }
 
+            bool focusOn = ViewModel.IsFocusModeEnabled;
+            // Palette ink, not LightGreen: on Clean White the old "Focus ON" was pale green on white.
+            var focusInk = focusOn ? _palette.ProgressInk : _palette.Muted;
             var focusToggle = new Button
             {
                 Padding = new Thickness(6, 2, 6, 2),
                 FontSize = 10,
-                Background = ViewModel.IsFocusModeEnabled
-                    ? new SolidColorBrush(Windows.UI.Color.FromArgb(0x55, 0x10, 0x7C, 0x10))
+                Background = focusOn
+                    ? new SolidColorBrush(Windows.UI.Color.FromArgb(0x33, _palette.ProgressFill.R, _palette.ProgressFill.G, _palette.ProgressFill.B))
                     : new SolidColorBrush(Microsoft.UI.Colors.Transparent),
                 BorderThickness = new Thickness(1),
-                BorderBrush = ViewModel.IsFocusModeEnabled
-                    ? new SolidColorBrush(Microsoft.UI.Colors.LightGreen)
-                    : new SolidColorBrush(_palette.HighlightBorder),
+                BorderBrush = new SolidColorBrush(focusOn ? _palette.ProgressInk : _palette.HighlightBorder),
                 CornerRadius = new CornerRadius(4),
                 Margin = new Thickness(6, 0, 0, 0),
                 Content = new StackPanel
@@ -6143,12 +6147,16 @@ namespace MarkSmith.Views.MindMap
                     Spacing = 4,
                     Children =
                     {
-                        new FontIcon { Glyph = "\uE890", FontSize = 10, Foreground = new SolidColorBrush(ViewModel.IsFocusModeEnabled ? Microsoft.UI.Colors.LightGreen : _palette.Muted) },
-                        new TextBlock { Text = ViewModel.IsFocusModeEnabled ? "Focus ON" : "Focus (F)", FontSize = 10, Foreground = new SolidColorBrush(ViewModel.IsFocusModeEnabled ? Microsoft.UI.Colors.LightGreen : _palette.Muted) }
+                        new FontIcon { Glyph = "\uE890", FontSize = 10, Foreground = new SolidColorBrush(focusInk) },
+                        new TextBlock { Text = focusOn ? "Focus on" : "Focus", FontSize = 10, Foreground = new SolidColorBrush(focusInk) }
                     }
                 }
             };
-            ToolTipService.SetToolTip(focusToggle, "Toggle focus mode (F) · Focus on active node branch & connections");
+            // The shortcut lives in the tooltip, as on the toolbar's Focus toggle; the name says the state.
+            AutomationProperties.SetName(focusToggle, focusOn ? "Focus mode: on" : "Focus mode: off");
+            ToolTipService.SetToolTip(focusToggle, focusOn
+                ? "Turn focus mode off (F) · Show the whole map again"
+                : "Turn focus mode on (F) · Fade everything the selected node isn't connected to");
             focusToggle.Click += (s, e) => ViewModel.ToggleFocusModeCommand.Execute(null);
             _breadcrumbPanel.Children.Add(focusToggle);
 
@@ -6375,6 +6383,7 @@ namespace MarkSmith.Views.MindMap
                 if (e.Link == null) e.Stroke.Color = ColorFromHex(_palette.HierarchyLine);
             }
             UpdateTagPills();
+            UpdateBreadcrumbs();
             RequestRedraw();
         }
 
@@ -7640,6 +7649,12 @@ namespace MarkSmith.Views.MindMap
         private void OnStatusBarDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
         {
             e.Handled = true;
+            // A double-click on a count button opens its menu; it shouldn't also refit the map.
+            for (var node = e.OriginalSource as DependencyObject; node is not null; node = VisualTreeHelper.GetParent(node))
+            {
+                if (node is Microsoft.UI.Xaml.Controls.Primitives.ButtonBase) return;
+                if (ReferenceEquals(node, sender)) break;
+            }
             OnFitToWindowClick(this, new RoutedEventArgs());
         }
 
@@ -7713,8 +7728,6 @@ namespace MarkSmith.Views.MindMap
             else menu.ShowAt(target);
         }
 
-        private int _nodeCycleMode = 0;
-
         private void CenterOnNode(MindMapNodeViewModel? node)
         {
             if (node is null || ViewModel.Nodes.Count == 0) return;
@@ -7728,26 +7741,13 @@ namespace MarkSmith.Views.MindMap
             RequestRedraw(RedrawScope.Transform);
         }
 
-        private void OnNodesCountDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-        {
-            e.Handled = true;
-            if (ViewModel.Nodes.Count == 0) return;
-            _nodeCycleMode = (_nodeCycleMode + 1) % 3;
-            MindMapNodeViewModel? target = _nodeCycleMode switch
-            {
-                0 => ViewModel.SelectRootNode(),
-                1 => ViewModel.SelectDeepestNode(),
-                _ => ViewModel.SelectNextLeafNode()
-            };
-            if (target != null)
-            {
-                CenterOnNode(target);
-            }
-        }
+        // One click, one action: the menu. A double-click used to cycle the selection behind it.
+        private void OnNodesCountClick(object sender, RoutedEventArgs e) =>
+            KeyboardContextMenu.Invoke(NodesCountButton, OnNodesCountRightTapped);
 
         private void OnNodesCountRightTapped(object sender, RightTappedRoutedEventArgs e)
         {
-            if (NodesCountText is null) return;
+            if (NodesCountButton is null) return;
             e.Handled = true;
             var menu = new MenuFlyout();
 
@@ -7848,20 +7848,16 @@ namespace MarkSmith.Views.MindMap
             fitItem.Click += (_, _) => OnFitToWindowClick(this, new RoutedEventArgs());
             menu.Items.Add(fitItem);
 
-            menu.ShowAt(NodesCountText, e.GetPosition(NodesCountText));
+            menu.ShowAt(NodesCountButton, KeyboardContextMenu.PointIn(e, NodesCountButton));
         }
 
-        private void OnLinksCountDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-        {
-            e.Handled = true;
-            var text = ViewModel.LinksCountText;
-            if (string.IsNullOrWhiteSpace(text)) return;
-            CopyAndReport(text, $"Copied connection count: {text}");
-        }
+        // A double-click used to copy the count over the clipboard; Copy is the menu's first item.
+        private void OnLinksCountClick(object sender, RoutedEventArgs e) =>
+            KeyboardContextMenu.Invoke(LinksCountButton, OnLinksCountRightTapped);
 
         private void OnLinksCountRightTapped(object sender, RightTappedRoutedEventArgs e)
         {
-            if (LinksCountText is null) return;
+            if (LinksCountButton is null) return;
             e.Handled = true;
             var menu = new MenuFlyout();
 
@@ -7908,7 +7904,7 @@ namespace MarkSmith.Views.MindMap
             fitItem.Click += (_, _) => OnFitToWindowClick(this, new RoutedEventArgs());
             menu.Items.Add(fitItem);
 
-            menu.ShowAt(LinksCountText, e.GetPosition(LinksCountText));
+            menu.ShowAt(LinksCountButton, KeyboardContextMenu.PointIn(e, LinksCountButton));
         }
 
         private void OnMapTitleTextDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
@@ -7982,11 +7978,18 @@ namespace MarkSmith.Views.MindMap
             menu.ShowAt(MapTitleText, e.GetPosition(MapTitleText));
         }
 
-        private async void OnUnsavedBadgeDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        private void OnUnsavedBadgeClick(object sender, RoutedEventArgs e) =>
+            KeyboardContextMenu.Invoke(UnsavedBadge, OnUnsavedBadgeRightTapped);
+
+        // Saving collapses the badge. If it had focus (or its menu did, which hands focus back to
+        // it on close), focus would be lost; the canvas is where the keyboard user was working.
+        private void MoveFocusOffUnsavedBadge()
         {
-            e.Handled = true;
+            if (UnsavedBadge is null || UnsavedBadge.Visibility == Visibility.Visible) return;
+            if (RootGrid.XamlRoot is not { } xamlRoot) return;
+            var focused = FocusManager.GetFocusedElement(xamlRoot);
+            if (focused is not null && !ReferenceEquals(focused, UnsavedBadge)) return;
             GalaxyCanvas.Focus(FocusState.Programmatic);
-            await ViewModel.SaveAsync();
         }
 
         private void OnUnsavedBadgeRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -8034,7 +8037,9 @@ namespace MarkSmith.Views.MindMap
             fitItem.Click += (_, _) => OnFitToWindowClick(this, new RoutedEventArgs());
             menu.Items.Add(fitItem);
 
-            menu.ShowAt(UnsavedBadge, e.GetPosition(UnsavedBadge));
+            // The flyout restores focus to the badge as it closes, after Save may already have hidden it.
+            menu.Closed += (_, _) => DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, MoveFocusOffUnsavedBadge);
+            menu.ShowAt(UnsavedBadge, KeyboardContextMenu.PointIn(e, UnsavedBadge));
         }
 
         #endregion

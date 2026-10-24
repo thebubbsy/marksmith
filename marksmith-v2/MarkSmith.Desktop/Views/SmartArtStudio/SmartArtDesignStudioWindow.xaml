@@ -207,78 +207,86 @@
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE74B;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
                                         <MenuFlyoutSeparator />
-                                        <MenuFlyoutItem Text="Copy outline hierarchy summary" Click="OnCopyOutlineSummaryClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8C8;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
+                                        <MenuFlyoutSubItem Text="Copy">
+                                            <MenuFlyoutSubItem.Icon><FontIcon Glyph="&#xE8C8;" /></MenuFlyoutSubItem.Icon>
+                                            <MenuFlyoutItem Text="Copy outline hierarchy summary" Click="OnCopyOutlineSummaryClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8C8;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="OutlineHierarchyMetricsItem" Text="Copy hierarchy depth &amp; leaf stats" Click="OnCopyHierarchyMetricsClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8E5;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="OutlineRootsOnlyItem" Text="Copy top-level outline roots only" Click="OnCopyOutlineRootsOnlyClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B7;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="OutlineHierarchyBreakdownItem" Text="Copy hierarchy level breakdown (L1, L2...)" Click="OnCopyOutlineHierarchyBreakdownClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B7;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                        </MenuFlyoutSubItem>
+                                        <MenuFlyoutSubItem Text="Restructure">
+                                            <MenuFlyoutSubItem.Icon><FontIcon Glyph="&#xE8FD;" /></MenuFlyoutSubItem.Icon>
+                                            <MenuFlyoutItem Text="Promote all items (Shift out 1 level)" Click="OnPromoteAllClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE76B;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem Text="Demote all items (Shift in 1 level)" Click="OnDemoteAllClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE76C;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem Text="Flatten all items to root level" Click="OnFlattenAllClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8DE;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem Text="Reverse outline items" Click="OnReverseOutlineClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE747;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem Text="Sort outline items (A to Z)" Click="OnSortOutlineAscendingClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8CB;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem Text="Sort outline items (Z to A)" Click="OnSortOutlineDescendingClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8CC;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="ReverseHierarchyOutlineItem" Text="Reverse top-level outline blocks (Preserve subtrees)" Click="OnReverseHierarchyOutlineClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8CB;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SplitLongOutlineItem" Text="Split long outline items into parent + sub-bullet (&gt;45 chars)" Click="OnSplitLongOutlineClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8C6;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="StructureByDelimiterOutlineItem" Text="Structure flat outline by delimiter (Category: Item → Subtree)" Click="OnStructureByDelimiterOutlineClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8E4;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="BalanceOutlineDepthItem" Text="Balance outline nesting depth (Clamp to max depth 2)" Click="OnBalanceOutlineDepthClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8FD;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="AutoNumberOutlineItem" Text="Apply hierarchical outline numbering (1., 1.1., 2.)" Click="OnAutoNumberOutlineClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8FD;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                        </MenuFlyoutSubItem>
+                                        <MenuFlyoutSubItem Text="Clean up">
+                                            <MenuFlyoutSubItem.Icon><FontIcon Glyph="&#xE90F;" /></MenuFlyoutSubItem.Icon>
+                                            <MenuFlyoutItem Text="Trim trailing whitespace" Click="OnTrimTrailingWhitespaceClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE75C;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem Text="Standardise bullet points (-)" Click="OnStandardiseBulletsClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8D2;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="OutlineNormalizeIndentItem" Text="Normalize indentation (2 spaces per level)" Click="OnNormalizeIndentationClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8E7;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="DeduplicateOutlineItem" Text="Remove duplicate sibling bullets" Click="OnDeduplicateOutlineClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8C8;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="NormalizeMatrixQuadrantsItem" Text="Normalize 2x2 matrix quadrant titles (SWOT / Eisenhower / BCG)" Click="OnNormalizeMatrixQuadrantsClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8D2;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                        </MenuFlyoutSubItem>
+                                        <MenuFlyoutSubItem Text="Suggest">
+                                            <MenuFlyoutSubItem.Icon><FontIcon Glyph="&#xE82F;" /></MenuFlyoutSubItem.Icon>
+                                            <MenuFlyoutItem x:Name="RecommendLayoutsOutlineItem" Text="Recommend best-fitting SmartArt layouts for outline" Click="OnRecommendLayoutsOutlineClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE946;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="RecommendIconsOutlineItem" Text="Recommend icons for outline keywords" Click="OnRecommendIconsOutlineClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7B3;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                        </MenuFlyoutSubItem>
                                         <MenuFlyoutSeparator />
-                                        <MenuFlyoutItem Text="Promote all items (Shift out 1 level)" Click="OnPromoteAllClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE76B;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem Text="Demote all items (Shift in 1 level)" Click="OnDemoteAllClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE76C;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem Text="Flatten all items to root level" Click="OnFlattenAllClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8DE;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutSeparator />
-                                        <MenuFlyoutItem Text="Reverse outline items" Click="OnReverseOutlineClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE747;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem Text="Sort outline items (A to Z)" Click="OnSortOutlineAscendingClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8CB;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem Text="Sort outline items (Z to A)" Click="OnSortOutlineDescendingClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8CC;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutSeparator />
-                                        <MenuFlyoutItem Text="Trim trailing whitespace" Click="OnTrimTrailingWhitespaceClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE75C;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem Text="Standardise bullet points (-)" Click="OnStandardiseBulletsClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8D2;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="OutlineNormalizeIndentItem" Text="Normalize indentation (2 spaces per level)" Click="OnNormalizeIndentationClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8E7;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="OutlineHierarchyMetricsItem" Text="Copy hierarchy depth &amp; leaf stats" Click="OnCopyHierarchyMetricsClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8E5;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="OutlineRootsOnlyItem" Text="Copy top-level outline roots only" Click="OnCopyOutlineRootsOnlyClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B7;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="OutlineHierarchyBreakdownItem" Text="Copy hierarchy level breakdown (L1, L2...)" Click="OnCopyOutlineHierarchyBreakdownClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B7;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="ReverseHierarchyOutlineItem" Text="Reverse top-level outline blocks (Preserve subtrees)" Click="OnReverseHierarchyOutlineClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8CB;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="DeduplicateOutlineItem" Text="Remove duplicate sibling bullets" Click="OnDeduplicateOutlineClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8C8;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="SplitLongOutlineItem" Text="Split long outline items into parent + sub-bullet (&gt;45 chars)" Click="OnSplitLongOutlineClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8C6;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="AutoNumberOutlineItem" Text="Apply hierarchical outline numbering (1., 1.1., 2.)" Click="OnAutoNumberOutlineClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8FD;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="RecommendLayoutsOutlineItem" Text="Recommend best-fitting SmartArt layouts for outline" Click="OnRecommendLayoutsOutlineClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE946;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="StructureByDelimiterOutlineItem" Text="Structure flat outline by delimiter (Category: Item → Subtree)" Click="OnStructureByDelimiterOutlineClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8E4;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="BalanceOutlineDepthItem" Text="Balance outline nesting depth (Clamp to max depth 2)" Click="OnBalanceOutlineDepthClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8FD;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="RecommendIconsOutlineItem" Text="Recommend icons for outline keywords" Click="OnRecommendIconsOutlineClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7B3;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="NormalizeMatrixQuadrantsItem" Text="Normalize 2x2 matrix quadrant titles (SWOT / Eisenhower / BCG)" Click="OnNormalizeMatrixQuadrantsClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8D2;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                        <MenuFlyoutSeparator />
-                                        <MenuFlyoutSubItem Text="Diagnostics" AutomationProperties.Name="Outline stats"
-                                    ToolTipService.ToolTip="Outline stats · Click for navigation and outline tools, right-click or Shift+F10 for the same menu">
+                                        <MenuFlyoutSubItem Text="Diagnostics">
                                             <MenuFlyoutSubItem.Icon><FontIcon Glyph="&#xE9D9;" /></MenuFlyoutSubItem.Icon>
                                             <MenuFlyoutItem x:Name="OutlineStatsAuditMatrixQuadrantGeometryItem" Text="Audit 2x2 matrix / quadrant geometry &amp; text balance symmetry" Click="OnOutlineStatsAuditMatrixQuadrantGeometryClick">
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>

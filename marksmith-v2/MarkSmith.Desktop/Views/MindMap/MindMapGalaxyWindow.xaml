@@ -68,14 +68,15 @@
                                            DoubleTapped="OnMapTitleTextDoubleTapped"
                                            RightTapped="OnMapTitleTextRightTapped"
                                            ToolTipService.ToolTip="MindMap title · Double-click to copy title, right-click for options" />
-                                <Border x:Name="UnsavedBadge" Background="{ThemeResource SubtleFillColorSecondaryBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="6,1" VerticalAlignment="Center"
+                                <Button x:Name="UnsavedBadge" MinHeight="0" MinWidth="0" Padding="6,1" CornerRadius="8" VerticalAlignment="Center"
+                                        Background="{ThemeResource SubtleFillColorSecondaryBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
                                         Visibility="{Binding IsDirty, Converter={StaticResource BoolToVis}}"
-                                        IsHitTestVisible="True"
-                                        DoubleTapped="OnUnsavedBadgeDoubleTapped"
+                                        Click="OnUnsavedBadgeClick"
                                         RightTapped="OnUnsavedBadgeRightTapped"
-                                        ToolTipService.ToolTip="Changes since the last save · Double-click to save (Ctrl+S), right-click for save options">
+                                        AutomationProperties.Name="Unsaved changes"
+                                        ToolTipService.ToolTip="Changes since the last save · Click, right-click or Shift+F10 for save options (Ctrl+S saves)">
                                     <TextBlock Text="Unsaved" FontSize="10" Foreground="{ThemeResource SystemFillColorCautionBrush}" />
-                                </Border>
+                                </Button>
                             </StackPanel>
                             <TextBlock Text="Your documents and how they connect" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         </StackPanel>
@@ -1098,17 +1099,21 @@
                            TextTrimming="CharacterEllipsis" AutomationProperties.LiveSetting="Polite"
                            RightTapped="OnStatusBarRightTapped" DoubleTapped="OnStatusBarDoubleTapped" />
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
-                    <TextBlock x:Name="NodesCountText" Text="{Binding NodesCountText}" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}"
-                               IsHitTestVisible="True"
-                               DoubleTapped="OnNodesCountDoubleTapped"
-                               RightTapped="OnNodesCountRightTapped"
-                               ToolTipService.ToolTip="Total nodes · Double-click to cycle root/deepest/leaf nodes, right-click for navigation &amp; options" />
+                    <HyperlinkButton x:Name="NodesCountButton" Padding="4,0" MinHeight="0" VerticalAlignment="Center"
+                                     Click="OnNodesCountClick" RightTapped="OnNodesCountRightTapped"
+                                     AutomationProperties.Name="{Binding NodesCountText}"
+                                     AutomationProperties.HelpText="Opens node navigation and copy options."
+                                     ToolTipService.ToolTip="Total nodes · Click, right-click or Shift+F10 for navigation &amp; options">
+                        <TextBlock x:Name="NodesCountText" Text="{Binding NodesCountText}" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                    </HyperlinkButton>
                     <TextBlock Text="·" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
-                    <TextBlock x:Name="LinksCountText" Text="{Binding LinksCountText}" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}"
-                               IsHitTestVisible="True"
-                               DoubleTapped="OnLinksCountDoubleTapped"
-                               RightTapped="OnLinksCountRightTapped"
-                               ToolTipService.ToolTip="Total connections · Double-click to copy count, right-click for connection actions" />
+                    <HyperlinkButton x:Name="LinksCountButton" Padding="4,0" MinHeight="0" VerticalAlignment="Center"
+                                     Click="OnLinksCountClick" RightTapped="OnLinksCountRightTapped"
+                                     AutomationProperties.Name="{Binding LinksCountText}"
+                                     AutomationProperties.HelpText="Opens connection copy and layout options."
+                                     ToolTipService.ToolTip="Total connections · Click, right-click or Shift+F10 for connection actions">
+                        <TextBlock x:Name="LinksCountText" Text="{Binding LinksCountText}" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                    </HyperlinkButton>
                 </StackPanel>
             </Grid>
         </Border>

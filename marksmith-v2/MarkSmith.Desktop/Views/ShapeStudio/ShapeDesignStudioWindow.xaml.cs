@@ -114,6 +114,7 @@ namespace MarkSmith.Views.ShapeStudio
             CaptionButtons.Follow(this, AppTitleBar);
             // RightTapped is mouse/pen/touch only: Shift+F10 and the Menu key open the same menus.
             KeyboardContextMenu.BridgeAll(
+                (SelectionBoundsPill, OnSelectionBoundsPillRightTapped),
                 (ClearCanvasButton, OnClearCanvasButtonRightTapped),
                 (ExportDropDownButton, OnExportDropDownButtonRightTapped),
                 (InsertIntoDocumentButton, OnInsertIntoDocumentButtonRightTapped),
@@ -173,6 +174,8 @@ namespace MarkSmith.Views.ShapeStudio
             // Open with the canvas focused (no focus ring) so Ctrl+Z / Del work at once and the
             // first title-bar button doesn't come up wearing a keyboard-focus rectangle.
             this.RootGrid.Loaded += (_, _) => CanvasScroller.Focus(FocusState.Programmatic);
+            // Seed the bounds pill's readout and spoken name; it otherwise waits for the first selection change.
+            this.RootGrid.Loaded += (_, _) => UpdateSelectionBoundsPill();
             this.RootGrid.ActualThemeChanged += (_, _) =>
             {
                 foreach (var (s, p) in _shapePaths)
@@ -5557,18 +5560,8 @@ namespace MarkSmith.Views.ShapeStudio
                     SelectionBoundsText.Text = $"{count} shapes selected";
                 }
             }
-        }
-
-        private void OnSelectionBoundsPillTapped(object sender, TappedRoutedEventArgs e)
-        {
-            e.Handled = true;
-            OnSelectionCenterCanvasClick(this, new RoutedEventArgs());
-        }
-
-        private void OnSelectionBoundsPillDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-        {
-            e.Handled = true;
-            OnSelectionMakeSquareClick(this, new RoutedEventArgs());
+            // The pill is a button now: screen readers hear the readout, not a fixed label.
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(SelectionBoundsPill, $"Selection bounds: {SelectionBoundsText.Text}");
         }
 
         private void OnSelectionBoundsPillRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -5576,7 +5569,7 @@ namespace MarkSmith.Views.ShapeStudio
             e.Handled = true;
             if (SelectionBoundsFlyout != null && SelectionBoundsPill != null)
             {
-                SelectionBoundsFlyout.ShowAt(SelectionBoundsPill, e.GetPosition(SelectionBoundsPill));
+                SelectionBoundsFlyout.ShowAt(SelectionBoundsPill, new Microsoft.UI.Xaml.Controls.Primitives.FlyoutShowOptions { Position = KeyboardContextMenu.PointIn(e, SelectionBoundsPill) });
             }
         }
 

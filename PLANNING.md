@@ -16892,3 +16892,112 @@ waited for 61 s without input and checked the foreground PID):
 **Release (same run):** tagged **v3.60.0** on `fffadce`; Release workflow run 40058432874 succeeded;
 user-facing notes prepended to the generated body
 (https://github.com/thebubbsy/marksmith/releases/tag/v3.60.0). `MarksmithBaseVersion` is now 3.61.0.
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #246 (2026-10-24, 15:00–15:35 AEDT)
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running in the Claude desktop app. The task template asks for
+  "Antigravity AI Agent (Google DeepMind)"; that would be untrue for this run, so the real identity is recorded.
+- Modes: Scheduled Hourly Automation Routine (bypass-permissions, no live user)
+- Trigger: scheduled task `commit-to-main-ship-improvement--r4efinement`
+- Agents used: 1 (one session acting as orchestrator, coding worker and skeptical reviewer; no
+  subagents). Session `1ec6135c-a5a6-405e-a4de-cdc51f4829c0`.
+- Worked in run #245's clean clone (renamed `%TEMP%\ms246`, already at `origin/main` dca2b3f). The local checkout
+  is ~210 commits behind and holds another session's uncommitted edits; it was not touched. `ms_run245` was
+  deleted first (6.4 GB → 6.6 GB free).
+
+**Reviewed:** run #245's Next up. Items 1 and 2 are done; item 3 (live OCR page-flip focus) is carried over again
+(the workstation was locked this run, see Verified).
+
+**Delivered (user-visible):**
+1. **Shape Studio: clicking the selection bounds pill no longer moves your shapes.** The pill ("1 shape · 120×80
+   at (40,60)") was a Border: a click silently centred the selection (or every shape) on the canvas, and a
+   double-click centred it and then squared it. It is now a button. Click, right-click, Shift+F10 and the Menu key
+   open its menu (center, square, order, distribute, fit…), and Tab reaches it.
+2. **Shape Studio: screen readers hear the bounds readout.** The pill had no name. It is now
+   "Selection bounds: Shapes: 0 · Canvas 2200×1800", kept current as the selection changes and seeded when the
+   window loads.
+3. **Mind Map: the Unsaved badge is a button, and saving from it keeps keyboard focus.** It was a Border whose
+   double-click saved behind your back. Click, right-click and Shift+F10 now open its save menu (Save, Save copy as,
+   Undo, Fit), and it is named "Unsaved changes". Saving hides the badge. If it (or its menu) had focus, focus moves to
+   the map canvas instead of being lost.
+4. **Mind Map: the node and link counts are buttons.** "10 nodes" and "5 links" were text blocks. A double-click
+   cycled the selection between root, deepest and leaf nodes, or copied the link count over the clipboard, and then
+   also refit the map (the status bar's own double-click). Now a click (or Shift+F10) opens the same menu
+   the right-click did, screen readers hear the counts, and a double-click on a count doesn't also refit the map.
+5. **SmartArt: the outline stats menu fits on screen.** It had 26 items before Diagnostics and ran taller than a
+   900 px window. It now has Select root / Select deepest plus five submenus: Copy, Restructure, Clean up,
+   Suggest and Diagnostics. Every item is still there.
+6. **SmartArt: the Diagnostics submenu is read as "Diagnostics".** It had the pill's name and tooltip pasted onto
+   it, so a screen reader announced "Outline stats" and hovering showed the pill's tooltip.
+7. **Mind Map: the breadcrumb bar follows the map's theme.** It was always near-black. On Clean White the ancestor
+   names were dark grey on near-black, and "Focus ON" was pale green. It now uses the palette's card colour,
+   text and progress ink, and repaints when the theme changes.
+8. **Mind Map: the breadcrumb's Focus chip says its state; the current crumb does one thing.** The chip is named
+   "Focus mode: on/off", its tooltip says what the next click does ("Turn focus mode on (F) · …"), and its label
+   reads "Focus" / "Focus on" without the inline key hint. A double-click on the current crumb re-centred and then also
+   toggled focus mode. It now only re-centres. The chip next to it toggles focus mode.
+
+**Implementation summary.**
+- `Views/ShapeStudio/ShapeDesignStudioWindow.xaml(.cs)`: `SelectionBoundsPill` Border → Button (same padding,
+  radius, fill, stroke), `Border.ContextFlyout` → `Button.Flyout`; `OnSelectionBoundsPillTapped` /
+  `DoubleTapped` removed; added to the bridge table; RightTapped uses `KeyboardContextMenu.PointIn`;
+  `UpdateSelectionBoundsPill` sets the accessible name; `RootGrid.Loaded` seeds it.
+- `Views/MindMap/MindMapGalaxyWindow.xaml(.cs)`: `UnsavedBadge` Border → Button; `NodesCountText` /
+  `LinksCountText` wrapped in `NodesCountButton` / `LinksCountButton` HyperlinkButtons (names bound to the counts);
+  three DoubleTapped handlers and `_nodeCycleMode` removed; `On…Click` → `KeyboardContextMenu.Invoke(…)`; all three
+  bridged; `MoveFocusOffUnsavedBadge` (Visibility callback + menu `Closed`, only when focus was on the badge or
+  lost); `OnStatusBarDoubleTapped` skips ButtonBase sources; `UpdateBreadcrumbs` uses palette colours, drops the
+  crumb DoubleTapped, names the focus chip; `ApplyPalette` calls `UpdateBreadcrumbs`.
+- `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml`: `OutlineStatsFlyout` regrouped by a script that moves
+  the existing item blocks unchanged (asserting every Click handler is placed exactly once); Diagnostics' stray name and
+  tooltip removed.
+- Tests: new `Run246StudioPillsAndBreadcrumbTests` (12 cases).
+
+**Skeptical review.**
+- Focus traps: the Unsaved badge is the one control that collapses. Focus moves to the canvas only when the badge
+  held it (or focus was lost with it), and the menu's `Closed` check is queued at low priority so it runs after the
+  flyout hands focus back. The pills and counts never collapse or disable.
+- Key swallowing: no key handlers changed. The bridge reacts only to Shift+F10 and the Menu key.
+- Double-click bubbling: the count buttons sit inside the status bar, whose DoubleTapped refits the map. That handler
+  now returns for anything under a ButtonBase.
+- Theme: breadcrumb colours come from `GalaxyPalette` (CardBackground, Text, Muted, ProgressInk/Fill,
+  HighlightBorder), not fixed `Colors.*`. No `Application.Current.Resources` lookups added.
+- Flyouts / HoverPolish: all new controls are XAML Buttons in the window tree (`HoverPolish.Track(RootGrid)` in
+  Mind Map); the breadcrumb buttons were already code-built there. Files / async: none opened; Save path unchanged.
+
+**Verified.** Desktop built to `%TEMP%\ms_run246\b` with 0 errors (no new warnings in touched files). Full suite:
+5956 passed, 7 failed, 1 skipped. The 7 are the known `GovernanceDocsSyncTests`, which read gitignored docs that a clone doesn't have.
+Run246 12/12, and Run244–246 plus Shape/SmartArt/Mind Map/Suite Hub/keyboard/tooltip (1363) pass.
+Live UIA on scratch PIDs 10912 then 5956 (`MARKSMITH_CONFIG_DIR` in the session scratchpad; no other Marksmith
+running; both stopped afterwards):
+- **The workstation was locked** (LogonUI running, foreground PID 0), so no keys were sent and no focus could be
+  read. Everything below used UIA Invoke / ExpandCollapse only.
+- Mind Map: `Hyperlink '10 nodes'` / `'5 links'` with their help text; invoking the node count opened its 9-item
+  menu (Copy node count (10 nodes · Depth 2) … Fit all nodes in window). After Add child,
+  `Button 'Unsaved changes'` appeared; invoking it opened Save / Save copy as… / Undo / Fit; "Save map changes"
+  saved to the scratch `library.msmap` and the badge left the tree. The breadcrumb chip reads
+  `Button 'Focus mode: off'`; PrintWindow capture shows "Focus" on the chip.
+- Shape Studio: `Button 'Selection bounds: Shapes: 0 · Canvas 2200×1800'` (after the Loaded seed; the first build
+  showed the fixed "Selection bounds", which is why the seed was added). Invoking it opened the 35-item menu and
+  the readout did not change.
+- SmartArt: `Button 'Outline stats: 6 nodes · Depth 2'`; invoking it showed exactly Select root node (Top) /
+  Select deepest node / Copy / Restructure / Clean up / Suggest / Diagnostics, and expanding Restructure listed its
+  11 items.
+- **Not verified live:** Shift+F10 on the new buttons, focus landing on the canvas after Save, the double-click
+  guards, the Clean White breadcrumb colours (source tests cover them).
+
+**Noticed, not fixed:**
+- Mind Map's breadcrumb bar (top-left, y=12) overlaps the guided-tour banner's "Guided tour" heading while the tour is shown.
+- Mind Map `MapTitleText` still copies on double-click and is not keyboard-reachable; Shape Studio's
+  `MultiSelectionBadge` still aligns + distributes on double-click (it has no click action, so no conflict).
+- The local checkout is still far behind `origin/main`; runs keep working in the `%TEMP%` clone.
+
+**Next up (Run #247):**
+1. Live keyboard pass (needs an unlocked session): Shift+F10 on the Run246 buttons, focus after saving from the
+   Unsaved badge, and OCR page-flip focus with a 2-page PDF (carried since #239).
+2. Move Mind Map's breadcrumb bar below the tour banner (or the banner below it) while the tour is shown.
+3. Mind Map title: a keyboard-reachable way to its menu (rename / copy title / summary).
+
+**Total user-visible improvements: 8.**

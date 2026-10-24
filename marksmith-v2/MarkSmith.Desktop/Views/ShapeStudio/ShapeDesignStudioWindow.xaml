@@ -538,19 +538,19 @@
                                 </Button.Flyout>
                             </Button>
                             <!-- Selection Geometry & Bounds HUD Pill -->
-                            <Border x:Name="SelectionBoundsPill" Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                            <Button x:Name="SelectionBoundsPill" MinHeight="0" MinWidth="0" VerticalAlignment="Center"
+                                    Padding="7,3" CornerRadius="6"
+                                    Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
-                                    CornerRadius="6" Padding="7,3" VerticalAlignment="Center"
-                                    Tapped="OnSelectionBoundsPillTapped"
-                                    DoubleTapped="OnSelectionBoundsPillDoubleTapped"
                                     RightTapped="OnSelectionBoundsPillRightTapped"
-                                    ToolTipService.ToolTip="Selection geometry &amp; bounds · Click to center, double-click to square, right-click for options">
+                                    AutomationProperties.Name="Selection bounds"
+                                    ToolTipService.ToolTip="Selection geometry &amp; bounds · Click, right-click or Shift+F10 for center, square, order and fit options">
                                 <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
                                     <FontIcon Glyph="&#xE740;" FontSize="11" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
                                     <TextBlock x:Name="SelectionBoundsText" Text="Shapes: 0 · Canvas 2200×1800" FontSize="11"
                                                FontFamily="Cascadia Mono, Consolas, monospace" VerticalAlignment="Center" />
                                 </StackPanel>
-                                <Border.ContextFlyout>
+                                <Button.Flyout>
                                     <MenuFlyout x:Name="SelectionBoundsFlyout">
                                         <MenuFlyoutItem Text="Center selection on canvas" Click="OnSelectionCenterCanvasClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE81E;" /></MenuFlyoutItem.Icon>
@@ -873,8 +873,8 @@
                                         </MenuFlyoutSubItem>
                                     </MenuFlyout>
 
-                                </Border.ContextFlyout>
-                            </Border>
+                                </Button.Flyout>
+                            </Button>
                             <DropDownButton x:Name="PaletteButton" Padding="8,4" AutomationProperties.Name="Colour scheme"
                                             RightTapped="OnPaletteButtonRightTapped"
                                             ToolTipService.ToolTip="Colour scheme for presets and new shapes (Right-click for options)">
