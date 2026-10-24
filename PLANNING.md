@@ -17001,3 +17001,7 @@ running; both stopped afterwards):
 3. Mind Map title: a keyboard-reachable way to its menu (rename / copy title / summary).
 
 **Total user-visible improvements: 8.**
+
+**Release (same run):** tagged **v3.61.0** on `5744a62`; Release workflow run 40062190112 succeeded;
+user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.61.0). `MarksmithBaseVersion` is now 3.62.0.
