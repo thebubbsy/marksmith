@@ -132,8 +132,18 @@ namespace MarkSmith.Views.MindMap
                 (MapTitleButton, OnMapTitleButtonRightTapped),
                 (UnsavedBadge, OnUnsavedBadgeRightTapped),
                 (NodesCountButton, OnNodesCountRightTapped),
-                (LinksCountButton, OnLinksCountRightTapped));
+                (LinksCountButton, OnLinksCountRightTapped),
+                (SearchMatchButton, OnSearchStepperPillRightTapped),
+                (SearchPrevMatchButton, OnSearchStepperPillRightTapped),
+                (SearchNextMatchButton, OnSearchStepperPillRightTapped),
+                (SearchClearButton, OnSearchStepperPillRightTapped));
+            // Options menus that keep Cut / Copy / Paste over a selection and open from Shift+F10;
+            // their RightTapped handlers replaced the text menu and were mouse only.
+            TextBoxMenu.Attach(TitleBox, FillTitleBoxMenu);
+            TextBoxMenu.Attach(TagsBox, FillTagsBoxMenu);
+            TextBoxMenu.Attach(LinkLabelBox, FillLinkLabelBoxMenu);
             UnsavedBadge.RegisterPropertyChangedCallback(UIElement.VisibilityProperty, (_, _) => MoveFocusOffUnsavedBadge());
+            SearchStepperPill.RegisterPropertyChangedCallback(UIElement.VisibilityProperty, (_, _) => MoveFocusOffSearchStepperPill());
             var iconPath = System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "app.ico");
             if (System.IO.File.Exists(iconPath)) AppWindow.SetIcon(iconPath);
             SizeForDisplay();
@@ -312,8 +322,8 @@ namespace MarkSmith.Views.MindMap
                 AutomationProperties.SetName(StatusBarText, ViewModel.StatusMessage);
                 AutomationProperties.SetLiveSetting(StatusBarText, Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Polite);
             }
-            if (SearchMatchLabel != null)
-                AutomationProperties.SetName(SearchMatchLabel, ViewModel.SearchMatchText ?? "");
+            if (SearchMatchButton != null)
+                AutomationProperties.SetName(SearchMatchButton, ViewModel.SearchMatchText ?? "");
             if (InsightsSummaryText != null)
                 AutomationProperties.SetName(InsightsSummaryText, ViewModel.InsightsSummary ?? "");
             if (NodesCountText != null)
@@ -485,11 +495,9 @@ namespace MarkSmith.Views.MindMap
             TitleBox.SelectAll();
         }
 
-        private void OnTitleBoxRightTapped(object sender, RightTappedRoutedEventArgs e)
+        private void FillTitleBoxMenu(MenuFlyout menu)
         {
             if (TitleBox is null) return;
-            e.Handled = true;
-            var menu = new MenuFlyout();
             string title = TitleBox.Text ?? string.Empty;
             bool hasText = !string.IsNullOrEmpty(title);
 
@@ -555,8 +563,6 @@ namespace MarkSmith.Views.MindMap
                 TagsBox?.SelectAll();
             };
             menu.Items.Add(focusTagsItem);
-
-            menu.ShowAt(TitleBox, e.GetPosition(TitleBox));
         }
 
         private void OnNodeProgressSliderDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
@@ -637,11 +643,9 @@ namespace MarkSmith.Views.MindMap
             TagsBox.SelectAll();
         }
 
-        private void OnTagsBoxRightTapped(object sender, RightTappedRoutedEventArgs e)
+        private void FillTagsBoxMenu(MenuFlyout menu)
         {
             if (TagsBox is null || ViewModel.SelectedNode is not { } node) return;
-            e.Handled = true;
-            var menu = new MenuFlyout();
 
             string currentTags = TagsBox.Text ?? string.Empty;
             bool hasTags = !string.IsNullOrEmpty(currentTags);
@@ -723,8 +727,6 @@ namespace MarkSmith.Views.MindMap
                 TagsBox.SelectAll();
             };
             menu.Items.Add(selectAllItem);
-
-            menu.ShowAt(TagsBox, e.GetPosition(TagsBox));
         }
 
         private void OnNodeIconBoxDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
@@ -6197,11 +6199,9 @@ namespace MarkSmith.Views.MindMap
             }
         }
 
-        private void OnLinkLabelBoxRightTapped(object sender, RightTappedRoutedEventArgs e)
+        private void FillLinkLabelBoxMenu(MenuFlyout menu)
         {
             if (LinkLabelBox is null) return;
-            e.Handled = true;
-            var menu = new MenuFlyout();
             string label = LinkLabelBox.Text ?? string.Empty;
             bool hasText = !string.IsNullOrEmpty(label);
 
@@ -6310,8 +6310,6 @@ namespace MarkSmith.Views.MindMap
             selectAllItem.IsEnabled = hasText;
             selectAllItem.Click += (_, _) => LinkLabelBox.SelectAll();
             menu.Items.Add(selectAllItem);
-
-            menu.ShowAt(LinkLabelBox, e.GetPosition(LinkLabelBox));
         }
 
         private void OnReverseLinkButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -6754,17 +6752,12 @@ namespace MarkSmith.Views.MindMap
             menu.ShowAt(anchor, KeyboardContextMenu.PointIn(e, anchor));
         }
 
-        private void OnSearchMatchLabelDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-        {
-            var matchText = SearchMatchLabel?.Text ?? string.Empty;
-            if (string.IsNullOrWhiteSpace(matchText)) return;
-            e.Handled = true;
-            CopyAndReport(matchText, $"Copied search match count: {matchText}");
-        }
+        private void OnSearchMatchButtonClick(object sender, RoutedEventArgs e) =>
+            KeyboardContextMenu.Invoke(SearchMatchButton, OnSearchStepperPillRightTapped);
 
-        private void OnSearchMatchLabelRightTapped(object sender, RightTappedRoutedEventArgs e)
+        private void OnSearchStepperPillRightTapped(object sender, RightTappedRoutedEventArgs e)
         {
-            if (SearchMatchLabel is null) return;
+            if (SearchMatchLabel is null || SearchStepperPill is null) return;
             e.Handled = true;
             var matchText = SearchMatchLabel.Text ?? string.Empty;
             var menu = new MenuFlyout();
@@ -6835,7 +6828,7 @@ namespace MarkSmith.Views.MindMap
             focusSearchItem.Click += (_, _) => SearchBox?.Focus(FocusState.Programmatic);
             menu.Items.Add(focusSearchItem);
 
-            menu.ShowAt(SearchMatchLabel, e.GetPosition(SearchMatchLabel));
+            menu.ShowAt(SearchStepperPill, KeyboardContextMenu.PointIn(e, SearchStepperPill));
         }
 
         private void OnTagPillClick(object sender, RoutedEventArgs e)
@@ -8013,6 +8006,22 @@ namespace MarkSmith.Views.MindMap
             if (RootGrid.XamlRoot is not { } xamlRoot) return;
             var focused = FocusManager.GetFocusedElement(xamlRoot);
             if (focused is not null && !ReferenceEquals(focused, UnsavedBadge)) return;
+            GalaxyCanvas.Focus(FocusState.Programmatic);
+        }
+
+        // Esc clears the search from anywhere, which collapses the pill under a focused match-count
+        // or stepper button and leaves the keyboard nowhere. Send it to the canvas, as Esc means.
+        private void MoveFocusOffSearchStepperPill()
+        {
+            if (SearchStepperPill is null || SearchStepperPill.Visibility == Visibility.Visible) return;
+            if (RootGrid.XamlRoot is not { } xamlRoot) return;
+            var focused = FocusManager.GetFocusedElement(xamlRoot) as DependencyObject;
+            if (focused is not null)
+            {
+                var node = focused;
+                while (node is not null && !ReferenceEquals(node, SearchStepperPill)) node = VisualTreeHelper.GetParent(node);
+                if (node is null) return;
+            }
             GalaxyCanvas.Focus(FocusState.Programmatic);
         }
 

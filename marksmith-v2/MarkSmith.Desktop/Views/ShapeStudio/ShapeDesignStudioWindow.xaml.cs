@@ -115,6 +115,7 @@ namespace MarkSmith.Views.ShapeStudio
             // RightTapped is mouse/pen/touch only: Shift+F10 and the Menu key open the same menus.
             KeyboardContextMenu.BridgeAll(
                 (SelectionBoundsPill, OnSelectionBoundsPillRightTapped),
+                (SelectionSummaryButton, OnSelectionSummaryRightTapped),
                 (ClearCanvasButton, OnClearCanvasButtonRightTapped),
                 (ExportDropDownButton, OnExportDropDownButtonRightTapped),
                 (InsertIntoDocumentButton, OnInsertIntoDocumentButtonRightTapped),
@@ -152,6 +153,10 @@ namespace MarkSmith.Views.ShapeStudio
                 (RotationSlider, OnRotationSliderRightTapped),
                 (ResetRotationButton, OnResetRotationButtonRightTapped),
                 (ZoomButton, OnZoomButtonRightTapped));
+            // Options menus that keep Cut / Copy / Paste over a selection and open from Shift+F10;
+            // their RightTapped handlers replaced the text menu and were mouse only.
+            TextBoxMenu.Attach(LabelTextBox, FillLabelTextBoxMenu);
+            TextBoxMenu.Attach(FuseImagePathBox, FillFuseImagePathBoxMenu);
             CloseGuard.Attach(this, () => ViewModel.HasUnkeptWork, () =>
             {
                 ViewModel.InsertIntoDocument();
@@ -169,8 +174,7 @@ namespace MarkSmith.Views.ShapeStudio
             SetCursor(MainCanvas, Microsoft.UI.Input.InputSystemCursorShape.Arrow);
             if (StatusBarText != null && !string.IsNullOrEmpty(ViewModel.StatusMessage))
                 Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(StatusBarText, ViewModel.StatusMessage);
-            if (SelectionSummaryText != null)
-                Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(SelectionSummaryText, ViewModel.SelectionSummary ?? "");
+            SyncSelectionSummaryButton();
             // Open with the canvas focused (no focus ring) so Ctrl+Z / Del work at once and the
             // first title-bar button doesn't come up wearing a keyboard-focus rectangle.
             this.RootGrid.Loaded += (_, _) => CanvasScroller.Focus(FocusState.Programmatic);
@@ -303,18 +307,28 @@ namespace MarkSmith.Views.ShapeStudio
             CopyAndReport(summary, "Copied status to clipboard");
         }
 
-        private void OnSelectionSummaryDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        // Two clicks already opened the menu; don't also run the status bar's double-click copy.
+        private void OnSelectionSummaryButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e) => e.Handled = true;
+
+        private void OnSelectionSummaryButtonClick(object sender, RoutedEventArgs e) =>
+            KeyboardContextMenu.Invoke(SelectionSummaryButton, OnSelectionSummaryRightTapped);
+
+        // Named after the summary, and hidden while it is blank (an empty canvas) so Tab doesn't stop
+        // on an empty link. Focus moves to the canvas first if the button had it.
+        private void SyncSelectionSummaryButton()
         {
-            e.Handled = true;
-            var summary = ViewModel.SelectionSummary;
-            if (string.IsNullOrWhiteSpace(summary))
-                summary = $"{ViewModel.SelectionCount} shapes selected";
-            CopyAndReport(summary, $"Copied selection summary: {summary}");
+            if (SelectionSummaryButton is null) return;
+            var summary = ViewModel.SelectionSummary ?? "";
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(SelectionSummaryButton, summary);
+            bool show = summary.Length > 0;
+            if (!show && SelectionSummaryButton.FocusState != FocusState.Unfocused)
+                CanvasScroller.Focus(FocusState.Programmatic);
+            SelectionSummaryButton.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
         }
 
         private void OnSelectionSummaryRightTapped(object sender, RightTappedRoutedEventArgs e)
         {
-            if (SelectionSummaryText is null) return;
+            if (SelectionSummaryButton is null) return;
             e.Handled = true;
             var flyout = new MenuFlyout();
             bool any = ViewModel.HasShapes;
@@ -339,7 +353,7 @@ namespace MarkSmith.Views.ShapeStudio
             flyout.Items.Add(ShapeMenuItem("Bring to front", "\uE74A", () => ViewModel.BringToFrontCommand.Execute(null), "Ctrl+Shift+]", enabled: hasSelection));
             flyout.Items.Add(ShapeMenuItem("Send to back", "\uE74B", () => ViewModel.SendToBackCommand.Execute(null), "Ctrl+Shift+[", enabled: hasSelection));
 
-            flyout.ShowAt(SelectionSummaryText, e.GetPosition(SelectionSummaryText));
+            flyout.ShowAt(SelectionSummaryButton, KeyboardContextMenu.PointIn(e, SelectionSummaryButton));
         }
 
         private void OnStatusBarRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -888,8 +902,7 @@ namespace MarkSmith.Views.ShapeStudio
                     UpdateSelectionBoundsPill();
                     return;
                 case nameof(ShapeDesignStudioViewModel.SelectionSummary):
-                    if (SelectionSummaryText != null)
-                        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(SelectionSummaryText, ViewModel.SelectionSummary ?? "");
+                    SyncSelectionSummaryButton();
                     return;
                 case nameof(ShapeDesignStudioViewModel.SelectedPaletteName):
                     SyncPaletteUi();
@@ -1159,11 +1172,9 @@ namespace MarkSmith.Views.ShapeStudio
             }
         }
 
-        private void OnLabelTextBoxRightTapped(object sender, RightTappedRoutedEventArgs e)
+        private void FillLabelTextBoxMenu(MenuFlyout flyout)
         {
             if (LabelTextBox is null) return;
-            e.Handled = true;
-            var flyout = new MenuFlyout();
 
             string currentText = LabelTextBox.Text ?? string.Empty;
             bool hasText = !string.IsNullOrEmpty(currentText);
@@ -1251,8 +1262,6 @@ namespace MarkSmith.Views.ShapeStudio
                 LabelTextBox.Focus(FocusState.Programmatic);
                 LabelTextBox.SelectAll();
             }, "Ctrl+A", enabled: hasText));
-
-            flyout.ShowAt(LabelTextBox, e.GetPosition(LabelTextBox));
         }
 
         private void OnShapesListItemRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -5284,11 +5293,9 @@ namespace MarkSmith.Views.ShapeStudio
             FuseImagePathBox?.SelectAll();
         }
 
-        private void OnFuseImagePathBoxRightTapped(object sender, RightTappedRoutedEventArgs e)
+        private void FillFuseImagePathBoxMenu(MenuFlyout flyout)
         {
             if (FuseImagePathBox is null) return;
-            e.Handled = true;
-            var flyout = new MenuFlyout();
 
             flyout.Items.Add(ShapeMenuItem("Paste image path from clipboard", "\uE77F", async () =>
             {
@@ -5326,9 +5333,6 @@ namespace MarkSmith.Views.ShapeStudio
                 FuseImagePathBox.Text = string.Empty;
                 ViewModel.StatusMessage = "Cleared image path.";
             }, enabled: !string.IsNullOrEmpty(FuseImagePathBox.Text)));
-
-            if (sender is FrameworkElement fe) flyout.ShowAt(fe, e.GetPosition(fe));
-            else flyout.ShowAt(FuseImagePathBox, e.GetPosition(FuseImagePathBox));
         }
 
         private void OnFuseMosaicDensityDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)

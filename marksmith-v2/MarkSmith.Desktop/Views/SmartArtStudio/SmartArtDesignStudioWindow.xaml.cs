@@ -66,6 +66,8 @@ namespace MarkSmith.Views.SmartArtStudio
             // none of them did, so the studio's options were mouse-only.
             KeyboardContextMenu.BridgeAll(
                 (LayoutCountButton, OnLayoutCountButtonRightTapped),
+                (PreviewTitleButton, OnPreviewTitleButtonRightTapped),
+                (OutlineSummaryButton, OnOutlineSummaryButtonRightTapped),
                 (UndoStudioButton, OnUndoButtonRightTapped),
                 (RedoStudioButton, OnRedoButtonRightTapped),
                 (InsertIntoDocumentButton, OnInsertIntoDocumentButtonRightTapped),
@@ -3382,15 +3384,15 @@ namespace MarkSmith.Views.SmartArtStudio
             menu.ShowAt(LayoutCountButton, KeyboardContextMenu.PointIn(e, LayoutCountButton));
         }
 
-        private void OnOutlineSummaryLabelDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-        {
-            e.Handled = true;
-            CopyOutlineMarkdown();
-        }
+        // Two clicks already opened the menu; don't also run the status bar's double-click copy.
+        private void OnOutlineSummaryButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e) => e.Handled = true;
 
-        private void OnOutlineSummaryLabelRightTapped(object sender, RightTappedRoutedEventArgs e)
+        private void OnOutlineSummaryButtonClick(object sender, RoutedEventArgs e) =>
+            KeyboardContextMenu.Invoke(OutlineSummaryButton, OnOutlineSummaryButtonRightTapped);
+
+        private void OnOutlineSummaryButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
         {
-            if (OutlineSummaryLabel is null) return;
+            if (OutlineSummaryButton is null) return;
             e.Handled = true;
             var menu = new MenuFlyout();
 
@@ -3450,25 +3452,15 @@ namespace MarkSmith.Views.SmartArtStudio
             };
             menu.Items.Add(switchToEditorItem);
 
-            menu.ShowAt(OutlineSummaryLabel, e.GetPosition(OutlineSummaryLabel));
+            menu.ShowAt(OutlineSummaryButton, KeyboardContextMenu.PointIn(e, OutlineSummaryButton));
         }
 
-        private void OnPreviewTitleLabelDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-        {
-            e.Handled = true;
-            if (!ViewModel.IsOutlineEmpty)
-            {
-                CopySmartArtBlock();
-            }
-            else if (!string.IsNullOrEmpty(ViewModel.PreviewTitle))
-            {
-                CopyAndReport(ViewModel.PreviewTitle, $"Copied layout title: {ViewModel.PreviewTitle}");
-            }
-        }
+        private void OnPreviewTitleButtonClick(object sender, RoutedEventArgs e) =>
+            KeyboardContextMenu.Invoke(PreviewTitleButton, OnPreviewTitleButtonRightTapped);
 
-        private void OnPreviewTitleLabelRightTapped(object sender, RightTappedRoutedEventArgs e)
+        private void OnPreviewTitleButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
         {
-            if (PreviewTitleLabel is null) return;
+            if (PreviewTitleButton is null) return;
             e.Handled = true;
             var menu = new MenuFlyout();
 
@@ -3534,7 +3526,7 @@ namespace MarkSmith.Views.SmartArtStudio
             menu.Items.Add(new MenuFlyoutSeparator());
             AddPaletteSubmenu(menu);
 
-            menu.ShowAt(PreviewTitleLabel, e.GetPosition(PreviewTitleLabel));
+            menu.ShowAt(PreviewTitleButton, KeyboardContextMenu.PointIn(e, PreviewTitleButton));
         }
 
         private void OnEditorTabsRightTapped(object sender, RightTappedRoutedEventArgs e)

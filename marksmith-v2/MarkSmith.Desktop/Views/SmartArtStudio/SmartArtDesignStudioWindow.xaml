@@ -740,12 +740,16 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <TextBlock Text="Preview" FontWeight="SemiBold" FontSize="14" VerticalAlignment="Center" />
-                        <TextBlock x:Name="PreviewTitleLabel" Grid.Column="1" Text="{Binding PreviewTitle}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
-                                   IsHitTestVisible="True"
-                                   DoubleTapped="OnPreviewTitleLabelDoubleTapped"
-                                   RightTapped="OnPreviewTitleLabelRightTapped"
-                                   ToolTipService.ToolTip="Preview diagram title · Double-click to copy diagram Markdown, right-click for options" />
+                        <!-- A button so Tab reaches the title's menu. Its double-click copied the diagram
+                             block or the title depending on whether the outline was empty. -->
+                        <HyperlinkButton x:Name="PreviewTitleButton" Grid.Column="1" Padding="4,0" MinHeight="0" HorizontalAlignment="Left" VerticalAlignment="Center"
+                                         Click="OnPreviewTitleButtonClick" RightTapped="OnPreviewTitleButtonRightTapped"
+                                         AutomationProperties.Name="{Binding PreviewTitle}"
+                                         AutomationProperties.HelpText="Opens copy, refresh and palette options for the preview."
+                                         ToolTipService.ToolTip="Preview diagram title · Click, right-click or Shift+F10 for copy and preview options">
+                            <TextBlock x:Name="PreviewTitleLabel" Text="{Binding PreviewTitle}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       TextTrimming="CharacterEllipsis" />
+                        </HyperlinkButton>
                         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
                             <Button x:Name="PaletteButton" Style="{StaticResource SubtleButtonStyle}" Width="28" Height="28" Padding="0"
                                     Click="OnPaletteButtonClick"
@@ -1107,12 +1111,17 @@
             <TextBlock x:Name="StatusBarText" Text="{Binding StatusMessage}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                        TextTrimming="CharacterEllipsis" AutomationProperties.LiveSetting="Polite"
                        RightTapped="OnStatusBarRightTapped" DoubleTapped="OnStatusBarDoubleTapped" />
-            <TextBlock x:Name="OutlineSummaryLabel" Grid.Column="1" Text="{Binding OutlineSummaryText}" FontSize="12"
-                       Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center"
-                       IsHitTestVisible="True"
-                       DoubleTapped="OnOutlineSummaryLabelDoubleTapped"
-                       RightTapped="OnOutlineSummaryLabelRightTapped"
-                       ToolTipService.ToolTip="Outline summary · Double-click to copy outline bullets, right-click for outline options" />
+            <!-- A button so the keyboard reaches the outline menu (its double-click copy is the menu's
+                 "Copy outline bullets", also Ctrl+C). -->
+            <HyperlinkButton x:Name="OutlineSummaryButton" Grid.Column="1" Padding="4,0" Margin="0,-2" MinHeight="0" VerticalAlignment="Center"
+                             Click="OnOutlineSummaryButtonClick" RightTapped="OnOutlineSummaryButtonRightTapped"
+                             DoubleTapped="OnOutlineSummaryButtonDoubleTapped"
+                             AutomationProperties.Name="{Binding OutlineSummaryText}"
+                             AutomationProperties.HelpText="Opens copy and outline options."
+                             ToolTipService.ToolTip="Outline summary · Click, right-click or Shift+F10 for copy and outline options">
+                <TextBlock x:Name="OutlineSummaryLabel" Text="{Binding OutlineSummaryText}" FontSize="12"
+                           Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+            </HyperlinkButton>
         </Grid>
     </Grid>
 </Window>

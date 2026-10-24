@@ -266,8 +266,7 @@
                                             <TextBox x:Name="FuseImagePathBox" PlaceholderText="…or paste an image path here"
                                                      AutomationProperties.Name="Image file path"
                                                      DoubleTapped="OnFuseImagePathBoxDoubleTapped"
-                                                     RightTapped="OnFuseImagePathBoxRightTapped"
-                                                     ToolTipService.ToolTip="Image file path · Double-click to select all, Right-click for options" />
+                                                     ToolTipService.ToolTip="Image file path · Double-click to select all, Right-click or Shift+F10 for options" />
                                             <Button Grid.Column="1" Content="Use" Click="OnUseImagePathClick" Padding="10,4"
                                                     ToolTipService.ToolTip="Use the pasted path (handy when the file dialog hangs on a cloud folder)" />
                                         </Grid>
@@ -1394,10 +1393,9 @@
 
                             <TextBlock Grid.Row="6" Text="Label" Style="{StaticResource InspectorLabel}" VerticalAlignment="Top" Margin="0,6,0,0" />
                             <TextBox x:Name="LabelTextBox" Grid.Row="6" Grid.Column="1" AutomationProperties.Name="Text label" PlaceholderText="Text shown on the shape"
-                                     ToolTipService.ToolTip="Text shown on the shape (F2 · Double-click to select all, Right-click for text options, Esc to return to canvas)"
+                                     ToolTipService.ToolTip="Text shown on the shape (F2 · Double-click to select all, Right-click or Shift+F10 for text options, Esc to return to canvas)"
                                      Text="{Binding SelectedShape.Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                      DoubleTapped="OnLabelTextBoxDoubleTapped"
-                                     RightTapped="OnLabelTextBoxRightTapped"
                                      KeyDown="OnLabelTextBoxKeyDown"
                                      AcceptsReturn="True" MinHeight="60" TextWrapping="Wrap" />
                         </Grid>
@@ -1457,11 +1455,15 @@
             </Grid.ColumnDefinitions>
             <TextBlock x:Name="StatusBarText" Text="{Binding StatusMessage}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
                        RightTapped="OnStatusBarRightTapped" DoubleTapped="OnStatusBarDoubleTapped" />
-            <TextBlock x:Name="SelectionSummaryText" Grid.Column="1" Text="{Binding SelectionSummary}" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center"
-                       IsHitTestVisible="True"
-                       DoubleTapped="OnSelectionSummaryDoubleTapped"
-                       RightTapped="OnSelectionSummaryRightTapped"
-                       ToolTipService.ToolTip="Selection summary · Double-click to copy summary, right-click for shape selection actions" />
+            <!-- A button so the keyboard reaches the selection menu; hidden while the canvas is empty
+                 (the summary is blank then). Its double-click copy is the menu's first item. -->
+            <HyperlinkButton x:Name="SelectionSummaryButton" Grid.Column="1" Padding="4,0" Margin="0,-2" MinHeight="0" VerticalAlignment="Center"
+                             Click="OnSelectionSummaryButtonClick" RightTapped="OnSelectionSummaryRightTapped"
+                             DoubleTapped="OnSelectionSummaryButtonDoubleTapped"
+                             AutomationProperties.HelpText="Opens copy, select and arrange options for the selection."
+                             ToolTipService.ToolTip="Selection summary · Click, right-click or Shift+F10 for selection actions">
+                <TextBlock x:Name="SelectionSummaryText" Text="{Binding SelectionSummary}" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+            </HyperlinkButton>
             <!-- Zoom: Ctrl+scroll and pinch always worked but nothing showed the level or offered
                  a way back. Presets now open fitted to the canvas. -->
             <DropDownButton x:Name="ZoomButton" Grid.Column="2" Padding="8,0" Height="24" MinWidth="70" FontSize="12"

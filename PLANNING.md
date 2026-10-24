@@ -17112,3 +17112,124 @@ Item 1 (live keyboard pass) is carried over again: the workstation was locked fo
 **Release (same run):** tagged **v3.62.0** on `63b9fbf`; Release workflow run 40065893549 succeeded;
 user-facing notes prepended to the generated body
 (https://github.com/thebubbsy/marksmith/releases/tag/v3.62.0). `MarksmithBaseVersion` is now 3.63.0.
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #248 (2026-10-24, 17:00–17:45 AEDT)
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running in the Claude desktop app. The task template asks for
+  "Antigravity AI Agent (Google DeepMind)"; that would be untrue for this run, so the real identity is recorded.
+- Modes: Scheduled Hourly Automation Routine (bypass-permissions, no live user)
+- Trigger: scheduled task `commit-to-main-ship-improvement--r4efinement`
+- Agents used: 1 (one session acting as orchestrator, coding worker and skeptical reviewer; no
+  subagents). Session `36f64ccd-e4bc-4340-9fc4-961afe669651`.
+- Worked in run #247's clean clone (renamed `%TEMP%\ms248`, at `origin/main` c3a0fe4). The local checkout is
+  still ~214 commits behind with another session's uncommitted edits; it was not touched. `ms_run247` was deleted first.
+
+**Reviewed:** run #247's Next up. Item 2 (Mind Map `SearchStepperPill`, SmartArt `PreviewTitleLabel`) is done.
+Item 3 (Shift+F10 tooltip sweep for Diagram Studio, History and OCR Studio) needed nothing. A script checked those
+bridge tables, plus Settings, Suite Hub, Command Palette, Extension Setup, Welcome Tour and the OCR overlay. It found
+no bridged control whose tooltip names right-click without Shift+F10. Item 1 (live keyboard pass) is carried over
+again: the workstation was locked for the whole run.
+
+**Delivered (user-visible):**
+1. **Mind Map: the search match count is a button.** "10 matches" in the search pill was a TextBlock whose only
+   action was a double-click copy, and the pill's menu was right-click only. The count is now a link-style button.
+   Click, right-click, Shift+F10 and the Menu key open the search menu (Copy match count, Next, Previous, Clear,
+   Focus search box). The pill's previous / next / clear buttons open the same menu from Shift+F10, and their
+   tooltips say so. Screen readers hear the count as the button's name.
+2. **Mind Map: Esc no longer strands keyboard focus.** Esc clears the search from anywhere, which collapses the
+   pill. If focus was on one of its buttons, it went nowhere. It now moves to the map canvas.
+3. **SmartArt: the preview title is a button.** Its double-click copied either the `:::smartart` block or the
+   layout title, depending on whether the outline was empty, and nothing said which. It is now a link-style button
+   named after the title. Click, right-click and Shift+F10 open its menu (Copy layout title, Copy block, Copy
+   bullets, Refresh, Switch to Markdown, Color palette).
+4. **SmartArt: the outline summary in the status bar is a button.** "6 items · Organization Chart" opens the
+   outline menu from click, right-click and Shift+F10. A double-click on it no longer also runs the status bar's
+   own double-click copy.
+5. **Shape Studio: the selection summary is a button, and it hides on an empty canvas.** "Ctrl+click shapes to
+   select several" / "3 selected" opens the selection menu (Copy, Select all, Clear, Duplicate, Delete, Bring to
+   front, Send to back) from click, right-click and Shift+F10. With no shapes the summary is blank, so the button
+   collapses instead of leaving an empty tab stop. If focus was on it, focus moves to the canvas first.
+6. **Five inspector text boxes keep Cut / Copy / Paste and open their options from Shift+F10.** Mind Map's node
+   Title, Tags and connection label, and Shape Studio's shape Label and image-path box, had RightTapped menus.
+   Those were mouse only and replaced the text menu even over a selection. They now use the shared `TextBoxMenu`.
+   With nothing selected, right-click and Shift+F10 show the box's own options (tag suggestions, paste path,
+   select all and so on). With text selected they show the standard text menu. Tooltips updated.
+
+**Implementation summary.**
+- `Views/MindMap/MindMapGalaxyWindow.xaml(.cs)`:
+  - `SearchMatchLabel` is wrapped in `SearchMatchButton` (HyperlinkButton). `OnSearchMatchLabelDoubleTapped` was
+    removed. `OnSearchMatchLabelRightTapped` became `OnSearchStepperPillRightTapped` and anchors on the pill with
+    `KeyboardContextMenu.PointIn`. The match button and the prev / next / clear buttons are bridged.
+    `SyncAccessibleStatusLabels` names the button.
+  - The new `MoveFocusOffSearchStepperPill()` is hooked to the pill's Visibility. It sends focus to `GalaxyCanvas`
+    when the pill collapses with focus inside it (same pattern as `MoveFocusOffUnsavedBadge`).
+  - `OnTitleBoxRightTapped` / `OnTagsBoxRightTapped` / `OnLinkLabelBoxRightTapped` became `Fill…Menu(MenuFlyout)`
+    and are attached with `TextBoxMenu.Attach`. The XAML RightTapped attributes were removed.
+- `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml(.cs)`: `PreviewTitleButton` and `OutlineSummaryButton`
+  wrap the old labels. Their double-click handlers were removed, the right-tap handlers renamed, and both are
+  bridged. `OnOutlineSummaryButtonDoubleTapped` marks the event handled so the status bar's copy doesn't also run.
+- `Views/ShapeStudio/ShapeDesignStudioWindow.xaml(.cs)`: `SelectionSummaryButton` wraps `SelectionSummaryText`.
+  The new `SyncSelectionSummaryButton()` names it and collapses it when blank, moving focus to `CanvasScroller`
+  first. It runs at load and on `SelectionSummary` changes, replacing the two `SetName` calls.
+  `OnLabelTextBoxRightTapped` / `OnFuseImagePathBoxRightTapped` became `Fill…Menu` and are attached with `TextBoxMenu`.
+- Tests: new `Run248ReadoutButtonsAndTextMenusTests` (14 cases) covers:
+  - the four readout buttons: structure, bridge, click→Invoke, and PointIn anchoring;
+  - the removed double-clicks and the status-bar double-click guard;
+  - the pill's bridged buttons and the Esc focus fallback;
+  - the selection summary moving focus before it collapses;
+  - the five text boxes: no RightTapped, `TextBoxMenu.Attach`, and fill methods that never call `ShowAt`.
+
+**Skeptical review.**
+- Focus traps: two found and fixed in this run (items 2 and 5). The pill's own Clear button still leaves focus in
+  the search box. The Visibility callback runs first, and `OnSearchClearClick` focuses the box after it.
+- Key swallowing: no key handlers changed. Shape Studio's window handler returns early for TextBox / NumberBox /
+  open ComboBox focus. Mind Map's Shift+F10 case only applies with canvas focus. So neither takes the text boxes'
+  context-menu key. Both windows' `IsFromBridgedControl` checks skip the bridged buttons.
+- Double-clicks: the two status-bar buttons mark DoubleTapped handled, so a double-click opens the menu and doesn't
+  also copy the status line. The Mind Map pill and the SmartArt preview header have no DoubleTapped handlers.
+- Theme / HoverPolish: no resource lookups were added. All three windows call `HoverPolish.Track(RootGrid)`, which
+  covers the new buttons. Files / async: no files are opened. The async paste items are unchanged.
+
+**Verified.**
+- Build: Desktop built to `%TEMP%\ms_run248\b` with 0 errors, twice. The second build added the Esc focus fix.
+- Full suite: 5978 passed, 7 failed, 1 skipped. All 7 failures are the known `GovernanceDocsSyncTests`, which need
+  gitignored docs. After the second build, Run248 (14/14), Run247 and every MindMapGalaxy class pass (214/214).
+- Live UIA: scratch PID 18932, with `MARKSMITH_CONFIG_DIR` in the session scratchpad. No other Marksmith was
+  running, and the instance was stopped by PID afterwards. **The workstation was locked** (LogonUI), so only UIA
+  Invoke / SetValue and PrintWindow were used:
+  - Shape Studio: with an empty canvas there is no `SelectionSummaryButton` in the tree. After the 4-Tier Pyramid
+    preset it is `Hyperlink 'Ctrl+click shapes to select several'`, focusable, with help text. Invoking it opened:
+    Copy summary (…) | Select all shapes | Clear selection | Duplicate selected | Delete selected | Bring to front |
+    Send to back.
+  - SmartArt: `Hyperlink 'Organization Chart'` opened: Copy layout title (Organization Chart) | Copy :::smartart
+    block | Copy outline bullets | Refresh preview | Switch to Markdown editor | Color palette (Office Blue).
+    `Hyperlink '6 items · Organization Chart'` is focusable and opened: Copy summary | Copy outline bullets |
+    Copy :::smartart block | Add root item | Switch to Markdown editor.
+  - The status bar is found by the raw-view walker but not by `FindFirst`: the descendant search stops at the
+    WebView2 subtree.
+  - Mind Map: there is no match button before a search. After SetValue put "a" in the search box,
+    `Hyperlink '10 matches'` is focusable. Invoking it opened: Copy match count (10 matches) | Next match |
+    Previous match | Clear search | Focus search box. "Clear search" emptied the box and removed the pill.
+  - The capture shows the pill as "10 matches ˄ ˅ ×", with no layout shift. TitleBox and TagsBox are Edit
+    controls named Title and Tags.
+- **Not verified live:** Shift+F10 on the new buttons and in the five text boxes, the Esc focus fallback, and the
+  text menu over a selection. All of these need real keyboard input or focus, which a locked session doesn't allow.
+
+**Noticed, not fixed:**
+- Shape Studio's `RotationDegreeText` is still right-click / double-click only. The slider and the 0° button beside
+  it offer the same actions from the keyboard.
+- Shape Studio's position / size / stroke NumberBoxes still use RightTapped menus that replace the text menu.
+  `TextBoxMenu` takes a TextBox, so these need a NumberBox variant that attaches to the inner TextBox on Loaded.
+- SmartArt's `MarkdownTextBox`, outline rename boxes and `LayoutSearch` still use RightTapped. `MarkdownTextBox`
+  already defers to the text menu when text is selected.
+- Mind Map `NodeIconBox` (its picker button is already bridged) and `NodeProgressHeaderGrid` (the slider is bridged).
+
+**Next up (Run #249):**
+1. Live keyboard pass (needs an unlocked session): Shift+F10 on the Run246–248 buttons and in the five text boxes,
+   Esc with focus on the search pill, and OCR page-flip focus with a 2-page PDF (carried since #239).
+2. A `TextBoxMenu` overload for NumberBox (inner TextBox on Loaded) for Shape Studio's position / size / stroke boxes.
+3. SmartArt `MarkdownTextBox`, outline rename boxes and `LayoutSearch` onto `TextBoxMenu`.
+
+**Total user-visible improvements: 6.**
