@@ -499,7 +499,7 @@ public class SuiteHubAndTourPolishTests
         var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));
         Assert.Contains("x:Name=\"OutlineMetricsPill\"", smartArtXaml);
         Assert.Contains("x:Name=\"OutlineMetricsFlyout\"", smartArtXaml);
-        Assert.Contains("OnOutlineMetricsPillTapped", smartArtCs);
+        Assert.Contains("OnOutlineMetricsPillRightTapped", smartArtCs); // run #245: a Button whose Flyout opens on click
         Assert.Contains("OnCopyPlainOutlineTextClick", smartArtCs);
 
         var historyXaml = File.ReadAllText(DesktopPath("Views", "History", "HistoryWindow.xaml"));

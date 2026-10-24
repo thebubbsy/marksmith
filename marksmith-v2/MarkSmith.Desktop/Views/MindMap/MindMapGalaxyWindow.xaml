@@ -91,10 +91,9 @@
                                         ToolTipService.ToolTip="Search map (Ctrl+F) · Enter/F3 next, Shift+F3 prev, Esc clears, Double-click selects all, Right-click for options" />
                         <Button x:Name="TagFilterButton" Padding="8,4" Height="32"
                                 Click="OnTagFilterButtonClick"
-                                DoubleTapped="OnTagFilterButtonDoubleTapped"
                                 RightTapped="OnTagFilterButtonRightTapped"
                                 AutomationProperties.Name="Filter by tag"
-                                ToolTipService.ToolTip="Filter by hashtag (#tag) · Double-click to clear, Right-click for options">
+                                ToolTipService.ToolTip="Filter by hashtag (#tag) · Esc clears the filter">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon Glyph="&#xE8EC;" FontSize="12" />
                                 <TextBlock x:Name="TagFilterLabel" Text="Tags" FontSize="11.5" VerticalAlignment="Center" />
@@ -146,12 +145,12 @@
                             </StackPanel>
                         </Border>
                         <Button x:Name="ZoomOutButton" Click="OnZoomOutClick" RightTapped="OnZoomResetRightTapped" ToolTipService.ToolTip="Zoom out (Ctrl+−, Right-click for zoom presets)" AutomationProperties.Name="Zoom out" Width="32" Height="32" Padding="0"><FontIcon Glyph="&#xE71F;" FontSize="13" /></Button>
-                        <Button x:Name="ZoomResetButton" Click="OnZoomResetClick" DoubleTapped="OnZoomResetDoubleTapped" RightTapped="OnZoomResetRightTapped" Content="{Binding ZoomLevelText}" MinWidth="52" Height="32" Padding="6,0" FontSize="12"
+                        <Button x:Name="ZoomResetButton" Click="OnZoomResetClick" RightTapped="OnZoomResetRightTapped" Content="{Binding ZoomLevelText}" MinWidth="52" Height="32" Padding="6,0" FontSize="12"
                                 Background="Transparent" BorderThickness="0"
-                                ToolTipService.ToolTip="Zoom to 100% · Double-click to reset, right-click for zoom presets" AutomationProperties.Name="Zoom to 100 percent" />
+                                ToolTipService.ToolTip="Zoom to 100% (Ctrl+1) · Right-click for zoom presets" AutomationProperties.Name="Zoom to 100 percent" />
                         <Button x:Name="ZoomInButton" Click="OnZoomInClick" RightTapped="OnZoomResetRightTapped" ToolTipService.ToolTip="Zoom in (Ctrl++, Right-click for zoom presets)" AutomationProperties.Name="Zoom in" Width="32" Height="32" Padding="0"><FontIcon Glyph="&#xE8A3;" FontSize="13" /></Button>
                         <Button x:Name="FitToWindowButton" Click="OnFitToWindowClick" RightTapped="OnZoomResetRightTapped" ToolTipService.ToolTip="Fit the whole map in the window (Ctrl+0, Right-click for zoom presets)" AutomationProperties.Name="Fit to window" Width="32" Height="32" Padding="0"><FontIcon Glyph="&#xE9A6;" FontSize="13" /></Button>
-                        <Button x:Name="CenterOnRootButton" Click="OnCenterOnRootClick" DoubleTapped="OnCenterOnRootDoubleTapped" RightTapped="OnCenterOnRootRightTapped" ToolTipService.ToolTip="Center on root document node (Home · Double-click to center and reset zoom to 100%, Right-click for options)" AutomationProperties.Name="Center on root node" Width="32" Height="32" Padding="0"><FontIcon Glyph="&#xE80F;" FontSize="13" /></Button>
+                        <Button x:Name="CenterOnRootButton" Click="OnCenterOnRootClick" RightTapped="OnCenterOnRootRightTapped" ToolTipService.ToolTip="Center on root document node (Home · Right-click to center at 100% and more)" AutomationProperties.Name="Center on root node" Width="32" Height="32" Padding="0"><FontIcon Glyph="&#xE80F;" FontSize="13" /></Button>
                     </StackPanel>
                 </Grid>
 
@@ -206,8 +205,7 @@
 
                         <DropDownButton x:Name="ArrangeDropDownButton" Padding="10,5" MinHeight="32"
                                         RightTapped="OnArrangeDropDownRightTapped"
-                                        DoubleTapped="OnArrangeDropDownDoubleTapped"
-                                        ToolTipService.ToolTip="Rearrange every node automatically (Double-click to cycle layouts, Right-click for options)"
+                                        ToolTipService.ToolTip="Rearrange every node automatically (Right-click for options)"
                                         AutomationProperties.Name="Arrange">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon Glyph="&#xECA5;" FontSize="12" />
@@ -481,7 +479,7 @@
 
                         <!-- A real toggle: its checked state is the "on" indicator, instead of a
                              hand-drawn "ON" pill squeezed beside the icon. -->
-                        <ToggleButton IsChecked="{Binding IsFocusModeEnabled, Mode=TwoWay}" Padding="10,5" MinHeight="32"
+                        <ToggleButton x:Name="FocusModeToggle" IsChecked="{Binding IsFocusModeEnabled, Mode=TwoWay}" Padding="10,5" MinHeight="32"
                                       RightTapped="OnFocusToggleRightTapped"
                                       ToolTipService.ToolTip="Focus: fade everything the selected node isn't connected to (F, Right-click for options)"
                                       AutomationProperties.Name="Focus">
@@ -492,8 +490,7 @@
                         </ToggleButton>
 
                         <DropDownButton x:Name="ConnectionStyleDropDownButton" Padding="10,5" MinHeight="32"
-                                        ToolTipService.ToolTip="Connection line style and arrowheads (Curved, Straight, Orthogonal · Double-click to cycle, Right-click for options)"
-                                        DoubleTapped="OnConnectionStyleDropDownDoubleTapped"
+                                        ToolTipService.ToolTip="Connection line style and arrowheads (Curved, Straight, Orthogonal · Right-click to switch between solid, dashed and dotted lines)"
                                         RightTapped="OnConnectionStyleDropDownRightTapped"
                                         AutomationProperties.Name="Connection style">
                             <StackPanel Orientation="Horizontal" Spacing="6">
@@ -583,8 +580,7 @@
 
                         <DropDownButton x:Name="ExportDropDownButton" Padding="10,5" MinHeight="32"
                                         RightTapped="OnExportDropDownRightTapped"
-                                        DoubleTapped="OnExportDropDownDoubleTapped"
-                                        ToolTipService.ToolTip="Export or copy the map (Double-click to copy subtree Markdown, Right-click for options)"
+                                        ToolTipService.ToolTip="Export or copy the map (Right-click for options)"
                                         AutomationProperties.Name="Export">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon Glyph="&#xEDE1;" FontSize="12" />
@@ -855,7 +851,7 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Text="{Binding PreviewFilePath}" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                            <Button Grid.Column="1" Click="OnPreviewVersionHistoryClick" IsEnabled="{Binding PreviewHasFile}" FontSize="12" Padding="10,4"
+                            <Button x:Name="PreviewHistoryButton" Grid.Column="1" Click="OnPreviewVersionHistoryClick" IsEnabled="{Binding PreviewHasFile}" FontSize="12" Padding="10,4"
                                     RightTapped="OnPreviewOverlayCardRightTapped"
                                     ToolTipService.ToolTip="Earlier versions of this document · Right-click for options" AutomationProperties.Name="Version history">
                                 <StackPanel Orientation="Horizontal" Spacing="6">
@@ -863,7 +859,7 @@
                                     <TextBlock Text="History" FontSize="12" />
                                 </StackPanel>
                             </Button>
-                            <Button Grid.Column="2" Click="OnOpenInEditorClick" IsEnabled="{Binding PreviewHasFile}" Style="{StaticResource AccentButtonStyle}" FontSize="12" Padding="10,4"
+                            <Button x:Name="PreviewOpenButton" Grid.Column="2" Click="OnOpenInEditorClick" IsEnabled="{Binding PreviewHasFile}" Style="{StaticResource AccentButtonStyle}" FontSize="12" Padding="10,4"
                                     RightTapped="OnPreviewOverlayCardRightTapped"
                                     ToolTipService.ToolTip="Open this document in the editor · Right-click for options" AutomationProperties.Name="Open in editor">
                                 <StackPanel Orientation="Horizontal" Spacing="6">
@@ -1065,16 +1061,16 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <Button x:Name="ReverseLinkButton" Click="OnReverseLinkClick" DoubleTapped="OnReverseLinkButtonDoubleTapped" RightTapped="OnReverseLinkButtonRightTapped" HorizontalAlignment="Stretch" Padding="10,6"
-                                        ToolTipService.ToolTip="Flip which way the arrow points (Double-click to cycle direction · Right-click for direction presets)"
+                                <Button x:Name="ReverseLinkButton" Click="OnReverseLinkClick" RightTapped="OnReverseLinkButtonRightTapped" HorizontalAlignment="Stretch" Padding="10,6"
+                                        ToolTipService.ToolTip="Flip which way the arrow points (Right-click for direction presets)"
                                         AutomationProperties.Name="Reverse link">
                                     <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
                                         <FontIcon Glyph="&#xE8AB;" FontSize="12" />
                                         <TextBlock Text="Reverse" FontSize="12" />
                                     </StackPanel>
                                 </Button>
-                                <Button x:Name="DeleteLinkButton" Grid.Column="1" Command="{Binding DeleteSelectionCommand}" DoubleTapped="OnDeleteLinkButtonDoubleTapped" RightTapped="OnDeleteLinkButtonRightTapped" HorizontalAlignment="Stretch" Padding="10,6"
-                                        ToolTipService.ToolTip="Delete this link (Delete · Double-click to delete immediately · Right-click for options)"
+                                <Button x:Name="DeleteLinkButton" Grid.Column="1" Command="{Binding DeleteSelectionCommand}" RightTapped="OnDeleteLinkButtonRightTapped" HorizontalAlignment="Stretch" Padding="10,6"
+                                        ToolTipService.ToolTip="Delete this link (Delete · Right-click for options)"
                                         AutomationProperties.Name="Delete link">
                                     <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
                                         <FontIcon Glyph="&#xE74D;" FontSize="12" Foreground="{ThemeResource SystemFillColorCriticalBrush}" />

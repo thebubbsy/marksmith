@@ -84,7 +84,9 @@ namespace MarkSmith.Views.SmartArtStudio
                 (DiagramBgButton, OnDiagramBgButtonRightTapped),
                 (NodeGeometryButton, OnNodeGeometryButtonRightTapped),
                 (AspectRatioButton, OnAspectRatioButtonRightTapped),
-                (PreviewZoomResetBtn, OnPreviewZoomResetRightTapped));
+                (PreviewZoomResetBtn, OnPreviewZoomResetRightTapped),
+                (OutlineStatsPill, OnOutlineStatsPillRightTapped),
+                (OutlineMetricsPill, OnOutlineMetricsPillRightTapped));
             CloseGuard.Attach(this, () => ViewModel.HasUnkeptWork, () =>
             {
                 ViewModel.InsertIntoDocument();
@@ -4113,7 +4115,8 @@ namespace MarkSmith.Views.SmartArtStudio
             if (OutlineStatsPill != null)
             {
                 string layoutName = ViewModel.SelectedLayout?.DisplayName ?? "SmartArt";
-                ToolTipService.SetToolTip(OutlineStatsPill, $"Outline hierarchy: {count} nodes, max depth {maxDepth} ({layoutName}) · Tap to view details, double-click to copy summary, right-click for navigation options");
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(OutlineStatsPill, $"Outline stats: {text}");
+                ToolTipService.SetToolTip(OutlineStatsPill, $"Outline hierarchy: {count} nodes, max depth {maxDepth} ({layoutName}) · Click for navigation and outline tools");
             }
 
             int totalWords = 0;
@@ -4134,26 +4137,15 @@ namespace MarkSmith.Views.SmartArtStudio
             }
             if (OutlineMetricsPill != null)
             {
-                ToolTipService.SetToolTip(OutlineMetricsPill, $"Outline metrics: {totalWords} words, {totalChars} characters across {count} items · Tap to view, double-click to copy metrics, right-click for options");
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(OutlineMetricsPill, $"Outline text volume: {totalWords} words, {totalChars} characters");
+                ToolTipService.SetToolTip(OutlineMetricsPill, $"Outline metrics: {totalWords} words, {totalChars} characters across {count} items · Click to copy the counts or the plain text");
             }
-        }
-
-        private void OnOutlineMetricsPillTapped(object sender, TappedRoutedEventArgs e)
-        {
-            e.Handled = true;
-            OutlineMetricsFlyout?.ShowAt(OutlineMetricsPill);
-        }
-
-        private void OnOutlineMetricsPillDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-        {
-            e.Handled = true;
-            OnCopyOutlineMetricsClick(this, new RoutedEventArgs());
         }
 
         private void OnOutlineMetricsPillRightTapped(object sender, RightTappedRoutedEventArgs e)
         {
             e.Handled = true;
-            OutlineMetricsFlyout?.ShowAt(OutlineMetricsPill, new Microsoft.UI.Xaml.Controls.Primitives.FlyoutShowOptions { Position = e.GetPosition(OutlineMetricsPill) });
+            OutlineMetricsFlyout?.ShowAt(OutlineMetricsPill, new Microsoft.UI.Xaml.Controls.Primitives.FlyoutShowOptions { Position = KeyboardContextMenu.PointIn(e, OutlineMetricsPill) });
         }
 
         private void OnCopyOutlineMetricsClick(object sender, RoutedEventArgs e)
@@ -4181,22 +4173,10 @@ namespace MarkSmith.Views.SmartArtStudio
             CopyAndReport(plainText, $"Copied plain text outline ({plainLines.Count} lines).");
         }
 
-        private void OnOutlineStatsPillTapped(object sender, TappedRoutedEventArgs e)
-        {
-            e.Handled = true;
-            OutlineStatsFlyout?.ShowAt(OutlineStatsPill);
-        }
-
-        private void OnOutlineStatsPillDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-        {
-            e.Handled = true;
-            CopyOutlineSummary();
-        }
-
         private void OnOutlineStatsPillRightTapped(object sender, RightTappedRoutedEventArgs e)
         {
             e.Handled = true;
-            OutlineStatsFlyout?.ShowAt(OutlineStatsPill, new Microsoft.UI.Xaml.Controls.Primitives.FlyoutShowOptions { Position = e.GetPosition(OutlineStatsPill) });
+            OutlineStatsFlyout?.ShowAt(OutlineStatsPill, new Microsoft.UI.Xaml.Controls.Primitives.FlyoutShowOptions { Position = KeyboardContextMenu.PointIn(e, OutlineStatsPill) });
         }
 
         private void OnSelectRootNodeClick(object sender, RoutedEventArgs e)

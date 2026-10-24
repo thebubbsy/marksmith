@@ -112,6 +112,45 @@ namespace MarkSmith.Views.ShapeStudio
             this.SetTitleBar(AppTitleBar);
             TitleBarInsets.Reserve(this, AppTitleBar); // keep the action buttons clear of min/max/close
             CaptionButtons.Follow(this, AppTitleBar);
+            // RightTapped is mouse/pen/touch only: Shift+F10 and the Menu key open the same menus.
+            KeyboardContextMenu.BridgeAll(
+                (ClearCanvasButton, OnClearCanvasButtonRightTapped),
+                (ExportDropDownButton, OnExportDropDownButtonRightTapped),
+                (InsertIntoDocumentButton, OnInsertIntoDocumentButtonRightTapped),
+                (PresetCategoryCombo, OnPresetCategoryComboRightTapped),
+                (PresetList, OnPresetListRightTapped),
+                (PaletteGrid, OnPaletteGridRightTapped),
+                (PickImageButton, OnImageCardRightTapped),
+                (FuseMosaicDensity, OnFuseMosaicDensityRightTapped),
+                (FuseMosaicPadding, OnFuseMosaicPaddingRightTapped),
+                (FuseLineDensity, OnFuseLineDensityRightTapped),
+                (FuseEdgeSensitivity, OnFuseEdgeSensitivityRightTapped),
+                (FuseStrokeWidth, OnFuseStrokeWidthRightTapped),
+                (ConvertButton, OnConvertButtonRightTapped),
+                (ToolUndoButton, OnToolStripRightTapped),
+                (ToolRedoButton, OnToolStripRightTapped),
+                (AlignLeftButton, OnAlignButtonRightTapped),
+                (AlignCenterButton, OnAlignButtonRightTapped),
+                (AlignRightButton, OnAlignButtonRightTapped),
+                (AlignTopButton, OnAlignButtonRightTapped),
+                (AlignMiddleButton, OnAlignButtonRightTapped),
+                (AlignBottomButton, OnAlignButtonRightTapped),
+                (DistributeHorizontalButton, OnAlignButtonRightTapped),
+                (DistributeVerticalButton, OnAlignButtonRightTapped),
+                (BringToFrontButton, OnToolStripRightTapped),
+                (SendToBackButton, OnToolStripRightTapped),
+                (RotateLeftButton, OnRotateButtonRightTapped),
+                (RotateRightButton, OnRotateButtonRightTapped),
+                (DuplicateToolButton, OnToolStripRightTapped),
+                (DeleteSelectionToolButton, OnToolStripRightTapped),
+                (GridSnapButton, OnGridSnapButtonRightTapped),
+                (CenterCanvasButton, OnCenterCanvasButtonRightTapped),
+                (DistributeCanvasButton, OnDistributeCanvasButtonRightTapped),
+                (PaletteButton, OnPaletteButtonRightTapped),
+                (FillSwatchButton, OnFillSwatchButtonRightTapped),
+                (RotationSlider, OnRotationSliderRightTapped),
+                (ResetRotationButton, OnResetRotationButtonRightTapped),
+                (ZoomButton, OnZoomButtonRightTapped));
             CloseGuard.Attach(this, () => ViewModel.HasUnkeptWork, () =>
             {
                 ViewModel.InsertIntoDocument();
@@ -252,13 +291,6 @@ namespace MarkSmith.Views.ShapeStudio
         {
             e.Handled = true;
             ZoomButton.Flyout?.ShowAt(ZoomButton);
-        }
-
-        private void OnZoomButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-        {
-            e.Handled = true;
-            ZoomTo(1.0);
-            ViewModel.StatusMessage = "Zoom reset to 100%";
         }
 
         private void OnStatusBarDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
@@ -523,7 +555,7 @@ namespace MarkSmith.Views.ShapeStudio
             flyout.Items.Add(ShapeMenuItem("Clear canvas", "\uE74D", () => OnClearClick(this, new RoutedEventArgs()), enabled: any));
 
             var target = sender as FrameworkElement ?? ToolStrip;
-            flyout.ShowAt(target, e.GetPosition(target));
+            flyout.ShowAt(target, KeyboardContextMenu.PointIn(e, target));
         }
 
         // ---- colour schemes ----
@@ -600,7 +632,7 @@ namespace MarkSmith.Views.ShapeStudio
             });
             flyout.Items.Add(copyNameItem);
 
-            flyout.ShowAt(PaletteButton, e.GetPosition(PaletteButton));
+            flyout.ShowAt(PaletteButton, KeyboardContextMenu.PointIn(e, PaletteButton));
         }
 
         // ---- keyboard ----
@@ -633,6 +665,8 @@ namespace MarkSmith.Views.ShapeStudio
 
             if (focused is TextBox or PasswordBox or AutoSuggestBox) return;
             if (focused is DependencyObject d && IsInsideNumberBox(d)) return;
+            // An open list owns its keys: Esc closes it, arrows/Home/End move through it.
+            if (focused is ComboBoxItem || focused is ComboBox { IsDropDownOpen: true }) return;
 
             if (ctrl && e.Key == VirtualKey.C && !shift)
             {
@@ -731,8 +765,9 @@ namespace MarkSmith.Views.ShapeStudio
                     FocusLabelEditor();
                     e.Handled = true;
                     return;
-                case VirtualKey.Application:
-                case VirtualKey.F10 when shift:
+                // A toolbar control with its own menu opens that menu, not the canvas one.
+                case VirtualKey.Application when !KeyboardContextMenu.IsFromBridgedControl(e):
+                case VirtualKey.F10 when shift && !KeyboardContextMenu.IsFromBridgedControl(e):
                     if (ViewModel.SelectedShape is { } selected && _shapePaths.TryGetValue(selected, out var path) && path.Parent is FrameworkElement host)
                         ShowShapeContextMenu(host, new Point(host.ActualWidth / 2, host.ActualHeight / 2));
                     else if (ViewModel.SelectedShape is not null)
@@ -1554,18 +1589,6 @@ namespace MarkSmith.Views.ShapeStudio
             GridSnapFlyout?.ShowAt(sender as FrameworkElement ?? GridSnapButton);
         }
 
-        private void OnGridSnapButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-        {
-            e.Handled = true;
-            int nextInterval = _gridSnapInterval switch
-            {
-                0 => 10,
-                10 => 20,
-                _ => 0
-            };
-            SetGridSnapMode(nextInterval, _showVisualGrid || nextInterval > 0);
-        }
-
         private void OnGridSnapButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
         {
             e.Handled = true;
@@ -1615,12 +1638,6 @@ namespace MarkSmith.Views.ShapeStudio
             CenterCanvasFlyout?.Hide();
         }
 
-        private void OnCenterCanvasButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-        {
-            e.Handled = true;
-            ViewModel.ResetDiagramToTopLeft(padX: 60, padY: 60);
-        }
-
         private void OnCenterCanvasButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
         {
             e.Handled = true;
@@ -1636,12 +1653,6 @@ namespace MarkSmith.Views.ShapeStudio
         {
             ViewModel.DistributeDiagramOnCanvas(vertical: false);
             DistributeCanvasFlyout?.Hide();
-        }
-
-        private void OnDistributeCanvasButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-        {
-            e.Handled = true;
-            ViewModel.DistributeDiagramOnCanvas(vertical: true);
         }
 
         private void OnDistributeCanvasButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -3619,102 +3630,6 @@ namespace MarkSmith.Views.ShapeStudio
             if (_resizeAspectGuide != null) _resizeAspectGuide.Visibility = Visibility.Collapsed;
         }
 
-        private void OnAlignLeftDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-        {
-            if (!ViewModel.CanAlign) return;
-            ViewModel.AlignLeftCommand.Execute(null);
-            if (ViewModel.CanDistribute)
-            {
-                ViewModel.DistributeVerticalCommand.Execute(null);
-                ViewModel.StatusMessage = $"Aligned left and spaced out vertically ({ViewModel.SelectionCount} shapes)";
-            }
-            e.Handled = true;
-        }
-
-        private void OnAlignCenterDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-        {
-            if (!ViewModel.CanAlign) return;
-            ViewModel.AlignCenterCommand.Execute(null);
-            if (ViewModel.CanDistribute)
-            {
-                ViewModel.DistributeVerticalCommand.Execute(null);
-                ViewModel.StatusMessage = $"Centred and spaced out vertically ({ViewModel.SelectionCount} shapes)";
-            }
-            e.Handled = true;
-        }
-
-        private void OnAlignRightDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-        {
-            if (!ViewModel.CanAlign) return;
-            ViewModel.AlignRightCommand.Execute(null);
-            if (ViewModel.CanDistribute)
-            {
-                ViewModel.DistributeVerticalCommand.Execute(null);
-                ViewModel.StatusMessage = $"Aligned right and spaced out vertically ({ViewModel.SelectionCount} shapes)";
-            }
-            e.Handled = true;
-        }
-
-        private void OnAlignTopDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-        {
-            if (!ViewModel.CanAlign) return;
-            ViewModel.AlignTopCommand.Execute(null);
-            if (ViewModel.CanDistribute)
-            {
-                ViewModel.DistributeHorizontalCommand.Execute(null);
-                ViewModel.StatusMessage = $"Aligned top and spaced out horizontally ({ViewModel.SelectionCount} shapes)";
-            }
-            e.Handled = true;
-        }
-
-        private void OnAlignMiddleDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-        {
-            if (!ViewModel.CanAlign) return;
-            ViewModel.AlignMiddleCommand.Execute(null);
-            if (ViewModel.CanDistribute)
-            {
-                ViewModel.DistributeHorizontalCommand.Execute(null);
-                ViewModel.StatusMessage = $"Middle-aligned and spaced out horizontally ({ViewModel.SelectionCount} shapes)";
-            }
-            e.Handled = true;
-        }
-
-        private void OnAlignBottomDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-        {
-            if (!ViewModel.CanAlign) return;
-            ViewModel.AlignBottomCommand.Execute(null);
-            if (ViewModel.CanDistribute)
-            {
-                ViewModel.DistributeHorizontalCommand.Execute(null);
-                ViewModel.StatusMessage = $"Aligned bottom and spaced out horizontally ({ViewModel.SelectionCount} shapes)";
-            }
-            e.Handled = true;
-        }
-
-        private void OnDistributeHorizontalDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-        {
-            if (!ViewModel.CanDistribute) return;
-            ViewModel.DistributeHorizontalCommand.Execute(null);
-            if (ViewModel.CanAlign)
-            {
-                ViewModel.AlignMiddleCommand.Execute(null);
-                ViewModel.StatusMessage = $"Spaced out horizontally and middle-aligned ({ViewModel.SelectionCount} shapes)";
-            }
-            e.Handled = true;
-        }
-
-        private void OnDistributeVerticalDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-        {
-            if (!ViewModel.CanDistribute) return;
-            ViewModel.DistributeVerticalCommand.Execute(null);
-            if (ViewModel.CanAlign)
-            {
-                ViewModel.AlignCenterCommand.Execute(null);
-                ViewModel.StatusMessage = $"Spaced out vertically and centred ({ViewModel.SelectionCount} shapes)";
-            }
-            e.Handled = true;
-        }
-
         // ---- connector ends ----
         // A selected line shows a round handle on each of its points. Dragging an end re-routes
         // the line, snapping onto the side or centre of a shape it's dropped near (that shape's
@@ -4270,7 +4185,7 @@ namespace MarkSmith.Views.ShapeStudio
         {
             e.Handled = true;
             if (ViewModel.SelectedShape is not { } shape) return;
-            ShowFillQuickPaletteMenu(sender as FrameworkElement ?? FillSwatchButton, shape, e.GetPosition(sender as UIElement));
+            ShowFillQuickPaletteMenu(sender as FrameworkElement ?? FillSwatchButton, shape, KeyboardContextMenu.PointIn(e, sender as UIElement));
         }
 
         private void OnFillHexBoxRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -4375,12 +4290,6 @@ namespace MarkSmith.Views.ShapeStudio
                 flyout.ShowAt(target);
         }
 
-        private void OnResetRotationButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-        {
-            e.Handled = true;
-            ViewModel.ResetRotation();
-        }
-
         private void OnResetRotationButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
         {
             e.Handled = true;
@@ -4424,7 +4333,7 @@ namespace MarkSmith.Views.ShapeStudio
                 }
             }));
 
-            flyout.ShowAt(target, e.GetPosition(target));
+            flyout.ShowAt(target, KeyboardContextMenu.PointIn(e, target));
         }
 
         private void OnRotationSliderDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
@@ -4647,7 +4556,7 @@ namespace MarkSmith.Views.ShapeStudio
             flyout.Items.Add(ShapeMenuItem("Delete selection", "\uE74D", () => ViewModel.RemoveSelectedCommand.Execute(null), "Del", enabled: hasSelection));
 
             var target = sender as FrameworkElement ?? ToolStrip;
-            flyout.ShowAt(target, e.GetPosition(target));
+            flyout.ShowAt(target, KeyboardContextMenu.PointIn(e, target));
         }
 
         private void OnRotateButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -4704,25 +4613,7 @@ namespace MarkSmith.Views.ShapeStudio
             }, enabled: hasSelection));
 
             var target = sender as FrameworkElement ?? ToolStrip;
-            flyout.ShowAt(target, e.GetPosition(target));
-        }
-
-        private void OnRotateClockwiseDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-        {
-            e.Handled = true;
-            if (ViewModel.HasSelectedShape)
-            {
-                ViewModel.RotateClockwiseCommand.Execute(null);
-            }
-        }
-
-        private void OnRotateCounterClockwiseDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-        {
-            e.Handled = true;
-            if (ViewModel.HasSelectedShape)
-            {
-                ViewModel.RotateCounterClockwiseCommand.Execute(null);
-            }
+            flyout.ShowAt(target, KeyboardContextMenu.PointIn(e, target));
         }
 
         // ---- export / markdown ----
@@ -4871,6 +4762,8 @@ namespace MarkSmith.Views.ShapeStudio
         {
             if (PresetCategoryCombo is null) return;
             e.Handled = true;
+            // Shift+F10 with the list open: close it first so the menu is not drawn over it.
+            if (PresetCategoryCombo.IsDropDownOpen) PresetCategoryCombo.IsDropDownOpen = false;
             var flyout = new MenuFlyout();
 
             foreach (var category in ViewModel.PresetCategories)
@@ -4939,7 +4832,7 @@ namespace MarkSmith.Views.ShapeStudio
             }, "Esc");
             flyout.Items.Add(resetItem);
 
-            flyout.ShowAt(PresetCategoryCombo, e.GetPosition(PresetCategoryCombo));
+            flyout.ShowAt(PresetCategoryCombo, KeyboardContextMenu.PointIn(e, PresetCategoryCombo));
         }
 
         private void OnPresetListRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -4966,7 +4859,7 @@ namespace MarkSmith.Views.ShapeStudio
             flyout.Items.Add(ShapeMenuItem("Insert into document", "\uE8A5", () => ViewModel.InsertIntoDocumentCommand.Execute(null), enabled: any));
             flyout.Items.Add(ShapeMenuItem("Clear canvas", "\uE74D", () => OnClearClick(this, new RoutedEventArgs()), enabled: any));
 
-            flyout.ShowAt(PresetList, e.GetPosition(PresetList));
+            flyout.ShowAt(PresetList, KeyboardContextMenu.PointIn(e, PresetList));
         }
 
         private void OnPaletteGridDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
@@ -5064,7 +4957,7 @@ namespace MarkSmith.Views.ShapeStudio
                 if (LeftTabs != null && PictureTab != null) LeftTabs.SelectedItem = PictureTab;
             }, "Ctrl+3"));
 
-            flyout.ShowAt(PaletteGrid, e.GetPosition(PaletteGrid));
+            flyout.ShowAt(PaletteGrid, KeyboardContextMenu.PointIn(e, PaletteGrid));
         }
 
         // ---- picture → vector ----
@@ -5211,11 +5104,11 @@ namespace MarkSmith.Views.ShapeStudio
             }, "Ctrl+2"));
 
             if (sender is FrameworkElement fe)
-                flyout.ShowAt(fe, e.GetPosition(fe));
+                flyout.ShowAt(fe, KeyboardContextMenu.PointIn(e, fe));
             else if (ImageCardBorder is not null)
-                flyout.ShowAt(ImageCardBorder, e.GetPosition(ImageCardBorder));
+                flyout.ShowAt(ImageCardBorder, KeyboardContextMenu.PointIn(e, ImageCardBorder));
             else
-                flyout.ShowAt(this.Content, e.GetPosition(this.Content));
+                flyout.ShowAt(this.Content, KeyboardContextMenu.PointIn(e, this.Content));
         }
 
         private void OnInsertIntoDocumentButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -5235,9 +5128,9 @@ namespace MarkSmith.Views.ShapeStudio
             flyout.Items.Add(ShapeMenuItem("Clear canvas", "\uE74D", () => OnClearClick(this, new RoutedEventArgs()), enabled: any));
 
             if (sender is FrameworkElement fe)
-                flyout.ShowAt(fe, e.GetPosition(fe));
+                flyout.ShowAt(fe, KeyboardContextMenu.PointIn(e, fe));
             else
-                flyout.ShowAt(InsertIntoDocumentButton, e.GetPosition(InsertIntoDocumentButton));
+                flyout.ShowAt(InsertIntoDocumentButton, KeyboardContextMenu.PointIn(e, InsertIntoDocumentButton));
         }
 
         private void OnConvertButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -5284,9 +5177,9 @@ namespace MarkSmith.Views.ShapeStudio
             }, "Ctrl+1"));
 
             if (sender is FrameworkElement fe)
-                flyout.ShowAt(fe, e.GetPosition(fe));
+                flyout.ShowAt(fe, KeyboardContextMenu.PointIn(e, fe));
             else
-                flyout.ShowAt(ConvertButton, e.GetPosition(ConvertButton));
+                flyout.ShowAt(ConvertButton, KeyboardContextMenu.PointIn(e, ConvertButton));
         }
 
         private void OnClearCanvasButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -5305,7 +5198,7 @@ namespace MarkSmith.Views.ShapeStudio
             flyout.Items.Add(ShapeMenuItem("Copy shapes as Markdown", "\uE8C8", () => OnCopyMarkdownClick(this, new RoutedEventArgs()), "Ctrl+Shift+C", enabled: any));
 
             var anchor = sender as FrameworkElement ?? (FrameworkElement)ClearCanvasButton;
-            flyout.ShowAt(anchor, e.GetPosition(anchor));
+            flyout.ShowAt(anchor, KeyboardContextMenu.PointIn(e, anchor));
         }
 
         private void OnExportDropDownButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -5323,7 +5216,7 @@ namespace MarkSmith.Views.ShapeStudio
             flyout.Items.Add(ShapeMenuItem("Load Markdown from clipboard", "\uE77F", () => OnLoadMarkdownClick(this, new RoutedEventArgs()), "Ctrl+V"));
 
             var anchor = sender as FrameworkElement ?? (FrameworkElement)ExportDropDownButton;
-            flyout.ShowAt(anchor, e.GetPosition(anchor));
+            flyout.ShowAt(anchor, KeyboardContextMenu.PointIn(e, anchor));
         }
 
         private async void OnFuseImageClick(object sender, RoutedEventArgs e)        {
@@ -5458,8 +5351,8 @@ namespace MarkSmith.Views.ShapeStudio
             {
                 CopyAndReport(FuseMosaicDensity.Value.ToString("F0"), $"Copied mosaic density {FuseMosaicDensity.Value:F0} to clipboard.");
             }));
-            if (sender is FrameworkElement fe) flyout.ShowAt(fe, e.GetPosition(fe));
-            else flyout.ShowAt(FuseMosaicDensity, e.GetPosition(FuseMosaicDensity));
+            if (sender is FrameworkElement fe) flyout.ShowAt(fe, KeyboardContextMenu.PointIn(e, fe));
+            else flyout.ShowAt(FuseMosaicDensity, KeyboardContextMenu.PointIn(e, FuseMosaicDensity));
         }
 
         private void OnFuseMosaicPaddingDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
@@ -5487,8 +5380,8 @@ namespace MarkSmith.Views.ShapeStudio
             {
                 CopyAndReport(FuseMosaicPadding.Value.ToString("F0"), $"Copied tile spacing {FuseMosaicPadding.Value:F0} to clipboard.");
             }));
-            if (sender is FrameworkElement fe) flyout.ShowAt(fe, e.GetPosition(fe));
-            else flyout.ShowAt(FuseMosaicPadding, e.GetPosition(FuseMosaicPadding));
+            if (sender is FrameworkElement fe) flyout.ShowAt(fe, KeyboardContextMenu.PointIn(e, fe));
+            else flyout.ShowAt(FuseMosaicPadding, KeyboardContextMenu.PointIn(e, FuseMosaicPadding));
         }
 
         private void OnFuseLineDensityDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
@@ -5515,8 +5408,8 @@ namespace MarkSmith.Views.ShapeStudio
             {
                 CopyAndReport(FuseLineDensity.Value.ToString("F0"), $"Copied line density {FuseLineDensity.Value:F0} to clipboard.");
             }));
-            if (sender is FrameworkElement fe) flyout.ShowAt(fe, e.GetPosition(fe));
-            else flyout.ShowAt(FuseLineDensity, e.GetPosition(FuseLineDensity));
+            if (sender is FrameworkElement fe) flyout.ShowAt(fe, KeyboardContextMenu.PointIn(e, fe));
+            else flyout.ShowAt(FuseLineDensity, KeyboardContextMenu.PointIn(e, FuseLineDensity));
         }
 
         private void OnFuseEdgeSensitivityDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
@@ -5542,8 +5435,8 @@ namespace MarkSmith.Views.ShapeStudio
             {
                 CopyAndReport(FuseEdgeSensitivity.Value.ToString("F0"), $"Copied detail threshold {FuseEdgeSensitivity.Value:F0} to clipboard.");
             }));
-            if (sender is FrameworkElement fe) flyout.ShowAt(fe, e.GetPosition(fe));
-            else flyout.ShowAt(FuseEdgeSensitivity, e.GetPosition(FuseEdgeSensitivity));
+            if (sender is FrameworkElement fe) flyout.ShowAt(fe, KeyboardContextMenu.PointIn(e, fe));
+            else flyout.ShowAt(FuseEdgeSensitivity, KeyboardContextMenu.PointIn(e, FuseEdgeSensitivity));
         }
 
         private void OnFuseStrokeWidthDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
@@ -5570,8 +5463,8 @@ namespace MarkSmith.Views.ShapeStudio
             {
                 CopyAndReport($"{FuseStrokeWidth.Value:F1} pt", $"Copied stroke width {FuseStrokeWidth.Value:F1} pt to clipboard.");
             }));
-            if (sender is FrameworkElement fe) flyout.ShowAt(fe, e.GetPosition(fe));
-            else flyout.ShowAt(FuseStrokeWidth, e.GetPosition(FuseStrokeWidth));
+            if (sender is FrameworkElement fe) flyout.ShowAt(fe, KeyboardContextMenu.PointIn(e, fe));
+            else flyout.ShowAt(FuseStrokeWidth, KeyboardContextMenu.PointIn(e, FuseStrokeWidth));
         }
 
         private void OnCanvasEmptyStateDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)

@@ -16763,3 +16763,128 @@ bridge) the same Shift+F10 opened nothing. `ExportSvgButton` / `DeleteButton` re
 **Release (same run):** tagged **v3.59.0** on `cfacbae`; Release workflow run 40055474295 succeeded;
 user-facing notes prepended to the generated body
 (https://github.com/thebubbsy/marksmith/releases/tag/v3.59.0). `MarksmithBaseVersion` is now 3.60.0.
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #245 (2026-10-24, 14:00–14:45 AEDT)
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running in the Claude desktop app. The task template asks for
+  "Antigravity AI Agent (Google DeepMind)"; that would be untrue for this run, so the real identity is recorded.
+- Modes: Scheduled Hourly Automation Routine (bypass-permissions, no live user)
+- Trigger: scheduled task `commit-to-main-ship-improvement--r4efinement`
+- Agents used: 1 (one session acting as orchestrator, coding worker and skeptical reviewer; no
+  subagents). Session `c6641de2-5e17-4448-b18c-311102f614b4`.
+- Worked in run #244's clean `--filter=blob:none` clone (renamed `%TEMP%\ms245`, fast-forwarded to `origin/main`
+  9b97aaa). The local checkout has another session's uncommitted edits and was not touched. `ms_run244` was
+  deleted first (6.5 GB → 6.8 GB free).
+
+**Reviewed:** run #244's Next up. Items 1 and 2 were done; item 3 (live OCR page-flip focus) is carried over again.
+
+**Delivered (user-visible):**
+1. **Shape Studio: a double-click on a toolbar button does one thing.** A double-click raises Click twice and then
+   DoubleTapped, so the six Align buttons aligned and then also distributed the selection, the two Distribute
+   buttons distributed and then aligned, the Rotate buttons turned the shape three times (270° instead of 90°),
+   "Center diagram" centred and then jumped to the top-left margin, "Distribute shapes" spread horizontally
+   and then vertically, and the grid-snap and zoom buttons opened their menu and then changed the setting behind
+   it. The second action is gone from all 15 buttons; their tooltips no longer promise it. Every one of those
+   actions is still in the button's right-click menu.
+2. **Mind Map: the same fix on 8 buttons.** A double-click on **Export** opened the export menu and quietly
+   copied the subtree's Markdown over the user's clipboard; **Delete link** could delete a second link;
+   **Reverse link** flipped the arrow three times; **Arrange** and the tag filter opened their menu and then
+   changed the layout / cleared the filter behind it. All gone. "Center on root at 100%" (the old double-click on
+   the Home button) is now an item in that button's menu.
+3. **Shape Studio's toolbar menus open from the keyboard.** None of its 37 right-click menus (align, distribute,
+   rotate, undo/redo, z-order, duplicate/delete, grid snap, centre, distribute-on-canvas, palette, fill swatch,
+   rotation slider and reset, zoom, export, insert, clear, preset category / list, shape palette, the five
+   Picture sliders, convert) opened from Shift+F10 or the Menu key. Worse, the window's own key handler caught
+   Shift+F10 everywhere and showed the canvas menu, whatever control had focus. Each control now opens its own
+   menu, anchored under it; the canvas still gets the canvas menu. The eight unnamed toolbar buttons got names
+   (`ToolUndoButton`, `RotateLeftButton`, …) so they can be bridged.
+4. **Mind Map's toolbar menus open from the keyboard.** 24 controls (zoom buttons, Home, Add child / sibling,
+   Link, Delete, Undo/Redo, Arrange, Focus, Import folder, Export, Save, All tags, the preview card's two
+   buttons, icon picker, progress slider, Reverse / Delete link) plus every tag pill (bridged as each pill
+   loads). The connection-style button is deliberately left out: its right-click switches solid / dashed /
+   dotted lines, so Shift+F10 must not silently restyle every link.
+5. **SmartArt's outline pills are real buttons.** "3 nodes · Depth 0" and "4 words · 13 chars" were Borders: Tab
+   skipped them, so their menus (select root / deepest node, promote / demote / sort / flatten, copy counts,
+   copy plain text) were mouse-only, and a double-click opened the menu and copied behind it. They are now
+   buttons: Tab reaches them, Enter/Space/click open the menu, Shift+F10 and the Menu key open the same one, and
+   screen readers hear "Outline stats: 3 nodes · Depth 0" / "Outline text volume: 4 words, 13 characters"
+   (kept current as the outline changes). Tooltips say "Click …" instead of "Tap … double-click … right-click …".
+6. **Shape Studio: an open category list keeps its keys.** With the preset-category list open, Esc cleared the
+   shape selection (and the list stayed open) because the window handler ran first. The handler now steps aside
+   while a list is open, so Esc closes it and the arrows move through it. Shift+F10 on the category box closes
+   the list before its menu opens.
+7. **Mind Map: "Reset zoom to 100%" shows Ctrl+1 in the shortcut column** (it read "Reset zoom (100% · Ctrl+1)",
+   the one label run #244's sweep missed). The zoom button's tooltip names Ctrl+1 too.
+8. **Mind Map: the connection-style tooltip says what right-click does** ("Right-click to switch between solid,
+   dashed and dotted lines"); it said "Right-click for options", but no menu ever opened.
+
+**Implementation summary.**
+- `Views/ShapeStudio/ShapeDesignStudioWindow.xaml(.cs)`: 15 `DoubleTapped` attributes and handlers removed, 10
+  tooltips reworded; 8 toolbar buttons named; `KeyboardContextMenu.BridgeAll` table of 37 after
+  `CaptionButtons.Follow`; `e.GetPosition(x)` → `KeyboardContextMenu.PointIn(e, x)` in every bridged handler;
+  `OnRootPreviewKeyDown` returns early for `ComboBoxItem` / open `ComboBox` focus and its Application /
+  Shift+F10 cases skip bridged controls (`IsFromBridgedControl`); the category combo closes before its menu.
+- `Views/MindMap/MindMapGalaxyWindow.xaml(.cs)`: 8 `DoubleTapped` attributes and handlers removed, 8 tooltips
+  reworded; `FocusModeToggle`, `PreviewHistoryButton`, `PreviewOpenButton` named; bridge table of 24 after
+  `InitializeComponent`; `OnTagPillLoaded` → `KeyboardContextMenu.BridgeOnLoad(sender, OnDynamicTagPillRightTapped)`;
+  "Center on root at 100%" menu item; reset-zoom label → `KeyboardAcceleratorTextOverride = "Ctrl+1"`.
+- `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml(.cs)`: `OutlineStatsPill` / `OutlineMetricsPill` Border →
+  Button (same padding, radius, fill and stroke), `Border.ContextFlyout` → `Button.Flyout`, Tapped/DoubleTapped
+  handlers removed, both added to the bridge table, `AutomationProperties.SetName` in `UpdateOutlineStats`.
+- Edits were scripted (attribute/handler removal by exact handler name, brace-matched method removal), then
+  reviewed in `git diff`.
+- Tests: new `Run245StudioKeyboardMenusTests` (21 cases): no Button/DropDownButton/ToggleButton in either studio
+  has a DoubleTapped; removed handlers are gone; no button tooltip promises a double-click; Center-at-100% and the
+  Ctrl+1 column; connection-style tooltip and its exclusion from the bridge; every named focusable control with a
+  RightTapped menu is in its window's bridge table; toolbar buttons are named; tag pills / focus toggle bridged;
+  bridged handlers use `PointIn`; the root handler's bridged-control and open-list guards (ordered before Esc);
+  SmartArt pills are Buttons with a `Button.Flyout`, an accessible name, no Tapped/DoubleTapped, bridged.
+  `SuiteHubAndTourPolishTests` now checks for the pill's RightTapped handler instead of the removed Tapped one.
+
+**Skeptical review.**
+- Focus traps: nothing is collapsed or disabled. The pills stay visible and enabled.
+- Key swallowing: the bridge reacts only to Shift+F10 / the Menu key. The new early return hands Esc, arrows,
+  Home/End, Delete and Ctrl shortcuts back to an open list. Text boxes and NumberBoxes were deliberately not
+  bridged (they keep the system Cut/Copy/Paste menu on Shift+F10).
+- Shape Studio's window handler: a non-bridged focus (the canvas, the shapes list) still gets the canvas / shape
+  menu, verified live.
+- Flyouts / HoverPolish: no new code-built controls; the pills are Buttons in the window tree and pick up the
+  app-wide button polish. Theme: the pills keep their ThemeResource brushes. Files: none opened. Async: none added.
+
+**Verified.** Desktop built to `%TEMP%\ms_run245\b` with 0 errors. Full suite (no OutDir): 5944 passed, 7 failed,
+1 skipped; the 7 are the known `GovernanceDocsSyncTests` (gitignored docs absent from a clone). All 21 Run245
+tests and the 1363 SmartArt / Shape / Mind Map / keyboard / tooltip / Run231 / Run244 / Suite Hub tests pass.
+Live UIA on scratch PID 19060 (`MARKSMITH_CONFIG_DIR` in the session scratchpad, user idle ~40 min; each key step
+waited for 61 s without input and checked the foreground PID):
+- Shape Studio (Insert ▸ Diagrams and studios): Shift+F10 on `GridSnapButton` opened the grid-snap menu (6 items),
+  on `CenterCanvasButton` the centre menu (4 items); on `CanvasScroller` it still opened the canvas menu
+  (Insert shape … Clear canvas). UIA lists `AlignLeftButton`, `RotateLeftButton` by their new names.
+- Mind Map (Document Galaxy…): Shift+F10 on `CenterOnRootButton` opened "Center on root node" acc=Home,
+  "Center on root at 100%", "Fit all in window" acc=Ctrl+0, "Reset zoom to 100%" acc=Ctrl+1 (screen capture
+  taken); on the `#concept` tag pill it opened "Filter to tag '#concept'" / "Copy tag '#concept'".
+- SmartArt Studio: UIA shows `Button 'Outline stats: 3 nodes · Depth 0'` and
+  `Button 'Outline text volume: 4 words, 13 characters'`; Shift+F10 on the stats pill opened its menu
+  (Select root node … Diagnostics; screen capture taken).
+- **Not verified live:** the double-click folds (they need a real mouse double-click; source tests cover them),
+  the open-combo Esc guard. No copy command was invoked, so the user's clipboard was not touched.
+- The scratch instance (PID 19060) was stopped; no other Marksmith instance was running.
+
+**Noticed, not fixed:**
+- Mind Map's canvas node chip still reads "Focus (F)" (`MindMapGalaxyWindow.xaml.cs` ~6147, a code-built
+  TextBlock, not a menu).
+- Shape Studio's `PresetList` / `PaletteGrid` menus are bridged, but UIA could not focus the list itself to check
+  them live (focus goes to an item).
+- Shape Studio's other Borders with menus (`SelectionBoundsPill`, `MultiSelectionBadge`, the status bar text) and
+  Mind Map's (`UnsavedBadge`, `MapTitleText`, counts, legend, minimap) are still mouse-only; they need the same
+  Button treatment the SmartArt pills got.
+- The SmartArt stats pill menu is ~30 items long and opens taller than the window on a 900 px screen.
+
+**Next up (Run #246):**
+1. Button treatment for Shape Studio's `SelectionBoundsPill` / `MultiSelectionBadge` and Mind Map's
+   `UnsavedBadge` / node and link counts (keyboard reach + one action per click).
+2. Group the SmartArt stats pill's long menu into submenus (Navigate / Restructure / Clean up / Copy / Diagnostics).
+3. Live OCR page-flip focus check with a 2-page PDF (carried over since #239).
+
+**Total user-visible improvements: 8.**

@@ -103,6 +103,32 @@ namespace MarkSmith.Views.MindMap
         public MindMapGalaxyWindow(MindMapStudioViewModel? viewModel = null)
         {
             this.InitializeComponent();
+            // RightTapped is mouse/pen/touch only: Shift+F10 and the Menu key open the same menus.
+            KeyboardContextMenu.BridgeAll(
+                (TagFilterButton, OnTagFilterButtonRightTapped),
+                (ZoomOutButton, OnZoomResetRightTapped),
+                (ZoomResetButton, OnZoomResetRightTapped),
+                (ZoomInButton, OnZoomResetRightTapped),
+                (FitToWindowButton, OnZoomResetRightTapped),
+                (CenterOnRootButton, OnCenterOnRootRightTapped),
+                (AddChildToolButton, OnAddChildButtonRightTapped),
+                (AddSiblingToolButton, OnAddSiblingButtonRightTapped),
+                (LinkToolButton, OnLinkToolButtonRightTapped),
+                (DeleteToolButton, OnDeleteToolButtonRightTapped),
+                (UndoToolButton, OnUndoToolButtonRightTapped),
+                (RedoToolButton, OnRedoToolButtonRightTapped),
+                (ArrangeDropDownButton, OnArrangeDropDownRightTapped),
+                (FocusModeToggle, OnFocusToggleRightTapped),
+                (ImportFolderButton, OnImportFolderButtonRightTapped),
+                (ExportDropDownButton, OnExportDropDownRightTapped),
+                (SaveMapButton, OnSaveMapButtonRightTapped),
+                (AllTagsPill, OnAllTagsPillRightTapped),
+                (PreviewHistoryButton, OnPreviewOverlayCardRightTapped),
+                (PreviewOpenButton, OnPreviewOverlayCardRightTapped),
+                (NodeIconPickerButton, OnNodeIconBoxRightTapped),
+                (NodeProgressSlider, OnNodeProgressSliderRightTapped),
+                (ReverseLinkButton, OnReverseLinkButtonRightTapped),
+                (DeleteLinkButton, OnDeleteLinkButtonRightTapped));
             var iconPath = System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "app.ico");
             if (System.IO.File.Exists(iconPath)) AppWindow.SetIcon(iconPath);
             SizeForDisplay();
@@ -572,9 +598,9 @@ namespace MarkSmith.Views.MindMap
             menu.Items.Add(copyProgressItem);
 
             if (sender is FrameworkElement fe)
-                menu.ShowAt(fe, e.GetPosition(fe));
+                menu.ShowAt(fe, KeyboardContextMenu.PointIn(e, fe));
             else if (NodeProgressSlider is not null)
-                menu.ShowAt(NodeProgressSlider, e.GetPosition(NodeProgressSlider));
+                menu.ShowAt(NodeProgressSlider, KeyboardContextMenu.PointIn(e, NodeProgressSlider));
         }
 
         private void OnTagsBoxDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
@@ -699,7 +725,7 @@ namespace MarkSmith.Views.MindMap
         {
             if (ViewModel.SelectedNode is null) return;
             e.Handled = true;
-            ShowNodeIconPickerFlyout(sender as FrameworkElement ?? NodeIconBox ?? (FrameworkElement)this.Content, e.GetPosition(sender as UIElement));
+            ShowNodeIconPickerFlyout(sender as FrameworkElement ?? NodeIconBox ?? (FrameworkElement)this.Content, KeyboardContextMenu.PointIn(e, sender as UIElement));
         }
 
         private void OnNodeIconPickerButtonClick(object sender, RoutedEventArgs e)
@@ -4440,13 +4466,6 @@ namespace MarkSmith.Views.MindMap
         private void OnCenterOnRootClick(object sender, RoutedEventArgs e) => CenterOnRoot();
 
 
-        private void OnCenterOnRootDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-        {
-            e.Handled = true;
-            ViewModel.ZoomLevel = 1.0;
-            CenterOnRoot();
-        }
-
         private void OnCenterOnRootRightTapped(object sender, RightTappedRoutedEventArgs e)
         {
             e.Handled = true;
@@ -4454,13 +4473,16 @@ namespace MarkSmith.Views.MindMap
             var center = new MenuFlyoutItem { Text = "Center on root node", KeyboardAcceleratorTextOverride = "Home", Icon = new FontIcon { Glyph = "\uE80F" } };
             center.Click += (_, _) => CenterOnRoot();
             menu.Items.Add(center);
+            var centerActual = new MenuFlyoutItem { Text = "Center on root at 100%", Icon = new FontIcon { Glyph = "\uE71E" } };
+            centerActual.Click += (_, _) => { ViewModel.ZoomLevel = 1.0; CenterOnRoot(); };
+            menu.Items.Add(centerActual);
             var fit = new MenuFlyoutItem { Text = "Fit all in window", KeyboardAcceleratorTextOverride = "Ctrl+0", Icon = new FontIcon { Glyph = "\uE9A6" } };
             fit.Click += (_, _) => FitToWindow();
             menu.Items.Add(fit);
-            var resetZoom = new MenuFlyoutItem { Text = "Reset zoom (100% · Ctrl+1)", Icon = new FontIcon { Glyph = "\uE71E" } };
+            var resetZoom = new MenuFlyoutItem { Text = "Reset zoom to 100%", KeyboardAcceleratorTextOverride = "Ctrl+1", Icon = new FontIcon { Glyph = "\uE71E" } };
             resetZoom.Click += (_, _) => OnZoomResetClick(this, new RoutedEventArgs());
             menu.Items.Add(resetZoom);
-            menu.ShowAt(sender as FrameworkElement ?? CenterOnRootButton, e.GetPosition(sender as UIElement));
+            menu.ShowAt(sender as FrameworkElement ?? CenterOnRootButton, KeyboardContextMenu.PointIn(e, sender as UIElement));
         }
 
         private void CenterOnRoot()
@@ -4530,22 +4552,6 @@ namespace MarkSmith.Views.MindMap
         }
 
         private string _currentLayoutMode = "tree";
-
-        private void OnArrangeDropDownDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-        {
-            e.Handled = true;
-            string nextLayout = _currentLayoutMode switch
-            {
-                "tree" => "tree-rtl",
-                "tree-rtl" => "vertical",
-                "vertical" => "bottomup",
-                "bottomup" => "radial",
-                "radial" => "clusters",
-                "clusters" => "force",
-                _ => "tree"
-            };
-            ApplyLayoutAndFit(nextLayout);
-        }
 
         private void UpdateArrangeModeLabel(string layout)
         {
@@ -4776,12 +4782,6 @@ namespace MarkSmith.Views.MindMap
             RequestRedraw(RedrawScope.Geometry | RedrawScope.Appearance);
         }
 
-        private void OnConnectionStyleDropDownDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-        {
-            e.Handled = true;
-            OnCycleConnectionRoutingClick(sender, new RoutedEventArgs());
-        }
-
         private void OnConnectionDashSolidClick(object sender, RoutedEventArgs e) => SetConnectionDashStyle(ConnectionDashStyle.Solid);
         private void OnConnectionDashDashedClick(object sender, RoutedEventArgs e) => SetConnectionDashStyle(ConnectionDashStyle.Dashed);
         private void OnConnectionDashDottedClick(object sender, RoutedEventArgs e) => SetConnectionDashStyle(ConnectionDashStyle.Dotted);
@@ -4906,7 +4906,7 @@ namespace MarkSmith.Views.MindMap
             fitWindowItem.Click += (_, _) => FitToWindow();
             menu.Items.Add(fitWindowItem);
 
-            menu.ShowAt(target, e.GetPosition(target));
+            menu.ShowAt(target, KeyboardContextMenu.PointIn(e, target));
         }
 
         private async void OnSaveClick(object sender, RoutedEventArgs e)
@@ -4990,12 +4990,6 @@ namespace MarkSmith.Views.MindMap
             {
                 ViewModel.StatusMessage = $"Couldn't build the Mermaid {label}: {ex.Message}";
             }
-        }
-
-        private void OnExportDropDownDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-        {
-            e.Handled = true;
-            OnCopySubtreeMarkdownClick(sender, new RoutedEventArgs());
         }
 
         private async void OnCopySubtreeMarkdownClick(object sender, RoutedEventArgs e)
@@ -5104,7 +5098,7 @@ namespace MarkSmith.Views.MindMap
             };
             menu.Items.Add(copySummaryItem);
 
-            menu.ShowAt(ExportDropDownButton, e.GetPosition(ExportDropDownButton));
+            menu.ShowAt(ExportDropDownButton, KeyboardContextMenu.PointIn(e, ExportDropDownButton));
         }
 
         private void OnArrangeDropDownRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -5509,7 +5503,7 @@ namespace MarkSmith.Views.MindMap
             fitItem.Click += (s, args) => OnFitToWindowClick(this, new RoutedEventArgs());
             menu.Items.Add(fitItem);
 
-            menu.ShowAt(ArrangeDropDownButton, e.GetPosition(ArrangeDropDownButton));
+            menu.ShowAt(ArrangeDropDownButton, KeyboardContextMenu.PointIn(e, ArrangeDropDownButton));
         }
 
         private void OnImportFolderButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -5552,7 +5546,7 @@ namespace MarkSmith.Views.MindMap
             };
             menu.Items.Add(clearItem);
 
-            menu.ShowAt(ImportFolderButton, e.GetPosition(ImportFolderButton));
+            menu.ShowAt(ImportFolderButton, KeyboardContextMenu.PointIn(e, ImportFolderButton));
         }
 
         private void OnSaveMapButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -5620,7 +5614,7 @@ namespace MarkSmith.Views.MindMap
             };
             menu.Items.Add(copyTitleItem);
 
-            menu.ShowAt(SaveMapButton, e.GetPosition(SaveMapButton));
+            menu.ShowAt(SaveMapButton, KeyboardContextMenu.PointIn(e, SaveMapButton));
         }
 
         private static string SanitizeFileName(string? name)
@@ -6289,15 +6283,6 @@ namespace MarkSmith.Views.MindMap
             menu.ShowAt(LinkLabelBox, e.GetPosition(LinkLabelBox));
         }
 
-        private void OnReverseLinkButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-        {
-            if (ViewModel.SelectedLink is { } link)
-            {
-                ViewModel.ReverseLink(link);
-                e.Handled = true;
-            }
-        }
-
         private void OnReverseLinkButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
         {
             if (ViewModel.SelectedLink is not { } link) return;
@@ -6332,17 +6317,7 @@ namespace MarkSmith.Views.MindMap
             }
 
             if (sender is FrameworkElement fe)
-                flyout.ShowAt(fe, e.GetPosition(fe));
-        }
-
-        private void OnDeleteLinkButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-        {
-            if (ViewModel.SelectedLink is not null)
-            {
-                ViewModel.DeleteSelectionCommand.Execute(null);
-                ViewModel.StatusMessage = "Deleted link";
-                e.Handled = true;
-            }
+                flyout.ShowAt(fe, KeyboardContextMenu.PointIn(e, fe));
         }
 
         private void OnDeleteLinkButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -6378,7 +6353,7 @@ namespace MarkSmith.Views.MindMap
             flyout.Items.Add(resetStyleItem);
 
             if (sender is FrameworkElement fe)
-                flyout.ShowAt(fe, e.GetPosition(fe));
+                flyout.ShowAt(fe, KeyboardContextMenu.PointIn(e, fe));
         }
 
         /// <summary>
@@ -6488,12 +6463,6 @@ namespace MarkSmith.Views.MindMap
         private void OnTagFilterButtonClick(object sender, RoutedEventArgs e)
         {
             TagFilterFlyout?.ShowAt(sender as FrameworkElement ?? TagFilterButton);
-        }
-
-        private void OnTagFilterButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-        {
-            e.Handled = true;
-            SetTagFilter(null);
         }
 
         private void OnTagFilterButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -6744,13 +6713,7 @@ namespace MarkSmith.Views.MindMap
                 menu.Items.Add(item);
             }
 
-            menu.ShowAt(anchor, e.GetPosition(anchor));
-        }
-
-        private void OnZoomResetDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-        {
-            e.Handled = true;
-            OnZoomResetClick(sender, new RoutedEventArgs());
+            menu.ShowAt(anchor, KeyboardContextMenu.PointIn(e, anchor));
         }
 
         private void OnSearchMatchLabelDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
@@ -6902,7 +6865,7 @@ namespace MarkSmith.Views.MindMap
             fitItem.Click += (_, _) => OnFitToWindowClick(this, new RoutedEventArgs());
             menu.Items.Add(fitItem);
 
-            menu.ShowAt(AllTagsPill, e.GetPosition(AllTagsPill));
+            menu.ShowAt(AllTagsPill, KeyboardContextMenu.PointIn(e, AllTagsPill));
             e.Handled = true;
         }
 
@@ -6977,7 +6940,7 @@ namespace MarkSmith.Views.MindMap
                 }
             }
 
-            menu.ShowAt(btn, e.GetPosition(btn));
+            menu.ShowAt(btn, KeyboardContextMenu.PointIn(e, btn));
             e.Handled = true;
         }
 
@@ -6999,6 +6962,7 @@ namespace MarkSmith.Views.MindMap
         private void OnTagPillLoaded(object sender, RoutedEventArgs e)
         {
             if (sender is Button b) _tagPills.Add(b);
+            KeyboardContextMenu.BridgeOnLoad(sender, OnDynamicTagPillRightTapped);
             UpdateTagPills();
         }
 
@@ -7164,11 +7128,11 @@ namespace MarkSmith.Views.MindMap
             menu.Items.Add(closeItem);
 
             if (sender is FrameworkElement fe)
-                menu.ShowAt(fe, e.GetPosition(fe));
+                menu.ShowAt(fe, KeyboardContextMenu.PointIn(e, fe));
             else if (PreviewOverlayCard is not null)
-                menu.ShowAt(PreviewOverlayCard, e.GetPosition(PreviewOverlayCard));
+                menu.ShowAt(PreviewOverlayCard, KeyboardContextMenu.PointIn(e, PreviewOverlayCard));
             else
-                menu.ShowAt(this.Content, e.GetPosition(this.Content));
+                menu.ShowAt(this.Content, KeyboardContextMenu.PointIn(e, this.Content));
         }
 
         #region Minimap Radar Navigation
@@ -7501,7 +7465,7 @@ namespace MarkSmith.Views.MindMap
             fitItem.Click += OnFitToWindowClick;
             menu.Items.Add(fitItem);
 
-            menu.ShowAt(AddChildToolButton, e.GetPosition(AddChildToolButton));
+            menu.ShowAt(AddChildToolButton, KeyboardContextMenu.PointIn(e, AddChildToolButton));
         }
 
         private void OnAddSiblingButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -7536,7 +7500,7 @@ namespace MarkSmith.Views.MindMap
             fitItem.Click += OnFitToWindowClick;
             menu.Items.Add(fitItem);
 
-            menu.ShowAt(AddSiblingToolButton, e.GetPosition(AddSiblingToolButton));
+            menu.ShowAt(AddSiblingToolButton, KeyboardContextMenu.PointIn(e, AddSiblingToolButton));
         }
 
         private void OnLinkToolButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -7576,7 +7540,7 @@ namespace MarkSmith.Views.MindMap
             fitItem.Click += OnFitToWindowClick;
             menu.Items.Add(fitItem);
 
-            menu.ShowAt(LinkToolButton, e.GetPosition(LinkToolButton));
+            menu.ShowAt(LinkToolButton, KeyboardContextMenu.PointIn(e, LinkToolButton));
         }
 
         private void OnDeleteToolButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -7612,7 +7576,7 @@ namespace MarkSmith.Views.MindMap
             redoItem.Click += (_, _) => ViewModel.RedoCommand.Execute(null);
             menu.Items.Add(redoItem);
 
-            menu.ShowAt(DeleteToolButton, e.GetPosition(DeleteToolButton));
+            menu.ShowAt(DeleteToolButton, KeyboardContextMenu.PointIn(e, DeleteToolButton));
         }
 
         private void OnUndoToolButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -7641,7 +7605,7 @@ namespace MarkSmith.Views.MindMap
             resetZoomItem.Click += OnZoomResetClick;
             menu.Items.Add(resetZoomItem);
 
-            menu.ShowAt(UndoToolButton, e.GetPosition(UndoToolButton));
+            menu.ShowAt(UndoToolButton, KeyboardContextMenu.PointIn(e, UndoToolButton));
         }
 
         private void OnRedoToolButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -7670,7 +7634,7 @@ namespace MarkSmith.Views.MindMap
             resetZoomItem.Click += OnZoomResetClick;
             menu.Items.Add(resetZoomItem);
 
-            menu.ShowAt(RedoToolButton, e.GetPosition(RedoToolButton));
+            menu.ShowAt(RedoToolButton, KeyboardContextMenu.PointIn(e, RedoToolButton));
         }
 
         private void OnStatusBarDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)

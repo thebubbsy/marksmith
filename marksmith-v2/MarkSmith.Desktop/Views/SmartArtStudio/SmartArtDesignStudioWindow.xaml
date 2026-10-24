@@ -186,21 +186,19 @@
                             </SelectorBarItem>
                         </SelectorBar>
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="0,0,4,0">
-                            <Border x:Name="OutlineStatsPill" VerticalAlignment="Center"
+                            <Button x:Name="OutlineStatsPill" MinHeight="0" MinWidth="0" VerticalAlignment="Center"
                                     Padding="8,3" CornerRadius="12"
                                     Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
-                                    IsHitTestVisible="True"
-                                    Tapped="OnOutlineStatsPillTapped"
-                                    DoubleTapped="OnOutlineStatsPillDoubleTapped"
                                     RightTapped="OnOutlineStatsPillRightTapped"
-                                    ToolTipService.ToolTip="Outline stats · Tap to view summary, Double-click to copy, Right-click to navigate root/deepest node">
+                                    AutomationProperties.Name="Outline stats"
+                                    ToolTipService.ToolTip="Outline stats · Click for navigation and outline tools, right-click or Shift+F10 for the same menu">
                                 <StackPanel Orientation="Horizontal" Spacing="5">
                                     <FontIcon Glyph="&#xE8EC;" FontSize="11" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
                                     <TextBlock x:Name="OutlineStatsText" Text="0 nodes · Depth 0" FontSize="11" FontWeight="SemiBold"
                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
                                 </StackPanel>
-                                <Border.ContextFlyout>
+                                <Button.Flyout>
                                     <MenuFlyout x:Name="OutlineStatsFlyout">
                                         <MenuFlyoutItem Text="Select root node (Top)" Click="OnSelectRootNodeClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE74A;" /></MenuFlyoutItem.Icon>
@@ -279,7 +277,8 @@
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8D2;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
                                         <MenuFlyoutSeparator />
-                                        <MenuFlyoutSubItem Text="Diagnostics" ToolTipService.ToolTip="Read-only checks that summarise and copy a report">
+                                        <MenuFlyoutSubItem Text="Diagnostics" AutomationProperties.Name="Outline stats"
+                                    ToolTipService.ToolTip="Outline stats · Click for navigation and outline tools, right-click or Shift+F10 for the same menu">
                                             <MenuFlyoutSubItem.Icon><FontIcon Glyph="&#xE9D9;" /></MenuFlyoutSubItem.Icon>
                                             <MenuFlyoutItem x:Name="OutlineStatsAuditMatrixQuadrantGeometryItem" Text="Audit 2x2 matrix / quadrant geometry &amp; text balance symmetry" Click="OnOutlineStatsAuditMatrixQuadrantGeometryClick">
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
@@ -502,25 +501,23 @@
                                         </MenuFlyoutSubItem>
                                     </MenuFlyout>
 
-                                </Border.ContextFlyout>
-                            </Border>
+                                </Button.Flyout>
+                            </Button>
 
                             <!-- Outline Word & Character Metrics Pill -->
-                            <Border x:Name="OutlineMetricsPill" VerticalAlignment="Center"
+                            <Button x:Name="OutlineMetricsPill" MinHeight="0" MinWidth="0" VerticalAlignment="Center"
                                     Padding="8,3" CornerRadius="12"
                                     Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
-                                    IsHitTestVisible="True"
-                                    Tapped="OnOutlineMetricsPillTapped"
-                                    DoubleTapped="OnOutlineMetricsPillDoubleTapped"
                                     RightTapped="OnOutlineMetricsPillRightTapped"
-                                    ToolTipService.ToolTip="Outline text volume (words and characters) · Tap to view, double-click to copy metrics, right-click for options">
+                                    AutomationProperties.Name="Outline text volume"
+                                    ToolTipService.ToolTip="Outline text volume (words and characters) · Click to copy the counts or the plain text">
                                 <StackPanel Orientation="Horizontal" Spacing="5">
                                     <FontIcon Glyph="&#xE8D2;" FontSize="11" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
                                     <TextBlock x:Name="OutlineMetricsText" Text="0 words · 0 chars" FontSize="11" FontWeight="SemiBold"
                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
                                 </StackPanel>
-                                <Border.ContextFlyout>
+                                <Button.Flyout>
                                     <MenuFlyout x:Name="OutlineMetricsFlyout">
                                         <MenuFlyoutItem Text="Copy outline text volume" Click="OnCopyOutlineMetricsClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8C8;" /></MenuFlyoutItem.Icon>
@@ -529,8 +526,8 @@
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE943;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
                                     </MenuFlyout>
-                                </Border.ContextFlyout>
-                            </Border>
+                                </Button.Flyout>
+                            </Button>
 
                             <!-- Outline Real-Time Search & Match Stepper Pill -->
                             <Border x:Name="OutlineSearchPill"

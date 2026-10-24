@@ -407,46 +407,46 @@
                                     Background="Transparent" IsHitTestVisible="True"
                                     RightTapped="OnToolStripRightTapped"
                                     ToolTipService.ToolTip="Canvas tools (Right-click for options)">
-                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding UndoCommand}" AutomationProperties.Name="Undo" RightTapped="OnToolStripRightTapped" ToolTipService.ToolTip="Undo (Ctrl+Z, Right-click for options)">
+                            <Button x:Name="ToolUndoButton" Style="{StaticResource ToolIconButton}" Command="{Binding UndoCommand}" AutomationProperties.Name="Undo" RightTapped="OnToolStripRightTapped" ToolTipService.ToolTip="Undo (Ctrl+Z, Right-click for options)">
                                 <FontIcon Glyph="&#xE7A7;" FontSize="14" />
                             </Button>
-                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding RedoCommand}" AutomationProperties.Name="Redo" RightTapped="OnToolStripRightTapped" ToolTipService.ToolTip="Redo (Ctrl+Y, Right-click for options)">
+                            <Button x:Name="ToolRedoButton" Style="{StaticResource ToolIconButton}" Command="{Binding RedoCommand}" AutomationProperties.Name="Redo" RightTapped="OnToolStripRightTapped" ToolTipService.ToolTip="Redo (Ctrl+Y, Right-click for options)">
                                 <FontIcon Glyph="&#xE7A6;" FontSize="14" />
                             </Button>
                             <AppBarSeparator Margin="0" Padding="0" />
-                            <Button x:Name="AlignLeftButton" Style="{StaticResource ToolIconButton}" Command="{Binding AlignLeftCommand}" AutomationProperties.Name="Align left" RightTapped="OnAlignButtonRightTapped" DoubleTapped="OnAlignLeftDoubleTapped" ToolTipService.ToolTip="Align left edges — select two or more shapes (Ctrl+click · Double-click to align &amp; distribute · Right-click for alignment menu)"><PathIcon Width="14" Height="14" Data="M0.75,0.75 h1.12 v10.5 h-1.12 Z M3,2.62 h7.5 v2.25 h-7.5 Z M3,7.12 h4.5 v2.25 h-4.5 Z" /></Button>
-                            <Button x:Name="AlignCenterButton" Style="{StaticResource ToolIconButton}" Command="{Binding AlignCenterCommand}" AutomationProperties.Name="Align centre" RightTapped="OnAlignButtonRightTapped" DoubleTapped="OnAlignCenterDoubleTapped" ToolTipService.ToolTip="Align centres — select two or more shapes (Ctrl+click · Double-click to align &amp; distribute · Right-click for alignment menu)"><PathIcon Width="14" Height="14" Data="M5.44,0.75 h1.12 v10.5 h-1.12 Z M1.5,2.62 h9 v2.25 h-9 Z M3,7.12 h6 v2.25 h-6 Z" /></Button>
-                            <Button x:Name="AlignRightButton" Style="{StaticResource ToolIconButton}" Command="{Binding AlignRightCommand}" AutomationProperties.Name="Align right" RightTapped="OnAlignButtonRightTapped" DoubleTapped="OnAlignRightDoubleTapped" ToolTipService.ToolTip="Align right edges — select two or more shapes (Ctrl+click · Double-click to align &amp; distribute · Right-click for alignment menu)"><PathIcon Width="14" Height="14" Data="M10.12,0.75 h1.12 v10.5 h-1.12 Z M1.5,2.62 h7.5 v2.25 h-7.5 Z M4.5,7.12 h4.5 v2.25 h-4.5 Z" /></Button>
-                            <Button x:Name="AlignTopButton" Style="{StaticResource ToolIconButton}" Command="{Binding AlignTopCommand}" AutomationProperties.Name="Align top" RightTapped="OnAlignButtonRightTapped" DoubleTapped="OnAlignTopDoubleTapped" ToolTipService.ToolTip="Align top edges — select two or more shapes (Ctrl+click · Double-click to align &amp; distribute · Right-click for alignment menu)"><PathIcon Width="14" Height="14" Data="M0.75,0.75 h10.5 v1.12 h-10.5 Z M2.62,3 h2.25 v7.5 h-2.25 Z M7.12,3 h2.25 v4.5 h-2.25 Z" /></Button>
-                            <Button x:Name="AlignMiddleButton" Style="{StaticResource ToolIconButton}" Command="{Binding AlignMiddleCommand}" AutomationProperties.Name="Align middle" RightTapped="OnAlignButtonRightTapped" DoubleTapped="OnAlignMiddleDoubleTapped" ToolTipService.ToolTip="Align middles — select two or more shapes (Ctrl+click · Double-click to align &amp; distribute · Right-click for alignment menu)"><PathIcon Width="14" Height="14" Data="M0.75,5.44 h10.5 v1.12 h-10.5 Z M2.62,1.5 h2.25 v9 h-2.25 Z M7.12,3 h2.25 v6 h-2.25 Z" /></Button>
-                            <Button x:Name="AlignBottomButton" Style="{StaticResource ToolIconButton}" Command="{Binding AlignBottomCommand}" AutomationProperties.Name="Align bottom" RightTapped="OnAlignButtonRightTapped" DoubleTapped="OnAlignBottomDoubleTapped" ToolTipService.ToolTip="Align bottom edges — select two or more shapes (Ctrl+click · Double-click to align &amp; distribute · Right-click for alignment menu)"><PathIcon Width="14" Height="14" Data="M0.75,10.12 h10.5 v1.12 h-10.5 Z M2.62,1.5 h2.25 v7.5 h-2.25 Z M7.12,4.5 h2.25 v4.5 h-2.25 Z" /></Button>
+                            <Button x:Name="AlignLeftButton" Style="{StaticResource ToolIconButton}" Command="{Binding AlignLeftCommand}" AutomationProperties.Name="Align left" RightTapped="OnAlignButtonRightTapped" ToolTipService.ToolTip="Align left edges — select two or more shapes (Ctrl+click · Right-click for alignment menu)"><PathIcon Width="14" Height="14" Data="M0.75,0.75 h1.12 v10.5 h-1.12 Z M3,2.62 h7.5 v2.25 h-7.5 Z M3,7.12 h4.5 v2.25 h-4.5 Z" /></Button>
+                            <Button x:Name="AlignCenterButton" Style="{StaticResource ToolIconButton}" Command="{Binding AlignCenterCommand}" AutomationProperties.Name="Align centre" RightTapped="OnAlignButtonRightTapped" ToolTipService.ToolTip="Align centres — select two or more shapes (Ctrl+click · Right-click for alignment menu)"><PathIcon Width="14" Height="14" Data="M5.44,0.75 h1.12 v10.5 h-1.12 Z M1.5,2.62 h9 v2.25 h-9 Z M3,7.12 h6 v2.25 h-6 Z" /></Button>
+                            <Button x:Name="AlignRightButton" Style="{StaticResource ToolIconButton}" Command="{Binding AlignRightCommand}" AutomationProperties.Name="Align right" RightTapped="OnAlignButtonRightTapped" ToolTipService.ToolTip="Align right edges — select two or more shapes (Ctrl+click · Right-click for alignment menu)"><PathIcon Width="14" Height="14" Data="M10.12,0.75 h1.12 v10.5 h-1.12 Z M1.5,2.62 h7.5 v2.25 h-7.5 Z M4.5,7.12 h4.5 v2.25 h-4.5 Z" /></Button>
+                            <Button x:Name="AlignTopButton" Style="{StaticResource ToolIconButton}" Command="{Binding AlignTopCommand}" AutomationProperties.Name="Align top" RightTapped="OnAlignButtonRightTapped" ToolTipService.ToolTip="Align top edges — select two or more shapes (Ctrl+click · Right-click for alignment menu)"><PathIcon Width="14" Height="14" Data="M0.75,0.75 h10.5 v1.12 h-10.5 Z M2.62,3 h2.25 v7.5 h-2.25 Z M7.12,3 h2.25 v4.5 h-2.25 Z" /></Button>
+                            <Button x:Name="AlignMiddleButton" Style="{StaticResource ToolIconButton}" Command="{Binding AlignMiddleCommand}" AutomationProperties.Name="Align middle" RightTapped="OnAlignButtonRightTapped" ToolTipService.ToolTip="Align middles — select two or more shapes (Ctrl+click · Right-click for alignment menu)"><PathIcon Width="14" Height="14" Data="M0.75,5.44 h10.5 v1.12 h-10.5 Z M2.62,1.5 h2.25 v9 h-2.25 Z M7.12,3 h2.25 v6 h-2.25 Z" /></Button>
+                            <Button x:Name="AlignBottomButton" Style="{StaticResource ToolIconButton}" Command="{Binding AlignBottomCommand}" AutomationProperties.Name="Align bottom" RightTapped="OnAlignButtonRightTapped" ToolTipService.ToolTip="Align bottom edges — select two or more shapes (Ctrl+click · Right-click for alignment menu)"><PathIcon Width="14" Height="14" Data="M0.75,10.12 h10.5 v1.12 h-10.5 Z M2.62,1.5 h2.25 v7.5 h-2.25 Z M7.12,4.5 h2.25 v4.5 h-2.25 Z" /></Button>
                             <AppBarSeparator Margin="0" Padding="0" />
-                            <Button x:Name="DistributeHorizontalButton" Style="{StaticResource ToolIconButton}" Command="{Binding DistributeHorizontalCommand}" AutomationProperties.Name="Distribute horizontally" RightTapped="OnAlignButtonRightTapped" DoubleTapped="OnDistributeHorizontalDoubleTapped" ToolTipService.ToolTip="Space evenly left to right — select three or more shapes (Double-click to distribute and center vertically · Right-click for alignment menu)"><PathIcon Width="14" Height="14" Data="M0.75,0.75 h1.12 v10.5 h-1.12 Z M10.12,0.75 h1.12 v10.5 h-1.12 Z M4.88,3 h2.25 v6 h-2.25 Z" /></Button>
-                            <Button x:Name="DistributeVerticalButton" Style="{StaticResource ToolIconButton}" Command="{Binding DistributeVerticalCommand}" AutomationProperties.Name="Distribute vertically" RightTapped="OnAlignButtonRightTapped" DoubleTapped="OnDistributeVerticalDoubleTapped" ToolTipService.ToolTip="Space evenly top to bottom — select three or more shapes (Double-click to distribute and center horizontally · Right-click for alignment menu)"><PathIcon Width="14" Height="14" Data="M0.75,0.75 h10.5 v1.12 h-10.5 Z M0.75,10.12 h10.5 v1.12 h-10.5 Z M3,4.88 h6 v2.25 h-6 Z" /></Button>
+                            <Button x:Name="DistributeHorizontalButton" Style="{StaticResource ToolIconButton}" Command="{Binding DistributeHorizontalCommand}" AutomationProperties.Name="Distribute horizontally" RightTapped="OnAlignButtonRightTapped" ToolTipService.ToolTip="Space evenly left to right — select three or more shapes (Right-click for alignment menu)"><PathIcon Width="14" Height="14" Data="M0.75,0.75 h1.12 v10.5 h-1.12 Z M10.12,0.75 h1.12 v10.5 h-1.12 Z M4.88,3 h2.25 v6 h-2.25 Z" /></Button>
+                            <Button x:Name="DistributeVerticalButton" Style="{StaticResource ToolIconButton}" Command="{Binding DistributeVerticalCommand}" AutomationProperties.Name="Distribute vertically" RightTapped="OnAlignButtonRightTapped" ToolTipService.ToolTip="Space evenly top to bottom — select three or more shapes (Right-click for alignment menu)"><PathIcon Width="14" Height="14" Data="M0.75,0.75 h10.5 v1.12 h-10.5 Z M0.75,10.12 h10.5 v1.12 h-10.5 Z M3,4.88 h6 v2.25 h-6 Z" /></Button>
                             <AppBarSeparator Margin="0" Padding="0" />
-                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding BringToFrontCommand}" AutomationProperties.Name="Bring to front" RightTapped="OnToolStripRightTapped" ToolTipService.ToolTip="Bring to front (Ctrl+Shift+], Right-click for options)">
+                            <Button x:Name="BringToFrontButton" Style="{StaticResource ToolIconButton}" Command="{Binding BringToFrontCommand}" AutomationProperties.Name="Bring to front" RightTapped="OnToolStripRightTapped" ToolTipService.ToolTip="Bring to front (Ctrl+Shift+], Right-click for options)">
                                 <FontIcon Glyph="&#xE74A;" FontSize="14" />
                             </Button>
-                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding SendToBackCommand}" AutomationProperties.Name="Send to back" RightTapped="OnToolStripRightTapped" ToolTipService.ToolTip="Send to back (Ctrl+Shift+[, Right-click for options)">
+                            <Button x:Name="SendToBackButton" Style="{StaticResource ToolIconButton}" Command="{Binding SendToBackCommand}" AutomationProperties.Name="Send to back" RightTapped="OnToolStripRightTapped" ToolTipService.ToolTip="Send to back (Ctrl+Shift+[, Right-click for options)">
                                 <FontIcon Glyph="&#xE74B;" FontSize="14" />
                             </Button>
-                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding RotateCounterClockwiseCommand}" AutomationProperties.Name="Rotate 90 degrees left"
-                                    RightTapped="OnRotateButtonRightTapped" DoubleTapped="OnRotateCounterClockwiseDoubleTapped"
-                                    ToolTipService.ToolTip="Rotate 90° counter-clockwise (Alt+Shift+Left, Double-click to turn, Right-click for angle presets)">
+                            <Button x:Name="RotateLeftButton" Style="{StaticResource ToolIconButton}" Command="{Binding RotateCounterClockwiseCommand}" AutomationProperties.Name="Rotate 90 degrees left"
+                                    RightTapped="OnRotateButtonRightTapped"
+                                    ToolTipService.ToolTip="Rotate 90° counter-clockwise (Alt+Shift+Left, Right-click for angle presets)">
                                 <FontIcon Glyph="&#xE7A7;" FontSize="14" RenderTransformOrigin="0.5,0.5" />
                             </Button>
-                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding RotateClockwiseCommand}" AutomationProperties.Name="Rotate 90 degrees right"
-                                    RightTapped="OnRotateButtonRightTapped" DoubleTapped="OnRotateClockwiseDoubleTapped"
-                                    ToolTipService.ToolTip="Rotate 90° clockwise (Alt+Shift+Right, Double-click to turn, Right-click for angle presets)">
+                            <Button x:Name="RotateRightButton" Style="{StaticResource ToolIconButton}" Command="{Binding RotateClockwiseCommand}" AutomationProperties.Name="Rotate 90 degrees right"
+                                    RightTapped="OnRotateButtonRightTapped"
+                                    ToolTipService.ToolTip="Rotate 90° clockwise (Alt+Shift+Right, Right-click for angle presets)">
                                 <FontIcon Glyph="&#xE7AD;" FontSize="14" />
                             </Button>
                             <AppBarSeparator Margin="0" Padding="0" />
-                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding DuplicateSelectedCommand}"
+                            <Button x:Name="DuplicateToolButton" Style="{StaticResource ToolIconButton}" Command="{Binding DuplicateSelectedCommand}"
                                     Click="OnDuplicateButtonClick"
                                     AutomationProperties.Name="Duplicate" RightTapped="OnToolStripRightTapped" ToolTipService.ToolTip="Duplicate the selection (Ctrl+D, Right-click for options)">
                                 <FontIcon Glyph="&#xE8C8;" FontSize="14" />
                             </Button>
-                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding RemoveSelectedCommand}" AutomationProperties.Name="Delete" RightTapped="OnToolStripRightTapped" ToolTipService.ToolTip="Delete the selection (Del, Right-click for options)">
+                            <Button x:Name="DeleteSelectionToolButton" Style="{StaticResource ToolIconButton}" Command="{Binding RemoveSelectedCommand}" AutomationProperties.Name="Delete" RightTapped="OnToolStripRightTapped" ToolTipService.ToolTip="Delete the selection (Del, Right-click for options)">
                                 <FontIcon Glyph="&#xE74D;" FontSize="14" />
                             </Button>
                         </StackPanel>
@@ -455,10 +455,9 @@
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                             <Button x:Name="GridSnapButton" Style="{StaticResource ToolIconButton}" Padding="8,4"
                                     Click="OnGridSnapButtonClick"
-                                    DoubleTapped="OnGridSnapButtonDoubleTapped"
                                     RightTapped="OnGridSnapButtonRightTapped"
                                     AutomationProperties.Name="Canvas grid snap"
-                                    ToolTipService.ToolTip="Canvas grid and magnetic snap (Off, 10px, 20px · Double-click to cycle, Right-click for presets)">
+                                    ToolTipService.ToolTip="Canvas grid and magnetic snap (Off, 10px, 20px · Right-click for presets)">
                                 <StackPanel Orientation="Horizontal" Spacing="6">
                                     <FontIcon Glyph="&#xE80A;" FontSize="13" />
                                     <TextBlock x:Name="GridSnapLabel" Text="Snap · Off" FontSize="11.5" VerticalAlignment="Center" />
@@ -489,10 +488,9 @@
                             </Button>
                             <Button x:Name="CenterCanvasButton" Style="{StaticResource ToolIconButton}" Padding="8,4"
                                     Click="OnCenterCanvasButtonClick"
-                                    DoubleTapped="OnCenterCanvasButtonDoubleTapped"
                                     RightTapped="OnCenterCanvasButtonRightTapped"
                                     AutomationProperties.Name="Center diagram on canvas"
-                                    ToolTipService.ToolTip="Center diagram on canvas (Click to center, Double-click for top-left margin, Right-click for options)">
+                                    ToolTipService.ToolTip="Center diagram on canvas (Right-click for options)">
                                 <StackPanel Orientation="Horizontal" Spacing="5">
                                     <FontIcon Glyph="&#xE898;" FontSize="13" />
                                     <TextBlock Text="Center" FontSize="11.5" VerticalAlignment="Center" />
@@ -517,10 +515,9 @@
                             </Button>
                             <Button x:Name="DistributeCanvasButton" Style="{StaticResource ToolIconButton}" Padding="8,4"
                                     Click="OnDistributeCanvasButtonClick"
-                                    DoubleTapped="OnDistributeCanvasButtonDoubleTapped"
                                     RightTapped="OnDistributeCanvasButtonRightTapped"
                                     AutomationProperties.Name="Distribute shapes on canvas"
-                                    ToolTipService.ToolTip="Distribute shapes evenly (Click for horizontal, Double-click for vertical, Right-click for options)">
+                                    ToolTipService.ToolTip="Distribute shapes evenly (Click for horizontal, Right-click for vertical and more)">
                                 <StackPanel Orientation="Horizontal" Spacing="5">
                                     <FontIcon Glyph="&#xE8D3;" FontSize="13" />
                                     <TextBlock Text="Distribute" FontSize="11.5" VerticalAlignment="Center" />
@@ -1390,9 +1387,8 @@
                                 </TextBlock>
                                 <Button x:Name="ResetRotationButton" Grid.Column="2" Content="0°" Padding="6,2" FontSize="11"
                                         Command="{Binding ResetRotationCommand}"
-                                        DoubleTapped="OnResetRotationButtonDoubleTapped"
                                         RightTapped="OnResetRotationButtonRightTapped"
-                                        ToolTipService.ToolTip="Reset rotation to 0° (Double-click for 0°, Right-click for angle presets)"
+                                        ToolTipService.ToolTip="Reset rotation to 0° (Right-click for angle presets)"
                                         AutomationProperties.Name="Reset rotation to 0 degrees" />
                             </Grid>
 
@@ -1470,8 +1466,7 @@
                  a way back. Presets now open fitted to the canvas. -->
             <DropDownButton x:Name="ZoomButton" Grid.Column="2" Padding="8,0" Height="24" MinWidth="70" FontSize="12"
                             Margin="0,-4" AutomationProperties.Name="Zoom"
-                            ToolTipService.ToolTip="Zoom — Ctrl+scroll to zoom, Ctrl+0 to fit, double-click for 100%, right-click for preset stops"
-                            DoubleTapped="OnZoomButtonDoubleTapped"
+                            ToolTipService.ToolTip="Zoom — Ctrl+scroll to zoom, Ctrl+0 to fit, right-click for preset stops"
                             RightTapped="OnZoomButtonRightTapped">
                 <TextBlock x:Name="ZoomText" Text="100%" FontSize="12" />
                 <DropDownButton.Flyout>
