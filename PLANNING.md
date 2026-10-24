@@ -16648,3 +16648,114 @@ Studio through Insert ▸ Diagrams and studios ▸ SmartArt Studio… (UIA Invok
 **Release (same run):** tagged **v3.58.0** on `8147ab6`; Release workflow run 40019282821 succeeded;
 user-facing notes prepended to the generated body
 (https://github.com/thebubbsy/marksmith/releases/tag/v3.58.0). `MarksmithBaseVersion` is now 3.59.0.
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #244 (2026-10-24, 13:16–14:10 AEDT)
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running in the Claude desktop app. The task template asks for
+  "Antigravity AI Agent (Google DeepMind)"; that would be untrue for this run, so the real identity is recorded.
+- Modes: Scheduled Hourly Automation Routine (bypass-permissions, no live user)
+- Trigger: scheduled task `commit-to-main-ship-improvement--r4efinement`
+- Agents used: 1 (one session acting as orchestrator, coding worker and skeptical reviewer; no
+  subagents). Session `4ce2204c-e57b-4e2c-b73a-e7b1be5a6ca2`.
+- Worked in a fresh `--filter=blob:none` clone of `origin/main` (`%TEMP%\ms244`). The pushed scratch folders of
+  runs #234–#243 were deleted first (7.6 GB → 8.8 GB free).
+
+**Delivered (user-visible):**
+1. **SmartArt Studio: a double-click on a toolbar button no longer does three things.** A double-click raises
+   Click twice and then DoubleTapped, so Delete removed three items, Duplicate made four copies, a row's
+   Add child added two children and a sibling, and the Export SVG / background / shape / aspect ratio /
+   zoom / palette buttons opened their flyout and then changed a setting behind it. The second action is
+   gone from 15 buttons (the Move up/down and Promote/Demote buttons keep theirs: their double-click ends at
+   the same place, the top, bottom, root or deepest level). Tooltips that promised "Double-click to delete item
+   and children", "to copy 2x SVG", "to cycle" and so on now say what the button does.
+2. **SmartArt Studio's right-click menus open from the keyboard.** None of the studio's 20 toolbar menus
+   (Undo, Redo, Insert into document, layout category, Outline/Markdown tabs, Rename, Duplicate, Delete,
+   Move, Promote/Demote, Palette, both Copy buttons, Export SVG, background, shape, aspect ratio, preview zoom)
+   opened from Shift+F10 or the Menu key; they do now, anchored under the button. The category box closes its
+   list first so the menu isn't drawn over it.
+3. **About 115 menu items show their shortcut in the accelerator column.** Mind Map, SmartArt Studio, Shape
+   Studio's z-order items, OCR Studio's reset item, the editor gutter, the lint menu, the focus-mode items and
+   the splash menu spelled the key inside the label ("Fit all nodes in window (Ctrl+0)"). The key now sits in
+   the right-hand column like every other menu in the app, so labels line up and screen readers announce the
+   shortcut as one.
+4. **Menus stop advertising shortcuts that do nothing.** SmartArt's "Next / Previous category (Ctrl+Tab /
+   Ctrl+Shift+Tab)" and "Focus outline editor (F6)", Mind Map's "Add new node (Insert / Tab)" (Insert does
+   nothing; Tab does) and the gutter's "Copy line (Ctrl+C)" (Ctrl+C copies the selection) are gone from the
+   labels.
+5. **Mind Map: Ctrl+Shift+S saves a copy.** Two menus show Ctrl+Shift+S for "Save a copy of the map…", but the
+   key fell into the plain Ctrl+S case and overwrote the map instead. Both keys now mark the event handled
+   before awaiting the save, so the key doesn't bubble on during the save.
+6. **Mind Map: Esc clears the selection.** Four menus said "Clear selection (Esc)" / "Deselect all (Esc)",
+   but Esc only cleared search, tag filter and focus mode. With none of those active, Esc now clears the
+   selection (multi-selection too), as a click on empty canvas does.
+7. **Studio results that are copied say so.** Well over a hundred of the ~325 Shape, SmartArt and Mind Map copies put their
+   result (a layer stack, a precision report, an outline audit…) on the clipboard without saying so, replacing
+   whatever the user had copied. After a successful copy the status line now ends "· copied to the clipboard".
+8. **The splash's "Copy version" copies the version.** It copied the words "MarkSmith Desktop"; it now reads
+   "Copy version (3.59.0)", copies "MarkSmith 3.59.0" and shows the copy bubble (tick or busy warning).
+9. **SmartArt "Move to top / bottom" show Alt+Home / Alt+End in the column** instead of "(Alt+Home /
+   double-click)" in the label; the promote/demote-to-the-limit items drop "(double-click)".
+
+**Implementation summary.**
+- `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml(.cs)`: 15 `DoubleTapped` attributes and their 14
+  handler methods removed, 14 tooltips reworded; `KeyboardContextMenu.BridgeAll` table of 20 controls after
+  `CaptionButtons.Follow`; `e.GetPosition(x)` → `KeyboardContextMenu.PointIn(e, x)` in the bridged handlers;
+  category combo closes its drop-down before its menu.
+- Hint sweep (scripted, `KeyboardAcceleratorTextOverride` added under the stripped `Text`): `MainWindow.xaml.cs`,
+  `Views/MindMap/MindMapGalaxyWindow.xaml.cs`, `Views/SmartArtStudio/…xaml.cs`, `Views/Ocr/OcrInspectionStudioWindow.xaml.cs`,
+  `Views/SplashWindow.xaml.cs`, `Views/ShapeStudio/ShapeDesignStudioWindow.xaml`. Diff markers ("(+)", "(-)",
+  "(=)") and value lists ("(0 / 2 / 4 / 6)") were left alone. Every key kept was checked against the window's
+  key handler; unbound ones were dropped.
+- `Views/MindMap/MindMapGalaxyWindow.xaml.cs`: `S when ctrl && shift` → `OnSaveAsClick`; Handled before await;
+  Esc clears the selection when nothing else is active; the collapse item passes "Space" to `MenuItem(...)`.
+- Core `Services/CopyStatusText.cs`: new `Succeeded(message)` (keeps "Copied …" lines and lines that already
+  mention the clipboard; appends "· copied to the clipboard" to a result; idempotent). The three studios'
+  `CopyAndReport` use it on success.
+- `Views/SplashWindow.xaml.cs`: version copy through `CopyFeedback.CopyWithBubble(Root, …)`.
+- Tests: new `Run244MenuShortcutColumnTests` (31 cases): no bracketed shortcut left in the six files' menu labels;
+  shortcuts present in the column; unbound keys not advertised; collapse item keeps Space; Ctrl+Shift+S ordering
+  and Handled-before-await; Esc branch; `Succeeded` behaviour and idempotence; studios use `Succeeded`; splash
+  version copy; SmartArt buttons with Click/Command have no DoubleTapped (except the four move buttons); no
+  tooltip promises a removed double-click; the bridge table and `PointIn` in bridged handlers; Alt+Home/Alt+End.
+
+**Skeptical review.**
+- Focus traps: nothing collapses or disables. Esc clearing the selection leaves focus on the canvas.
+- Key swallowing: Mind Map's root handler still returns early for TextBox/AutoSuggestBox focus, so Ctrl+Shift+S
+  and Esc never reach a text box's own keys. The bridge only reacts to Shift+F10 / the Menu key.
+- Bridge: a disabled button can't hold focus, so its menu can't open from the keyboard while it is disabled
+  (same as the mouse). The combo closes its list before showing the menu.
+- Flyouts / HoverPolish: no new controls. Theme: no new brushes. Files: none opened.
+- Async: `Succeeded` runs after the awaited copy as before; a failed copy still goes through `Failed`.
+
+**Verified.** Desktop built to `%TEMP%\ms_run244\b` with 0 errors (rebuilt after each change). Full suite (no
+OutDir): 5923 passed, 7 failed, 1 skipped; the 7 are the known `GovernanceDocsSyncTests` (gitignored docs absent
+from a clone). All Run244 tests pass, as do the 677 SmartArt / keyboard / tooltip / Run223–243 tests.
+Live UIA on scratch PID 16048 (`MARKSMITH_CONFIG_DIR` in the session scratchpad, `doc244.md`, user idle 6 min):
+opened SmartArt Studio through Insert ▸ Diagrams and studios, focused `CopySmartArtBlockButton` and sent
+Shift+F10 (idle- and foreground-PID-checked). The menu opened under the button with UIA MenuItems
+"Copy :::smartart block" acc=Ctrl+Shift+C, "Copy outline bullets" acc=Ctrl+C, "Refresh preview" acc=F5 (the
+accelerator column, not the label); a screen capture shows it. Before the fix (PID 17440, same build minus the
+bridge) the same Shift+F10 opened nothing. `ExportSvgButton` / `DeleteButton` read through UIA as expected.
+- **Not verified live:** the double-click fold (needs a real mouse double-click), Mind Map keys (no route to
+  Mind Map from the Insert menu), and the splash menu (gone before UIA could reach it). Source tests cover them.
+- **Process slip (again):** a live invoke of "Copy outline bullets" replaced the user's clipboard with the
+  22-character test outline. It was not saved first. The previous content may still be in Win+V clipboard
+  history if that is on. Next run: never invoke a copy live unless `Get-Clipboard -Raw` was saved to a file
+  and is restored and read back in the same shell call.
+- Both scratch instances (PIDs 17440, 16048) were stopped; no other Marksmith instance was running.
+
+**Noticed, not fixed:**
+- Shape Studio and Mind Map toolbars likely have the same Click + DoubleTapped double actions on buttons (not
+  audited this run). Run the XAML query from `SmartArt_ButtonsThatClick_HaveNoSecondDoubleClickAction` there.
+- SmartArt's status pills (`OutlineStatsPill`, `OutlineMetricsPill`) and labels are Borders/TextBlocks with
+  right-click menus and no keyboard route (they need the Button treatment runs #225/#226 gave MainWindow's).
+- Mind Map's toolbar chip "Focus (F)" still spells its key in the label (it's a chip, not a menu).
+
+**Next up (Run #245):**
+1. Audit Shape Studio and Mind Map for Click + DoubleTapped double actions and unbridged right-click menus.
+2. SmartArt status pills → keyboard-reachable buttons.
+3. Live OCR page-flip focus check with a 2-page PDF (carried over since #239).
+
+**Total user-visible improvements: 9.**

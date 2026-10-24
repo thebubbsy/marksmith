@@ -23,7 +23,8 @@ namespace MarkSmith.Views.SmartArtStudio
             if (ViewModel is null) return;
             if (error is null)
             {
-                if (message is not null) ViewModel.StatusMessage = message;
+                // A result line (not a "Copied …" message) now says it went to the clipboard too.
+                ViewModel.StatusMessage = MarkSmith.Services.CopyStatusText.Succeeded(message ?? ViewModel.StatusMessage);
             }
             else
             {
@@ -61,6 +62,29 @@ namespace MarkSmith.Views.SmartArtStudio
             this.SetTitleBar(AppTitleBar);
             TitleBarInsets.Reserve(this, AppTitleBar); // keep the action buttons clear of min/max/close
             CaptionButtons.Follow(this, AppTitleBar);
+            // Every right-click menu on a toolbar button also opens from Shift+F10 and the Menu key;
+            // none of them did, so the studio's options were mouse-only.
+            KeyboardContextMenu.BridgeAll(
+                (UndoStudioButton, OnUndoButtonRightTapped),
+                (RedoStudioButton, OnRedoButtonRightTapped),
+                (InsertIntoDocumentButton, OnInsertIntoDocumentButtonRightTapped),
+                (LayoutCategoryCombo, OnLayoutCategoryComboRightTapped),
+                (EditorTabs, OnEditorTabsRightTapped),
+                (RenameButton, OnRenameButtonRightTapped),
+                (DuplicateButton, OnDuplicateButtonRightTapped),
+                (DeleteButton, OnDeleteButtonRightTapped),
+                (MoveUpButton, OnMoveUpButtonRightTapped),
+                (MoveDownButton, OnMoveDownButtonRightTapped),
+                (PromoteButton, OnPromoteButtonRightTapped),
+                (DemoteButton, OnDemoteButtonRightTapped),
+                (PaletteButton, OnPaletteButtonRightTapped),
+                (CopyOutlineMarkdownButton, OnCopyOutlineMarkdownButtonRightTapped),
+                (CopySmartArtBlockButton, OnCopySmartArtBlockButtonRightTapped),
+                (ExportSvgButton, OnExportSvgButtonRightTapped),
+                (DiagramBgButton, OnDiagramBgButtonRightTapped),
+                (NodeGeometryButton, OnNodeGeometryButtonRightTapped),
+                (AspectRatioButton, OnAspectRatioButtonRightTapped),
+                (PreviewZoomResetBtn, OnPreviewZoomResetRightTapped));
             CloseGuard.Attach(this, () => ViewModel.HasUnkeptWork, () =>
             {
                 ViewModel.InsertIntoDocument();
@@ -290,7 +314,8 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var clearItem = new MenuFlyoutItem
             {
-                Text = "Clear search (Esc)",
+                Text = "Clear search",
+                KeyboardAcceleratorTextOverride = "Esc",
                 Icon = new FontIcon { Glyph = "\uE894" },
                 IsEnabled = !string.IsNullOrEmpty(LayoutSearch.Text)
             };
@@ -326,7 +351,8 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var focusListItem = new MenuFlyoutItem
             {
-                Text = "Browse layouts (Down / Enter)",
+                Text = "Browse layouts",
+                KeyboardAcceleratorTextOverride = "Down / Enter",
                 Icon = new FontIcon { Glyph = "\uE8B3" }
             };
             focusListItem.Click += (_, _) =>
@@ -339,7 +365,7 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var focusOutlineItem = new MenuFlyoutItem
             {
-                Text = "Focus outline editor (F6)",
+                Text = "Focus outline editor",
                 Icon = new FontIcon { Glyph = "\uE8FD" }
             };
             focusOutlineItem.Click += (_, _) => OutlineScroll.Focus(FocusState.Keyboard);
@@ -404,6 +430,8 @@ namespace MarkSmith.Views.SmartArtStudio
         {
             if (LayoutCategoryCombo is null) return;
             e.Handled = true;
+            // Shift+F10 with the list open: close it first so the menu is not drawn over it.
+            if (LayoutCategoryCombo.IsDropDownOpen) LayoutCategoryCombo.IsDropDownOpen = false;
             var menu = new MenuFlyout();
 
             foreach (var category in ViewModel.Categories)
@@ -441,7 +469,7 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var nextItem = new MenuFlyoutItem
             {
-                Text = "Next category (Ctrl+Tab)",
+                Text = "Next category",
                 Icon = new FontIcon { Glyph = "\uE76C" }
             };
             nextItem.Click += (_, _) => CycleNextLayoutCategory();
@@ -449,7 +477,7 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var prevItem = new MenuFlyoutItem
             {
-                Text = "Previous category (Ctrl+Shift+Tab)",
+                Text = "Previous category",
                 Icon = new FontIcon { Glyph = "\uE76B" }
             };
             prevItem.Click += (_, _) => CyclePreviousLayoutCategory();
@@ -496,7 +524,7 @@ namespace MarkSmith.Views.SmartArtStudio
             focusListItem.Click += (_, _) => LayoutList?.Focus(FocusState.Keyboard);
             menu.Items.Add(focusListItem);
 
-            menu.ShowAt(LayoutCategoryCombo, e.GetPosition(LayoutCategoryCombo));
+            menu.ShowAt(LayoutCategoryCombo, KeyboardContextMenu.PointIn(e, LayoutCategoryCombo));
         }
 
         private void OnNoMatchesPanelRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -1352,31 +1380,10 @@ namespace MarkSmith.Views.SmartArtStudio
             }
         }
 
-        private void OnRowAddChildDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-        {
-            if ((sender as FrameworkElement)?.DataContext is StudioNodeViewModel node)
-            {
-                e.Handled = true;
-                ViewModel.AddSiblingCommand.Execute(node);
-                FocusRenameBox();
-                ViewModel.StatusMessage = "Added sibling item (double-click) · Enter text";
-            }
-        }
-
         private void OnRowDeleteClick(object sender, RoutedEventArgs e)
         {
             if ((sender as FrameworkElement)?.DataContext is StudioNodeViewModel node)
                 ViewModel.DeleteSelectedCommand.Execute(node);
-        }
-
-        private void OnRowDeleteDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-        {
-            if ((sender as FrameworkElement)?.DataContext is StudioNodeViewModel node)
-            {
-                e.Handled = true;
-                ViewModel.DeleteSelectedCommand.Execute(node);
-                ViewModel.StatusMessage = "Deleted item · Ctrl+Z to undo";
-            }
         }
 
         private void OnMoveUpButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
@@ -1398,7 +1405,8 @@ namespace MarkSmith.Views.SmartArtStudio
             var menu = new MenuFlyout();
             var moveToTopItem = new MenuFlyoutItem
             {
-                Text = "Move to top (Alt+Home / double-click)",
+                Text = "Move to top",
+                KeyboardAcceleratorTextOverride = "Alt+Home",
                 Icon = new FontIcon { Glyph = "\uE898" },
                 IsEnabled = ViewModel.CanMoveUp
             };
@@ -1412,15 +1420,16 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var moveUpItem = new MenuFlyoutItem
             {
-                Text = "Move up one (Alt+Up)",
+                Text = "Move up one",
+                KeyboardAcceleratorTextOverride = "Alt+Up",
                 Icon = new FontIcon { Glyph = "\uE74A" },
                 IsEnabled = ViewModel.CanMoveUp
             };
             moveUpItem.Click += (_, _) => ViewModel.MoveUpCommand.Execute(null);
             menu.Items.Add(moveUpItem);
 
-            if (sender is FrameworkElement fe) menu.ShowAt(fe, e.GetPosition(fe));
-            else if (MoveUpButton is not null) menu.ShowAt(MoveUpButton, e.GetPosition(MoveUpButton));
+            if (sender is FrameworkElement fe) menu.ShowAt(fe, KeyboardContextMenu.PointIn(e, fe));
+            else if (MoveUpButton is not null) menu.ShowAt(MoveUpButton, KeyboardContextMenu.PointIn(e, MoveUpButton));
         }
 
         private void OnMoveDownButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
@@ -1442,7 +1451,8 @@ namespace MarkSmith.Views.SmartArtStudio
             var menu = new MenuFlyout();
             var moveToBottomItem = new MenuFlyoutItem
             {
-                Text = "Move to bottom (Alt+End / double-click)",
+                Text = "Move to bottom",
+                KeyboardAcceleratorTextOverride = "Alt+End",
                 Icon = new FontIcon { Glyph = "\uE896" },
                 IsEnabled = ViewModel.CanMoveDown
             };
@@ -1456,15 +1466,16 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var moveDownItem = new MenuFlyoutItem
             {
-                Text = "Move down one (Alt+Down)",
+                Text = "Move down one",
+                KeyboardAcceleratorTextOverride = "Alt+Down",
                 Icon = new FontIcon { Glyph = "\uE74B" },
                 IsEnabled = ViewModel.CanMoveDown
             };
             moveDownItem.Click += (_, _) => ViewModel.MoveDownCommand.Execute(null);
             menu.Items.Add(moveDownItem);
 
-            if (sender is FrameworkElement fe) menu.ShowAt(fe, e.GetPosition(fe));
-            else if (MoveDownButton is not null) menu.ShowAt(MoveDownButton, e.GetPosition(MoveDownButton));
+            if (sender is FrameworkElement fe) menu.ShowAt(fe, KeyboardContextMenu.PointIn(e, fe));
+            else if (MoveDownButton is not null) menu.ShowAt(MoveDownButton, KeyboardContextMenu.PointIn(e, MoveDownButton));
         }
 
         private void OnPromoteButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
@@ -1486,7 +1497,7 @@ namespace MarkSmith.Views.SmartArtStudio
             var menu = new MenuFlyout();
             var promoteRootItem = new MenuFlyoutItem
             {
-                Text = "Promote to root level (depth 0 / double-click)",
+                Text = "Promote to root level (depth 0)",
                 Icon = new FontIcon { Glyph = "\uE897" },
                 IsEnabled = ViewModel.CanPromote
             };
@@ -1499,15 +1510,16 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var promoteOneItem = new MenuFlyoutItem
             {
-                Text = "Promote one level out (Shift+Tab)",
+                Text = "Promote one level out",
+                KeyboardAcceleratorTextOverride = "Shift+Tab",
                 Icon = new FontIcon { Glyph = "\uE76B" },
                 IsEnabled = ViewModel.CanPromote
             };
             promoteOneItem.Click += (_, _) => ViewModel.PromoteCommand.Execute(null);
             menu.Items.Add(promoteOneItem);
 
-            if (sender is FrameworkElement fe) menu.ShowAt(fe, e.GetPosition(fe));
-            else if (PromoteButton is not null) menu.ShowAt(PromoteButton, e.GetPosition(PromoteButton));
+            if (sender is FrameworkElement fe) menu.ShowAt(fe, KeyboardContextMenu.PointIn(e, fe));
+            else if (PromoteButton is not null) menu.ShowAt(PromoteButton, KeyboardContextMenu.PointIn(e, PromoteButton));
         }
 
         private void OnDemoteButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
@@ -1529,7 +1541,7 @@ namespace MarkSmith.Views.SmartArtStudio
             var menu = new MenuFlyout();
             var demoteDeepestItem = new MenuFlyoutItem
             {
-                Text = "Demote to deepest child level (double-click)",
+                Text = "Demote to deepest child level",
                 Icon = new FontIcon { Glyph = "\uE895" },
                 IsEnabled = ViewModel.CanDemote
             };
@@ -1542,15 +1554,16 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var demoteOneItem = new MenuFlyoutItem
             {
-                Text = "Demote one level in (Tab)",
+                Text = "Demote one level in",
+                KeyboardAcceleratorTextOverride = "Tab",
                 Icon = new FontIcon { Glyph = "\uE76C" },
                 IsEnabled = ViewModel.CanDemote
             };
             demoteOneItem.Click += (_, _) => ViewModel.DemoteCommand.Execute(null);
             menu.Items.Add(demoteOneItem);
 
-            if (sender is FrameworkElement fe) menu.ShowAt(fe, e.GetPosition(fe));
-            else if (DemoteButton is not null) menu.ShowAt(DemoteButton, e.GetPosition(DemoteButton));
+            if (sender is FrameworkElement fe) menu.ShowAt(fe, KeyboardContextMenu.PointIn(e, fe));
+            else if (DemoteButton is not null) menu.ShowAt(DemoteButton, KeyboardContextMenu.PointIn(e, DemoteButton));
         }
 
         private void OnRowCommitRenameClick(object sender, RoutedEventArgs e)
@@ -1570,17 +1583,11 @@ namespace MarkSmith.Views.SmartArtStudio
             BeginRenameAndFocus();
         }
 
-        private void OnRenameButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-        {
-            e.Handled = true;
-            BeginRenameAndFocus();
-        }
-
         private void OnRenameButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
         {
             e.Handled = true;
             var menu = new MenuFlyout();
-            var renameItem = new MenuFlyoutItem { Text = "Rename inline (F2)", Icon = new FontIcon { Glyph = "\uE70F" } };
+            var renameItem = new MenuFlyoutItem { Text = "Rename inline", KeyboardAcceleratorTextOverride = "F2", Icon = new FontIcon { Glyph = "\uE70F" } };
             renameItem.Click += OnRenameClick;
             menu.Items.Add(renameItem);
             menu.Items.Add(new MenuFlyoutSeparator());
@@ -1593,23 +1600,14 @@ namespace MarkSmith.Views.SmartArtStudio
                 }
             };
             menu.Items.Add(copyItem);
-            if (sender is FrameworkElement fe) menu.ShowAt(fe, e.GetPosition(fe));
-        }
-
-        private void OnDuplicateButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-        {
-            e.Handled = true;
-            if (!ViewModel.HasSelection) return;
-            ViewModel.DuplicateSelectedCommand.Execute(null);
-            ViewModel.DuplicateSelectedCommand.Execute(null);
-            ViewModel.StatusMessage = "Duplicated twice (double-click)";
+            if (sender is FrameworkElement fe) menu.ShowAt(fe, KeyboardContextMenu.PointIn(e, fe));
         }
 
         private void OnDuplicateButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
         {
             e.Handled = true;
             var menu = new MenuFlyout();
-            var dupItem = new MenuFlyoutItem { Text = "Duplicate (Ctrl+D)", Icon = new FontIcon { Glyph = "\uE8C8" } };
+            var dupItem = new MenuFlyoutItem { Text = "Duplicate", KeyboardAcceleratorTextOverride = "Ctrl+D", Icon = new FontIcon { Glyph = "\uE8C8" } };
             dupItem.Click += (_, _) => ViewModel.DuplicateSelectedCommand.Execute(null);
             menu.Items.Add(dupItem);
             var dupSiblingItem = new MenuFlyoutItem { Text = "Duplicate as sibling", Icon = new FontIcon { Glyph = "\uE8C8" } };
@@ -1628,22 +1626,14 @@ namespace MarkSmith.Views.SmartArtStudio
                 }
             };
             menu.Items.Add(dupSiblingItem);
-            if (sender is FrameworkElement fe) menu.ShowAt(fe, e.GetPosition(fe));
-        }
-
-        private void OnDeleteButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-        {
-            e.Handled = true;
-            if (!ViewModel.HasSelection) return;
-            ViewModel.DeleteSelectedCommand.Execute(null);
-            ViewModel.StatusMessage = "Deleted item · Ctrl+Z to undo";
+            if (sender is FrameworkElement fe) menu.ShowAt(fe, KeyboardContextMenu.PointIn(e, fe));
         }
 
         private void OnDeleteButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
         {
             e.Handled = true;
             var menu = new MenuFlyout();
-            var delItem = new MenuFlyoutItem { Text = "Delete selected (Del)", Icon = new FontIcon { Glyph = "\uE74D" } };
+            var delItem = new MenuFlyoutItem { Text = "Delete selected", KeyboardAcceleratorTextOverride = "Del", Icon = new FontIcon { Glyph = "\uE74D" } };
             delItem.Click += (_, _) => ViewModel.DeleteSelectedCommand.Execute(null);
             menu.Items.Add(delItem);
             menu.Items.Add(new MenuFlyoutSeparator());
@@ -1659,7 +1649,7 @@ namespace MarkSmith.Views.SmartArtStudio
                 ViewModel.StatusMessage = "Cleared outline";
             };
             menu.Items.Add(clearItem);
-            if (sender is FrameworkElement fe) menu.ShowAt(fe, e.GetPosition(fe));
+            if (sender is FrameworkElement fe) menu.ShowAt(fe, KeyboardContextMenu.PointIn(e, fe));
         }
 
         private void OnRowBulletDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
@@ -1909,7 +1899,7 @@ namespace MarkSmith.Views.SmartArtStudio
             };
             menu.Items.Add(resetItem);
 
-            menu.ShowAt(UndoStudioButton, e.GetPosition(UndoStudioButton));
+            menu.ShowAt(UndoStudioButton, KeyboardContextMenu.PointIn(e, UndoStudioButton));
         }
 
         private void OnRedoButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -1949,7 +1939,7 @@ namespace MarkSmith.Views.SmartArtStudio
             copyBulletsItem.Click += OnCopyOutlineMarkdownClick;
             menu.Items.Add(copyBulletsItem);
 
-            menu.ShowAt(RedoStudioButton, e.GetPosition(RedoStudioButton));
+            menu.ShowAt(RedoStudioButton, KeyboardContextMenu.PointIn(e, RedoStudioButton));
         }
 
         private void OnInsertIntoDocumentButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -1996,7 +1986,7 @@ namespace MarkSmith.Views.SmartArtStudio
             searchLayoutsItem.Click += (_, _) => LayoutSearch?.Focus(FocusState.Programmatic);
             menu.Items.Add(searchLayoutsItem);
 
-            menu.ShowAt(InsertIntoDocumentButton, e.GetPosition(InsertIntoDocumentButton));
+            menu.ShowAt(InsertIntoDocumentButton, KeyboardContextMenu.PointIn(e, InsertIntoDocumentButton));
         }
 
         private void FocusRenameBox()
@@ -2150,7 +2140,8 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var addChildItem = new MenuFlyoutItem
             {
-                Text = "Add child (Insert)",
+                Text = "Add child",
+                KeyboardAcceleratorTextOverride = "Insert",
                 Icon = new FontIcon { Glyph = "\uE710" },
                 IsEnabled = !ViewModel.IsOutlineEmpty
             };
@@ -2159,7 +2150,8 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var addSiblingItem = new MenuFlyoutItem
             {
-                Text = "Add sibling (Enter)",
+                Text = "Add sibling",
+                KeyboardAcceleratorTextOverride = "Enter",
                 Icon = new FontIcon { Glyph = "\uE710" },
                 IsEnabled = !ViewModel.IsOutlineEmpty
             };
@@ -2170,7 +2162,8 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var renameItem = new MenuFlyoutItem
             {
-                Text = "Rename (F2)",
+                Text = "Rename",
+                KeyboardAcceleratorTextOverride = "F2",
                 Icon = new FontIcon { Glyph = "\uE70F" },
                 IsEnabled = ViewModel.HasSelection
             };
@@ -2179,7 +2172,8 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var duplicateItem = new MenuFlyoutItem
             {
-                Text = "Duplicate (Ctrl+D)",
+                Text = "Duplicate",
+                KeyboardAcceleratorTextOverride = "Ctrl+D",
                 Icon = new FontIcon { Glyph = "\uE8C8" },
                 IsEnabled = ViewModel.HasSelection
             };
@@ -2188,7 +2182,8 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var deleteItem = new MenuFlyoutItem
             {
-                Text = "Delete (Del)",
+                Text = "Delete",
+                KeyboardAcceleratorTextOverride = "Del",
                 Icon = new FontIcon { Glyph = "\uE74D" },
                 IsEnabled = ViewModel.HasSelection
             };
@@ -2199,7 +2194,8 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var moveToTopItem = new MenuFlyoutItem
             {
-                Text = "Move to top (Alt+Home / double-click)",
+                Text = "Move to top",
+                KeyboardAcceleratorTextOverride = "Alt+Home",
                 Icon = new FontIcon { Glyph = "\uE898" },
                 IsEnabled = ViewModel.CanMoveUp
             };
@@ -2213,7 +2209,8 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var moveUpItem = new MenuFlyoutItem
             {
-                Text = "Move up (Alt+Up)",
+                Text = "Move up",
+                KeyboardAcceleratorTextOverride = "Alt+Up",
                 Icon = new FontIcon { Glyph = "\uE74A" },
                 IsEnabled = ViewModel.CanMoveUp
             };
@@ -2222,7 +2219,8 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var moveDownItem = new MenuFlyoutItem
             {
-                Text = "Move down (Alt+Down)",
+                Text = "Move down",
+                KeyboardAcceleratorTextOverride = "Alt+Down",
                 Icon = new FontIcon { Glyph = "\uE74B" },
                 IsEnabled = ViewModel.CanMoveDown
             };
@@ -2231,7 +2229,8 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var moveToBottomItem = new MenuFlyoutItem
             {
-                Text = "Move to bottom (Alt+End / double-click)",
+                Text = "Move to bottom",
+                KeyboardAcceleratorTextOverride = "Alt+End",
                 Icon = new FontIcon { Glyph = "\uE896" },
                 IsEnabled = ViewModel.CanMoveDown
             };
@@ -2245,7 +2244,8 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var promoteItem = new MenuFlyoutItem
             {
-                Text = "Promote (Shift+Tab)",
+                Text = "Promote",
+                KeyboardAcceleratorTextOverride = "Shift+Tab",
                 Icon = new FontIcon { Glyph = "\uE76B" },
                 IsEnabled = ViewModel.CanPromote
             };
@@ -2254,7 +2254,8 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var demoteItem = new MenuFlyoutItem
             {
-                Text = "Demote (Tab)",
+                Text = "Demote",
+                KeyboardAcceleratorTextOverride = "Tab",
                 Icon = new FontIcon { Glyph = "\uE76C" },
                 IsEnabled = ViewModel.CanDemote
             };
@@ -2265,7 +2266,8 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var copyBulletsItem = new MenuFlyoutItem
             {
-                Text = "Copy outline bullets (Ctrl+C)",
+                Text = "Copy outline bullets",
+                KeyboardAcceleratorTextOverride = "Ctrl+C",
                 Icon = new FontIcon { Glyph = "\uE8FD" },
                 IsEnabled = !ViewModel.IsOutlineEmpty
             };
@@ -2274,7 +2276,8 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var copyBlockItem = new MenuFlyoutItem
             {
-                Text = "Copy :::smartart block (Ctrl+Shift+C)",
+                Text = "Copy :::smartart block",
+                KeyboardAcceleratorTextOverride = "Ctrl+Shift+C",
                 Icon = new FontIcon { Glyph = "\uE8C8" },
                 IsEnabled = !ViewModel.IsOutlineEmpty
             };
@@ -2292,7 +2295,8 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var copyBulletsItem = new MenuFlyoutItem
             {
-                Text = "Copy outline bullets (Ctrl+C)",
+                Text = "Copy outline bullets",
+                KeyboardAcceleratorTextOverride = "Ctrl+C",
                 Icon = new FontIcon { Glyph = "\uE8FD" },
                 IsEnabled = !ViewModel.IsOutlineEmpty
             };
@@ -2301,7 +2305,8 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var copyBlockItem = new MenuFlyoutItem
             {
-                Text = "Copy :::smartart block (Ctrl+Shift+C)",
+                Text = "Copy :::smartart block",
+                KeyboardAcceleratorTextOverride = "Ctrl+Shift+C",
                 Icon = new FontIcon { Glyph = "\uE8C8" },
                 IsEnabled = !ViewModel.IsOutlineEmpty
             };
@@ -2310,7 +2315,8 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var editMarkdownItem = new MenuFlyoutItem
             {
-                Text = "Switch to Markdown editor (Ctrl+2)",
+                Text = "Switch to Markdown editor",
+                KeyboardAcceleratorTextOverride = "Ctrl+2",
                 Icon = new FontIcon { Glyph = "\uE70F" }
             };
             editMarkdownItem.Click += (_, _) =>
@@ -2319,7 +2325,7 @@ namespace MarkSmith.Views.SmartArtStudio
             };
             menu.Items.Add(editMarkdownItem);
 
-            menu.ShowAt(CopyOutlineMarkdownButton, e.GetPosition(CopyOutlineMarkdownButton));
+            menu.ShowAt(CopyOutlineMarkdownButton, KeyboardContextMenu.PointIn(e, CopyOutlineMarkdownButton));
         }
 
         private void OnCopySmartArtBlockButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -2330,7 +2336,8 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var copyBlockItem = new MenuFlyoutItem
             {
-                Text = "Copy :::smartart block (Ctrl+Shift+C)",
+                Text = "Copy :::smartart block",
+                KeyboardAcceleratorTextOverride = "Ctrl+Shift+C",
                 Icon = new FontIcon { Glyph = "\uE8C8" },
                 IsEnabled = !ViewModel.IsOutlineEmpty
             };
@@ -2339,7 +2346,8 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var copyBulletsItem = new MenuFlyoutItem
             {
-                Text = "Copy outline bullets (Ctrl+C)",
+                Text = "Copy outline bullets",
+                KeyboardAcceleratorTextOverride = "Ctrl+C",
                 Icon = new FontIcon { Glyph = "\uE8FD" },
                 IsEnabled = !ViewModel.IsOutlineEmpty
             };
@@ -2362,7 +2370,8 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var refreshItem = new MenuFlyoutItem
             {
-                Text = "Refresh preview (F5)",
+                Text = "Refresh preview",
+                KeyboardAcceleratorTextOverride = "F5",
                 Icon = new FontIcon { Glyph = "\uE72C" }
             };
             refreshItem.Click += (_, _) =>
@@ -2372,7 +2381,7 @@ namespace MarkSmith.Views.SmartArtStudio
             };
             menu.Items.Add(refreshItem);
 
-            menu.ShowAt(CopySmartArtBlockButton, e.GetPosition(CopySmartArtBlockButton));
+            menu.ShowAt(CopySmartArtBlockButton, KeyboardContextMenu.PointIn(e, CopySmartArtBlockButton));
         }
 
         private void ShowRowContextMenu(StudioNodeViewModel node, UIElement target, Windows.Foundation.Point position)
@@ -2600,7 +2609,8 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var refreshItem = new MenuFlyoutItem
             {
-                Text = "Refresh preview (F5)",
+                Text = "Refresh preview",
+                KeyboardAcceleratorTextOverride = "F5",
                 Icon = new FontIcon { Glyph = "\uE72C" }
             };
             refreshItem.Click += (_, _) =>
@@ -2700,7 +2710,8 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var refreshItem = new MenuFlyoutItem
             {
-                Text = "Refresh preview (F5)",
+                Text = "Refresh preview",
+                KeyboardAcceleratorTextOverride = "F5",
                 Icon = new FontIcon { Glyph = "\uE72C" }
             };
             refreshItem.Click += (_, _) =>
@@ -2712,7 +2723,8 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var copyBlockItem = new MenuFlyoutItem
             {
-                Text = "Copy SmartArt Markdown block (Ctrl+Shift+C)",
+                Text = "Copy SmartArt Markdown block",
+                KeyboardAcceleratorTextOverride = "Ctrl+Shift+C",
                 Icon = new FontIcon { Glyph = "\uE8C8" },
                 IsEnabled = !ViewModel.IsOutlineEmpty
             };
@@ -2721,7 +2733,8 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var copyOutlineItem = new MenuFlyoutItem
             {
-                Text = "Copy outline as Markdown (Ctrl+C)",
+                Text = "Copy outline as Markdown",
+                KeyboardAcceleratorTextOverride = "Ctrl+C",
                 Icon = new FontIcon { Glyph = "\uE8FD" },
                 IsEnabled = !ViewModel.IsOutlineEmpty
             };
@@ -2732,7 +2745,7 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var insertItem = new MenuFlyoutItem
             {
-                Text = "Insert into document (Ctrl+Enter)",
+                Text = "Insert into document",
                 Icon = new FontIcon { Glyph = "\uE8A5" },
                 KeyboardAcceleratorTextOverride = "Ctrl+Enter",
                 IsEnabled = !ViewModel.IsOutlineEmpty
@@ -2749,19 +2762,7 @@ namespace MarkSmith.Views.SmartArtStudio
 
         private void OnCopyOutlineMarkdownClick(object sender, RoutedEventArgs e) => CopyOutlineMarkdown();
 
-        private void OnCopyOutlineMarkdownButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-        {
-            e.Handled = true;
-            CopyOutlineMarkdown();
-        }
-
         private void OnCopySmartArtBlockClick(object sender, RoutedEventArgs e) => CopySmartArtBlock();
-
-        private void OnCopySmartArtBlockButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-        {
-            e.Handled = true;
-            CopySmartArtBlock();
-        }
 
         private void CopyOutlineMarkdown()
         {
@@ -2785,12 +2786,6 @@ namespace MarkSmith.Views.SmartArtStudio
             ExportSvgFlyout?.ShowAt(sender as FrameworkElement ?? ExportSvgButton);
         }
 
-        private void OnExportSvgButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-        {
-            e.Handled = true;
-            CopySvgToClipboard(2.0, "2x Retina SVG");
-        }
-
         private void OnExportSvgButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
         {
             e.Handled = true;
@@ -2800,20 +2795,6 @@ namespace MarkSmith.Views.SmartArtStudio
         private void OnDiagramBgButtonClick(object sender, RoutedEventArgs e)
         {
             DiagramBgFlyout?.ShowAt(sender as FrameworkElement ?? DiagramBgButton);
-        }
-
-        private void OnDiagramBgButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-        {
-            e.Handled = true;
-            _currentDiagramBgMode = _currentDiagramBgMode switch
-            {
-                DiagramPreviewBgMode.DefaultCard => DiagramPreviewBgMode.DarkSlate,
-                DiagramPreviewBgMode.DarkSlate => DiagramPreviewBgMode.Checkerboard,
-                DiagramPreviewBgMode.Checkerboard => DiagramPreviewBgMode.DotGrid,
-                _ => DiagramPreviewBgMode.DefaultCard
-            };
-            RefreshWebView();
-            if (DiagramBgButton is not null) Services.CopyFeedback.ApplyButtonTick(DiagramBgButton, null);
         }
 
         private void OnDiagramBgButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -2837,20 +2818,6 @@ namespace MarkSmith.Views.SmartArtStudio
         private void OnNodeGeometryButtonClick(object sender, RoutedEventArgs e)
         {
             NodeGeometryFlyout?.ShowAt(sender as FrameworkElement ?? NodeGeometryButton);
-        }
-
-        private void OnNodeGeometryButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-        {
-            e.Handled = true;
-            _currentNodeGeomMode = _currentNodeGeomMode switch
-            {
-                SmartArtNodeGeometryMode.Default => SmartArtNodeGeometryMode.PillRounded,
-                SmartArtNodeGeometryMode.PillRounded => SmartArtNodeGeometryMode.SharpBox,
-                SmartArtNodeGeometryMode.SharpBox => SmartArtNodeGeometryMode.ModernSoft,
-                SmartArtNodeGeometryMode.ModernSoft => SmartArtNodeGeometryMode.ContrastBorder,
-                _ => SmartArtNodeGeometryMode.Default
-            };
-            SetNodeGeometryMode(_currentNodeGeomMode);
         }
 
         private void OnNodeGeometryButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -2886,20 +2853,6 @@ namespace MarkSmith.Views.SmartArtStudio
             AspectRatioFlyout?.ShowAt(sender as FrameworkElement ?? AspectRatioButton);
         }
 
-        private void OnAspectRatioButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-        {
-            e.Handled = true;
-            _currentAspectRatioMode = _currentAspectRatioMode switch
-            {
-                SmartArtAspectRatioMode.Default => SmartArtAspectRatioMode.Widescreen16x9,
-                SmartArtAspectRatioMode.Widescreen16x9 => SmartArtAspectRatioMode.Standard4x3,
-                SmartArtAspectRatioMode.Standard4x3 => SmartArtAspectRatioMode.Square1x1,
-                SmartArtAspectRatioMode.Square1x1 => SmartArtAspectRatioMode.Ultrawide21x9,
-                _ => SmartArtAspectRatioMode.Default
-            };
-            SetAspectRatioMode(_currentAspectRatioMode);
-        }
-
         private void OnAspectRatioButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
         {
             e.Handled = true;
@@ -2931,12 +2884,6 @@ namespace MarkSmith.Views.SmartArtStudio
         private void OnZoomButtonClick(object sender, RoutedEventArgs e)
         {
             ZoomFlyout?.ShowAt(sender as FrameworkElement ?? ZoomButton);
-        }
-
-        private void OnZoomButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-        {
-            e.Handled = true;
-            SetZoomMode(SmartArtZoomMode.Z100);
         }
 
         private void OnZoomButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -3156,7 +3103,8 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var insertItem = new MenuFlyoutItem
             {
-                Text = "Insert into document (Ctrl+Enter)",
+                Text = "Insert into document",
+                KeyboardAcceleratorTextOverride = "Ctrl+Enter",
                 Icon = new FontIcon { Glyph = "\uE8A5" }
             };
             insertItem.Click += (_, _) =>
@@ -3168,7 +3116,8 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var copyBlockItem = new MenuFlyoutItem
             {
-                Text = "Copy :::smartart block (Ctrl+Shift+C)",
+                Text = "Copy :::smartart block",
+                KeyboardAcceleratorTextOverride = "Ctrl+Shift+C",
                 Icon = new FontIcon { Glyph = "\uE8C8" }
             };
             copyBlockItem.Click += (_, _) => CopySmartArtBlock();
@@ -3176,7 +3125,8 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var copyBulletsItem = new MenuFlyoutItem
             {
-                Text = "Copy outline bullets (Ctrl+C)",
+                Text = "Copy outline bullets",
+                KeyboardAcceleratorTextOverride = "Ctrl+C",
                 Icon = new FontIcon { Glyph = "\uE8FD" }
             };
             copyBulletsItem.Click += (_, _) => CopyOutlineMarkdown();
@@ -3244,7 +3194,8 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var pasteItem = new MenuFlyoutItem
             {
-                Text = "Paste bullets (Ctrl+V)",
+                Text = "Paste bullets",
+                KeyboardAcceleratorTextOverride = "Ctrl+V",
                 Icon = new FontIcon { Glyph = "\uE77F" }
             };
             pasteItem.Click += async (_, _) =>
@@ -3263,7 +3214,8 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var selectAllItem = new MenuFlyoutItem
             {
-                Text = "Select all (Ctrl+A)",
+                Text = "Select all",
+                KeyboardAcceleratorTextOverride = "Ctrl+A",
                 Icon = new FontIcon { Glyph = "\uE8B3" }
             };
             selectAllItem.Click += (_, _) => MarkdownTextBox.SelectAll();
@@ -3273,7 +3225,8 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var switchToOutlineItem = new MenuFlyoutItem
             {
-                Text = "Switch to Outline view (Ctrl+1)",
+                Text = "Switch to Outline view",
+                KeyboardAcceleratorTextOverride = "Ctrl+1",
                 Icon = new FontIcon { Glyph = "\uE8FD" }
             };
             switchToOutlineItem.Click += (_, _) =>
@@ -3328,7 +3281,8 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var copyBlockItem = new MenuFlyoutItem
             {
-                Text = "Copy :::smartart block (Ctrl+Shift+C)",
+                Text = "Copy :::smartart block",
+                KeyboardAcceleratorTextOverride = "Ctrl+Shift+C",
                 Icon = new FontIcon { Glyph = "\uE8C8" }
             };
             copyBlockItem.Click += (_, _) => CopySmartArtBlock();
@@ -3338,7 +3292,8 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var insertItem = new MenuFlyoutItem
             {
-                Text = "Insert into document (Ctrl+Enter)",
+                Text = "Insert into document",
+                KeyboardAcceleratorTextOverride = "Ctrl+Enter",
                 Icon = new FontIcon { Glyph = "\uE8A5" }
             };
             insertItem.Click += (_, _) =>
@@ -3389,7 +3344,8 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var focusSearchItem = new MenuFlyoutItem
             {
-                Text = "Focus layout search (Ctrl+F)",
+                Text = "Focus layout search",
+                KeyboardAcceleratorTextOverride = "Ctrl+F",
                 Icon = new FontIcon { Glyph = "\uE721" }
             };
             focusSearchItem.Click += (_, _) =>
@@ -3463,7 +3419,8 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var copyBulletsItem = new MenuFlyoutItem
             {
-                Text = "Copy outline bullets (Ctrl+C)",
+                Text = "Copy outline bullets",
+                KeyboardAcceleratorTextOverride = "Ctrl+C",
                 Icon = new FontIcon { Glyph = "\uE8FD" },
                 IsEnabled = !ViewModel.IsOutlineEmpty
             };
@@ -3472,7 +3429,8 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var copyBlockItem = new MenuFlyoutItem
             {
-                Text = "Copy :::smartart block (Ctrl+Shift+C)",
+                Text = "Copy :::smartart block",
+                KeyboardAcceleratorTextOverride = "Ctrl+Shift+C",
                 Icon = new FontIcon { Glyph = "\uE8C8" },
                 IsEnabled = !ViewModel.IsOutlineEmpty
             };
@@ -3483,7 +3441,8 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var addRootItem = new MenuFlyoutItem
             {
-                Text = "Add root item (Insert)",
+                Text = "Add root item",
+                KeyboardAcceleratorTextOverride = "Insert",
                 Icon = new FontIcon { Glyph = "\uE710" }
             };
             addRootItem.Click += (_, _) => { ViewModel.AddChild(null); FocusRenameBox(); };
@@ -3491,7 +3450,8 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var switchToEditorItem = new MenuFlyoutItem
             {
-                Text = "Switch to Markdown editor (Ctrl+2)",
+                Text = "Switch to Markdown editor",
+                KeyboardAcceleratorTextOverride = "Ctrl+2",
                 Icon = new FontIcon { Glyph = "\uE70F" }
             };
             switchToEditorItem.Click += (_, _) =>
@@ -3537,7 +3497,8 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var copyBlockItem = new MenuFlyoutItem
             {
-                Text = "Copy :::smartart block (Ctrl+Shift+C)",
+                Text = "Copy :::smartart block",
+                KeyboardAcceleratorTextOverride = "Ctrl+Shift+C",
                 Icon = new FontIcon { Glyph = "\uE8C8" },
                 IsEnabled = !ViewModel.IsOutlineEmpty
             };
@@ -3546,7 +3507,8 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var copyBulletsItem = new MenuFlyoutItem
             {
-                Text = "Copy outline bullets (Ctrl+C)",
+                Text = "Copy outline bullets",
+                KeyboardAcceleratorTextOverride = "Ctrl+C",
                 Icon = new FontIcon { Glyph = "\uE8FD" },
                 IsEnabled = !ViewModel.IsOutlineEmpty
             };
@@ -3569,7 +3531,8 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var switchEditorItem = new MenuFlyoutItem
             {
-                Text = "Switch to Markdown editor (Ctrl+2)",
+                Text = "Switch to Markdown editor",
+                KeyboardAcceleratorTextOverride = "Ctrl+2",
                 Icon = new FontIcon { Glyph = "\uE70F" }
             };
             switchEditorItem.Click += (_, _) =>
@@ -3592,7 +3555,8 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var outlineItem = new MenuFlyoutItem
             {
-                Text = "Outline editor (Ctrl+1)",
+                Text = "Outline editor",
+                KeyboardAcceleratorTextOverride = "Ctrl+1",
                 Icon = new FontIcon { Glyph = "\uE8FD" }
             };
             outlineItem.Click += (_, _) => EditorTabs.SelectedItem = OutlineTab;
@@ -3600,7 +3564,8 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var markdownItem = new MenuFlyoutItem
             {
-                Text = "Markdown source (Ctrl+2)",
+                Text = "Markdown source",
+                KeyboardAcceleratorTextOverride = "Ctrl+2",
                 Icon = new FontIcon { Glyph = "\uE943" }
             };
             markdownItem.Click += (_, _) => EditorTabs.SelectedItem = MarkdownTab;
@@ -3610,7 +3575,8 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var copyBulletsItem = new MenuFlyoutItem
             {
-                Text = "Copy outline bullets (Ctrl+C)",
+                Text = "Copy outline bullets",
+                KeyboardAcceleratorTextOverride = "Ctrl+C",
                 Icon = new FontIcon { Glyph = "\uE8FD" },
                 IsEnabled = !ViewModel.IsOutlineEmpty
             };
@@ -3619,7 +3585,8 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var copyBlockItem = new MenuFlyoutItem
             {
-                Text = "Copy :::smartart block (Ctrl+Shift+C)",
+                Text = "Copy :::smartart block",
+                KeyboardAcceleratorTextOverride = "Ctrl+Shift+C",
                 Icon = new FontIcon { Glyph = "\uE8C8" },
                 IsEnabled = !ViewModel.IsOutlineEmpty
             };
@@ -3628,13 +3595,14 @@ namespace MarkSmith.Views.SmartArtStudio
 
             var addRootItem = new MenuFlyoutItem
             {
-                Text = "Add root item (Insert)",
+                Text = "Add root item",
+                KeyboardAcceleratorTextOverride = "Insert",
                 Icon = new FontIcon { Glyph = "\uE710" }
             };
             addRootItem.Click += (_, _) => { ViewModel.AddChild(null); FocusRenameBox(); };
             menu.Items.Add(addRootItem);
 
-            menu.ShowAt(EditorTabs, e.GetPosition(EditorTabs));
+            menu.ShowAt(EditorTabs, KeyboardContextMenu.PointIn(e, EditorTabs));
         }
 
         private void AddPaletteSubmenu(MenuFlyout menu)
@@ -3696,21 +3664,15 @@ namespace MarkSmith.Views.SmartArtStudio
             // Click opens the Flyout automatically
         }
 
-        private void OnPaletteButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-        {
-            e.Handled = true;
-            CyclePalette();
-        }
-
         private void OnPaletteButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
         {
             e.Handled = true;
             var menu = new MenuFlyout();
             AddPaletteSubmenu(menu);
             if (PaletteButton is not null)
-                menu.ShowAt(PaletteButton, e.GetPosition(PaletteButton));
+                menu.ShowAt(PaletteButton, KeyboardContextMenu.PointIn(e, PaletteButton));
             else if (sender is FrameworkElement fe)
-                menu.ShowAt(fe, e.GetPosition(fe));
+                menu.ShowAt(fe, KeyboardContextMenu.PointIn(e, fe));
         }
 
         private readonly List<SmartArtPaletteChoice> _smartArtPaletteChoices = new();
@@ -4114,12 +4076,6 @@ namespace MarkSmith.Views.SmartArtStudio
         private void OnPreviewZoomInClick(object sender, RoutedEventArgs e) => SetPreviewZoom(_previewZoomFactor + 0.15);
         private void OnPreviewZoomOutClick(object sender, RoutedEventArgs e) => SetPreviewZoom(_previewZoomFactor - 0.15);
         private void OnPreviewZoomResetClick(object sender, RoutedEventArgs e) => SetPreviewZoom(1.0);
-
-        private void OnPreviewZoomResetDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-        {
-            e.Handled = true;
-            SetPreviewZoom(1.0);
-        }
 
         private void OnPreviewZoomResetRightTapped(object sender, RightTappedRoutedEventArgs e)
         {

@@ -33,7 +33,8 @@ namespace MarkSmith.Views.MindMap
             if (ViewModel is null) return;
             if (error is null)
             {
-                if (message is not null) ViewModel.StatusMessage = message;
+                // A result line (not a "Copied …" message) now says it went to the clipboard too.
+                ViewModel.StatusMessage = MarkSmith.Services.CopyStatusText.Succeeded(message ?? ViewModel.StatusMessage);
             }
             else
             {
@@ -1043,7 +1044,8 @@ namespace MarkSmith.Views.MindMap
 
             var copyTitlesItem = new MenuFlyoutItem
             {
-                Text = $"Copy {selected.Count} titles as Markdown bullets (Ctrl+C)",
+                Text = $"Copy {selected.Count} titles as Markdown bullets",
+                KeyboardAcceleratorTextOverride = "Ctrl+C",
                 Icon = new FontIcon { Glyph = "\uE8C8" }
             };
             copyTitlesItem.Click += (_, _) =>
@@ -1055,7 +1057,8 @@ namespace MarkSmith.Views.MindMap
 
             var deleteItem = new MenuFlyoutItem
             {
-                Text = $"Delete {selected.Count} selected nodes (Del)",
+                Text = $"Delete {selected.Count} selected nodes",
+                KeyboardAcceleratorTextOverride = "Del",
                 Icon = new FontIcon { Glyph = "\uE74D" }
             };
             deleteItem.Click += (_, _) =>
@@ -1072,7 +1075,8 @@ namespace MarkSmith.Views.MindMap
 
             var clearItem = new MenuFlyoutItem
             {
-                Text = "Deselect all (Esc)",
+                Text = "Deselect all",
+                KeyboardAcceleratorTextOverride = "Esc",
                 Icon = new FontIcon { Glyph = "\uE711" }
             };
             clearItem.Click += (_, _) =>
@@ -2281,7 +2285,7 @@ namespace MarkSmith.Views.MindMap
             radialBranchItem.Click += (s, e) => FanOutBranchRadial(node);
             flyout.Items.Add(radialBranchItem);
 
-            var toggleCollapseItem = MenuItem(node.IsCollapsed ? "Expand subtree (Space)" : "Collapse subtree (Space)", node.IsCollapsed ? "\uE70E" : "\uE70D");
+            var toggleCollapseItem = MenuItem(node.IsCollapsed ? "Expand subtree" : "Collapse subtree", node.IsCollapsed ? "\uE70E" : "\uE70D", "Space");
             toggleCollapseItem.Click += (s, e) => ToggleSubtreeCollapsed(node);
             flyout.Items.Add(toggleCollapseItem);
 
@@ -2308,7 +2312,7 @@ namespace MarkSmith.Views.MindMap
                 linkItem.IsEnabled = ViewModel.Nodes.Count > 1;
                 radialBranchItem.IsEnabled = ViewModel.Nodes.Any(n => n.ParentId == node.Id);
                 toggleCollapseItem.IsEnabled = ViewModel.Nodes.Any(n => n.ParentId == node.Id);
-                toggleCollapseItem.Text = node.IsCollapsed ? "Expand subtree (Space)" : "Collapse subtree (Space)";
+                toggleCollapseItem.Text = node.IsCollapsed ? "Expand subtree" : "Collapse subtree";
                 focusItem.Text = ViewModel.IsFocusModeEnabled && ViewModel.SelectedNode == node
                     ? "Show whole map"
                     : "Focus on its connections";
@@ -3700,9 +3704,15 @@ namespace MarkSmith.Views.MindMap
                     ViewModel.RedoCommand.Execute(null);
                     e.Handled = true;
                     return;
-                case Windows.System.VirtualKey.S when ctrl:
-                    await ViewModel.SaveAsync();
+                // Handled is set before the await: after it, the key has already bubbled on.
+                // Ctrl+Shift+S is "Save a copy" in the menus; it used to fall into the plain save.
+                case Windows.System.VirtualKey.S when ctrl && shift:
                     e.Handled = true;
+                    OnSaveAsClick(this, new RoutedEventArgs());
+                    return;
+                case Windows.System.VirtualKey.S when ctrl:
+                    e.Handled = true;
+                    await ViewModel.SaveAsync();
                     return;
                 case Windows.System.VirtualKey.C when ctrl && !shift && canvasFocused && ViewModel.SelectedNode != null:
                     await CopyNodeTitleAsync(ViewModel.SelectedNode);
@@ -3828,6 +3838,22 @@ namespace MarkSmith.Views.MindMap
                     e.Handled = true;
                     return;
                 case Windows.System.VirtualKey.Escape:
+                    // The menus advertise Esc for "Clear selection": with no search, tag filter or
+                    // focus mode left to clear, Esc clears the selection instead.
+                    if (string.IsNullOrEmpty(ViewModel.SearchQuery) && string.IsNullOrEmpty(SearchBox.Text)
+                        && ViewModel.SelectedTagFilter is null && !ViewModel.IsFocusModeEnabled
+                        && (ViewModel.HasSelection || ViewModel.Nodes.Any(n => n.IsSelected)))
+                    {
+                        // As a click on empty canvas does.
+                        foreach (var n in ViewModel.Nodes) n.IsSelected = false;
+                        UpdateMultiSelectionAdorner();
+                        RequestRedraw(RedrawScope.Appearance);
+                        ViewModel.SelectedNode = null;
+                        ViewModel.SelectedLink = null;
+                        ViewModel.HidePreviewCard();
+                        e.Handled = true;
+                        return;
+                    }
                     ViewModel.SearchQuery = "";
                     SearchBox.Text = "";
                     ViewModel.SelectedTagFilter = null;
@@ -4425,10 +4451,10 @@ namespace MarkSmith.Views.MindMap
         {
             e.Handled = true;
             var menu = new MenuFlyout();
-            var center = new MenuFlyoutItem { Text = "Center on root node (Home)", Icon = new FontIcon { Glyph = "\uE80F" } };
+            var center = new MenuFlyoutItem { Text = "Center on root node", KeyboardAcceleratorTextOverride = "Home", Icon = new FontIcon { Glyph = "\uE80F" } };
             center.Click += (_, _) => CenterOnRoot();
             menu.Items.Add(center);
-            var fit = new MenuFlyoutItem { Text = "Fit all in window (Ctrl+0)", Icon = new FontIcon { Glyph = "\uE9A6" } };
+            var fit = new MenuFlyoutItem { Text = "Fit all in window", KeyboardAcceleratorTextOverride = "Ctrl+0", Icon = new FontIcon { Glyph = "\uE9A6" } };
             fit.Click += (_, _) => FitToWindow();
             menu.Items.Add(fit);
             var resetZoom = new MenuFlyoutItem { Text = "Reset zoom (100% · Ctrl+1)", Icon = new FontIcon { Glyph = "\uE71E" } };
@@ -4831,7 +4857,8 @@ namespace MarkSmith.Views.MindMap
 
             var toggleFocusItem = new MenuFlyoutItem
             {
-                Text = ViewModel.IsFocusModeEnabled ? "Exit focus mode (F)" : "Enter focus mode (F)",
+                Text = ViewModel.IsFocusModeEnabled ? "Exit focus mode" : "Enter focus mode",
+                KeyboardAcceleratorTextOverride = "F",
                 Icon = new FontIcon { Glyph = "\uE890" }
             };
             toggleFocusItem.Click += (_, _) => ViewModel.ToggleFocusModeCommand.Execute(null);
@@ -4857,7 +4884,8 @@ namespace MarkSmith.Views.MindMap
 
             var clearSelectionItem = new MenuFlyoutItem
             {
-                Text = "Clear selection (Esc)",
+                Text = "Clear selection",
+                KeyboardAcceleratorTextOverride = "Esc",
                 Icon = new FontIcon { Glyph = "\uE894" },
                 IsEnabled = ViewModel.HasSelection
             };
@@ -4871,7 +4899,8 @@ namespace MarkSmith.Views.MindMap
 
             var fitWindowItem = new MenuFlyoutItem
             {
-                Text = "Fit all nodes in window (Ctrl+0)",
+                Text = "Fit all nodes in window",
+                KeyboardAcceleratorTextOverride = "Ctrl+0",
                 Icon = new FontIcon { Glyph = "\uE9A6" }
             };
             fitWindowItem.Click += (_, _) => FitToWindow();
@@ -5027,7 +5056,8 @@ namespace MarkSmith.Views.MindMap
 
             var copyFlowchartItem = new MenuFlyoutItem
             {
-                Text = "Copy as Mermaid flowchart (Ctrl+Shift+C)",
+                Text = "Copy as Mermaid flowchart",
+                KeyboardAcceleratorTextOverride = "Ctrl+Shift+C",
                 Icon = new FontIcon { Glyph = "\uE8C8" }
             };
             copyFlowchartItem.Click += OnCopyMermaidFlowchartClick;
@@ -5472,7 +5502,8 @@ namespace MarkSmith.Views.MindMap
             var fitItem = new MenuFlyoutItem
 
             {
-                Text = "Fit all nodes in window (Ctrl+0)",
+                Text = "Fit all nodes in window",
+                KeyboardAcceleratorTextOverride = "Ctrl+0",
                 Icon = new FontIcon { Glyph = "\uE9A6" }
             };
             fitItem.Click += (s, args) => OnFitToWindowClick(this, new RoutedEventArgs());
@@ -5499,7 +5530,8 @@ namespace MarkSmith.Views.MindMap
 
             var fitItem = new MenuFlyoutItem
             {
-                Text = "Fit all nodes in window (Ctrl+0)",
+                Text = "Fit all nodes in window",
+                KeyboardAcceleratorTextOverride = "Ctrl+0",
                 Icon = new FontIcon { Glyph = "\uE9A6" }
             };
             fitItem.Click += (s, args) => OnFitToWindowClick(this, new RoutedEventArgs());
@@ -5507,7 +5539,8 @@ namespace MarkSmith.Views.MindMap
 
             var clearItem = new MenuFlyoutItem
             {
-                Text = "Clear selection (Esc)",
+                Text = "Clear selection",
+                KeyboardAcceleratorTextOverride = "Esc",
                 Icon = new FontIcon { Glyph = "\uE894" },
                 IsEnabled = ViewModel.HasSelection
             };
@@ -5530,7 +5563,8 @@ namespace MarkSmith.Views.MindMap
 
             var saveItem = new MenuFlyoutItem
             {
-                Text = "Save map (Ctrl+S)",
+                Text = "Save map",
+                KeyboardAcceleratorTextOverride = "Ctrl+S",
                 Icon = new FontIcon { Glyph = "\uE74E" }
             };
             saveItem.Click += (s, args) => OnSaveClick(this, new RoutedEventArgs());
@@ -5538,7 +5572,8 @@ namespace MarkSmith.Views.MindMap
 
             var saveAsItem = new MenuFlyoutItem
             {
-                Text = "Save a copy of the map… (Ctrl+Shift+S)",
+                Text = "Save a copy of the map…",
+                KeyboardAcceleratorTextOverride = "Ctrl+Shift+S",
                 Icon = new FontIcon { Glyph = "\uEA35" }
             };
             saveAsItem.Click += (s, args) => OnSaveAsClick(this, new RoutedEventArgs());
@@ -5548,7 +5583,8 @@ namespace MarkSmith.Views.MindMap
 
             var copyFlowchartItem = new MenuFlyoutItem
             {
-                Text = "Copy as Mermaid flowchart (Ctrl+Shift+C)",
+                Text = "Copy as Mermaid flowchart",
+                KeyboardAcceleratorTextOverride = "Ctrl+Shift+C",
                 Icon = new FontIcon { Glyph = "\uE8C8" }
             };
             copyFlowchartItem.Click += OnCopyMermaidFlowchartClick;
@@ -6524,7 +6560,8 @@ namespace MarkSmith.Views.MindMap
 
             var nextItem = new MenuFlyoutItem
             {
-                Text = "Next match (Enter / F3)",
+                Text = "Next match",
+                KeyboardAcceleratorTextOverride = "Enter / F3",
                 Icon = new FontIcon { Glyph = "\uE70D" },
                 IsEnabled = ViewModel.HasSearchQuery
             };
@@ -6533,7 +6570,8 @@ namespace MarkSmith.Views.MindMap
 
             var prevItem = new MenuFlyoutItem
             {
-                Text = "Previous match (Shift+F3)",
+                Text = "Previous match",
+                KeyboardAcceleratorTextOverride = "Shift+F3",
                 Icon = new FontIcon { Glyph = "\uE70E" },
                 IsEnabled = ViewModel.HasSearchQuery
             };
@@ -6580,7 +6618,8 @@ namespace MarkSmith.Views.MindMap
 
             var selectAllItem = new MenuFlyoutItem
             {
-                Text = "Select all text (Ctrl+A)",
+                Text = "Select all text",
+                KeyboardAcceleratorTextOverride = "Ctrl+A",
                 Icon = new FontIcon { Glyph = "\uE8D2" },
                 IsEnabled = !string.IsNullOrEmpty(SearchBox.Text)
             };
@@ -6620,7 +6659,8 @@ namespace MarkSmith.Views.MindMap
 
             var clearItem = new MenuFlyoutItem
             {
-                Text = "Clear search (Esc)",
+                Text = "Clear search",
+                KeyboardAcceleratorTextOverride = "Esc",
                 Icon = new FontIcon { Glyph = "\uE894" },
                 IsEnabled = !string.IsNullOrEmpty(SearchBox.Text)
             };
@@ -6642,7 +6682,8 @@ namespace MarkSmith.Views.MindMap
 
             var returnCanvasItem = new MenuFlyoutItem
             {
-                Text = "Return to galaxy map (Esc)",
+                Text = "Return to galaxy map",
+                KeyboardAcceleratorTextOverride = "Esc",
                 Icon = new FontIcon { Glyph = "\uE790" }
             };
             returnCanvasItem.Click += (_, _) => GalaxyCanvas.Focus(FocusState.Programmatic);
@@ -6659,7 +6700,8 @@ namespace MarkSmith.Views.MindMap
 
             var fitItem = new MenuFlyoutItem
             {
-                Text = "Fit all nodes in window (Ctrl+0)",
+                Text = "Fit all nodes in window",
+                KeyboardAcceleratorTextOverride = "Ctrl+0",
                 Icon = new FontIcon { Glyph = "\uE9A6" }
             };
             fitItem.Click += (_, _) => OnFitToWindowClick(this, new RoutedEventArgs());
@@ -6667,7 +6709,8 @@ namespace MarkSmith.Views.MindMap
 
             var actualItem = new MenuFlyoutItem
             {
-                Text = "Reset zoom to 100% (Ctrl+1)",
+                Text = "Reset zoom to 100%",
+                KeyboardAcceleratorTextOverride = "Ctrl+1",
                 Icon = new FontIcon { Glyph = "\uE71E" }
             };
             actualItem.Click += (_, _) => OnZoomResetClick(this, new RoutedEventArgs());
@@ -6744,7 +6787,8 @@ namespace MarkSmith.Views.MindMap
 
             var nextItem = new MenuFlyoutItem
             {
-                Text = "Next match (Enter / F3)",
+                Text = "Next match",
+                KeyboardAcceleratorTextOverride = "Enter / F3",
                 Icon = new FontIcon { Glyph = "\uE70D" },
                 IsEnabled = ViewModel.HasSearchQuery
             };
@@ -6753,7 +6797,8 @@ namespace MarkSmith.Views.MindMap
 
             var prevItem = new MenuFlyoutItem
             {
-                Text = "Previous match (Shift+F3)",
+                Text = "Previous match",
+                KeyboardAcceleratorTextOverride = "Shift+F3",
                 Icon = new FontIcon { Glyph = "\uE70E" },
                 IsEnabled = ViewModel.HasSearchQuery
             };
@@ -6764,7 +6809,8 @@ namespace MarkSmith.Views.MindMap
 
             var clearItem = new MenuFlyoutItem
             {
-                Text = "Clear search (Esc)",
+                Text = "Clear search",
+                KeyboardAcceleratorTextOverride = "Esc",
                 Icon = new FontIcon { Glyph = "\uE894" },
                 IsEnabled = !string.IsNullOrEmpty(SearchBox?.Text)
             };
@@ -6781,7 +6827,8 @@ namespace MarkSmith.Views.MindMap
 
             var focusSearchItem = new MenuFlyoutItem
             {
-                Text = "Focus search box (Ctrl+F)",
+                Text = "Focus search box",
+                KeyboardAcceleratorTextOverride = "Ctrl+F",
                 Icon = new FontIcon { Glyph = "\uE721" }
             };
             focusSearchItem.Click += (_, _) => SearchBox?.Focus(FocusState.Programmatic);
@@ -6848,7 +6895,8 @@ namespace MarkSmith.Views.MindMap
 
             var fitItem = new MenuFlyoutItem
             {
-                Text = "Fit all nodes in window (Ctrl+0)",
+                Text = "Fit all nodes in window",
+                KeyboardAcceleratorTextOverride = "Ctrl+0",
                 Icon = new FontIcon { Glyph = "\uE9A6" }
             };
             fitItem.Click += (_, _) => OnFitToWindowClick(this, new RoutedEventArgs());
@@ -6875,7 +6923,8 @@ namespace MarkSmith.Views.MindMap
             {
                 var clearFilterItem = new MenuFlyoutItem
                 {
-                    Text = "Clear active tag filter (Esc)",
+                    Text = "Clear active tag filter",
+                    KeyboardAcceleratorTextOverride = "Esc",
                     Icon = new FontIcon { Glyph = "\uE711" }
                 };
                 clearFilterItem.Click += (_, _) => ViewModel.SelectedTagFilter = null;
@@ -7643,7 +7692,8 @@ namespace MarkSmith.Views.MindMap
 
             var fitItem = new MenuFlyoutItem
             {
-                Text = "Fit all nodes in window (Ctrl+0)",
+                Text = "Fit all nodes in window",
+                KeyboardAcceleratorTextOverride = "Ctrl+0",
                 Icon = new FontIcon { Glyph = "\uE9A6" }
             };
             fitItem.Click += (_, _) => OnFitToWindowClick(this, new RoutedEventArgs());
@@ -7651,7 +7701,8 @@ namespace MarkSmith.Views.MindMap
 
             var actualItem = new MenuFlyoutItem
             {
-                Text = "Reset zoom to 100% (Ctrl+1)",
+                Text = "Reset zoom to 100%",
+                KeyboardAcceleratorTextOverride = "Ctrl+1",
                 Icon = new FontIcon { Glyph = "\uE71E" }
             };
             actualItem.Click += (_, _) => OnZoomResetClick(this, new RoutedEventArgs());
@@ -7686,7 +7737,8 @@ namespace MarkSmith.Views.MindMap
 
             var saveItem = new MenuFlyoutItem
             {
-                Text = "Save map (Ctrl+S)",
+                Text = "Save map",
+                KeyboardAcceleratorTextOverride = "Ctrl+S",
                 Icon = new FontIcon { Glyph = "\uE74E" },
                 IsEnabled = ViewModel.IsDirty
             };
@@ -7755,7 +7807,8 @@ namespace MarkSmith.Views.MindMap
 
             var selectRootItem = new MenuFlyoutItem
             {
-                Text = "Select root document node (Home)",
+                Text = "Select root document node",
+                KeyboardAcceleratorTextOverride = "Home",
                 Icon = new FontIcon { Glyph = "\uE80F" }
             };
             selectRootItem.Click += (_, _) => { var r = ViewModel.SelectRootNode(); if (r != null) CenterOnNode(r); };
@@ -7789,7 +7842,8 @@ namespace MarkSmith.Views.MindMap
 
             var addNodeItem = new MenuFlyoutItem
             {
-                Text = "Add new node (Insert / Tab)",
+                Text = "Add new node",
+                KeyboardAcceleratorTextOverride = "Tab",
                 Icon = new FontIcon { Glyph = "\uE710" }
             };
             addNodeItem.Click += (_, _) => ViewModel.AddChildNodeCommand.Execute(null);
@@ -7797,7 +7851,8 @@ namespace MarkSmith.Views.MindMap
 
             var clearSelectionItem = new MenuFlyoutItem
             {
-                Text = "Clear node selection (Esc)",
+                Text = "Clear node selection",
+                KeyboardAcceleratorTextOverride = "Esc",
                 Icon = new FontIcon { Glyph = "\uE894" },
                 IsEnabled = ViewModel.HasSelection
             };
@@ -7813,7 +7868,8 @@ namespace MarkSmith.Views.MindMap
 
             var searchItem = new MenuFlyoutItem
             {
-                Text = "Search nodes (Ctrl+F)",
+                Text = "Search nodes",
+                KeyboardAcceleratorTextOverride = "Ctrl+F",
                 Icon = new FontIcon { Glyph = "\uE721" }
             };
             searchItem.Click += (_, _) => SearchBox?.Focus(FocusState.Programmatic);
@@ -7821,7 +7877,8 @@ namespace MarkSmith.Views.MindMap
 
             var fitItem = new MenuFlyoutItem
             {
-                Text = "Fit all nodes in window (Ctrl+0)",
+                Text = "Fit all nodes in window",
+                KeyboardAcceleratorTextOverride = "Ctrl+0",
                 Icon = new FontIcon { Glyph = "\uE9A6" }
             };
             fitItem.Click += (_, _) => OnFitToWindowClick(this, new RoutedEventArgs());
@@ -7880,7 +7937,8 @@ namespace MarkSmith.Views.MindMap
 
             var fitItem = new MenuFlyoutItem
             {
-                Text = "Fit all nodes in window (Ctrl+0)",
+                Text = "Fit all nodes in window",
+                KeyboardAcceleratorTextOverride = "Ctrl+0",
                 Icon = new FontIcon { Glyph = "\uE9A6" }
             };
             fitItem.Click += (_, _) => OnFitToWindowClick(this, new RoutedEventArgs());
@@ -7932,7 +7990,8 @@ namespace MarkSmith.Views.MindMap
 
             var saveItem = new MenuFlyoutItem
             {
-                Text = "Save map changes (Ctrl+S)",
+                Text = "Save map changes",
+                KeyboardAcceleratorTextOverride = "Ctrl+S",
                 Icon = new FontIcon { Glyph = "\uE74E" }
             };
             saveItem.Click += (s, args) => OnSaveClick(this, new RoutedEventArgs());
@@ -7940,7 +7999,8 @@ namespace MarkSmith.Views.MindMap
 
             var fitItem = new MenuFlyoutItem
             {
-                Text = "Fit all nodes in window (Ctrl+0)",
+                Text = "Fit all nodes in window",
+                KeyboardAcceleratorTextOverride = "Ctrl+0",
                 Icon = new FontIcon { Glyph = "\uE9A6" }
             };
             fitItem.Click += (_, _) => OnFitToWindowClick(this, new RoutedEventArgs());
@@ -7948,7 +8008,8 @@ namespace MarkSmith.Views.MindMap
 
             var addNodeItem = new MenuFlyoutItem
             {
-                Text = "Add child node (Tab)",
+                Text = "Add child node",
+                KeyboardAcceleratorTextOverride = "Tab",
                 Icon = new FontIcon { Glyph = "\uE710" }
             };
             addNodeItem.Click += (_, _) => ViewModel.AddChildNode();
@@ -7972,7 +8033,8 @@ namespace MarkSmith.Views.MindMap
 
             var saveItem = new MenuFlyoutItem
             {
-                Text = "Save map changes (Ctrl+S)",
+                Text = "Save map changes",
+                KeyboardAcceleratorTextOverride = "Ctrl+S",
                 Icon = new FontIcon { Glyph = "\uE74E" }
             };
             saveItem.Click += (s, args) => OnSaveClick(this, new RoutedEventArgs());
@@ -7980,7 +8042,8 @@ namespace MarkSmith.Views.MindMap
 
             var saveAsItem = new MenuFlyoutItem
             {
-                Text = "Save copy as… (Ctrl+Shift+S)",
+                Text = "Save copy as…",
+                KeyboardAcceleratorTextOverride = "Ctrl+Shift+S",
                 Icon = new FontIcon { Glyph = "\uE792" }
             };
             saveAsItem.Click += (s, args) => OnSaveAsClick(this, new RoutedEventArgs());
@@ -7990,7 +8053,8 @@ namespace MarkSmith.Views.MindMap
 
             var undoItem = new MenuFlyoutItem
             {
-                Text = "Undo last change (Ctrl+Z)",
+                Text = "Undo last change",
+                KeyboardAcceleratorTextOverride = "Ctrl+Z",
                 Icon = new FontIcon { Glyph = "\uE7A7" },
                 IsEnabled = ViewModel.CanUndo
             };
@@ -7999,7 +8063,8 @@ namespace MarkSmith.Views.MindMap
 
             var fitItem = new MenuFlyoutItem
             {
-                Text = "Fit all nodes in window (Ctrl+0)",
+                Text = "Fit all nodes in window",
+                KeyboardAcceleratorTextOverride = "Ctrl+0",
                 Icon = new FontIcon { Glyph = "\uE9A6" }
             };
             fitItem.Click += (_, _) => OnFitToWindowClick(this, new RoutedEventArgs());

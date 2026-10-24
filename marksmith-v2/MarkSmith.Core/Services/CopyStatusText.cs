@@ -32,4 +32,20 @@ public static class CopyStatusText
             ? $"Nothing was copied. {reason}"
             : $"{text.TrimEnd('.', ' ')}. Not copied to the clipboard: {reason}";
     }
+
+    // The status line after a copy that worked. A plain "Copied …" message is kept. A command result
+    // whose text is also copied (an audit summary, a layout report) used to say nothing about the
+    // copy, so the user didn't know it had replaced what they had on the clipboard; it now says so.
+    public static string Succeeded(string? message)
+    {
+        var text = (message ?? string.Empty).Trim();
+        if (text.Length == 0) return "Copied to the clipboard.";
+        var bare = text.StartsWith("✓ ", StringComparison.Ordinal) ? text[2..].TrimStart() : text;
+        if (bare.StartsWith("Copied", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("clipboard", StringComparison.OrdinalIgnoreCase))
+        {
+            return text;
+        }
+        return $"{text.TrimEnd('.', ' ')} · copied to the clipboard";
+    }
 }

@@ -26,7 +26,8 @@ namespace MarkSmith.Views.ShapeStudio
             if (ViewModel is null) return;
             if (error is null)
             {
-                if (message is not null) ViewModel.StatusMessage = message;
+                // A result line (not a "Copied …" message) now says it went to the clipboard too.
+                ViewModel.StatusMessage = MarkSmith.Services.CopyStatusText.Succeeded(message ?? ViewModel.StatusMessage);
             }
             else
             {

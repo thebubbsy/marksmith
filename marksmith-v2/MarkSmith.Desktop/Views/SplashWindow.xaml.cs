@@ -134,7 +134,8 @@ public sealed partial class SplashWindow : Window
         bool isMuted = Player.MediaPlayer.IsMuted;
         var muteItem = new Microsoft.UI.Xaml.Controls.MenuFlyoutItem
         {
-            Text = isMuted ? "Unmute audio (M)" : "Mute audio (M)",
+            Text = isMuted ? "Unmute audio" : "Mute audio",
+            KeyboardAcceleratorTextOverride = "M",
             Icon = new Microsoft.UI.Xaml.Controls.FontIcon { Glyph = isMuted ? "\uE767" : "\uE74F" }
         };
         muteItem.Click += (_, _) => ToggleMute();
@@ -144,12 +145,14 @@ public sealed partial class SplashWindow : Window
 
         var copyVersionItem = new Microsoft.UI.Xaml.Controls.MenuFlyoutItem
         {
-            Text = "Copy application version",
+            Text = $"Copy version ({App.Updates.CurrentDisplayVersion})",
             Icon = new Microsoft.UI.Xaml.Controls.FontIcon { Glyph = "\uE8C8" }
         };
-        copyVersionItem.Click += async (_, _) =>
+        // Copied the bare product name before (no version); the bubble says whether it worked.
+        copyVersionItem.Click += (_, _) =>
         {
-            await MarkSmith.Services.ClipboardWriter.TrySetTextAsync("MarkSmith Desktop");
+            var version = $"MarkSmith {App.Updates.CurrentDisplayVersion}";
+            MarkSmith.Services.CopyFeedback.CopyWithBubble(Root, version, $"Copied {version}");
         };
         menu.Items.Add(copyVersionItem);
 

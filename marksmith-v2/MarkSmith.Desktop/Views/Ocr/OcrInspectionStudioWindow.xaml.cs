@@ -941,7 +941,8 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
 
             var resetItem = new MenuFlyoutItem
             {
-                Text = $"Reset to original ({elem.OriginalKind}) (R)",
+                Text = $"Reset to original ({elem.OriginalKind})",
+                KeyboardAcceleratorTextOverride = "R",
                 Icon = new FontIcon { Glyph = "\uE7A7" },
                 IsEnabled = elem.IsReclassified
             };

@@ -6954,7 +6954,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var focusModeItem = new MenuFlyoutItem
         {
-            Text = FocusModeToggle?.IsChecked == true ? "Exit focus mode (F11)" : "Focus mode (F11)",
+            Text = FocusModeToggle?.IsChecked == true ? "Exit focus mode" : "Focus mode",
+            KeyboardAcceleratorTextOverride = "F11",
             Icon = new FontIcon { Glyph = "\uE740" }
         };
         focusModeItem.Click += (_, _) =>
@@ -10445,7 +10446,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var copyLineItem = new MenuFlyoutItem
         {
-            Text = $"Copy line {label} (Ctrl+C)",
+            Text = $"Copy line {label}",
             Icon = new FontIcon { Glyph = "\uE8C8" }
         };
         copyLineItem.Click += (_, _) =>
@@ -10456,7 +10457,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var duplicateLineItem = new MenuFlyoutItem
         {
-            Text = $"Duplicate line {label} (Ctrl+D)",
+            Text = $"Duplicate line {label}",
+            KeyboardAcceleratorTextOverride = "Ctrl+D",
             Icon = new FontIcon { Glyph = "\uE8A5" }
         };
         duplicateLineItem.Click += (_, _) =>
@@ -11494,7 +11496,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var copyAllItem = new MenuFlyoutItem
         {
-            Text = $"Copy all issues ({_lintIssues.Count}) (Ctrl+Shift+C)",
+            Text = $"Copy all issues ({_lintIssues.Count})",
+            KeyboardAcceleratorTextOverride = "Ctrl+Shift+C",
             Icon = new FontIcon { Glyph = "\uE8C8" },
             IsEnabled = _lintIssues.Count > 0
         };
@@ -11582,7 +11585,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var focusItem = new MenuFlyoutItem
         {
-            Text = FocusModeToggle.IsChecked == true ? "Exit Focus Mode (F11)" : "Enter Focus Mode (F11)",
+            Text = FocusModeToggle.IsChecked == true ? "Exit Focus Mode" : "Enter Focus Mode",
+            KeyboardAcceleratorTextOverride = "F11",
             Icon = new FontIcon { Glyph = "\uE740" }
         };
         focusItem.Click += (_, _) => FocusModeToggle.IsChecked = !(FocusModeToggle.IsChecked == true);
@@ -15172,7 +15176,8 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
 
         var toggleFocusItem = new MenuFlyoutItem
         {
-            Text = FocusModeToggle.IsChecked == true ? "Exit focus mode (F11)" : "Enter focus mode (F11)",
+            Text = FocusModeToggle.IsChecked == true ? "Exit focus mode" : "Enter focus mode",
+            KeyboardAcceleratorTextOverride = "F11",
             Icon = new FontIcon { Glyph = "\uE740" }
         };
         toggleFocusItem.Click += (_, _) => FocusModeToggle.IsChecked = !(FocusModeToggle.IsChecked == true);
