@@ -16888,3 +16888,7 @@ waited for 61 s without input and checked the foreground PID):
 3. Live OCR page-flip focus check with a 2-page PDF (carried over since #239).
 
 **Total user-visible improvements: 8.**
+
+**Release (same run):** tagged **v3.60.0** on `fffadce`; Release workflow run 40058432874 succeeded;
+user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.60.0). `MarksmithBaseVersion` is now 3.61.0.
