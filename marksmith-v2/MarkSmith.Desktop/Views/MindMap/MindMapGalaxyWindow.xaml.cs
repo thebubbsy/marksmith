@@ -129,6 +129,7 @@ namespace MarkSmith.Views.MindMap
                 (NodeProgressSlider, OnNodeProgressSliderRightTapped),
                 (ReverseLinkButton, OnReverseLinkButtonRightTapped),
                 (DeleteLinkButton, OnDeleteLinkButtonRightTapped),
+                (MapTitleButton, OnMapTitleButtonRightTapped),
                 (UnsavedBadge, OnUnsavedBadgeRightTapped),
                 (NodesCountButton, OnNodesCountRightTapped),
                 (LinksCountButton, OnLinksCountRightTapped));
@@ -258,6 +259,28 @@ namespace MarkSmith.Views.MindMap
                 Child = _breadcrumbPanel
             };
             CanvasContainer.Children.Add(_breadcrumbBar);
+            _breadcrumbBar.SizeChanged += (_, _) => PlaceBreadcrumbBar();
+            TopOverlay.SizeChanged += (_, _) => PlaceBreadcrumbBar();
+            CanvasContainer.SizeChanged += (_, _) => PlaceBreadcrumbBar();
+        }
+
+        // The breadcrumb bar (top-left) and the top overlay (tour banner and tag pills, centred)
+        // both hang from the top of the map. When they would overlap side by side, the crumbs
+        // drop just below the overlay instead of covering "This is a guided tour" or the pills.
+        private void PlaceBreadcrumbBar()
+        {
+            if (_breadcrumbBar is null) return;
+            double top = 12;
+            if (TopOverlay.ActualHeight > 0 && _breadcrumbBar.ActualWidth > 0)
+            {
+                double overlayLeft;
+                try { overlayLeft = TopOverlay.TransformToVisual(CanvasContainer).TransformPoint(new Point(0, 0)).X; }
+                catch (ArgumentException) { overlayLeft = 0; }
+                if (overlayLeft < 16 + _breadcrumbBar.ActualWidth + 8)
+                    top += TopOverlay.ActualHeight + 8;
+            }
+            if (_breadcrumbBar.Margin.Top != top)
+                _breadcrumbBar.Margin = new Thickness(16, top, 0, 0);
         }
 
         private void SizeForDisplay()
@@ -6531,11 +6554,19 @@ namespace MarkSmith.Views.MindMap
             RequestRedraw();
         }
 
-        private void OnSearchBoxRightTapped(object sender, RightTappedRoutedEventArgs e)
-        {
-            e.Handled = true;
-            var menu = new MenuFlyout();
+        // The search options menu goes on the box's inner TextBox through TextBoxMenu: a RightTapped
+        // handler was mouse only, and it replaced Cut / Copy / Paste even with text selected.
+        private bool _searchBoxMenuAttached;
 
+        private void OnSearchBoxLoaded(object sender, RoutedEventArgs e)
+        {
+            if (_searchBoxMenuAttached || FindDescendant<TextBox>(SearchBox) is not { } box) return;
+            _searchBoxMenuAttached = true;
+            TextBoxMenu.Attach(box, FillSearchBoxMenu);
+        }
+
+        private void FillSearchBoxMenu(MenuFlyout menu)
+        {
             var nextItem = new MenuFlyoutItem
             {
                 Text = "Next match",
@@ -6666,8 +6697,6 @@ namespace MarkSmith.Views.MindMap
             };
             returnCanvasItem.Click += (_, _) => GalaxyCanvas.Focus(FocusState.Programmatic);
             menu.Items.Add(returnCanvasItem);
-
-            menu.ShowAt(SearchBox, e.GetPosition(SearchBox));
         }
 
         private void OnZoomResetRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -7907,17 +7936,12 @@ namespace MarkSmith.Views.MindMap
             menu.ShowAt(LinksCountButton, KeyboardContextMenu.PointIn(e, LinksCountButton));
         }
 
-        private void OnMapTitleTextDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-        {
-            e.Handled = true;
-            var title = ViewModel.Title ?? string.Empty;
-            if (string.IsNullOrEmpty(title)) return;
-            CopyAndReport(title, $"Copied map title: {title}");
-        }
+        private void OnMapTitleButtonClick(object sender, RoutedEventArgs e) =>
+            KeyboardContextMenu.Invoke(MapTitleButton, OnMapTitleButtonRightTapped);
 
-        private void OnMapTitleTextRightTapped(object sender, RightTappedRoutedEventArgs e)
+        private void OnMapTitleButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
         {
-            if (MapTitleText is null) return;
+            if (MapTitleButton is null) return;
             e.Handled = true;
             var menu = new MenuFlyout();
 
@@ -7975,7 +7999,7 @@ namespace MarkSmith.Views.MindMap
             addNodeItem.Click += (_, _) => ViewModel.AddChildNode();
             menu.Items.Add(addNodeItem);
 
-            menu.ShowAt(MapTitleText, e.GetPosition(MapTitleText));
+            menu.ShowAt(MapTitleButton, KeyboardContextMenu.PointIn(e, MapTitleButton));
         }
 
         private void OnUnsavedBadgeClick(object sender, RoutedEventArgs e) =>

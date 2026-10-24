@@ -2534,7 +2534,8 @@ namespace MarkSmith.Views.ShapeStudio
             string badgeSummary = $"{selected.Count} shapes · {(int)Math.Round(totalW)} × {(int)Math.Round(totalH)} px";
             MultiSelectionBadgeText.Text = badgeSummary;
             string fullTip = $"Selection: {badgeSummary} · Double-click to auto-align & distribute, Right-click for options";
-            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(MultiSelectionBadge, fullTip);
+            // The name is the readout; the mouse instructions stay in the tooltip.
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(MultiSelectionBadge, $"Selection: {badgeSummary}");
             ToolTipService.SetToolTip(MultiSelectionBadge, fullTip);
 
             Canvas.SetLeft(MultiSelectionBadge, minX);

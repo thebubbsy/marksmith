@@ -17005,3 +17005,106 @@ running; both stopped afterwards):
 **Release (same run):** tagged **v3.61.0** on `5744a62`; Release workflow run 40062190112 succeeded;
 user-facing notes prepended to the generated body
 (https://github.com/thebubbsy/marksmith/releases/tag/v3.61.0). `MarksmithBaseVersion` is now 3.62.0.
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #247 (2026-10-24, 15:40–16:30 AEDT)
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running in the Claude desktop app. The task template asks for
+  "Antigravity AI Agent (Google DeepMind)"; that would be untrue for this run, so the real identity is recorded.
+- Modes: Scheduled Hourly Automation Routine (bypass-permissions, no live user)
+- Trigger: scheduled task `commit-to-main-ship-improvement--r4efinement`
+- Agents used: 1 (one session acting as orchestrator, coding worker and skeptical reviewer; no
+  subagents). Session `8bc59fcd-5108-4a94-928b-fa4a2600aef0`.
+- Worked in run #246's clean clone (renamed `%TEMP%\ms247`, at `origin/main` 19dfc60). The local checkout is
+  still ~212 commits behind with another session's uncommitted edits; it was not touched. `ms_run246` was deleted first.
+
+**Reviewed:** run #246's Next up. Items 2 (breadcrumb vs tour banner) and 3 (keyboard-reachable map title) are done.
+Item 1 (live keyboard pass) is carried over again: the workstation was locked for the whole run.
+
+**Delivered (user-visible):**
+1. **Mind Map: the map title is a button, and its menu opens from the mouse and the keyboard.** The title was a
+   TextBlock inside the window's title bar. The title bar treats plain text as a drag handle, so its right-click most
+   likely showed the window's system menu, and Tab couldn't reach it. A double-click copied the title. It is now a
+   button named after the map. Click, right-click, Shift+F10 and the Menu key open its menu (Copy map title, Copy map
+   summary, Save, Fit, Add child node).
+2. **Mind Map: the breadcrumb bar no longer covers the guided tour or the tag pills.** Both hung from y=12, and the
+   crumbs covered the banner's "This is a guided tour" heading. Moved below the banner, they then covered the
+   "All tags" and "#concept" pills (seen in the live capture). The crumbs now drop below the whole top overlay
+   whenever the two would overlap side by side. They stay at the top when the overlay is narrow or empty.
+3. **Mind Map: the search box keeps Cut / Copy / Paste, and its options open from Shift+F10.** Its RightTapped menu
+   was mouse only and replaced the text menu even with text selected. It now uses the shared `TextBoxMenu`, the same as
+   History and the node palette. With nothing selected it shows the search options (next/previous match, copy/paste
+   query, tag filter, clear, return to map). With text selected it shows the stock text menu.
+4. **Shift+F10 is now in the tooltips of 73 controls across Shape Studio, SmartArt Studio and Mind Map.** These
+   toolbar buttons, sliders and pickers have opened their menus from Shift+F10 since run #236, but their tooltips still
+   said only "Right-click for …". The tooltips now say "Right-click or Shift+F10 for …". Only controls in each window's
+   bridge table were changed.
+5. **SmartArt: the layout count is a button.** "176 layouts" was a TextBlock. Its double-click either cleared the
+   search or copied the count, depending on whether a filter was on, and nothing on screen said which. It is now a
+   link-style button. Click, right-click and Shift+F10 open its menu (Copy count, Focus layout search, Reset search &
+   filter, Pick random layout). Screen readers hear the count, and the live-region announcement of count changes is kept.
+6. **Shape Studio: screen readers hear the group badge's readout, not mouse instructions.** The multi-selection badge's
+   name was its whole tooltip ("Selection: 3 shapes · 200 × 120 px · Double-click to auto-align & distribute,
+   Right-click for options"). The name is now just the readout. The tooltip is unchanged.
+
+**Implementation summary.**
+- `Views/MindMap/MindMapGalaxyWindow.xaml(.cs)`:
+  - `MapTitleText` is wrapped in `MapTitleButton`: transparent, borderless, with a -4 margin so the text doesn't
+    shift, and its name bound to `Title`. `OnMapTitleTextDoubleTapped` was removed. `OnMapTitleButtonClick` calls
+    `KeyboardContextMenu.Invoke`, the menu anchors with `PointIn`, and the button is bridged.
+  - The tour banner is named `TourBanner`. The new `PlaceBreadcrumbBar()` compares the overlay's left edge with the
+    crumbs' right edge. It re-runs on breadcrumb, `TopOverlay` and `CanvasContainer` SizeChanged.
+  - `SearchBox` lost its RightTapped and gained `Loaded="OnSearchBoxLoaded"`, which attaches `TextBoxMenu` to the inner
+    TextBox once. `OnSearchBoxRightTapped` became `FillSearchBoxMenu(MenuFlyout)`.
+- `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml(.cs)`: `LayoutCountLabel` is wrapped in `LayoutCountButton`
+  (a HyperlinkButton, the same pattern as Mind Map's count buttons). The double-click handler was removed and the button is bridged.
+- `Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs`: `UpdateMultiSelectionAdorner` names the badge with the readout.
+- Shape / SmartArt / Mind Map `.xaml`: a script rewrote 36 + 16 + 21 tooltips. It changed only elements whose
+  `x:Name` is in that window's `KeyboardContextMenu.BridgeAll` table, skipped bound tooltips, and rewrote the first
+  "Right-click" in each. No test asserted the old strings.
+- Tests: new `Run247TitleSearchAndShiftF10HintsTests` (8 cases). They include a theory, run on all three studios, that
+  every bridged control whose static tooltip names right-click also names Shift+F10.
+
+**Skeptical review.**
+- Focus traps: nothing collapses or disables. The breadcrumb only changes its top margin.
+- Key swallowing: no key handlers changed, and `OnSearchBoxKeyDown` is untouched. TextBoxMenu only swaps
+  `ContextFlyout`, so Shift+F10 in the box opens either the options or the stock text menu and never eats arrows or Delete.
+- Layout loop: `PlaceBreadcrumbBar` sets the margin only when it changes. A margin change doesn't resize the crumbs,
+  the overlay or the container, so the SizeChanged hooks can't feed back. `TransformToVisual` is guarded.
+- Title bar: the title is now a Button, which WinUI treats as interactive inside a `SetTitleBar` region, like the
+  Unsaved badge and the search box beside it. The window still drags from the subtitle, the icon and empty space.
+- Theme / HoverPolish: no resource lookups were added. Both windows call `HoverPolish.Track(RootGrid)`, which covers the
+  new buttons. Files / async: no files are opened. The search box's async paste item is unchanged.
+
+**Verified.**
+- Build: Desktop built to `%TEMP%\ms_run247\b` with 0 errors, twice. The second build added the overlay-wide breadcrumb rule.
+- Full suite: 5963 passed, 8 failed, 1 skipped. Seven failures are the known `GovernanceDocsSyncTests`, which need
+  gitignored docs. The eighth was this run's first breadcrumb test, because the code was revised while the suite ran.
+  After the rebuild, Run246, Run247 and every MindMap test class pass (241/241). Run247 passes 8/8.
+- Live UIA: scratch PIDs 3264, 24456, 14860 and 16540, with `MARKSMITH_CONFIG_DIR` in the session scratchpad. No other
+  Marksmith was running, and each instance was stopped by PID afterwards. **The workstation was locked** (LogonUI), so
+  only UIA Invoke and PrintWindow were used:
+  - Mind Map: `Button 'Document Galaxy Vault'` is focusable and has help text. Invoking it opened Copy map title
+    (Document Galaxy Vault) | Copy map summary | Save map changes | Fit all nodes in window | Add child node.
+  - Breadcrumbs: with the tour shown, the tour heading is at y=195, the tag pills at y=267–290 and the Focus chip at
+    y=309. The capture shows the crumbs below both rows. The first build's capture showed them covering "All tags" and "#concept (3)".
+  - SmartArt: `Hyperlink '176 layouts'` is focusable. Invoking it opened Copy layout count (176 layouts) | Focus
+    layout search | Reset search & filter | Pick random layout.
+- **Not verified live:** Shift+F10 / right-click on the map search box (needs real input), a mouse right-click on the
+  title inside the title bar, and the new tooltips (the source theory covers them).
+
+**Noticed, not fixed:**
+- Shape Studio's multi-selection badge still aligns and distributes on a double-click. It isn't focusable, though the
+  alignment ribbon offers the same actions.
+- Many other readouts are still TextBlocks or Borders with right-click-only menus: Shape Studio `SelectionSummaryText` /
+  `RotationDegreeText`, SmartArt `PreviewTitleLabel`, History `VersionDeltaBadge` / `DiffSummaryPanel`, MainWindow
+  `StatusMsgText` / `StatusOutputLinks`, and Mind Map `SearchStepperPill`.
+
+**Next up (Run #248):**
+1. Live keyboard pass (needs an unlocked session): Shift+F10 in the map search box with and without a selection,
+   Shift+F10 on the Run246/247 buttons, and OCR page-flip focus with a 2-page PDF (carried since #239).
+2. Mind Map `SearchStepperPill` and SmartArt `PreviewTitleLabel`: same button treatment as the counts.
+3. The same Shift+F10 tooltip sweep for the Diagram Studio, History and OCR Studio bridge tables, if any still say right-click only.
+
+**Total user-visible improvements: 6.**

@@ -65,6 +65,7 @@ namespace MarkSmith.Views.SmartArtStudio
             // Every right-click menu on a toolbar button also opens from Shift+F10 and the Menu key;
             // none of them did, so the studio's options were mouse-only.
             KeyboardContextMenu.BridgeAll(
+                (LayoutCountButton, OnLayoutCountButtonRightTapped),
                 (UndoStudioButton, OnUndoButtonRightTapped),
                 (RedoStudioButton, OnRedoButtonRightTapped),
                 (InsertIntoDocumentButton, OnInsertIntoDocumentButtonRightTapped),
@@ -3309,25 +3310,12 @@ namespace MarkSmith.Views.SmartArtStudio
             else menu.ShowAt(target);
         }
 
-        private void OnLayoutCountLabelDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-        {
-            e.Handled = true;
-            if (!string.IsNullOrEmpty(LayoutSearch?.Text))
-            {
-                LayoutSearch.Text = string.Empty;
-                LayoutSearch.Focus(FocusState.Programmatic);
-                ViewModel.StatusMessage = "Cleared layout search filter.";
-            }
-            else
-            {
-                var txt = ViewModel.LayoutCountText ?? string.Empty;
-                CopyAndReport(txt, $"Copied layout count: {txt}");
-            }
-        }
+        private void OnLayoutCountButtonClick(object sender, RoutedEventArgs e) =>
+            KeyboardContextMenu.Invoke(LayoutCountButton, OnLayoutCountButtonRightTapped);
 
-        private void OnLayoutCountLabelRightTapped(object sender, RightTappedRoutedEventArgs e)
+        private void OnLayoutCountButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
         {
-            if (LayoutCountLabel is null) return;
+            if (LayoutCountButton is null) return;
             e.Handled = true;
             var menu = new MenuFlyout();
 
@@ -3391,7 +3379,7 @@ namespace MarkSmith.Views.SmartArtStudio
             };
             menu.Items.Add(pickRandomItem);
 
-            menu.ShowAt(LayoutCountLabel, e.GetPosition(LayoutCountLabel));
+            menu.ShowAt(LayoutCountButton, KeyboardContextMenu.PointIn(e, LayoutCountButton));
         }
 
         private void OnOutlineSummaryLabelDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
