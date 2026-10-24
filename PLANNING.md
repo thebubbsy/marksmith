@@ -16759,3 +16759,7 @@ bridge) the same Shift+F10 opened nothing. `ExportSvgButton` / `DeleteButton` re
 3. Live OCR page-flip focus check with a 2-page PDF (carried over since #239).
 
 **Total user-visible improvements: 9.**
+
+**Release (same run):** tagged **v3.59.0** on `cfacbae`; Release workflow run 40055474295 succeeded;
+user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.59.0). `MarksmithBaseVersion` is now 3.60.0.
