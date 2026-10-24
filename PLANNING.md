@@ -17233,3 +17233,7 @@ again: the workstation was locked for the whole run.
 3. SmartArt `MarkdownTextBox`, outline rename boxes and `LayoutSearch` onto `TextBoxMenu`.
 
 **Total user-visible improvements: 6.**
+
+**Release (same run):** tagged **v3.63.0** on `3731030`; Release workflow run 40070089544 succeeded;
+user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.63.0). `MarksmithBaseVersion` is now 3.64.0.
