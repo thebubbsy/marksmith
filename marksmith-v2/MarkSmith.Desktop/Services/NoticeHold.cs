@@ -1,4 +1,6 @@
+using System;
 using System.Runtime.CompilerServices;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 
 namespace MarkSmith.Services;
@@ -11,21 +13,29 @@ public static class NoticeHold
     private sealed class State { public bool Pointer; public bool Focus; }
     private static readonly ConditionalWeakTable<FrameworkElement, State> States = new();
 
-    public static void Attach(FrameworkElement notice, DispatcherTimer timer, Func<bool> shouldResume)
+    public static void Attach(FrameworkElement notice, DispatcherTimer timer, Func<bool> shouldResume) =>
+        AttachCore(notice, () => timer.Stop(), () => { if (shouldResume()) timer.Start(); });
+
+    public static void Attach(FrameworkElement notice, DispatcherQueueTimer timer, Func<bool> shouldResume) =>
+        AttachCore(notice, () => timer.Stop(), () => { if (shouldResume()) timer.Start(); });
+
+    public static void Attach(FrameworkElement notice, Action hold, Action resume) =>
+        AttachCore(notice, hold, resume);
+
+    private static void AttachCore(FrameworkElement notice, Action hold, Action resume)
     {
         var state = States.GetOrCreateValue(notice);
 
-        void Hold() => timer.Stop();
         void Release()
         {
             if (state.Pointer || state.Focus) return;
-            if (shouldResume()) timer.Start();
+            resume();
         }
 
-        notice.PointerEntered += (_, _) => { state.Pointer = true; Hold(); };
+        notice.PointerEntered += (_, _) => { state.Pointer = true; hold(); };
         notice.PointerExited += (_, _) => { state.Pointer = false; Release(); };
         notice.PointerCanceled += (_, _) => { state.Pointer = false; Release(); };
-        notice.GotFocus += (_, _) => { state.Focus = true; Hold(); };
+        notice.GotFocus += (_, _) => { state.Focus = true; hold(); };
         notice.LostFocus += (_, _) => { state.Focus = false; Release(); };
         // Closing the bar under the pointer (its X button) may never raise PointerExited; a stale
         // hold would keep every later notice open for good.

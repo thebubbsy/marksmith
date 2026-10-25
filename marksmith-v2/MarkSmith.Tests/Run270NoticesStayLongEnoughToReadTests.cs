@@ -144,4 +144,60 @@ public class Run270NoticesStayLongEnoughToReadTests
         Assert.Contains("TextTrimming=\"CharacterEllipsis\"", element);
         Assert.DoesNotContain("ToolTipService.ToolTip", element);
     }
+
+    [Fact]
+    public void MainWindowStatusBarScalesDelayAndHoldsWhileHovered()
+    {
+        var src = Read("MainWindow.xaml.cs");
+        Assert.Contains("NoticeHold.Attach(StatusMsgHost, _statusFadeTimer, () => ViewModel.StatusFadesAway);", src);
+        Assert.Contains("_statusFadeTimer.Interval = NoticeTiming.For(ViewModel.StatusText, minimumSeconds: 10);", src);
+        Assert.Contains("Services.TrimmedTextToolTip.Attach(EditorStepTitle, EditorStepCaption, StatusMsgText);", src);
+
+        var xaml = Read("MainWindow.xaml");
+        var tag = xaml.IndexOf("x:Name=\"StatusMsgText\"", StringComparison.Ordinal);
+        var end = xaml.IndexOf("/>", tag, StringComparison.Ordinal);
+        var element = xaml[tag..end];
+        Assert.Contains("TextTrimming=\"CharacterEllipsis\"", element);
+        Assert.DoesNotContain("ToolTipService.ToolTip", element);
+    }
+
+    [Fact]
+    public void NoticeHoldSupportsDispatcherQueueTimerAndActionCallbacks()
+    {
+        var src = Read("Services/NoticeHold.cs");
+        Assert.Contains("Attach(FrameworkElement notice, DispatcherQueueTimer timer, Func<bool> shouldResume)", src);
+        Assert.Contains("Attach(FrameworkElement notice, Action hold, Action resume)", src);
+    }
+
+    [Fact]
+    public void MermaidStudioEmptyCanvasExplainsInsteadOfBlank()
+    {
+        var vm = new MarkSmith.ViewModels.Mermaid.MermaidStudioViewModel();
+        Assert.Empty(vm.Nodes);
+
+        vm.CopySelected();
+        Assert.Equal("No shapes on the canvas to copy: add a shape from the palette first.", vm.StatusText);
+
+        vm.DuplicateSelected();
+        Assert.Equal("Nothing to duplicate: add a shape from the palette first.", vm.StatusText);
+
+        // Add a node so canvas is not empty, but none selected
+        var node = new MarkSmith.ViewModels.Mermaid.DiagramNodeViewModel { Id = "n1", LabelText = "Node 1" };
+        vm.Nodes.Add(node);
+        Assert.Empty(vm.SelectedNodes);
+
+        vm.CopySelected();
+        Assert.Equal("Nothing to copy: select a shape on the canvas first.", vm.StatusText);
+
+        vm.DuplicateSelected();
+        Assert.Equal("Nothing to duplicate: select a shape on the canvas first.", vm.StatusText);
+    }
+
+    [Fact]
+    public void MermaidDiagramStudioControlGuardsExportAndCopySvgWhenEmpty()
+    {
+        var src = Read("Views/Mermaid/MermaidDiagramStudioControl.xaml.cs");
+        Assert.Contains("if (ViewModel.Nodes.Count == 0)\n        {\n            ViewModel.StatusText = \"No shapes on the canvas to export: add a shape from the palette first.\";\n            return;\n        }", src);
+        Assert.Contains("if (ViewModel.Nodes.Count == 0)\n        {\n            ViewModel.StatusText = \"No shapes on the canvas to copy: add a shape from the palette first.\";\n            return;\n        }", src);
+    }
 }

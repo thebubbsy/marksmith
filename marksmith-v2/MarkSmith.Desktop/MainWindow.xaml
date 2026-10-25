@@ -2231,8 +2231,7 @@
                                    VerticalAlignment="Center" FontSize="12" Opacity="0.85"
                                    TextTrimming="CharacterEllipsis" MaxWidth="560"
                                    RightTapped="OnStatusMsgTextRightTapped"
-                                   DoubleTapped="OnStatusMsgTextDoubleTapped"
-                                   ToolTipService.ToolTip="{Binding StatusText}" />
+                                   DoubleTapped="OnStatusMsgTextDoubleTapped" />
                     </ContentControl>
                     <!-- Shown only while the status line is announcing a finished export (the
                          Windows toast is easy to miss, or switched off entirely). -->

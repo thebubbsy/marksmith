@@ -2204,7 +2204,8 @@ public partial class MermaidStudioViewModel : ObservableObject
     [RelayCommand]
     public void CopySelected()
     {
-        if (SelectedNodes.Count == 0) { StatusText = "Select a shape to copy."; return; }
+        if (Nodes.Count == 0) { StatusText = "No shapes on the canvas to copy: add a shape from the palette first."; return; }
+        if (SelectedNodes.Count == 0) { StatusText = "Nothing to copy: select a shape on the canvas first."; return; }
 
         _clipboardNodes.Clear();
         _clipboardConnectors.Clear();
@@ -2239,7 +2240,8 @@ public partial class MermaidStudioViewModel : ObservableObject
     [RelayCommand]
     public void DuplicateSelected()
     {
-        if (SelectedNodes.Count == 0) { StatusText = "Select a shape to duplicate."; return; }
+        if (Nodes.Count == 0) { StatusText = "Nothing to duplicate: add a shape from the palette first."; return; }
+        if (SelectedNodes.Count == 0) { StatusText = "Nothing to duplicate: select a shape on the canvas first."; return; }
 
         var ids = new HashSet<string>(SelectedNodes.Select(n => n.Id), StringComparer.OrdinalIgnoreCase);
         var nodes = SelectedNodes

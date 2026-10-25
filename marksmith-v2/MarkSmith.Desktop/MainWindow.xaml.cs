@@ -255,7 +255,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             root == Content.XamlRoot && PasteTextBox.Visibility == Visibility.Visible ? PasteTextBox : null;
 
         // The centre header trims at the default width ("Editor / Pr…"); show the full text on hover.
-        Services.TrimmedTextToolTip.Attach(EditorStepTitle, EditorStepCaption);
+        Services.TrimmedTextToolTip.Attach(EditorStepTitle, EditorStepCaption, StatusMsgText);
         // The status-bar pills advertise "Right-click for options"; make those menus reachable
         // from Shift+F10 / the Menu key as well, so keyboard users get the same choices.
         foreach (var (pill, handler) in new (UIElement, Microsoft.UI.Xaml.Input.RightTappedEventHandler)[]
@@ -1318,10 +1318,12 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             _statusFadeTimer.IsRepeating = false;
             _statusFadeTimer.Interval = ViewModels.MainViewModel.StatusFadeDelay;
             _statusFadeTimer.Tick += (_, _) => ViewModel.FadeStatus(_statusFadeFor);
+            NoticeHold.Attach(StatusMsgHost, _statusFadeTimer, () => ViewModel.StatusFadesAway);
         }
         _statusFadeTimer.Stop();
         if (!ViewModel.StatusFadesAway) return;
         _statusFadeFor = ViewModel.StatusText;
+        _statusFadeTimer.Interval = NoticeTiming.For(ViewModel.StatusText, minimumSeconds: 10);
         _statusFadeTimer.Start();
     }
 

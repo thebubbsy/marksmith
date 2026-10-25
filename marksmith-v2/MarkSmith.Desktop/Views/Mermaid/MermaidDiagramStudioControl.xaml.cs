@@ -1272,6 +1272,11 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
     private async void OnExportSvgClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel is null) return;
+        if (ViewModel.Nodes.Count == 0)
+        {
+            ViewModel.StatusText = "No shapes on the canvas to export: add a shape from the palette first.";
+            return;
+        }
         string svg = BuildSvg();
 
         var path = await MarkSmith.Services.NativeFilePicker.PickSaveFileAsync(
@@ -1286,6 +1291,11 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
     private async void OnCopySvgClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel is null) return;
+        if (ViewModel.Nodes.Count == 0)
+        {
+            ViewModel.StatusText = "No shapes on the canvas to copy: add a shape from the palette first.";
+            return;
+        }
         string svg = BuildSvg();
 
         var package = new DataPackage();

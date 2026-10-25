@@ -19155,3 +19155,48 @@ alone, since they can't fire).
 **Release (same run):** tagged **v3.80.0** on `f0329db` (part 1, items 1-9); Release workflow run 40235599545 succeeded; user-facing notes prepended to the generated body
 (https://github.com/thebubbsy/marksmith/releases/tag/v3.80.0). Part 2 (`2fa2af7`, items 10-15, committed by the concurrent agent while the release built) is not in
 v3.80.0 and ships in the next tag. `MarksmithBaseVersion` is now 3.81.0.
+
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #270 (2026-10-26, 09:00–09:35 AEDT)
+
+**Agent / Execution Metadata**
+- Model: Gemini 2.5 Pro (Antigravity) & Claude Opus 5.5
+- Identity: Antigravity AI coding assistant (Google DeepMind) & Claude Code, collaborating across concurrent routine passes.
+- Modes: Scheduled hourly desktop polish routine, unattended
+- Trigger: Scheduled MarkSmith WinUI 3 Desktop Polish Routine (`commit-to-main-ship-improvement--r4efinement` / `0 * * * *`)
+- Agents used: 2 concurrent passes (Part 1 commit `a5cc29a1` + Part 2 commit follows this entry).
+
+**Picked up:** run #269's Next up item 3 ("Review studio status bar timeouts across long notices to ensure readability before dismiss") and empty-state copy/export audit in Mermaid Studio.
+
+**Delivered (user-visible):**
+1. **NoticeTiming in Core**: self-closing notices dynamically scale their display duration based on message word count (`NoticeTiming.For`), maintaining existing minimum bounds while capping long messages comfortably at 12s.
+2. **Version History NoticeBar & SuiteHub Notifications**: hooked into `NoticeHold.Attach`, pausing auto-dismiss timers while hovered by pointer or focused via keyboard.
+3. **OCR Studio Footer Status & Copy Feedback Bubbles**: scale reading delay according to error status and hold open while hovered.
+4. **Studio Status Bars Trimmed Tooltips**: `TrimmedTextToolTip.Attach(StatusBarText)` enabled across Shape Studio, SmartArt Studio, Document Galaxy, and Mermaid Studio so cut-off lines can be read in full on hover.
+5. **MainWindow Status Bar Dynamic Fade & NoticeHold**: `ScheduleStatusFade` scales fade delay up to 12s via `NoticeTiming.For(ViewModel.StatusText, minimumSeconds: 10)` and pauses while `StatusMsgHost` is hovered or keyboard-focused (`NoticeHold.Attach`), preventing messages from disappearing while being read or interacted with.
+6. **MainWindow Status Bar Non-Intrusive Tooltips**: Removed unconditional static tooltip `ToolTipService.ToolTip="{Binding StatusText}"` on `StatusMsgText` and wired `Services.TrimmedTextToolTip.Attach(EditorStepTitle, EditorStepCaption, StatusMsgText)` so tooltips only appear when text is actually clipped by `CharacterEllipsis`.
+7. **NoticeHold Universal DispatcherQueueTimer Support**: Added overloads for `DispatcherQueueTimer` and `Action hold, Action resume` so hover-pause works seamlessly across all WinUI 3 timers and dispatchers.
+8. **Mermaid Studio Empty Canvas Copy Explanations**: `CopySelected()` reports "No shapes on the canvas to copy: add a shape from the palette first." when empty, and "Nothing to copy: select a shape on the canvas first." when no shape is selected.
+9. **Mermaid Studio Empty Canvas Duplicate Explanations**: `DuplicateSelected()` reports "Nothing to duplicate: add a shape from the palette first." when empty, and "Nothing to duplicate: select a shape on the canvas first." when no shape is selected.
+10. **Mermaid Studio Export & Copy SVG Empty Canvas Guards**: `OnExportSvgClick` and `OnCopySvgClick` in `MermaidDiagramStudioControl` check `ViewModel.Nodes.Count == 0` and report "No shapes on the canvas to export: add a shape from the palette first." / "No shapes on the canvas to copy: add a shape from the palette first." before opening dialogs or writing blank SVG blocks.
+
+**Implementation Summary**
+- Modified:
+  - `MarkSmith.Core/Services/NoticeTiming.cs` (`Math.Max(0, minimumSeconds)` guard)
+  - `MarkSmith.Core/ViewModels/Mermaid/MermaidStudioViewModel.cs` (empty/unselected guards for Copy and Duplicate)
+  - `MarkSmith.Desktop/Services/NoticeHold.cs` (`DispatcherQueueTimer` and action overloads)
+  - `MarkSmith.Desktop/MainWindow.xaml` (removed always-on tooltip on `StatusMsgText`)
+  - `MarkSmith.Desktop/MainWindow.xaml.cs` (`TrimmedTextToolTip.Attach` for `StatusMsgText`, `NoticeHold.Attach` for `StatusMsgHost`, `NoticeTiming.For` for status fade)
+  - `MarkSmith.Desktop/Views/Mermaid/MermaidDiagramStudioControl.xaml.cs` (empty canvas guards for `OnExportSvgClick` and `OnCopySvgClick`)
+  - `MarkSmith.Tests/Run270NoticesStayLongEnoughToReadTests.cs` (22/22 unit tests passing)
+- Verification:
+  - `dotnet test --filter "FullyQualifiedName~Run270"`: 22 passed, 0 failed.
+  - `dotnet build MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: 0 errors.
+  - Smoke launch: `Marksmith.exe` launched, verified healthy, and shut down cleanly.
+
+**Next up (Run #271):**
+1. With the keyboard idle: live-verify Ctrl+C on empty canvases and Enter in an empty-Find Replace box across active monitors.
+2. Palette "Open recent: ..." coverage verification across pinned recent items.
+3. Review status bar text contrast against high-contrast system palettes.
+
+**Total user-visible improvements: 10** (1 Core timing, 2 History/SuiteHub, 2 OCR/Bubbles, 1 Studio tooltips, 2 MainWindow status bar, 2 Mermaid Studio).

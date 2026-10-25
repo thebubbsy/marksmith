@@ -1,3 +1,5 @@
+using System;
+
 namespace MarkSmith.Services;
 
 // How long a self-closing notice stays up. A fixed 3 or 6 seconds suits "Copied." but cuts off a
@@ -14,6 +16,7 @@ public static class NoticeTiming
     // never longer than 12 seconds unless the minimum itself is longer.
     public static TimeSpan For(string? message, double minimumSeconds)
     {
+        minimumSeconds = Math.Max(0, minimumSeconds);
         var seconds = LeadSeconds + WordCount(message) * SecondsPerWord;
         seconds = Math.Min(seconds, Math.Max(CeilingSeconds, minimumSeconds));
         return TimeSpan.FromSeconds(Math.Max(seconds, minimumSeconds));
