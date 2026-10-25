@@ -17902,3 +17902,7 @@ session scratchpad):
    widths; v2 also catches horizontally cut controls inside scrollers, which the run #253 sweep skipped.
 
 **Total user-visible improvements: 10** (9 in OCR Studio, 1 minor in Diagram Studio).
+
+**Release (same run):** tagged **v3.69.0** on `45a1495`; Release workflow run 40173394399 succeeded;
+user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.69.0). `MarksmithBaseVersion` is now 3.70.0.
