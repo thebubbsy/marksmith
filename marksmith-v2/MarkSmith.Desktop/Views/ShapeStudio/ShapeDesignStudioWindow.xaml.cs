@@ -22,7 +22,7 @@ namespace MarkSmith.Views.ShapeStudio
         private void ReportEdit(string? summary)
         {
             if (ViewModel is null) return;
-            var line = summary?.Split('\n')[0].Trim();
+            var line = (summary ?? "").Replace("\r\n", "\n").Replace('\r', '\n').Split('\n')[0].Trim();
             if (string.IsNullOrWhiteSpace(line)) return;
             // The view model often reported this result already as "✓ … · Ctrl+Z to undo"; replacing
             // that with the bare summary dropped the undo hint, so a line containing it is kept.
@@ -2677,6 +2677,11 @@ namespace MarkSmith.Views.ShapeStudio
                 badge.DoubleTapped += (s, e) =>
                 {
                     e.Handled = true;
+                    if (selected.Count < 3)
+                    {
+                        ViewModel.StatusMessage = "Select at least 3 shapes to space their edges evenly.";
+                        return;
+                    }
                     if (s is not Border { Tag: SpacingBadgeState state } || ViewModel == null) return;
                     var (_, _, summary) = ViewModel.DistributeShapesEvenly(state.Horizontal ? DistributionAxis.Horizontal : DistributionAxis.Vertical);
                     ReportEdit(summary);

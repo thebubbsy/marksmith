@@ -12021,6 +12021,9 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         bool wasFolded = StatusSecondaryCopyPills.Visibility == Visibility.Collapsed;
         StatusSecondaryCopyPills.Visibility = Visibility.Visible;
         StatusMoreCopyButton.Visibility = Visibility.Collapsed;
+        if (StatusShortcutsButton is not null) StatusShortcutsButton.Visibility = Visibility.Visible;
+        if (StatusShortcutsDivider is not null) StatusShortcutsDivider.Visibility = Visibility.Visible;
+
         StatusRightPanel.Measure(infinite);
         bool fold = StatusBarLayout.ShouldFoldSecondaryPills(available, StatusRightPanel.DesiredSize.Width);
 
@@ -12033,12 +12036,26 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             StatusSecondaryCopyPills.Visibility = Visibility.Collapsed;
             StatusMoreCopyButton.Visibility = Visibility.Visible;
             if (pillHadFocus) StatusMoreCopyButton.Focus(FocusState.Keyboard);
+
+            // When secondary copy pills fold, also fold the Shortcuts pill and its divider into "More"
+            // so the status message gets real breathing room at the default 1220px launch width.
+            if (StatusShortcutsButton is not null)
+            {
+                bool shortcutsHadFocus = Content?.XamlRoot is { } r &&
+                    Microsoft.UI.Xaml.Input.FocusManager.GetFocusedElement(r) is DependencyObject f &&
+                    IsDescendantOf(f, StatusShortcutsButton);
+                StatusShortcutsButton.Visibility = Visibility.Collapsed;
+                if (StatusShortcutsDivider is not null) StatusShortcutsDivider.Visibility = Visibility.Collapsed;
+                if (shortcutsHadFocus) StatusMoreCopyButton.Focus(FocusState.Keyboard);
+            }
         }
 
         StatusRightPanel.Measure(infinite);
         StatusLeftPanel.Measure(infinite);
         var otherLeft = Math.Max(0, StatusLeftPanel.DesiredSize.Width - StatusMsgText.DesiredSize.Width);
-        StatusMsgText.MaxWidth = StatusBarLayout.MessageMaxWidth(available, StatusRightPanel.DesiredSize.Width, otherLeft);
+        var maxW = StatusBarLayout.MessageMaxWidth(available, StatusRightPanel.DesiredSize.Width, otherLeft);
+        var actualRemaining = Math.Max(0, available - StatusRightPanel.DesiredSize.Width - otherLeft - 12);
+        StatusMsgText.MaxWidth = Math.Min(maxW, actualRemaining);
     }
 
     private static bool IsDescendantOf(DependencyObject node, DependencyObject ancestor)
@@ -12069,6 +12086,11 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         Add("Copy images", "", OnStatusCopyImagesButtonClick);
         Add("Copy footnotes", "", OnStatusCopyFootnotesButtonClick);
         Add("Copy diagrams", "", OnStatusCopyDiagramsButtonClick);
+        if (StatusShortcutsButton?.Visibility == Visibility.Collapsed)
+        {
+            menu.Items.Add(new MenuFlyoutSeparator());
+            Add("Keyboard shortcuts cheatsheet (F1)", "", OnStatusShortcutsButtonClick);
+        }
         menu.ShowAt(anchor);
     }
 

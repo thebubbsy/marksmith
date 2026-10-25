@@ -1544,9 +1544,10 @@ namespace MarkSmith.ViewModels.MindMap
         {
             if (text.Length <= budget) return text;
             // Prefer a paragraph break so the card doesn't end mid-sentence.
-            int cut = text.LastIndexOf("\n\n", budget, StringComparison.Ordinal);
+            var norm = text.Replace("\r\n", "\n").Replace('\r', '\n');
+            int cut = norm.LastIndexOf("\n\n", Math.Min(budget, norm.Length), StringComparison.Ordinal);
             if (cut < budget / 2) cut = budget;
-            return text[..cut].TrimEnd() + "\n\n… open the document to read the rest.";
+            return norm[..cut].TrimEnd() + "\n\n… open the document to read the rest.";
         }
 
         public void HidePreviewCard()

@@ -29,7 +29,7 @@ namespace MarkSmith.Views.MindMap
         private void ReportEdit(string? summary)
         {
             if (ViewModel is null) return;
-            var line = summary?.Split('\n')[0].Trim();
+            var line = (summary ?? "").Replace("\r\n", "\n").Replace('\r', '\n').Split('\n')[0].Trim();
             if (string.IsNullOrWhiteSpace(line)) return;
             // The view model often reported this result already as "✓ … · Ctrl+Z to undo"; replacing
             // that with the bare summary dropped the undo hint, so a line containing it is kept.
@@ -4510,7 +4510,7 @@ namespace MarkSmith.Views.MindMap
         private void OnAuditGraphFeedbackArcSetClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
-            var result = ViewModel.AuditGraphCyclesAndFeedbackArcSet();
+            var result = ViewModel.AuditGraphDagFeedbackLoopsAndScc();
             CopyAndReport(result.Summary, $"✓ {result.Summary}");
         }
 

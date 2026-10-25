@@ -308,7 +308,7 @@
                                         <MenuFlyoutItem x:Name="AuditGraphBipartiteItem" Text="Audit graph bipartite 2-mode network partition, odd cycles &amp; modularity balance" Click="OnAuditGraphBipartiteClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE736;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="AuditGraphBipartitenessOddCyclesItem" Text="Audit graph bipartiteness, 2-colorability &amp; odd-length cycles" Click="OnAuditGraphBipartitenessAndOddCyclesClick">
+                                        <MenuFlyoutItem x:Name="AuditGraphBipartitenessOddCyclesItem" Text="Audit graph bipartiteness &amp; 2-colorability compliance" Click="OnAuditGraphBipartitenessAndOddCyclesClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE736;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
                                         <MenuFlyoutItem x:Name="AuditGraphBranchSymmetryItem" Text="Audit graph branch leaf density &amp; subtree symmetry balance" Click="OnAuditGraphBranchSymmetryClick">
@@ -340,7 +340,7 @@
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE895;" /></MenuFlyoutItem.Icon>
                                         
                                         </MenuFlyoutItem>
-                                        <MenuFlyoutItem x:Name="AuditGraphFeedbackArcSetItem" Text="Audit graph cycles, feedback arc set &amp; DAG hierarchy compliance" Click="OnAuditGraphFeedbackArcSetClick">
+                                        <MenuFlyoutItem x:Name="AuditGraphFeedbackArcSetItem" Text="Audit graph DAG feedback loops &amp; strongly connected components" Click="OnAuditGraphFeedbackArcSetClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE895;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
                                         <MenuFlyoutItem x:Name="AuditDegreeCentralityItem" Text="Audit graph degree centrality &amp; node hubs" Click="OnAuditDegreeCentralityClick">

@@ -18711,3 +18711,38 @@ mouse: UIA patterns + PrintWindow only.
 **Release (same run):** tagged **v3.76.0** on `a2f226d`; Release workflow run 40202706943 succeeded;
 user-facing notes prepended to the generated body
 (https://github.com/thebubbsy/marksmith/releases/tag/v3.76.0). `MarksmithBaseVersion` is now 3.77.0.
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #262 (2026-10-26, 01:45–02:05 AEDT)
+
+**Agent / Execution Metadata**
+- Model: Antigravity / Claude 3.5 Sonnet
+- Modes: Scheduled Hourly Automation Routine
+- Trigger: Scheduled hourly routine run
+- Verification: 9/9 new tests passing in `Run262StudioPolishAndStatusBarTests`, 83/83 regression tests passing (Runs 259–262), 213/213 `SuiteHubAndTourPolishTests` passing, Desktop project built with 0 errors (23 existing warnings).
+
+**Delivered (user-visible):**
+1. **Status bar: Shortcuts pill folds into "More" on constrained windows**, saving ~110px of right-panel width so the status message gets real breathing room (~200+ px) at the default 1220px launch width instead of being squeezed down to ~60px.
+2. **Status bar: Ellipsis trimming guaranteed without mid-character clipping.** `StatusMsgText.MaxWidth` is dynamically constrained to the actual remaining space in Grid Column 0 (`Math.Min(maxW, actualRemaining)`), ensuring XAML `TextTrimming="CharacterEllipsis"` triggers inside the visible column rather than letting text overflow and be abruptly sliced in half by the column boundary.
+3. **Status bar: "More" flyout exposes the keyboard shortcuts cheatsheet** (`Keyboard shortcuts cheatsheet (F1)`) with its icon whenever the Shortcuts button is folded, maintaining full one-click mouse and keyboard discoverability.
+4. **MindMap Galaxy: Deduplicated & honest DAG cycle diagnostics.** `AuditGraphFeedbackArcSetItem` now invokes `ViewModel.AuditGraphDagFeedbackLoopsAndScc()` to provide genuine Tarjan strongly connected components and feedback loop analysis, eliminating the 100% duplicate execution of `AuditGraphCyclesAndFeedbackArcSet()`.
+5. **MindMap Galaxy & Shape Studio: Disambiguated diagnostics menus.** Shape Studio Z-order audits now cleanly differentiate between 2D bounding-box spatial occlusion/depth (`SelectionAuditShapeZOrderStackingItem`) and layer compaction/Z-index stacking (`SelectionAuditZOrderOcclusionItem`). Galaxy menu items feature clean compliance labeling.
+6. **All Studios: `ReportEdit` line-break normalization.** Multi-line edit command summaries in SmartArt Studio, Shape Studio, and MindMap Galaxy now normalize `\r\n` and bare `\r` before extracting the first line, preventing bare carriage returns from leaking into the single-line status bar or corrupting XAML layout.
+7. **MindMap Galaxy: Note excerpt paragraph cuts handle bare carriage returns.** `MindMapStudioViewModel.Excerpt` normalizes bare `\r` returns before checking for `\n\n`, allowing hover cards and preview cards to break cleanly at paragraph cuts rather than cutting off mid-sentence when notes are typed with bare Enter in WinUI 3.
+8. **Shape Studio: Spacing badge double-tap honesty guard.** Double-tapping a distribution badge with fewer than 3 shapes selected now honestly reports `"Select at least 3 shapes to space their edges evenly."` rather than attempting distribution and claiming false success.
+
+**Implementation summary.**
+- `MarkSmith.Desktop/MainWindow.xaml`: Added `x:Name="StatusShortcutsDivider"` to the border preceding `StatusShortcutsButton`.
+- `MarkSmith.Desktop/MainWindow.xaml.cs`: Updated `UpdateStatusBarOverflow()` to fold `StatusShortcutsButton` and `StatusShortcutsDivider` when `fold` is true (secondary pills folded), safely transferring focus if the button had keyboard focus; capped `StatusMsgText.MaxWidth` to `Math.Min(maxW, actualRemaining)`; added `Keyboard shortcuts cheatsheet (F1)` to `OnStatusMoreCopyButtonClick` when folded.
+- `MarkSmith.Desktop/Views/MindMap/MindMapGalaxyWindow.xaml`: Disambiguated `AuditGraphFeedbackArcSetItem` to "Audit graph DAG feedback loops & strongly connected components" and `AuditGraphBipartitenessOddCyclesItem` to "Audit graph bipartiteness & 2-colorability compliance".
+- `MarkSmith.Desktop/Views/MindMap/MindMapGalaxyWindow.xaml.cs`: Rewired `OnAuditGraphFeedbackArcSetClick` to `ViewModel.AuditGraphDagFeedbackLoopsAndScc()`; normalized line breaks in `ReportEdit`.
+- `MarkSmith.Desktop/Views/ShapeStudio/ShapeDesignStudioWindow.xaml`: Disambiguated `SelectionAuditShapeZOrderStackingItem` and `SelectionAuditZOrderOcclusionItem`.
+- `MarkSmith.Desktop/Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs`: Normalized line breaks in `ReportEdit`; added `< 3` shapes guard in `badge.DoubleTapped`.
+- `MarkSmith.Desktop/Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml.cs`: Normalized line breaks in `ReportEdit`.
+- `MarkSmith.Core/ViewModels/MindMap/MindMapStudioViewModel.cs`: Normalized bare `\r` and `\r\n` to `\n` in `Excerpt` before finding paragraph cut.
+- `MarkSmith.Tests/Run262StudioPolishAndStatusBarTests.cs`: New test suite covering all 8 points (9/9 passing).
+
+**Next up (Run #263):**
+1. Audit Shape Studio "Equal gaps" and "Whole pixels" duplicate distribute commands to harmonize toolbar and flyout shortcuts.
+2. Check Theme Builder and OCR Inspection Studio text boxes for bare-`\r` line-break handling in export and snippet generators.
+3. Live-check status bar responsiveness at 1220px launch width with various document lengths and heading hierarchies.
+

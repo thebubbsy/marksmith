@@ -20,7 +20,7 @@ namespace MarkSmith.Views.SmartArtStudio
         private void ReportEdit(string? summary)
         {
             if (ViewModel is null) return;
-            var line = summary?.Split('\n')[0].Trim();
+            var line = (summary ?? "").Replace("\r\n", "\n").Replace('\r', '\n').Split('\n')[0].Trim();
             if (string.IsNullOrWhiteSpace(line)) return;
             if (ViewModel.StatusMessage?.Contains(line, StringComparison.Ordinal) == true) return;
             ViewModel.StatusMessage = line.StartsWith("✓", StringComparison.Ordinal) ? line : $"✓ {line}";

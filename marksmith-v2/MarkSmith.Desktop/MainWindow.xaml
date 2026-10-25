@@ -2454,7 +2454,7 @@
                                    FontFamily="Consolas" FontSize="11.5" Opacity="0.7"
                                    Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
                     </HyperlinkButton>
-                    <Border Width="1" Height="12" Background="{ThemeResource CardStrokeColorDefaultBrush}" VerticalAlignment="Center" />
+                    <Border x:Name="StatusShortcutsDivider" Width="1" Height="12" Background="{ThemeResource CardStrokeColorDefaultBrush}" VerticalAlignment="Center" />
                     <HyperlinkButton x:Name="StatusShortcutsButton"
                                      Click="OnStatusShortcutsButtonClick"
                                      RightTapped="OnStatusShortcutsButtonRightTapped"
