@@ -674,6 +674,31 @@ namespace MarkSmith.Views.SmartArtStudio
             }
         }
 
+        // An outline command (sort, reverse, normalise, a template) rewrites the box's text, which
+        // empties the TextBox's own undo, so Ctrl+Z here did nothing although the studio's Undo
+        // could revert the command. Hand Ctrl+Z / Ctrl+Y to the studio only when the box has no
+        // typing of its own to undo or redo; otherwise the TextBox keeps them.
+        private void OnMarkdownTextBoxPreviewKeyDown(object sender, KeyRoutedEventArgs e)
+        {
+            var ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control)
+                .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+            if (!ctrl) return;
+            var shift = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift)
+                .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+            var undo = e.Key == VirtualKey.Z && !shift;
+            var redo = e.Key == VirtualKey.Y || (e.Key == VirtualKey.Z && shift);
+            if (undo && !MarkdownTextBox.CanUndo && ViewModel.CanUndo)
+            {
+                ViewModel.UndoCommand.Execute(null);
+                e.Handled = true;
+            }
+            else if (redo && !MarkdownTextBox.CanRedo && ViewModel.CanRedo)
+            {
+                ViewModel.RedoCommand.Execute(null);
+                e.Handled = true;
+            }
+        }
+
         private void OnMarkdownTextBoxKeyDown(object sender, KeyRoutedEventArgs e)
         {
             if (e.Key == VirtualKey.Escape)

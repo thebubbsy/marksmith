@@ -9548,14 +9548,33 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var text = PasteTextBox.Text ?? string.Empty;
         var (fixedText, trailingFixed, tabsFixed, headingsFixed, blankClustersFixed, totalFixes) =
             MarkSmith.Services.TextSearch.FixSafeMarkdownLintIssues(text);
-        if (totalFixes > 0)
-        {
-            PasteTextBox.Text = fixedText;
-            RecomputeFindMatches();
-        }
         var summary = MarkSmith.Services.TextSearch.FormatSafeLintFixSummary(
             trailingFixed, tabsFixed, headingsFixed, blankClustersFixed);
-        CopyAndAnnounce(summary, summary);
+        // An edit, not a copy: the summary used to replace whatever was on the clipboard.
+        if (totalFixes == 0)
+        {
+            AnnounceStatus(summary);
+            return;
+        }
+
+        // One undo step, and the caret and scroll stay where they were (setting Text sends both
+        // to the top), as Replace All does.
+        var sv = FindEditorScrollViewer();
+        var offset = sv?.VerticalOffset ?? 0;
+        var caret = Math.Clamp(PasteTextBox.SelectionStart, 0, fixedText.Length);
+        ViewModel.BreakUndoBurst();
+        PasteTextBox.Text = fixedText;
+        ViewModel.EditorCaret = caret;
+        SyncDocumentFromEditor();
+        ViewModel.BreakUndoBurst();
+        PasteTextBox.Select(caret, 0);
+        UpdateCursorPosition();
+        if (sv is not null)
+            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
+                () => sv.ChangeView(null, offset, null, disableAnimation: true));
+        RecomputeFindMatches();
+        ViewModel.StatusText = $"{summary}. Ctrl+Z undoes it.";
+        ViewModel.StatusSeverity = Models.StatusSeverity.Success;
     }
 
     private bool _suppressFindJump;
@@ -9867,11 +9886,16 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var replacement = ReplaceTextBox?.Text ?? string.Empty;
         var text = PasteTextBox.Text ?? string.Empty;
         var cmp = FindComparison;
+        var wholeWord = MatchWholeWordCheck?.IsChecked == true;
+        var useRegex = UseRegexCheck?.IsChecked == true;
 
+        // Match the selection and find the next one with the same rules as the match count. This
+        // used to compare the selection with the query's literal text, so with Regex on Replace
+        // never replaced ("doc12" isn't "doc\d+") and stepped to the pattern's own characters.
         var selStart = PasteTextBox.SelectionStart;
-        var isMatch = PasteTextBox.SelectionLength == query.Length
-            && selStart + query.Length <= text.Length
-            && string.Compare(text, selStart, query, 0, query.Length, cmp) == 0;
+        var isMatch = MarkSmith.Services.TextSearch.IsMatchAt(
+            MarkSmith.Services.TextSearch.FindMatches(text, query, cmp, wholeWord, useRegex),
+            selStart, PasteTextBox.SelectionLength);
         if (isMatch)
         {
             ViewModel.BreakUndoBurst();
@@ -9885,13 +9909,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         // Continue from just after the replacement, wrapping to the top if needed.
         var from = Math.Clamp(selStart, 0, text.Length);
-        var nextAt = text.IndexOf(query, from, cmp);
-        var wrapped = false;
-        if (nextAt < 0 && from > 0)
-        {
-            nextAt = text.IndexOf(query, 0, cmp);
-            wrapped = nextAt >= 0;
-        }
+        var (nextAt, wrapped) = MarkSmith.Services.TextSearch.NextMatchFrom(
+            MarkSmith.Services.TextSearch.FindMatches(text, query, cmp, wholeWord, useRegex), from);
         RecomputeFindMatches(anchorOffset: nextAt);
         if (nextAt >= 0 && _findMatchIndex >= 0)
         {

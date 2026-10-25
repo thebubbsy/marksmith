@@ -709,6 +709,7 @@
                                  ScrollViewer.VerticalScrollBarVisibility="Auto"
                                  Text="{Binding MarkdownText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                  KeyDown="OnMarkdownTextBoxKeyDown"
+                                 PreviewKeyDown="OnMarkdownTextBoxPreviewKeyDown"
                                  DoubleTapped="OnMarkdownTextBoxDoubleTapped"
                                  ToolTipService.ToolTip="Indented Markdown bullets · Double-click to select all, Ctrl+Enter to insert into document, Right-click or Shift+F10 for options"
                                  FontFamily="Consolas" FontSize="13" />

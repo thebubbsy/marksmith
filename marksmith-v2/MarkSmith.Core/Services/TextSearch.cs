@@ -54,16 +54,18 @@ public static class TextSearch
         {
             try
             {
-                var options = comparison == StringComparison.OrdinalIgnoreCase
-                    ? System.Text.RegularExpressions.RegexOptions.IgnoreCase
-                    : System.Text.RegularExpressions.RegexOptions.None;
+                // '^' and '$' anchor at each line, as in other editors' regex search.
+                var options = System.Text.RegularExpressions.RegexOptions.Multiline
+                    | (comparison == StringComparison.OrdinalIgnoreCase
+                        ? System.Text.RegularExpressions.RegexOptions.IgnoreCase
+                        : System.Text.RegularExpressions.RegexOptions.None);
                 var pattern = query;
                 if (matchWholeWord)
                 {
                     pattern = $@"\b(?:{query})\b";
                 }
                 var rx = new System.Text.RegularExpressions.Regex(pattern, options, TimeSpan.FromMilliseconds(500));
-                var rxMatches = rx.Matches(text);
+                var rxMatches = rx.Matches(RegexSubject(text, query));
                 foreach (System.Text.RegularExpressions.Match m in rxMatches)
                 {
                     if (m.Success && m.Length > 0)
@@ -99,6 +101,40 @@ public static class TextSearch
             }
         }
         return matches;
+    }
+
+    // The editor's TextBox breaks lines with a bare '\r', which .NET regex doesn't treat as a line
+    // end: '^' / '$' only matched at the ends of the document, '.' ran on across lines ("TODO.*"
+    // selected to the end of the document) and a typed '\n' never matched. Searching a same-length
+    // copy with '\n' breaks keeps every match offset valid in the original text. Text with CRLF
+    // breaks, or a pattern that names '\r' itself, is searched as it is.
+    internal static string RegexSubject(string text, string pattern)
+    {
+        if (text.IndexOf('\r') < 0 || text.Contains("\r\n", StringComparison.Ordinal)) return text;
+        if (pattern.Contains(@"\r", StringComparison.Ordinal)) return text;
+        return text.Replace('\r', '\n');
+    }
+
+    /// <summary>
+    /// The first match at or after <paramref name="from"/>, or the first in the document when there
+    /// is none after it (<c>Wrapped</c>). Single Replace uses it to step on to the next match with
+    /// the same Match case / whole word / regex rules the match count uses.
+    /// </summary>
+    public static (int Index, bool Wrapped) NextMatchFrom(IReadOnlyList<TextMatch> matches, int from)
+    {
+        if (matches.Count == 0) return (-1, false);
+        foreach (var m in matches)
+            if (m.Index >= from) return (m.Index, false);
+        return (matches[0].Index, from > 0);
+    }
+
+    /// <summary>True when one of <paramref name="matches"/> is exactly the selection.</summary>
+    public static bool IsMatchAt(IReadOnlyList<TextMatch> matches, int start, int length)
+    {
+        if (length <= 0) return false;
+        foreach (var m in matches)
+            if (m.Index == start && m.Length == length) return true;
+        return false;
     }
 
     /// <summary>Start offsets of every non-overlapping match, in document order.</summary>
@@ -776,8 +812,12 @@ public static class TextSearch
         if (string.IsNullOrEmpty(markdown))
             return (markdown ?? string.Empty, 0, 0, 0, 0, 0);
 
+        // Keep the document's own break: the editor's TextBox text uses a bare '\r', and splitting
+        // that on '\n' saw the whole document as one line (only line 1's heading, the very end's
+        // trailing space and no blank-line runs were ever fixed).
         bool hasCrLf = markdown.Contains("\r\n", StringComparison.Ordinal);
-        string normalized = hasCrLf ? markdown.Replace("\r\n", "\n") : markdown;
+        bool hasBareCr = !hasCrLf && markdown.IndexOf('\r') >= 0;
+        string normalized = hasCrLf ? markdown.Replace("\r\n", "\n") : hasBareCr ? markdown.Replace('\r', '\n') : markdown;
         string[] rawLines = normalized.Split('\n');
 
         var outputLines = new List<string>(rawLines.Length);
@@ -901,7 +941,7 @@ public static class TextSearch
 
         int totalFixes = trailingFixed + tabsFixed + headingsFixed + blankClustersFixed;
         string joined = string.Join("\n", outputLines);
-        string finalMarkdown = hasCrLf ? joined.Replace("\n", "\r\n") : joined;
+        string finalMarkdown = hasCrLf ? joined.Replace("\n", "\r\n") : hasBareCr ? joined.Replace('\n', '\r') : joined;
         return (finalMarkdown, trailingFixed, tabsFixed, headingsFixed, blankClustersFixed, totalFixes);
     }
 

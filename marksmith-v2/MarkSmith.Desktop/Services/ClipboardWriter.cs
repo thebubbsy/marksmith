@@ -57,7 +57,8 @@ public static class ClipboardWriter
     public static Task<string?> TrySetTextAsync(string text)
     {
         var package = new DataPackage();
-        package.SetText(text);
+        // CRLF breaks: text from the editor's TextBox carries bare '\r' breaks.
+        package.SetText(ClipboardText.WindowsLineBreaks(text));
         return TrySetAsync(package);
     }
 
