@@ -18951,3 +18951,6 @@ SmartArt Studio, plus Shape Studio's selection-bounds menu.
 3. Sweep the remaining studios (Mind Map, Diagram Studio, OCR) for silent `if (… == 0) return;` menu handlers.
 
 **Total user-visible improvements: 8** (2 main window, 1 Version History, 2 SmartArt Studio, 2 Shape Studio, 1 Suite Hub).
+
+**Release (same run):** tagged **v3.78.0** on `33759bc` (it also carries runs #264–#266, which shipped without a tag); Release workflow run 40229243962 succeeded; user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.78.0). `MarksmithBaseVersion` is now 3.79.0.
