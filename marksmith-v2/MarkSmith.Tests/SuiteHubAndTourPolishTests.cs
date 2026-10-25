@@ -413,10 +413,7 @@ public class SuiteHubAndTourPolishTests
     [Fact]
     public void Run129_Polish_Elements_Wired_Across_Surfaces()
     {
-        var mainCs = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
-        Assert.Contains("ToggleLineEndings", mainCs);
-        Assert.Contains("ShowEncodingFlyout", mainCs);
-        Assert.Contains("UpdateStatusEncoding", mainCs);
+        // The status-bar line-ending / encoding helpers had no UI caller and were removed in run #261.
 
         var smartArtXaml = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml"));
         var smartArtCs = File.ReadAllText(DesktopPath("Views", "SmartArtStudio", "SmartArtDesignStudioWindow.xaml.cs"));

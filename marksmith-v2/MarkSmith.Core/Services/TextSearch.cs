@@ -52,36 +52,8 @@ public static class TextSearch
 
         if (useRegex)
         {
-            try
-            {
-                // '^' and '$' anchor at each line, as in other editors' regex search.
-                var options = System.Text.RegularExpressions.RegexOptions.Multiline
-                    | (comparison == StringComparison.OrdinalIgnoreCase
-                        ? System.Text.RegularExpressions.RegexOptions.IgnoreCase
-                        : System.Text.RegularExpressions.RegexOptions.None);
-                var pattern = query;
-                if (matchWholeWord)
-                {
-                    pattern = $@"\b(?:{query})\b";
-                }
-                var rx = new System.Text.RegularExpressions.Regex(pattern, options, TimeSpan.FromMilliseconds(500));
-                var rxMatches = rx.Matches(RegexSubject(text, query));
-                foreach (System.Text.RegularExpressions.Match m in rxMatches)
-                {
-                    if (m.Success && m.Length > 0)
-                    {
-                        matches.Add(new TextMatch(m.Index, m.Length));
-                    }
-                }
-            }
-            catch (ArgumentException)
-            {
-                // Invalid regex query returns 0 matches
-            }
-            catch (System.Text.RegularExpressions.RegexMatchTimeoutException)
-            {
-                // Timeout returns whatever was accumulated
-            }
+            foreach (var m in RegexMatches(text, query, comparison, matchWholeWord, out _))
+                matches.Add(new TextMatch(m.Index, m.Length));
             return matches;
         }
 
@@ -101,6 +73,86 @@ public static class TextSearch
             }
         }
         return matches;
+    }
+
+    // Every non-empty regex match, searched over RegexSubject's copy of the text. An invalid
+    // pattern gives none; a timeout keeps whatever matched before it. `subjectSwapped` is true when
+    // the copy's '\n' breaks stand in for the text's own '\r'.
+    private static List<System.Text.RegularExpressions.Match> RegexMatches(
+        string text, string query, StringComparison comparison, bool matchWholeWord, out bool subjectSwapped)
+    {
+        var found = new List<System.Text.RegularExpressions.Match>();
+        subjectSwapped = false;
+        try
+        {
+            // '^' and '$' anchor at each line, as in other editors' regex search.
+            var options = System.Text.RegularExpressions.RegexOptions.Multiline
+                | (comparison == StringComparison.OrdinalIgnoreCase
+                    ? System.Text.RegularExpressions.RegexOptions.IgnoreCase
+                    : System.Text.RegularExpressions.RegexOptions.None);
+            var pattern = matchWholeWord ? $@"\b(?:{query})\b" : query;
+            var rx = new System.Text.RegularExpressions.Regex(pattern, options, TimeSpan.FromMilliseconds(500));
+            var subject = RegexSubject(text, query);
+            subjectSwapped = !ReferenceEquals(subject, text);
+            foreach (System.Text.RegularExpressions.Match m in rx.Matches(subject))
+            {
+                if (m.Success && m.Length > 0) found.Add(m);
+            }
+        }
+        catch (ArgumentException)
+        {
+            // Invalid regex query returns 0 matches
+        }
+        catch (System.Text.RegularExpressions.RegexMatchTimeoutException)
+        {
+            // Timeout returns whatever was accumulated
+        }
+        return found;
+    }
+
+    // What one regex match is replaced with: $1, ${name}, $& and $$ expand as in Regex.Replace
+    // (Replace used to insert "$1" literally). Captured text comes from RegexSubject's '\n' copy, so
+    // its line breaks go back to the document's own '\r'.
+    private static string ExpandRegexReplacement(System.Text.RegularExpressions.Match m, string replacement, bool subjectSwapped)
+    {
+        if (replacement.IndexOf('$') < 0) return replacement;
+        var result = m.Result(replacement);
+        return subjectSwapped ? result.Replace('\n', '\r') : result;
+    }
+
+    /// <summary>
+    /// Every match with the text that replaces it. With <paramref name="useRegex"/> the
+    /// replacement's <c>$1</c> / <c>${name}</c> / <c>$&amp;</c> / <c>$$</c> expand per match;
+    /// otherwise each match gets <paramref name="replacement"/> as typed.
+    /// </summary>
+    public static List<(TextMatch Match, string Replacement)> FindReplacements(
+        string text, string query, string replacement, StringComparison comparison, bool matchWholeWord = false, bool useRegex = false)
+    {
+        replacement ??= string.Empty;
+        var list = new List<(TextMatch, string)>();
+        if (string.IsNullOrEmpty(query) || string.IsNullOrEmpty(text)) return list;
+        if (!useRegex)
+        {
+            foreach (var m in FindMatches(text, query, comparison, matchWholeWord))
+                list.Add((m, replacement));
+            return list;
+        }
+        foreach (var m in RegexMatches(text, query, comparison, matchWholeWord, out var swapped))
+            list.Add((new TextMatch(m.Index, m.Length), ExpandRegexReplacement(m, replacement, swapped)));
+        return list;
+    }
+
+    /// <summary>
+    /// The replacement for the match that is exactly the selection, or null when the selection
+    /// isn't a match. Single Replace uses it so a regex match gets its own captures.
+    /// </summary>
+    public static string? ReplacementAt(
+        string text, string query, string replacement, StringComparison comparison, int start, int length, bool matchWholeWord = false, bool useRegex = false)
+    {
+        if (length <= 0) return null;
+        foreach (var (m, r) in FindReplacements(text, query, replacement, comparison, matchWholeWord, useRegex))
+            if (m.Index == start && m.Length == length) return r;
+        return null;
     }
 
     // The editor's TextBox breaks lines with a bare '\r', which .NET regex doesn't treat as a line
@@ -185,19 +237,18 @@ public static class TextSearch
         string text, string query, string replacement, StringComparison comparison, int caret, bool matchWholeWord = false, bool useRegex = false)
     {
         caret = Math.Clamp(caret, 0, text.Length);
-        var matches = FindMatches(text, query, comparison, matchWholeWord, useRegex);
+        var matches = FindReplacements(text, query, replacement, comparison, matchWholeWord, useRegex);
         if (matches.Count == 0) return (text, 0, caret);
 
-        var firstLen = matches[0].Length;
-        var sb = new StringBuilder(text.Length + matches.Count * Math.Max(0, replacement.Length - firstLen));
+        var sb = new StringBuilder(text.Length);
         var idx = 0;
         var newCaret = -1;
-        foreach (var found in matches)
+        foreach (var (found, with) in matches)
         {
             if (newCaret < 0 && caret < found.Index) newCaret = sb.Length + (caret - idx);
             sb.Append(text, idx, found.Index - idx);
             if (newCaret < 0 && caret < found.Index + found.Length) newCaret = sb.Length;
-            sb.Append(replacement);
+            sb.Append(with);
             idx = found.Index + found.Length;
         }
         if (newCaret < 0) newCaret = sb.Length + (caret - idx);
@@ -332,11 +383,14 @@ public static class TextSearch
         if (string.IsNullOrEmpty(text) || matchIndex < 0 || matchIndex >= text.Length)
             return (1, 1, Math.Max(0, matchLength));
 
+        // Any break counts (CRLF once): the editor's TextBox breaks lines with a bare '\r', which
+        // read as one line, so every match was reported on line 1 at a huge column.
         int line = 1;
         int lastLineStart = 0;
         for (int i = 0; i < matchIndex; i++)
         {
-            if (text[i] == '\n')
+            var c = text[i];
+            if (c == '\n' || (c == '\r' && (i + 1 >= text.Length || text[i + 1] != '\n')))
             {
                 line++;
                 lastLineStart = i + 1;
@@ -410,7 +464,7 @@ public static class TextSearch
 
         var (line, col, _) = GetMatchLocation(text, matchIndex, matchLength);
         int lineStart = matchIndex;
-        while (lineStart > 0 && text[lineStart - 1] != '\n') lineStart--;
+        while (lineStart > 0 && text[lineStart - 1] != '\n' && text[lineStart - 1] != '\r') lineStart--;
 
         int lineEnd = matchIndex + Math.Max(0, matchLength);
         while (lineEnd < text.Length && text[lineEnd] != '\r' && text[lineEnd] != '\n') lineEnd++;
@@ -576,12 +630,15 @@ public static class TextSearch
 
         try
         {
-            var options = ignoreCase
-                ? System.Text.RegularExpressions.RegexOptions.IgnoreCase
-                : System.Text.RegularExpressions.RegexOptions.None;
+            // The same rules as Find's count: '^' / '$' per line over RegexSubject's copy of the
+            // editor's bare-'\r' text, so "^(#+) (.*)" lists every heading, not none.
+            var options = System.Text.RegularExpressions.RegexOptions.Multiline
+                | (ignoreCase
+                    ? System.Text.RegularExpressions.RegexOptions.IgnoreCase
+                    : System.Text.RegularExpressions.RegexOptions.None);
             var rx = new System.Text.RegularExpressions.Regex(pattern, options, TimeSpan.FromMilliseconds(250));
             var groupNames = rx.GetGroupNames();
-            var matches = rx.Matches(text);
+            var matches = rx.Matches(RegexSubject(text, pattern));
 
             int count = 0;
             foreach (System.Text.RegularExpressions.Match m in matches)

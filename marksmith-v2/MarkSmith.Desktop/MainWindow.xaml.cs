@@ -7752,8 +7752,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         line = _folds.DocumentLine(text, line); // past a fold, the document's line number
         var sel = Math.Clamp(tb.SelectionLength, 0, text.Length - start);
         CursorPosText.Text = DocumentStatsService.FormatCursorAndSelection(line, col, text.AsSpan(start, sel));
-        UpdateStatusEncoding(text);
-        UpdateStatusIndentation(text);
         // The document (folds open, '\n' breaks): `line` is a document line, and the TextBox's
         // bare '\r' breaks made the whole document read as one section.
         UpdateStatusSectionBreadcrumb(EditorDocumentLf(), line);
@@ -7762,25 +7760,32 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private int _currentHeadingLine = 0;
     private string _currentHeadingTitle = string.Empty;
 
+    private void HideStatusSectionBreadcrumb()
+    {
+        // Never collapse the pill under keyboard focus without handing focus on.
+        if (StatusSectionBreadcrumbButton.FocusState != FocusState.Unfocused)
+            WordCountButton?.Focus(FocusState.Keyboard);
+        StatusSectionBreadcrumbButton.Visibility = Visibility.Collapsed;
+        StatusSectionBreadcrumbDivider.Visibility = Visibility.Collapsed;
+        _currentHeadingLine = 0;
+        _currentHeadingTitle = string.Empty;
+    }
+
     private void UpdateStatusSectionBreadcrumb(string text, int currentDocLine)
     {
         if (StatusSectionBreadcrumbButton is null || StatusSectionBreadcrumbText is null || StatusSectionBreadcrumbDivider is null) return;
         if (string.IsNullOrWhiteSpace(text))
         {
-            StatusSectionBreadcrumbButton.Visibility = Visibility.Collapsed;
-            StatusSectionBreadcrumbDivider.Visibility = Visibility.Collapsed;
-            _currentHeadingLine = 0;
-            _currentHeadingTitle = string.Empty;
+            HideStatusSectionBreadcrumb();
             return;
         }
 
+        // A document with no headings is one "Intro" section: the pill said "§ Intro" and its click
+        // jumped nowhere, so it only shows once there is a heading to be in.
         var budgets = MarkSmith.Services.TextSearch.ExtractMarkdownSectionBudgets(text);
-        if (budgets.Count == 0)
+        if (!budgets.Any(b => b.Level > 0))
         {
-            StatusSectionBreadcrumbButton.Visibility = Visibility.Collapsed;
-            StatusSectionBreadcrumbDivider.Visibility = Visibility.Collapsed;
-            _currentHeadingLine = 0;
-            _currentHeadingTitle = string.Empty;
+            HideStatusSectionBreadcrumb();
             return;
         }
 
@@ -8132,367 +8137,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private readonly DateTime _sessionStartTime = DateTime.UtcNow;
     private int _sessionStartWordCount = 0;
-    private string _currentEncodingSummary = "UTF-8 · CRLF";
-
-    private void UpdateStatusEncoding(string? text)
-    {
-        string lineEndings = "CRLF";
-        string encodingName = "UTF-8";
-        int crlfCount = 0;
-        int lfCount = 0;
-        if (!string.IsNullOrEmpty(text))
-        {
-            for (int i = 0; i < text.Length; i++)
-            {
-                if (text[i] == '\r' && i + 1 < text.Length && text[i + 1] == '\n') { crlfCount++; i++; }
-                else if (text[i] == '\n') { lfCount++; }
-            }
-            if (crlfCount > 0 && lfCount > 0)
-            {
-                lineEndings = $"Mixed ({crlfCount} CRLF, {lfCount} LF)";
-            }
-            else if (lfCount > 0)
-            {
-                lineEndings = "LF";
-            }
-            else if (crlfCount > 0)
-            {
-                lineEndings = "CRLF";
-            }
-            else
-            {
-                lineEndings = Environment.NewLine == "\r\n" ? "CRLF" : "LF";
-            }
-        }
-        bool isMixed = crlfCount > 0 && lfCount > 0;
-        _currentEncodingSummary = isMixed ? $"{encodingName} · Mixed" : $"{encodingName} · {lineEndings}";
-    }
-
-    private void ToggleLineEndings()
-    {
-        if (PasteTextBox is null) return;
-        string text = PasteTextBox.Text ?? "";
-        int crlfCount = 0;
-        int lfCount = 0;
-        for (int i = 0; i < text.Length; i++)
-        {
-            if (text[i] == '\r' && i + 1 < text.Length && text[i + 1] == '\n') { crlfCount++; i++; }
-            else if (text[i] == '\n') { lfCount++; }
-        }
-        int caret = PasteTextBox.SelectionStart;
-        if (crlfCount > 0 && lfCount > 0)
-        {
-            // Normalize mixed line endings to whichever is dominant (or CRLF on Windows)
-            bool toCrlf = crlfCount >= lfCount;
-            string newText = toCrlf
-                ? text.Replace("\r\n", "\n").Replace("\n", "\r\n")
-                : text.Replace("\r\n", "\n");
-            ViewModel.BreakUndoBurst();
-            PasteTextBox.Text = newText;
-            PasteTextBox.Select(Math.Clamp(caret, 0, newText.Length), 0);
-            SyncDocumentFromEditor();
-            ViewModel.BreakUndoBurst();
-            UpdateCursorPosition();
-            UpdateStatusEncoding(newText);
-            _ = RefreshPreviewAsync();
-            AnnounceStatus($"Normalized mixed line endings to {(toCrlf ? "CRLF (Windows)" : "LF (Unix/macOS)")}");
-        }
-        else if (crlfCount > 0 || (crlfCount == 0 && lfCount == 0 && Environment.NewLine == "\r\n"))
-        {
-            string newText = text.Replace("\r\n", "\n");
-            ViewModel.BreakUndoBurst();
-            PasteTextBox.Text = newText;
-            PasteTextBox.Select(Math.Clamp(caret, 0, newText.Length), 0);
-            SyncDocumentFromEditor();
-            ViewModel.BreakUndoBurst();
-            UpdateCursorPosition();
-            UpdateStatusEncoding(newText);
-            _ = RefreshPreviewAsync();
-            AnnounceStatus("Converted line endings to LF (Unix/macOS \\n)");
-        }
-        else
-        {
-            string newText = text.Replace("\r\n", "\n").Replace("\n", "\r\n");
-            ViewModel.BreakUndoBurst();
-            PasteTextBox.Text = newText;
-            PasteTextBox.Select(Math.Clamp(caret, 0, newText.Length), 0);
-            SyncDocumentFromEditor();
-            ViewModel.BreakUndoBurst();
-            UpdateCursorPosition();
-            UpdateStatusEncoding(newText);
-            _ = RefreshPreviewAsync();
-            AnnounceStatus("Converted line endings to CRLF (Windows \\r\\n)");
-        }
-    }
-
-    private void ShowEncodingFlyout(FrameworkElement target)
-    {
-        var menu = new MenuFlyout();
-        string text = PasteTextBox?.Text ?? "";
-        int crlfCount = 0;
-        int lfCount = 0;
-        for (int i = 0; i < text.Length; i++)
-        {
-            if (text[i] == '\r' && i + 1 < text.Length && text[i + 1] == '\n') { crlfCount++; i++; }
-            else if (text[i] == '\n') { lfCount++; }
-        }
-        bool isMixed = crlfCount > 0 && lfCount > 0;
-
-        if (isMixed)
-        {
-            var normCrlfItem = new MenuFlyoutItem
-            {
-                Text = $"Normalize all to CRLF ({crlfCount + lfCount} lines)",
-                Icon = new FontIcon { Glyph = "\uE73E" }
-            };
-            normCrlfItem.Click += (_, _) =>
-            {
-                if (PasteTextBox is null) return;
-                int caret = PasteTextBox.SelectionStart;
-                string newText = (PasteTextBox.Text ?? "").Replace("\r\n", "\n").Replace("\n", "\r\n");
-                ViewModel.BreakUndoBurst();
-                PasteTextBox.Text = newText;
-                PasteTextBox.Select(Math.Clamp(caret, 0, newText.Length), 0);
-                SyncDocumentFromEditor();
-                ViewModel.BreakUndoBurst();
-                UpdateCursorPosition();
-                UpdateStatusEncoding(newText);
-                _ = RefreshPreviewAsync();
-                AnnounceStatus($"Normalized all line endings to CRLF ({crlfCount + lfCount} lines)");
-            };
-            menu.Items.Add(normCrlfItem);
-
-            var normLfItem = new MenuFlyoutItem
-            {
-                Text = $"Normalize all to LF ({crlfCount + lfCount} lines)",
-                Icon = new FontIcon { Glyph = "\uE73E" }
-            };
-            normLfItem.Click += (_, _) =>
-            {
-                if (PasteTextBox is null) return;
-                int caret = PasteTextBox.SelectionStart;
-                string newText = (PasteTextBox.Text ?? "").Replace("\r\n", "\n");
-                ViewModel.BreakUndoBurst();
-                PasteTextBox.Text = newText;
-                PasteTextBox.Select(Math.Clamp(caret, 0, newText.Length), 0);
-                SyncDocumentFromEditor();
-                ViewModel.BreakUndoBurst();
-                UpdateCursorPosition();
-                UpdateStatusEncoding(newText);
-                _ = RefreshPreviewAsync();
-                AnnounceStatus($"Normalized all line endings to LF ({crlfCount + lfCount} lines)");
-            };
-            menu.Items.Add(normLfItem);
-
-            menu.Items.Add(new MenuFlyoutSeparator());
-        }
-
-        var toCrlfItem = new MenuFlyoutItem
-        {
-            Text = "Convert to Windows CRLF (\\r\\n)",
-            Icon = new FontIcon { Glyph = "\uE8B9" }
-        };
-        toCrlfItem.Click += (_, _) =>
-        {
-            if (PasteTextBox is null) return;
-            string curText = PasteTextBox.Text ?? "";
-            int caret = PasteTextBox.SelectionStart;
-            string newText = curText.Replace("\r\n", "\n").Replace("\n", "\r\n");
-            ViewModel.BreakUndoBurst();
-            PasteTextBox.Text = newText;
-            PasteTextBox.Select(Math.Clamp(caret, 0, newText.Length), 0);
-            SyncDocumentFromEditor();
-            ViewModel.BreakUndoBurst();
-            UpdateCursorPosition();
-            UpdateStatusEncoding(newText);
-            _ = RefreshPreviewAsync();
-            AnnounceStatus("Converted document line endings to CRLF (Windows)");
-        };
-        menu.Items.Add(toCrlfItem);
-
-        var toLfItem = new MenuFlyoutItem
-        {
-            Text = "Convert to Unix/macOS LF (\\n)",
-            Icon = new FontIcon { Glyph = "\uE8B9" }
-        };
-        toLfItem.Click += (_, _) =>
-        {
-            if (PasteTextBox is null) return;
-            string curText = PasteTextBox.Text ?? "";
-            int caret = PasteTextBox.SelectionStart;
-            string newText = curText.Replace("\r\n", "\n");
-            ViewModel.BreakUndoBurst();
-            PasteTextBox.Text = newText;
-            PasteTextBox.Select(Math.Clamp(caret, 0, newText.Length), 0);
-            SyncDocumentFromEditor();
-            ViewModel.BreakUndoBurst();
-            UpdateCursorPosition();
-            UpdateStatusEncoding(newText);
-            _ = RefreshPreviewAsync();
-            AnnounceStatus("Converted document line endings to LF (Unix/macOS)");
-        };
-        menu.Items.Add(toLfItem);
-
-        menu.Items.Add(new MenuFlyoutSeparator());
-
-        var copyFormatItem = new MenuFlyoutItem
-        {
-            Text = "Copy encoding and line endings info",
-            Icon = new FontIcon { Glyph = "\uE8C8" }
-        };
-        copyFormatItem.Click += (_, _) =>
-        {
-            string summary = _currentEncodingSummary;
-            string detail = isMixed
-                ? $"{summary} ({crlfCount} CRLF, {lfCount} LF) · {crlfCount + lfCount} lines total"
-                : $"{summary} · No BOM";
-            CopyAndAnnounce(detail, $"Copied document format: {detail}");
-        };
-        menu.Items.Add(copyFormatItem);
-
-        menu.ShowAt(target);
-    }
-
-    private int _currentIndentSize = 4;
-    private bool _currentIndentUseTabs = false;
-    private string _currentIndentSummary = "Spaces: 4";
-
-    private void UpdateStatusIndentation(string? text)
-    {
-        // Judged from every line: it used to split on '\n' only, so it read the TextBox's '\r'
-        // text as one line and judged the style from line 1.
-        var style = MarkSmith.Services.Editor.EditorIndentation.Detect(text);
-        _currentIndentUseTabs = style.UseTabs;
-        _currentIndentSize = style.Size;
-        _currentIndentSummary = style.Summary;
-    }
-
-    private void ToggleIndentation()
-    {
-        if (PasteTextBox is null) return;
-        if (!_currentIndentUseTabs)
-        {
-            if (_currentIndentSize == 4)
-            {
-                ConvertIndentation(toTabs: false, targetSpaces: 2);
-            }
-            else
-            {
-                ConvertIndentation(toTabs: true, targetSpaces: 4);
-            }
-        }
-        else
-        {
-            ConvertIndentation(toTabs: false, targetSpaces: 4);
-        }
-    }
-
-    private void ConvertIndentation(bool toTabs, int targetSpaces)
-    {
-        if (PasteTextBox is null) return;
-        string text = PasteTextBox.Text ?? "";
-        if (string.IsNullOrEmpty(text)) return;
-
-        // Every line, whatever its break: splitting on '\n' only re-indented line 1 of the
-        // TextBox's '\r' text and still announced the whole document as converted.
-        string styleName = toTabs ? "Tabs" : $"Spaces: {targetSpaces}";
-        var result = MarkSmith.Services.Editor.EditorIndentation.Convert(text, toTabs, targetSpaces);
-        if (result.ChangedLines == 0)
-        {
-            AnnounceStatus($"Indentation already uses {styleName}: nothing to convert");
-            return;
-        }
-
-        string newText = result.Text;
-        ViewModel.BreakUndoBurst();
-        int caret = Math.Clamp(PasteTextBox.SelectionStart, 0, newText.Length);
-        PasteTextBox.Text = newText;
-        PasteTextBox.Select(caret, 0);
-        SyncDocumentFromEditor();
-        ViewModel.BreakUndoBurst();
-        UpdateCursorPosition();
-        _ = RefreshPreviewAsync();
-        AnnounceStatus($"Converted indentation to {styleName} on {result.ChangedLines:N0} line{(result.ChangedLines == 1 ? "" : "s")} · Ctrl+Z to undo");
-    }
-
-    private void TrimTrailingWhitespace()
-    {
-        if (PasteTextBox is null) return;
-        string text = PasteTextBox.Text ?? "";
-        if (string.IsNullOrEmpty(text)) return;
-
-        // Every line: splitting on '\n' only trimmed just the end of the TextBox's '\r' text.
-        var result = MarkSmith.Services.Editor.EditorIndentation.TrimTrailingWhitespace(text);
-        if (result.ChangedLines == 0)
-        {
-            AnnounceStatus("No trailing whitespace found: nothing to trim");
-            return;
-        }
-
-        string newText = result.Text;
-        ViewModel.BreakUndoBurst();
-        int caret = Math.Clamp(PasteTextBox.SelectionStart, 0, newText.Length);
-        PasteTextBox.Text = newText;
-        PasteTextBox.Select(caret, 0);
-        SyncDocumentFromEditor();
-        ViewModel.BreakUndoBurst();
-        UpdateCursorPosition();
-        _ = RefreshPreviewAsync();
-        AnnounceStatus($"Trimmed trailing whitespace on {result.ChangedLines:N0} line{(result.ChangedLines == 1 ? "" : "s")} · Ctrl+Z to undo");
-    }
-
-    private void ShowIndentFlyout(FrameworkElement target)
-    {
-        var menu = new MenuFlyout();
-
-        var spaces2Item = new MenuFlyoutItem
-        {
-            Text = "Indent using Spaces: 2",
-            Icon = new FontIcon { Glyph = "\uE7E8" }
-        };
-        spaces2Item.Click += (_, _) => ConvertIndentation(toTabs: false, targetSpaces: 2);
-        menu.Items.Add(spaces2Item);
-
-        var spaces4Item = new MenuFlyoutItem
-        {
-            Text = "Indent using Spaces: 4 (Default)",
-            Icon = new FontIcon { Glyph = "\uE7E8" }
-        };
-        spaces4Item.Click += (_, _) => ConvertIndentation(toTabs: false, targetSpaces: 4);
-        menu.Items.Add(spaces4Item);
-
-        var tabsItem = new MenuFlyoutItem
-        {
-            Text = "Indent using Tabs",
-            Icon = new FontIcon { Glyph = "\uE8E4" }
-        };
-        tabsItem.Click += (_, _) => ConvertIndentation(toTabs: true, targetSpaces: 4);
-        menu.Items.Add(tabsItem);
-
-        menu.Items.Add(new MenuFlyoutSeparator());
-
-        var trimItem = new MenuFlyoutItem
-        {
-            Text = "Trim trailing whitespace",
-            Icon = new FontIcon { Glyph = "\uE75C" }
-        };
-        trimItem.Click += (_, _) => TrimTrailingWhitespace();
-        menu.Items.Add(trimItem);
-
-        var copyIndentItem = new MenuFlyoutItem
-        {
-            Text = "Copy indentation info",
-            Icon = new FontIcon { Glyph = "\uE8C8" }
-        };
-        copyIndentItem.Click += (_, _) =>
-        {
-            string summary = _currentIndentSummary;
-            CopyAndAnnounce(summary, $"Copied indentation format: {summary}");
-        };
-        menu.Items.Add(copyIndentItem);
-
-        menu.ShowAt(target);
-    }
 
     private sealed record HeadingLocation(int Level, string Title, int Offset, int EndOffset);
 
@@ -9159,13 +8803,32 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             var useRegex = UseRegexCheck?.IsChecked == true;
             var (replacedText, replacedCount, upperCount, titleCount, lowerCount) =
                 MarkSmith.Services.TextSearch.ReplacePreservingCase(text, query, replacement, wholeWord, useRegex);
-            if (replacedCount > 0)
-            {
-                PasteTextBox.Text = replacedText;
-                RecomputeFindMatches();
-            }
             var summary = MarkSmith.Services.TextSearch.FormatCasePreservingReplaceSummary(query, replacement, replacedCount, upperCount, titleCount, lowerCount);
-            CopyAndAnnounce(summary, summary);
+            // An edit, not a copy: the summary used to replace whatever was on the clipboard.
+            if (replacedCount == 0)
+            {
+                AnnounceStatus(summary);
+                return;
+            }
+
+            // One undo step, and the caret and scroll stay where they were (setting Text sends both
+            // to the top), as Replace All does.
+            var sv = FindEditorScrollViewer();
+            var offset = sv?.VerticalOffset ?? 0;
+            var caret = Math.Clamp(PasteTextBox.SelectionStart, 0, replacedText.Length);
+            ViewModel.BreakUndoBurst();
+            PasteTextBox.Text = replacedText;
+            ViewModel.EditorCaret = caret;
+            SyncDocumentFromEditor();
+            ViewModel.BreakUndoBurst();
+            PasteTextBox.Select(caret, 0);
+            UpdateCursorPosition();
+            if (sv is not null)
+                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
+                    () => sv.ChangeView(null, offset, null, disableAnimation: true));
+            RecomputeFindMatches();
+            ViewModel.StatusText = $"{summary}. Ctrl+Z undoes it.";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Success;
         };
         menu.Items.Add(casePreserveReplaceItem);
 
@@ -9892,15 +9555,16 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // Match the selection and find the next one with the same rules as the match count. This
         // used to compare the selection with the query's literal text, so with Regex on Replace
         // never replaced ("doc12" isn't "doc\d+") and stepped to the pattern's own characters.
+        // With Regex on, the match's own $1 / ${name} / $& captures go into its replacement.
         var selStart = PasteTextBox.SelectionStart;
-        var isMatch = MarkSmith.Services.TextSearch.IsMatchAt(
-            MarkSmith.Services.TextSearch.FindMatches(text, query, cmp, wholeWord, useRegex),
-            selStart, PasteTextBox.SelectionLength);
-        if (isMatch)
+        var replacementHere = MarkSmith.Services.TextSearch.ReplacementAt(
+            text, query, replacement, cmp, selStart, PasteTextBox.SelectionLength, wholeWord, useRegex);
+        var isMatch = replacementHere is not null;
+        if (replacementHere is not null)
         {
             ViewModel.BreakUndoBurst();
-            PasteTextBox.SelectedText = replacement; // swaps the selected match in place
-            selStart += replacement.Length;
+            PasteTextBox.SelectedText = replacementHere; // swaps the selected match in place
+            selStart += replacementHere.Length;
             ViewModel.EditorCaret = selStart;
             SyncDocumentFromEditor();
             ViewModel.BreakUndoBurst();
@@ -12336,6 +12000,13 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
     }
 
     private void OnStatusBarGridSizeChanged(object sender, SizeChangedEventArgs e) => UpdateStatusBarOverflow();
+
+    // The right-hand row also changes width on its own (the section breadcrumb shows or hides, the
+    // word count and Ln/Col grow), and the message's cap was only worked out on a window resize.
+    private void OnStatusRightPanelSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (Math.Abs(e.NewSize.Width - e.PreviousSize.Width) >= 1) UpdateStatusBarOverflow();
+    }
 
     // At the default 1220px width the full pill row is wider than the window and used to run
     // underneath the status message. Fold the eight secondary copy pills into "More" when they
@@ -14894,7 +14565,8 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
     // ---- Text transforms (the Transform dropdown) ----
 
     // Apply a transform to the current selection, or to the current line when nothing is selected.
-    private void TransformSelection(Func<string, string> transform)
+    // `done` names what changed for the status line ("Sorted 4 lines A to Z.").
+    private void TransformSelection(Func<string, string> transform, Func<string, string, string>? done = null)
     {
         var tb = PasteTextBox;
         var text = EditorText();
@@ -14910,11 +14582,41 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         if (selLen <= 0) return;
         var segment = text.Substring(selStart, selLen);
         var transformed = transform(segment);
-        tb.Text = text.Remove(selStart, selLen).Insert(selStart, transformed);
-        tb.SelectionStart = selStart;
-        tb.SelectionLength = Math.Clamp(transformed.Length, 0, tb.Text.Length - selStart);
-        tb.Focus(FocusState.Programmatic);
+        if (transformed == segment)
+        {
+            // Nothing changed: leave the text (and the undo history) alone and say so.
+            tb.Focus(FocusState.Programmatic);
+            AnnounceStatus("Nothing to change: the selection is already like that.");
+            return;
+        }
+        ApplyEditorTextEdit(text.Remove(selStart, selLen).Insert(selStart, transformed), selStart, transformed.Length);
+        if (done is not null) AnnounceStatus(done(segment, transformed) + " Ctrl+Z undoes it.");
     }
+
+    // Swap in an edited copy of the editor text as its own undo step, select [start, start + length)
+    // and keep the view where it was. Setting Text sends the editor's scroll to the top, so a sort,
+    // Alt+Up/Down or Ctrl+D far down a long document used to jump the view to line 1.
+    private void ApplyEditorTextEdit(string newText, int start, int length)
+    {
+        var tb = PasteTextBox;
+        var sv = FindEditorScrollViewer();
+        var offset = sv?.VerticalOffset ?? 0;
+        ViewModel.BreakUndoBurst();
+        tb.Text = newText;
+        var at = Math.Clamp(start, 0, tb.Text.Length);
+        tb.SelectionStart = at;
+        tb.SelectionLength = Math.Clamp(length, 0, tb.Text.Length - at);
+        ViewModel.EditorCaret = at;
+        SyncDocumentFromEditor();
+        ViewModel.BreakUndoBurst();
+        tb.Focus(FocusState.Programmatic);
+        UpdateCursorPosition();
+        if (sv is not null)
+            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
+                () => sv.ChangeView(null, offset, null, disableAnimation: true));
+    }
+
+    private static int LineCount(string s) => s.TrimEnd('\n', '\r').Split('\n').Length;
 
     // The [start, end) range of the single line surrounding pos.
     private static (int Start, int End) CurrentLineRange(string text, int pos)
@@ -14941,20 +14643,21 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
     private void OnTransformLowerClick(object sender, RoutedEventArgs e) => TransformSelection(s => s.ToLowerInvariant());
     private void OnTransformTitleClick(object sender, RoutedEventArgs e) =>
         TransformSelection(s => System.Globalization.CultureInfo.InvariantCulture.TextInfo.ToTitleCase(s.ToLowerInvariant()));
+    // The selection's own trailing line break stays at its end (it used to sort to the top as a
+    // blank line); see EditorLineTools.
     private void OnSortLinesAscClick(object sender, RoutedEventArgs e) =>
-        TransformSelection(s => string.Join("\n", s.Split('\n').OrderBy(x => x, StringComparer.OrdinalIgnoreCase)));
+        TransformSelection(s => MarkSmith.Services.Editor.EditorLineTools.SortLines(s),
+            (before, _) => $"Sorted {LineCount(before):N0} lines A to Z.");
     private void OnSortLinesDescClick(object sender, RoutedEventArgs e) =>
-        TransformSelection(s => string.Join("\n", s.Split('\n').OrderByDescending(x => x, StringComparer.OrdinalIgnoreCase)));
-    private void OnDedupeLinesClick(object sender, RoutedEventArgs e) => TransformSelection(DedupeLines);
-
-    private static string DedupeLines(string s)
-    {
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-        var kept = new List<string>();
-        foreach (var line in s.Split('\n'))
-            if (seen.Add(line.TrimEnd('\r'))) kept.Add(line);
-        return string.Join("\n", kept);
-    }
+        TransformSelection(s => MarkSmith.Services.Editor.EditorLineTools.SortLines(s, descending: true),
+            (before, _) => $"Sorted {LineCount(before):N0} lines Z to A.");
+    private void OnDedupeLinesClick(object sender, RoutedEventArgs e) =>
+        TransformSelection(s => MarkSmith.Services.Editor.EditorLineTools.DedupeLines(s).Text,
+            (before, _) =>
+            {
+                var removed = MarkSmith.Services.Editor.EditorLineTools.DedupeLines(before).Removed;
+                return $"Removed {removed:N0} duplicate line{(removed == 1 ? "" : "s")}.";
+            });
 
     // ---- Line operations (Alt+Up/Down to move, Ctrl+D to duplicate) ----
 
@@ -15034,10 +14737,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             list.Insert(first, below);
         }
 
-        tb.Text = string.Join("\n", list);
-        tb.SelectionStart = Math.Clamp(selStart + shift, 0, tb.Text.Length);
-        tb.SelectionLength = Math.Clamp(selLen, 0, tb.Text.Length - tb.SelectionStart);
-        tb.Focus(FocusState.Programmatic);
+        ApplyEditorTextEdit(string.Join("\n", list), selStart + shift, selLen);
     }
 
     // Duplicate the current line (or the selected lines) directly below itself.
@@ -15079,10 +14779,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             newText = text + "\n" + block;
             caret = newText.Length;
         }
-        tb.Text = newText;
-        tb.SelectionStart = Math.Clamp(caret, 0, newText.Length);
-        tb.SelectionLength = 0;
-        tb.Focus(FocusState.Programmatic);
+        ApplyEditorTextEdit(newText, caret, 0);
     }
 
     // ---- Document cleanup ----

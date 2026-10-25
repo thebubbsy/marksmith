@@ -143,7 +143,8 @@ public class Run260FindReplaceAndCopyLineBreakTests
     public void ReplaceClick_UsesTheFindRules()
     {
         var body = Method(Read(Main), "private void OnReplaceClick(");
-        Assert.Contains("TextSearch.IsMatchAt(", body);
+        // Run #261: ReplacementAt (the same match rules, plus the match's regex captures).
+        Assert.Contains("TextSearch.ReplacementAt(", body);
         Assert.Contains("TextSearch.NextMatchFrom(", body);
         Assert.Contains("useRegex", body);
         Assert.Contains("wholeWord", body);

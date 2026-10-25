@@ -18600,3 +18600,110 @@ clipboard, 1 in SmartArt Studio).
 **Release (same run):** tagged **v3.75.0** on `dfa5693`; Release workflow run 40196961086 succeeded;
 user-facing notes prepended to the generated body
 (https://github.com/thebubbsy/marksmith/releases/tag/v3.75.0). `MarksmithBaseVersion` is now 3.76.0.
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #261 (2026-10-26, 01:00–01:45 AEDT)
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), desktop app Code tab. (The task template names an Antigravity / Google DeepMind
+  identity; that is not what ran this session, so it is recorded as it actually was.)
+- Modes: Scheduled Hourly Automation Routine (scheduled task `commit-to-main-ship-improvement--r4efinement`)
+- Trigger: Scheduled hourly routine run
+- Agents Used: 1. A single session (`2c009e5c-9446-4f7c-826e-52ae11b3fc92`) did orchestration, coding and the
+  skeptical review itself; no subagents were spawned.
+
+**Workspace.** Reused the clean clone `%TEMP%\ms249` (at `4454c5b`, level with origin). Built to
+`%TEMP%\ms_run261\b` (the old `ms_run260` build was deleted first; the C: drive had about 4 GB free). The user's own
+tree in `marksmith` was not touched. The user was active (last input 15 ms before the live step), so no keys or
+mouse: UIA patterns + PrintWindow only.
+
+**Audit (run #260's "noticed" items and Next up item 1, then the rest of the Find menu and the Tools menu).**
+- Regex Replace / Replace all inserted `$1` literally.
+- Find count menu ▸ "Replace all preserving match casing" put its summary on the clipboard, set `Text` (caret and
+  scroll to the top) and was not its own undo step.
+- "Inspect match location" and "Copy match line context" counted only `\n`: on the editor's bare-`\r` text every
+  match was "Line 1" at a huge column, and the "line" was everything from the top of the document.
+- "Copy regex capture groups" ran without Multiline over the raw `\r` text, so `^(#+) (.*)` found nothing while the
+  count showed matches.
+- Tools ▸ Sort lines with whole lines selected (the last line's break included): the break sorted to the top as a
+  blank line and the last line was glued to the line below.
+- Tools ▸ transforms, Alt+Up/Down and Ctrl+D set `Text` directly: no undo-step boundary, and the view could jump.
+- Next up item 1: the status-bar indentation / line-ending helpers (`ToggleLineEndings`, `ShowEncodingFlyout`,
+  `ShowIndentFlyout`, `ConvertIndentation`, …) had no caller, yet `UpdateCursorPosition` scanned the whole
+  document twice for them on every caret move. Decision: deleted.
+- Live screenshot find: the status message was drawn **underneath** the section breadcrumb ("Sorted 3 lines A § Intro"),
+  and the breadcrumb showed "§ Intro" in documents with no headings.
+
+**Delivered (user-visible):**
+1. **Regex Replace expands captures.** `$1`, `${name}`, `$&` and `$$` work in Replace and Replace all. Live:
+   `doc(\d+)` → `page-$1` replaced "doc12" with "page-12" and selected "doc7"; Replace all gave "page-12 … page-7".
+2. **Case-preserving Replace all no longer overwrites the clipboard.** The summary goes to the status line.
+3. **Case-preserving Replace all is one undo step and keeps your place** (caret and scroll stay; "Ctrl+Z undoes it.").
+4. **"Inspect match location" reports the right line and column** on every line of the editor.
+5. **"Copy match line context" copies only the match's line**, not everything from the top.
+6. **"Copy regex capture groups" follows the count's rules** (`^` / `$` per line), so it lists the matches you see.
+7. **Sort lines keeps the selection's trailing line break at the end.** Live: "cherry / apple / Banana /" (break
+   selected) → "apple / Banana / cherry / after", where it used to put a blank line first.
+8. **Sort and Remove duplicate lines report what they did** ("Sorted 3 lines A to Z.", "Removed 2 duplicate lines.",
+   each with "Ctrl+Z undoes it."), and a transform that changes nothing says so instead of rewriting the document.
+9. **Tools transforms, Alt+Up/Down and Ctrl+D are each one undo step and keep the view.** Live: UPPERCASE on line 350
+   of a 400-line document left the view on lines 338–350.
+10. **Status bar: the message can no longer be drawn under the right-hand row.** The bar's grid now has `*` / `Auto`
+    columns, and the message's width cap is worked out again whenever the right row changes width (the breadcrumb
+    appearing, the word count growing), not only on a window resize. Live: "Sorted 3 l…" stops before "§ Title".
+11. **The section breadcrumb only shows when the document has a heading.** Live: hidden for "plain / text only",
+    shown as "§ Title" for "# Title …".
+12. **Moving the caret no longer re-scans the whole document twice** for the deleted status helpers (faster caret
+    movement and typing in long documents).
+
+**Implementation summary.**
+- `MarkSmith.Core/Services/TextSearch.cs`: regex search moved into `RegexMatches` (shared by `FindMatches`); new
+  `FindReplacements`, `ReplacementAt`, `ExpandRegexReplacement` (`Match.Result`, `\n`→`\r` when the subject was the
+  `RegexSubject` copy); `ReplaceAll` uses per-match replacements; `GetMatchLocation` / `FormatMatchLineContext` count
+  `\r`, `\n` and CRLF; `ExtractRegexCaptureGroups` uses Multiline + `RegexSubject`.
+- New `MarkSmith.Core/Services/Editor/EditorLineTools.cs` (`SortLines`, `DedupeLines` with a removed count).
+- `MarkSmith.Desktop/MainWindow.xaml.cs`: `OnReplaceClick` uses `ReplacementAt`; case-preserving item follows the
+  lint auto-fix recipe; `TransformSelection(transform, done)` + new `ApplyEditorTextEdit` (undo burst breaks,
+  `SyncDocumentFromEditor`, scroll restore) used by transforms, `MoveSelectedLines`, `DuplicateCurrentLines`;
+  `OnStatusRightPanelSizeChanged`; `HideStatusSectionBreadcrumb` (hands focus to the word count first); 360 lines of
+  orphaned status helpers removed.
+- `MarkSmith.Desktop/MainWindow.xaml`: `StatusBarGrid` columns, `StatusRightPanel` in column 1 with `SizeChanged`.
+- Tests: new `Run261ReplaceCapturesAndLineToolsTests` (24 cases). Updated `Run260…ReplaceClick_UsesTheFindRules`
+  (now `ReplacementAt`), removed `Run259…IndentationTools_UseCoreHelper_AndReportHonestly` and three
+  `SuiteHubAndTourPolishTests.Run129` asserts on the deleted helpers.
+
+**Skeptical review.**
+- Focus traps: the breadcrumb is the only control newly collapsed; `HideStatusSectionBreadcrumb` moves focus to
+  `WordCountButton` first when it has focus. A no-op transform now refocuses the editor, as a real one does.
+- Key swallowing: no key handlers added or changed.
+- Flyouts / dynamic controls: no new flyouts or buttons.
+- Theme: no brushes touched.
+- Files / async: no file access. `ApplyEditorTextEdit`'s queued `ChangeView` only restores a scroll offset.
+  `OnStatusRightPanelSizeChanged` ignores sub-pixel changes; the fold decision is deterministic, so a fold's own
+  resize settles after one more pass.
+- Regex replacement uses .NET `Match.Result`, so `$` must now be written `$$` for a literal dollar with Regex on
+  (literal mode is unchanged and inserts `$1` as typed). This is the same rule other editors' regex replace uses.
+
+**Verified.**
+- Build: Desktop to `%TEMP%\ms_run261\b`, 0 errors (23 existing warnings), twice.
+- Tests: Run261 + TextSearch / Run260 / Run259 / SuiteHub / FindReplace / StatusBar / Breadcrumb filters 470/470.
+  Full suite (before the status-bar change): 6190 passed, 1 skipped, 7 failed, all `GovernanceDocsSyncTests`
+  (gitignored governance docs, expected on a clean clone).
+- Live (UIA + PrintWindow, fresh `MARKSMITH_CONFIG_DIR`, Welcome tour skipped, PIDs 21216 and 28112 each stopped by
+  PID): items 1, 7, 8 (text results), 9, 10, 11 as quoted above. Items 2–6 need a right-click menu or write the
+  clipboard and are covered by tests only (user active; the user's clipboard was left alone).
+
+**Noticed, not fixed:**
+- At the default 1220 px width the right-hand status row is about 1,070 px wide even with pills folded, so the
+  message only gets ~60 px ("Sorted 3 l"), clipped without an ellipsis (below `MinimumMessageWidth`, 80).
+- UIA can't find the main window's `StatusText` by id (the message is `StatusMsgText`); read it from screenshots.
+- Diagnostics duplicate audits (run #260's Next up item 2) not looked at.
+
+**Next up (Run #262):**
+1. Give the status message real room at 1220 px: fold more of the right row (Ln/Col selection detail, Shortcuts) or
+   let the message trim with an ellipsis at any width.
+2. Compare the near-identical Diagnostics audits (Shape Z-order ×4, Galaxy cycles ×3 / bipartite ×2).
+3. When the user is idle: live-check case-preserving Replace all and Inspect match location from the Find count's
+   right-click menu, and SmartArt Markdown-box Ctrl+Z after "Sort A→Z".
+
+**Total user-visible improvements: 12** (6 in Find / Replace, 3 in Tools line editing, 3 in the status bar).

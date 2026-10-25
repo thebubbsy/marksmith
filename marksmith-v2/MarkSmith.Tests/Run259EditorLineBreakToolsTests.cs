@@ -163,26 +163,6 @@ public class Run259EditorLineBreakToolsTests
         Assert.DoesNotContain("UpdateStatusSectionBreadcrumb(text, line);", code);
     }
 
-    [Fact]
-    public void IndentationTools_UseCoreHelper_AndReportHonestly()
-    {
-        var code = Read(Main);
-        var detect = Method(code, "private void UpdateStatusIndentation(string? text)");
-        Assert.Contains("EditorIndentation.Detect(text)", detect);
-        Assert.DoesNotContain("Split('\\n')", detect);
-
-        var convert = Method(code, "private void ConvertIndentation(bool toTabs, int targetSpaces)");
-        Assert.Contains("EditorIndentation.Convert(text, toTabs, targetSpaces)", convert);
-        Assert.Contains("nothing to convert", convert);
-        Assert.Contains("result.ChangedLines", convert);
-        Assert.DoesNotContain("Split('\\n')", convert);
-
-        var trim = Method(code, "private void TrimTrailingWhitespace()");
-        Assert.Contains("EditorIndentation.TrimTrailingWhitespace(text)", trim);
-        Assert.Contains("nothing to trim", trim);
-        Assert.DoesNotContain("across all document lines", trim);
-    }
-
     // ---- Insert ▸ SmartArt ----
 
     [Fact]

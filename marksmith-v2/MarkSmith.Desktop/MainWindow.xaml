@@ -2196,7 +2196,13 @@
              buttons at the default 1220×800 launch size. -->
         <Border Grid.Row="3" Background="{ThemeResource LayerFillColorDefaultBrush}"
                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0">
+            <!-- Two columns, so a long message is cut off at the right-hand row instead of being drawn
+                 underneath it ("Sorted 3 lines A § Intro" when the section breadcrumb appeared). -->
             <Grid x:Name="StatusBarGrid" SizeChanged="OnStatusBarGridSizeChanged">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
                 <StackPanel x:Name="StatusLeftPanel" Orientation="Horizontal" Spacing="12" HorizontalAlignment="Left"
                             VerticalAlignment="Center" Margin="16,5">
                     <ProgressRing IsActive="{Binding IsBusy}" Width="14" Height="14" VerticalAlignment="Center" />
@@ -2255,8 +2261,8 @@
                         </HyperlinkButton>
                     </StackPanel>
                 </StackPanel>
-                <StackPanel x:Name="StatusRightPanel" Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right"
-                            VerticalAlignment="Center" Margin="16,5">
+                <StackPanel x:Name="StatusRightPanel" Grid.Column="1" Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right"
+                            VerticalAlignment="Center" Margin="16,5" SizeChanged="OnStatusRightPanelSizeChanged">
                     <HyperlinkButton x:Name="StatusSplitSyncButton" Click="OnStatusSplitSyncButtonClick"
                                      RightTapped="OnStatusSplitSyncButtonRightTapped"
                                      Padding="4,1" FontSize="11.5" Opacity="0.85" Visibility="Collapsed"
