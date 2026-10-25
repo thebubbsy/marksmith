@@ -61,10 +61,10 @@
                     </Grid.ColumnDefinitions>
                     <TextBox AutomationProperties.Name="Search versions" x:Name="SearchBox" Grid.Column="0"
                              Text="{Binding SearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                             PlaceholderText="Search labels, kinds, days… (Ctrl+F)" MaxWidth="280" MinWidth="160"
+                             PlaceholderText="Search versions" MaxWidth="280" MinWidth="160"
                              HorizontalAlignment="Stretch" IsSpellCheckEnabled="False" KeyDown="OnSearchBoxKeyDown"
                              CornerRadius="6" VerticalAlignment="Center"
-                             ToolTipService.ToolTip="Filter the timeline by label, kind (Auto-Save, Checkpoint, Export · PDF…), weekday or time · Right-click or Shift+F10 for options" />
+                             ToolTipService.ToolTip="Search versions (Ctrl+F) · Filters the timeline by label, kind (Auto-Save, Checkpoint, Export · PDF…), weekday or time · Right-click or Shift+F10 for options" />
                     <Border x:Name="TimelineSearchMatchPill" Grid.Column="1" Margin="6,0,0,0"
                             Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                             BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"

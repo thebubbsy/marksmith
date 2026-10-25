@@ -727,14 +727,20 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
-                    <Grid Grid.Row="0" Padding="14,8,10,8" ColumnSpacing="8" Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}" CornerRadius="8,8,0,0"
-                          RightTapped="OnPreviewPaneRightTapped">
+                    <!-- When the pane is too narrow for the layout name beside the tools (it read "O…"),
+                         UpdatePreviewHeaderLayout moves the tools to a second row. -->
+                    <Grid x:Name="PreviewHeaderGrid" Grid.Row="0" Padding="14,8,10,8" ColumnSpacing="8" Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}" CornerRadius="8,8,0,0"
+                          RightTapped="OnPreviewPaneRightTapped" SizeChanged="OnPreviewHeaderSizeChanged">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Text="Preview" FontWeight="SemiBold" FontSize="14" VerticalAlignment="Center" />
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <TextBlock x:Name="PreviewHeaderLabel" Text="Preview" FontWeight="SemiBold" FontSize="14" VerticalAlignment="Center" />
                         <!-- A button so Tab reaches the title's menu. Its double-click copied the diagram
                              block or the title depending on whether the outline was empty. -->
                         <HyperlinkButton x:Name="PreviewTitleButton" Grid.Column="1" Padding="4,0" MinHeight="0" HorizontalAlignment="Left" VerticalAlignment="Center"
@@ -745,14 +751,14 @@
                             <TextBlock x:Name="PreviewTitleLabel" Text="{Binding PreviewTitle}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                        TextTrimming="CharacterEllipsis" />
                         </HyperlinkButton>
-                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                        <StackPanel x:Name="PreviewHeaderTools" Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
                             <Button x:Name="PaletteButton" Style="{StaticResource SubtleButtonStyle}" Width="28" Height="28" Padding="0"
                                     Click="OnPaletteButtonClick"
                                    
                                     RightTapped="OnPaletteButtonRightTapped"
                                     AutomationProperties.Name="Color palette"
                                     ToolTipService.ToolTip="Color palette (Right-click or Shift+F10 for options)">
-                                <FontIcon Glyph="&#xEA3B;" FontSize="12" />
+                                <FontIcon Glyph="&#xE790;" FontSize="12" />
                                 <Button.Flyout>
                                     <Flyout x:Name="PaletteFlyout" Placement="BottomEdgeAlignedRight" Opening="OnPaletteFlyoutOpening">
                                         <StackPanel Spacing="8" Width="260">
@@ -885,7 +891,7 @@
                                     RightTapped="OnDiagramBgButtonRightTapped"
                                     AutomationProperties.Name="Diagram canvas background"
                                     ToolTipService.ToolTip="Diagram canvas background (Default Card, Dark Slate, Checkerboard, Dot Grid)">
-                                <FontIcon Glyph="&#xE790;" FontSize="12" />
+                                <FontIcon Glyph="&#xE81E;" FontSize="12" />
                                 <Button.Flyout>
                                     <MenuFlyout x:Name="DiagramBgFlyout">
                                         <MenuFlyoutItem x:Name="BgDefaultPaperItem" Text="Default Document Card (White)" Click="OnBgDefaultPaperClick">
@@ -909,7 +915,7 @@
                                     RightTapped="OnNodeGeometryButtonRightTapped"
                                     AutomationProperties.Name="Diagram node shape geometry"
                                     ToolTipService.ToolTip="Diagram node shape geometry (Default, Pill Rounded, Sharp Box, Soft Shadow, Contrast Borders)">
-                                <FontIcon Glyph="&#xEB9F;" FontSize="12" />
+                                <FontIcon Glyph="&#xE7FB;" FontSize="12" />
                                 <Button.Flyout>
                                     <MenuFlyout x:Name="NodeGeometryFlyout">
                                         <MenuFlyoutItem x:Name="GeomDefaultItem" Text="Default Layout Geometry" Click="OnGeomDefaultClick">
@@ -1021,18 +1027,24 @@
                                 </ListView.ItemsPanel>
                                 <ListView.ItemTemplate>
                                     <DataTemplate>
-                                        <Grid Width="64" Height="42" Padding="2" Margin="2,0" CornerRadius="6"
-                                              Background="{ThemeResource SmartArtThumbTileBrush}"
-                                              BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                        <!-- The name sits under the thumbnail, not over it: the overlay hid the
+                                             lower half of every miniature. -->
+                                        <Grid Width="68" Margin="2,0" RowSpacing="2"
                                               ToolTipService.ToolTip="{Binding DisplayName}"
                                               AutomationProperties.Name="{Binding DisplayName}">
-                                            <Image Source="{Binding ThumbnailSvg, Converter={StaticResource SvgMarkupToImageSourceConverter}, ConverterParameter=96}"
-                                                   Stretch="Uniform" AutomationProperties.AccessibilityView="Raw" />
-                                            <Border VerticalAlignment="Bottom" Background="{ThemeResource AcrylicBackgroundFillColorDefaultBrush}"
-                                                    CornerRadius="0,0,5,5" Margin="-2,0,-2,-2" Padding="2,1">
-                                                <TextBlock Text="{Binding DisplayName}" FontSize="8.5" TextAlignment="Center"
-                                                           TextTrimming="CharacterEllipsis" MaxLines="1" />
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="38" />
+                                                <RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
+                                            <Border Padding="2" CornerRadius="6"
+                                                    Background="{ThemeResource SmartArtThumbTileBrush}"
+                                                    BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                                                <Image Source="{Binding ThumbnailSvg, Converter={StaticResource SvgMarkupToImageSourceConverter}, ConverterParameter=96}"
+                                                       Stretch="Uniform" AutomationProperties.AccessibilityView="Raw" />
                                             </Border>
+                                            <TextBlock Grid.Row="1" Text="{Binding DisplayName}" FontSize="9" TextAlignment="Center"
+                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                       TextTrimming="CharacterEllipsis" MaxLines="1" />
                                         </Grid>
                                     </DataTemplate>
                                 </ListView.ItemTemplate>

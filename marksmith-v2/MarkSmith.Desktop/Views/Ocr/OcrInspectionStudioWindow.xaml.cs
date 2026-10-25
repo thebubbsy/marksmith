@@ -699,6 +699,15 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         (elem.IsReclassified ? $" — Reclassified from {elem.OriginalKind}" : string.Empty) +
         "\nClick to select · Right-click or Shift+F10 for actions · Keys 1–8 to reclassify · R to reset";
 
+    // The "#N Kind" badge sits on the very text it labels (headings were hard to read on the page),
+    // so at rest it is see-through and it comes to full strength on hover and selection.
+    internal const double RestingBadgeOpacity = 0.45;
+
+    private static void SetBadgeEmphasis(Border frame, bool strong)
+    {
+        if (frame.Child is Border badge) badge.Opacity = strong ? 1.0 : RestingBadgeOpacity;
+    }
+
     private Border CreateCanvasElementFrame(OcrInspectionElement elem)
     {
         var (strokeColor, fillColor) = GetKindPalette(elem.Kind);
@@ -747,6 +756,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             Margin = new Thickness(2),
             Background = new SolidColorBrush(strokeColor),
             Child = badgeStack,
+            Opacity = ReferenceEquals(elem, _selectedElement) ? 1.0 : RestingBadgeOpacity,
         };
 
         border.Child = badge;
@@ -756,6 +766,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             var (sc, _) = GetKindPalette(elem.Kind);
             border.BorderThickness = new Thickness(2.5);
             border.Background = new SolidColorBrush(Color.FromArgb(90, sc.R, sc.G, sc.B));
+            SetBadgeEmphasis(border, true);
             if (_inspectorCards.TryGetValue(elem, out var card))
             {
                 card.BorderBrush = ThemeBrush.Get("AccentFillColorDefaultBrush", RootGrid.ActualTheme);
@@ -770,6 +781,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             border.Background = new SolidColorBrush(isSel
                 ? Color.FromArgb(70, sc.R, sc.G, sc.B)
                 : fc);
+            SetBadgeEmphasis(border, isSel);
             if (_inspectorCards.TryGetValue(elem, out var card))
             {
                 card.BorderBrush = isSel
@@ -898,6 +910,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
                 var (sc, _) = GetKindPalette(elem.Kind);
                 frame.BorderThickness = new Thickness(2.5);
                 frame.Background = new SolidColorBrush(Color.FromArgb(90, sc.R, sc.G, sc.B));
+                SetBadgeEmphasis(frame, true);
             }
         };
 
@@ -914,6 +927,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
                 frame.Background = new SolidColorBrush(isSel
                     ? Color.FromArgb(70, sc.R, sc.G, sc.B)
                     : fc);
+                SetBadgeEmphasis(frame, isSel);
             }
         };
 
@@ -1685,6 +1699,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             frame.Background = new SolidColorBrush(isTarget
                 ? Color.FromArgb(70, sc.R, sc.G, sc.B)
                 : fc);
+            SetBadgeEmphasis(frame, isTarget);
         }
 
         foreach (var (el, card) in _inspectorCards)
@@ -1780,6 +1795,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             if (frame.Child is Border badge)
             {
                 badge.Background = new SolidColorBrush(sc);
+                badge.Opacity = isSel ? 1.0 : RestingBadgeOpacity;
                 if (badge.Child is StackPanel badgeStack)
                 {
                     if (badgeStack.Children.Count > 0 && badgeStack.Children[0] is FontIcon badgeIcon)

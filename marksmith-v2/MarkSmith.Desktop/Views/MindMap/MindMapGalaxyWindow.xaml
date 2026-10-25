@@ -963,7 +963,10 @@
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
+                                    <!-- Icon-font glyphs sit high on the text line (about 3 px above centre in the
+                                         stock 10,5,6,6 padding), so the top padding is larger. -->
                                     <TextBox x:Name="NodeIconBox" Grid.Column="0" Text="{Binding Icon, Mode=TwoWay}" MaxLength="4" HorizontalAlignment="Stretch" TextAlignment="Center"
+                                             Padding="10,8,6,3"
                                              FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Emoji, Segoe UI"
                                              DoubleTapped="OnNodeIconBoxDoubleTapped"
                                              ToolTipService.ToolTip="An emoji or Segoe Fluent icon · Double-click to clear/default · Right-click, Shift+F10 or the picker for presets" KeyDown="OnInspectorFieldKeyDown">
@@ -975,7 +978,8 @@
                                             Click="OnNodeIconPickerButtonClick" RightTapped="OnNodeIconBoxRightTapped"
                                             Style="{StaticResource SubtleButtonStyle}"
                                             ToolTipService.ToolTip="Pick icon (Segoe Fluent / Emoji) · Right-click or Shift+F10 for options" AutomationProperties.Name="Pick node icon">
-                                        <FontIcon Glyph="&#xE790;" FontSize="13" />
+                                        <!-- An emoji face, not the colour palette: this picks the node's icon. -->
+                                        <FontIcon Glyph="&#xE76E;" FontSize="13" />
                                     </Button>
                                 </Grid>
                             </Grid>

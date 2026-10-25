@@ -71,6 +71,7 @@ public sealed partial class MermaidCanvasControl : UserControl
 
         // The minimap mirrors and navigates the main canvas ScrollViewer.
         MinimapControl.TargetScrollViewer = CanvasScrollViewer;
+        CanvasScrollViewer.SizeChanged += (_, _) => UpdateMinimapVisibility();
 
         ConnectorsItemsControl.PointerPressed += OnConnectorsItemsControlPointerPressed;
         // Capture lost mid-gesture (Alt+Tab, a dialog, a second button): the gesture is over and
@@ -133,6 +134,22 @@ public sealed partial class MermaidCanvasControl : UserControl
         EmptyCanvasHint.Visibility = _hintVm is { Nodes.Count: 0 } ? Visibility.Visible : Visibility.Collapsed;
 
     #region Zoom Controls
+
+    // The 200×150 overview covered a third of a small canvas (at the window's minimum it sat on the
+    // sample's decision node), so it steps aside below this size and comes back when there is room.
+    // It takes no focus, so collapsing it can't strand the keyboard.
+    internal const double MinimapMinViewportWidth = 600;
+    internal const double MinimapMinViewportHeight = 420;
+
+    private void UpdateMinimapVisibility()
+    {
+        bool fits = CanvasScrollViewer.ActualWidth >= MinimapMinViewportWidth
+                    && CanvasScrollViewer.ActualHeight >= MinimapMinViewportHeight;
+        var want = fits ? Visibility.Visible : Visibility.Collapsed;
+        if (MinimapControl.Visibility == want) return;
+        MinimapControl.Visibility = want;
+        if (fits) MinimapControl.Refresh();
+    }
 
     private void OnCanvasViewChanged(object? sender, ScrollViewerViewChangedEventArgs e)
     {

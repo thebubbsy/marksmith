@@ -169,7 +169,33 @@ namespace MarkSmith.Views.SmartArtStudio
                 LayoutSearch.Focus(FocusState.Programmatic);
                 if (ViewModel.SelectedLayout is { } layout) LayoutList.ScrollIntoView(layout, ScrollIntoViewAlignment.Leading);
             };
+            PreviewTitleLabel.RegisterPropertyChangedCallback(TextBlock.TextProperty, (_, _) => UpdatePreviewHeaderLayout());
         }
+
+        private void OnPreviewHeaderSizeChanged(object sender, SizeChangedEventArgs e) => UpdatePreviewHeaderLayout();
+
+        /// <summary>
+        /// Below about 120 px of room the layout name trimmed to "O…", so the tools drop to their own
+        /// row and the name gets the full width. Measures a detached probe, never the live label.
+        /// </summary>
+        private void UpdatePreviewHeaderLayout()
+        {
+            if (PreviewHeaderGrid is null || PreviewHeaderGrid.ActualWidth <= 0) return;
+            var probe = new TextBlock { Text = PreviewTitleLabel.Text ?? string.Empty, FontSize = PreviewTitleLabel.FontSize };
+            probe.Measure(new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity));
+            double titleNeeds = probe.DesiredSize.Width + PreviewTitleButton.Padding.Left + PreviewTitleButton.Padding.Right;
+            var pad = PreviewHeaderGrid.Padding;
+            double room = PreviewHeaderGrid.ActualWidth - pad.Left - pad.Right - PreviewHeaderLabel.ActualWidth
+                          - PreviewHeaderTools.ActualWidth - 2 * PreviewHeaderGrid.ColumnSpacing;
+            bool stacked = room < Math.Min(titleNeeds, PreviewTitleMinimumRoom);
+            Grid.SetRow(PreviewHeaderTools, stacked ? 1 : 0);
+            Grid.SetColumn(PreviewHeaderTools, stacked ? 0 : 2);
+            Grid.SetColumnSpan(PreviewHeaderTools, stacked ? 3 : 1);
+            PreviewHeaderTools.HorizontalAlignment = stacked ? HorizontalAlignment.Left : HorizontalAlignment.Stretch;
+            PreviewHeaderGrid.RowSpacing = stacked ? 4 : 0;
+        }
+
+        private const double PreviewTitleMinimumRoom = 120;
 
         private static void AnnounceLiveRegion(
             FrameworkElement? element,
@@ -3593,7 +3619,7 @@ namespace MarkSmith.Views.SmartArtStudio
             var paletteSubmenu = new MenuFlyoutSubItem
             {
                 Text = $"Color palette ({ViewModel.SelectedPalette})",
-                Icon = new FontIcon { Glyph = "\uEA3B" }
+                Icon = new FontIcon { Glyph = "\uE790" }
             };
 
             foreach (var palette in ViewModel.Palettes)

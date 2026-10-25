@@ -17906,3 +17906,119 @@ session scratchpad):
 **Release (same run):** tagged **v3.69.0** on `45a1495`; Release workflow run 40173394399 succeeded;
 user-facing notes prepended to the generated body
 (https://github.com/thebubbsy/marksmith/releases/tag/v3.69.0). `MarksmithBaseVersion` is now 3.70.0.
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #255 (2026-10-25, 19:00–19:50 AEDT)
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), desktop app Code tab. (The task template names an Antigravity / Google DeepMind
+  identity; that is not what ran this session, so it is recorded as it actually was.)
+- Modes: Scheduled Hourly Automation Routine (scheduled task `commit-to-main-ship-improvement--r4efinement`)
+- Trigger: Scheduled hourly routine run
+- Agents Used: 1. A single session (`367d62e5-8d19-4274-bf10-7c9b1cb3d6cc`) did orchestration, coding and the
+  skeptical review itself; no subagents were spawned.
+
+**Workspace.** Reused the clean clone `%TEMP%\ms249` (fast-forward at `bd36ad9`). C: had 5.6 GB free, so runs #253 /
+#254's pushed scratch builds were deleted first. The user's own tree in `marksmith` (228 commits behind, with its
+own uncommitted edits) was not touched.
+
+**Audit (run #254's Next up item 3).** Baseline built to `%TEMP%\ms_run255\base` (unmodified `bd36ad9`), then
+Diagram Studio, Shape Studio, SmartArt Studio, Document Galaxy and Version History were resized to their minimums
+(UIA `TransformPattern.Resize(700,500)`; each clamps to its own floor) and swept with `clip2.ps1`. **The clip sweep
+was clean in every window**, so the work came from PrintWindow screenshots at the minimum sizes instead:
+- SmartArt: the Preview header's layout name read **"O…"** beside eight tool buttons; the colour palette button
+  was a plain **solid dot** (EA3B, checked by rendering the glyph from the installed font) while the background
+  button borrowed the palette glyph and node geometry used a picture glyph; the quick-layout strip laid each
+  name **over the lower half of its miniature**.
+- Diagram Studio: the 200×150 minimap sat on the sample's "Check Conditions" decision node.
+- Document Galaxy: the Icon box drew its glyph about 3 px above centre, and the icon picker used the palette glyph.
+- Version History: the search placeholder was cut mid-phrase ("Search labels, kinds,").
+- OCR Studio (run #254's "Noticed, not fixed"): solid "#N Kind" badges covered the headings they label.
+
+**Delivered (user-visible):**
+1. **SmartArt Studio: the layout name in the Preview header is readable.** When there is less than about 120 px
+   for it beside the tools, the tools move to a second row and the name shows in full ("Organization Chart",
+   113 px, was "O…"). On a wide pane the header stays one row with the tools right-aligned, as before.
+2. **SmartArt Studio: the colour palette button shows a palette** instead of a solid white dot (the right-click
+   "Color palette" submenu header matches).
+3. **SmartArt Studio: canvas background and node shape buttons have their own icons**: layers for the background
+   (it used the palette glyph, so two buttons looked alike) and a rounded box for node geometry (it was a picture).
+4. **SmartArt Studio: the quick-layout strip shows whole miniatures.** Each name sits on its own line under the
+   thumbnail instead of over its lower half; names still trim, tooltip and carry the UIA name.
+5. **Diagram Studio: the minimap steps aside on a small canvas** (under 600×420) so it no longer covers the
+   diagram, and comes back, redrawn, when the window grows. Fit-to-content already reads its visibility, so the
+   freed bottom band is used.
+6. **OCR Studio: the page canvas labels no longer hide the text they label.** At rest the "#N Kind" badges are
+   see-through (45%), so headings like "Payments Service — Design Spec" and "Architecture" read on the page;
+   hovering a box or its inspector card, selecting it, or reclassifying the selection brings the badge to full
+   strength.
+7. **Document Galaxy: the Icon box centres its glyph** (top padding 8 instead of 5).
+8. **Document Galaxy: the icon picker button shows an emoji face** instead of the colour palette glyph, which
+   belongs to the Colour row below it.
+9. **Version History: the search box placeholder fits** ("Search versions"); the Ctrl+F hint moved to the tooltip,
+   which now starts "Search versions (Ctrl+F) · …".
+
+**Implementation summary.**
+- `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml`: header Grid named `PreviewHeaderGrid` with a second
+  Auto row and `SizeChanged`; `PreviewHeaderLabel` / `PreviewHeaderTools` named; tool glyphs E790 / E81E / E7FB;
+  carousel item template rebuilt as a 38 px thumbnail row plus a secondary-text name row (no overlay).
+- `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml.cs`: `UpdatePreviewHeaderLayout` (measures a detached
+  TextBlock probe, never the live label; moves the tools with `Grid.SetRow/Column/ColumnSpan`; row spacing only
+  while stacked), re-run on header `SizeChanged` and on `PreviewTitleLabel.Text` changes; palette submenu glyph.
+- `Views/Mermaid/MermaidCanvasControl.xaml.cs`: `UpdateMinimapVisibility` on `CanvasScrollViewer.SizeChanged`,
+  thresholds `MinimapMinViewportWidth = 600` / `MinimapMinViewportHeight = 420` (default canvas ≈ 820×735,
+  minimum ≈ 524×475).
+- `Views/Ocr/OcrInspectionStudioWindow.xaml.cs`: `RestingBadgeOpacity = 0.45` and `SetBadgeEmphasis(frame, strong)`
+  applied at creation, frame hover enter / exit, inspector card hover enter / exit, `SelectElement` and
+  `ReclassifyElement`.
+- `Views/MindMap/MindMapGalaxyWindow.xaml`: `NodeIconBox` padding `10,8,6,3`; picker glyph E76E.
+- `Views/History/HistoryWindow.xaml`: placeholder and tooltip.
+- Tests: new `Run255StudioHeadersAndGlyphsTests` (13 cases): header rows / handler / probe / threshold / text
+  callback; the three glyphs per button and no leftover dot or picture glyph; carousel name row with no overlay;
+  minimap handler, thresholds against the default and minimum canvas sizes, redraw on return, minimap takes no
+  focus; OCR badge opacity at creation, hover, card hover, selection and reclassify; Galaxy padding and picker
+  glyph; History placeholder and tooltip.
+
+**Skeptical review.**
+- Focus traps: the only thing collapsed is the Diagram minimap, which has no tab stop and never takes focus. The
+  SmartArt tools change grid row / column only (same parent), so a focused tool keeps focus. Nothing is disabled.
+- Key swallowing: no key handlers touched.
+- Layout loops: `UpdatePreviewHeaderLayout` reads widths that stacking doesn't change (the header's width, the
+  tools' own width), so the height change it causes re-runs to the same answer; it returns early before layout.
+- Flyouts / dynamic controls: none added. Shift+F10 bridges still point at the same elements (no button renamed).
+- Theme: XAML ThemeResource only (`TextFillColorSecondaryBrush` for the carousel names); no raw dictionary lookups.
+- Files / async: no file access or async callbacks added.
+
+**Verified.**
+- Build: Desktop built to `%TEMP%\ms_run255\b` with 0 errors (baseline `%TEMP%\ms_run255\base`), rebuilt after the
+  last XAML change.
+- Tests: Run255 13/13; related sweep (Run221, Run229, Run244, Run249, Run253, Run254, SmartArt*, Mermaid*, Ocr*,
+  History*, MindMap*) 1459/1459. Full suite: 6048 passed, 1 skipped, 7 failed; the 7 are all `GovernanceDocsSyncTests` (the governance docs are gitignored, so
+  they fail on any clean clone, as runs #249 and #252–#254 logged).
+- Live (UIA + PrintWindow; PIDs 20600 baseline, then 23516, 20864, 1784 and 31220 for the new build, each stopped
+  by PID; no other Marksmith was running): clip sweep clean again at every minimum. SmartArt at 1120×600:
+  `PreviewTitleButton` 113 px "Organization Chart" with the tools on the row below; at 1500×900 one row with the
+  title at its full 113 px and the tools right-aligned. Screenshots show the palette / layers / rounded-box icons
+  and the carousel names under whole miniatures. Diagram Studio at 1080×600: no minimap, decision node clear; at
+  1500×900 the minimap is back and shows the diagram. OCR Studio (`Marksmith.exe <product-spec.pdf>`): heading and
+  "Architecture" text readable through the badges, compared side by side with run #254's screenshot. Galaxy:
+  Icon glyph centred; picker shows the emoji face. History at 1000×560: "Search versions" whole.
+- **Not verified live:** badge emphasis on hover / selection (the user was active, 0 s idle, so no key or mouse
+  input was sent; covered by the source-contract tests).
+
+**Noticed, not fixed:**
+- The main window's Insert cluster button (`InsertClusterButton`) needs two UIA expands after a fresh launch
+  before its menu items appear (both Invoke and ExpandCollapse miss the first time). Probably the flyout's first
+  open builds its items lazily; harmless for mouse users, but worth checking with real keyboard input.
+- Version History opens with a keyboard focus rectangle on the "No document selected" subtitle button in one of
+  two launches.
+
+**Next up (Run #256):**
+1. If the PC is unlocked and idle: hover / select an OCR canvas element and confirm the badge comes to full
+   strength; then the long-standing live key checks (run #252 item 1).
+2. Check the Insert cluster's first-open behaviour with the keyboard (Alt / Tab to it, Enter, Down).
+3. Screenshot-audit Settings, Suite Hub and the Insert dialogs for icon / job mismatches like this run's
+   SmartArt ones (render each glyph from the font before trusting a name).
+
+**Total user-visible improvements: 9** (4 in SmartArt Studio, 2 in Document Galaxy, 1 each in Diagram Studio,
+OCR Studio and Version History).
