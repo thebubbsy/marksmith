@@ -18250,3 +18250,7 @@ History's restore paths already confirm; the Galaxy's bulk edits are undoable (t
 
 **Total user-visible improvements: 8** (4 in Shape Studio, 1 in SmartArt Studio, 1 in the Galaxy, 1 across Shape Studio
 and the Galaxy, 1 in Suite Hub).
+
+**Release (same run):** tagged **v3.72.0** on `a88274a`; Release workflow run 40184792281 succeeded;
+user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.72.0). `MarksmithBaseVersion` is now 3.73.0.
