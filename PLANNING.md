@@ -17688,3 +17688,7 @@ lambdas built in code) and the main window (33 accelerators, none guarded). Item
 3. Run #250's item 1: live keyboard pass on the SmartArt / Mind Map guards.
 
 **Total user-visible improvements: 6.**
+
+**Release (same run):** tagged **v3.67.0** on `8fa80f6`; Release workflow run 40167197480 succeeded;
+user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.67.0). `MarksmithBaseVersion` is now 3.68.0.
