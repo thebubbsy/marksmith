@@ -683,7 +683,11 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     public void Undo()
     {
         if (_editingNode != null) CommitRename();
-        if (_undoStack.Count == 0) return;
+        if (_undoStack.Count == 0)
+        {
+            StatusMessage = "Nothing to undo.";
+            return;
+        }
         _redoStack.Add(MarkdownText ?? "");
         string target = _undoStack[^1];
         _undoStack.RemoveAt(_undoStack.Count - 1);
@@ -695,7 +699,11 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     public void Redo()
     {
         if (_editingNode != null) CommitRename();
-        if (_redoStack.Count == 0) return;
+        if (_redoStack.Count == 0)
+        {
+            StatusMessage = "Nothing to redo.";
+            return;
+        }
         _undoStack.Add(MarkdownText ?? "");
         string target = _redoStack[^1];
         _redoStack.RemoveAt(_redoStack.Count - 1);
@@ -743,7 +751,13 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     {
         CommitIfEditing(ref target);
         var node = target ?? SelectedNode;
-        if (node == null) return;
+        if (node == null)
+        {
+            StatusMessage = RootNodes.Count == 0
+                ? EmptyOutlineMessage
+                : "Nothing to duplicate: select an item in the outline first.";
+            return;
+        }
         PushUndo();
         var clone = CloneSubtree(node, node.Parent, node.Depth);
         var siblings = node.Parent == null ? RootNodes : node.Parent!.Children;
@@ -774,7 +788,13 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     {
         CommitIfEditing(ref target);
         var node = target ?? SelectedNode;
-        if (node == null) return;
+        if (node == null)
+        {
+            StatusMessage = RootNodes.Count == 0
+                ? EmptyOutlineMessage
+                : "Nothing to delete: select an item in the outline first.";
+            return;
+        }
         string name = node.Text;
         PushUndo();
         var siblings = node.Parent == null ? RootNodes : node.Parent!.Children;
@@ -794,7 +814,13 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     {
         if (_editingNode != null) CommitRename();
         var node = SelectedNode;
-        if (node == null) return;
+        if (node == null)
+        {
+            StatusMessage = RootNodes.Count == 0
+                ? EmptyOutlineMessage
+                : "Nothing to move: select an item in the outline first.";
+            return;
+        }
         var siblings = node.Parent == null ? RootNodes : node.Parent!.Children;
         int idx = siblings.IndexOf(node);
         if (idx <= 0)
@@ -814,7 +840,13 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     {
         if (_editingNode != null) CommitRename();
         var node = SelectedNode;
-        if (node == null) return;
+        if (node == null)
+        {
+            StatusMessage = RootNodes.Count == 0
+                ? EmptyOutlineMessage
+                : "Nothing to move: select an item in the outline first.";
+            return;
+        }
         var siblings = node.Parent == null ? RootNodes : node.Parent!.Children;
         int idx = siblings.IndexOf(node);
         if (idx < 0 || idx >= siblings.Count - 1)
@@ -835,7 +867,13 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     {
         if (_editingNode != null) CommitRename();
         var node = SelectedNode;
-        if (node == null) return;
+        if (node == null)
+        {
+            StatusMessage = RootNodes.Count == 0
+                ? EmptyOutlineMessage
+                : "Nothing to promote: select an item in the outline first.";
+            return;
+        }
         if (node.Parent == null)
         {
             StatusMessage = $"'{node.Text}' is already at the top level";
@@ -863,7 +901,13 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     {
         if (_editingNode != null) CommitRename();
         var node = SelectedNode;
-        if (node == null) return;
+        if (node == null)
+        {
+            StatusMessage = RootNodes.Count == 0
+                ? EmptyOutlineMessage
+                : "Nothing to demote: select an item in the outline first.";
+            return;
+        }
         var siblings = node.Parent == null ? RootNodes : node.Parent!.Children;
         int idx = siblings.IndexOf(node);
         if (idx <= 0)
@@ -968,7 +1012,13 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     {
         CommitIfEditing(ref target);
         var node = target ?? SelectedNode;
-        if (node == null) return;
+        if (node == null)
+        {
+            StatusMessage = RootNodes.Count == 0
+                ? EmptyOutlineMessage
+                : "Nothing to rename: select an item in the outline first.";
+            return;
+        }
         _editSnapshot = node.Text;
         Select(node);
         _editingNode = node;

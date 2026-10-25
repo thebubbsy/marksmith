@@ -102,6 +102,8 @@ public static class ThemeBrush
         return null;
     }
 
+    public static bool IsHighContrast => SafeHighContrast();
+
     private static bool SafeHighContrast()
     {
         try { return Accessibility.HighContrast; }

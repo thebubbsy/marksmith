@@ -711,6 +711,7 @@ private readonly MarkdownExportService _mdExport = new();
 
     public ObservableCollection<string> ThemeNames { get; }
     public ObservableCollection<string> RecentFiles { get; } = new();
+    public IReadOnlyList<string> PinnedFiles => _settingsService.Current.PinnedFiles;
     public ObservableCollection<Services.MarkdownFileEntry> MarkdownFiles { get; } = new();
     public ObservableCollection<HistoryEntry> History { get; } = new();
 

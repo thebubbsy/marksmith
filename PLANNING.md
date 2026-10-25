@@ -19200,3 +19200,48 @@ v3.80.0 and ships in the next tag. `MarksmithBaseVersion` is now 3.81.0.
 3. Review status bar text contrast against high-contrast system palettes.
 
 **Total user-visible improvements: 10** (1 Core timing, 2 History/SuiteHub, 2 OCR/Bubbles, 1 Studio tooltips, 2 MainWindow status bar, 2 Mermaid Studio).
+
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #271 (2026-10-26, 10:00–10:35 AEDT)
+
+**Agent / Execution Metadata**
+- Model: Gemini 2.5 Pro (Antigravity)
+- Identity: Antigravity AI coding assistant (Google DeepMind), unattended scheduled desktop polish routine
+- Modes: Scheduled hourly desktop polish routine, unattended
+- Trigger: Scheduled MarkSmith WinUI 3 Desktop Polish Routine (`commit-to-main-ship-improvement--r4efinement` / `0 * * * *`)
+- Target: `C:\Users\Tony\.gemini\antigravity\scratch\marksmith`
+
+**Picked up:** run #270's Next up item 1 (Enter in an empty-Find Replace box), item 2 (Palette "Open recent: ..." coverage verification across pinned recent items), item 3 (Review status bar text contrast against high-contrast system palettes), and SmartArt Studio empty/unselected action feedback parity.
+
+**Delivered (user-visible):**
+1. **MainWindow Find Step Empty Query Announcements**: `StepFind` in `MainWindow.xaml.cs` (triggered by Enter/Shift+Enter in `FindTextBox`, Find Next/Prev buttons, or F3/Shift+F3) now checks for empty queries; if the document is empty it announces "The document is empty: nothing to find.", and if the document has content it announces "Type the text to find first, then press Enter." and restores keyboard focus to `FindTextBox`.
+2. **MainWindow Find Step No Matches Feedback**: When a query has 0 matches in the document, pressing Enter now announces `No matches found for "{query}".` with `StatusSeverity.Informational` rather than silently returning.
+3. **MainWindow Replace Empty Document Guard**: `AskForFindText()` now checks document length; when the document is empty it announces "The document is empty: nothing to replace.", otherwise directing "Type the text to find first, then Replace." with keyboard focus on `FindTextBox`.
+4. **Command Palette Pinned Files Integration**: Pinned files from `_settingsService.Current.PinnedFiles` are now surfaced at the head of the palette with prefix `Open pinned: {FileName}`, category `Recent`, and searchable keywords `recent pinned open {fullPath}`.
+5. **Command Palette Recent Files Path Keywords**: Recent files now carry `recent open {fullPath}` in their palette keywords so users can search by folder name, path, or file extension in Ctrl+K.
+6. **SmartArt Studio Empty & Unselected Duplicate Feedback**: `DuplicateSelected` in `SmartArtDesignStudioViewModel` now reports `The outline is empty: add a node, or type bullet points on the Markdown tab.` when `RootNodes.Count == 0`, and "Nothing to duplicate: select an item in the outline first." when no node is selected.
+7. **SmartArt Studio Empty & Unselected Delete Feedback**: `DeleteSelected` in `SmartArtDesignStudioViewModel` now reports `The outline is empty: add a node, or type bullet points on the Markdown tab.` when empty, and "Nothing to delete: select an item in the outline first." when no node is selected.
+8. **SmartArt Studio Move / Promote / Demote Feedback**: `MoveUp`, `MoveDown`, `Promote`, and `Demote` report `The outline is empty...` when empty, and "Nothing to move...", "Nothing to promote...", and "Nothing to demote..." when unselected.
+9. **SmartArt Studio Rename Feedback**: `BeginRename` reports `The outline is empty...` when empty, and "Nothing to rename: select an item in the outline first." when no node is selected.
+10. **SmartArt Studio Undo / Redo Stack Boundaries**: `Undo()` and `Redo()` report "Nothing to undo." and "Nothing to redo." on empty stacks rather than silently returning.
+11. **High Contrast Status Text Compliant Foreground**: `ThemeBrush.IsHighContrast` exposes contrast theme state, and `StatusSeverityBrushes.KeyFor` returns `TextFillColorPrimaryBrush` for default/informational status messages when High Contrast is active, guaranteeing 100% WCAG AAA contrast ratio across high-contrast themes.
+
+**Implementation Summary**
+- Modified:
+  - `MarkSmith.Core/ViewModels/MainViewModel.cs` (`PinnedFiles` getter exposed)
+  - `MarkSmith.Core/ViewModels/SmartArtStudio/SmartArtDesignStudioViewModel.cs` (empty/unselected guards for Duplicate, Delete, MoveUp, MoveDown, Promote, Demote, BeginRename, Undo, Redo)
+  - `MarkSmith.Desktop/Services/ThemeBrush.cs` (`IsHighContrast` public getter)
+  - `MarkSmith.Desktop/Converters/StatusSeverityBrushes.cs` (High Contrast primary foreground brush)
+  - `MarkSmith.Desktop/MainWindow.xaml.cs` (StepFind & AskForFindText empty/no-match feedback; BuildPaletteCommands pinned & recent file items)
+  - `MarkSmith.Tests/Run271FindPaletteAndSmartArtPolishTests.cs` (17/17 unit tests passing)
+- Verification:
+  - `dotnet test --filter "FullyQualifiedName~Run271"`: 17 passed, 0 failed.
+  - `dotnet build MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: 0 errors.
+  - Smoke launch: `Marksmith.exe` launched, verified healthy (PID 27316), and shut down cleanly.
+
+**Next up (Run #272):**
+1. Document Galaxy Window empty-cluster and lone-node selection affordance audit.
+2. Review Markdown table column auto-formatting keyboard accelerators in editor.
+3. Shape Studio connector arrowhead hover snapping feedback consistency.
+
+**Total user-visible improvements: 11** (3 Find/Replace, 2 Command Palette, 5 SmartArt Studio, 1 High Contrast).

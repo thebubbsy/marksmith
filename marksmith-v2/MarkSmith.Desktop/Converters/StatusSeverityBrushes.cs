@@ -7,13 +7,19 @@ namespace MarkSmith.Converters;
 // fixed at conversion time, so it kept the old theme's colour after a Windows theme switch).
 public static class StatusSeverityBrushes
 {
-    public static string KeyFor(Models.StatusSeverity severity) => severity switch
+    public static string KeyFor(Models.StatusSeverity severity)
     {
-        Models.StatusSeverity.Success => "SystemFillColorSuccessBrush",
-        // WinUI names its amber "Caution"; there is no SystemFillColorWarningBrush, so this key
-        // used to miss and every warning status fell back to plain grey.
-        Models.StatusSeverity.Warning => "SystemFillColorCautionBrush",
-        Models.StatusSeverity.Error => "SystemFillColorCriticalBrush",
-        _ => "TextFillColorSecondaryBrush",
-    };
+        if (Services.ThemeBrush.IsHighContrast && severity == Models.StatusSeverity.Informational)
+            return "TextFillColorPrimaryBrush";
+
+        return severity switch
+        {
+            Models.StatusSeverity.Success => "SystemFillColorSuccessBrush",
+            // WinUI names its amber "Caution"; there is no SystemFillColorWarningBrush, so this key
+            // used to miss and every warning status fell back to plain grey.
+            Models.StatusSeverity.Warning => "SystemFillColorCautionBrush",
+            Models.StatusSeverity.Error => "SystemFillColorCriticalBrush",
+            _ => "TextFillColorSecondaryBrush",
+        };
+    }
 }

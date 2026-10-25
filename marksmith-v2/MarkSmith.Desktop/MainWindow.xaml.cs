@@ -6454,10 +6454,19 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             cmds.Add(new($"Switch theme: {name}", "Theme", () => { ViewModel.SelectedThemeName = name; return Task.CompletedTask; }));
         }
 
-        foreach (var path in ViewModel.RecentFiles.ToList())
+        var pinned = ViewModel.PinnedFiles ?? System.Array.Empty<string>();
+        var recentAndPinned = pinned
+            .Concat(ViewModel.RecentFiles.Where(r => !pinned.Contains(r, Services.PathEquality.Comparer)))
+            .Distinct(Services.PathEquality.Comparer)
+            .ToList();
+
+        foreach (var path in recentAndPinned)
         {
             var p = path;
-            cmds.Add(new($"Open recent: {System.IO.Path.GetFileName(p)}", "Recent", async () =>
+            var isPinned = pinned.Contains(p, Services.PathEquality.Comparer);
+            var prefix = isPinned ? "Open pinned: " : "Open recent: ";
+            var keywords = isPinned ? $"recent pinned open {p}" : $"recent open {p}";
+            cmds.Add(new($"{prefix}{System.IO.Path.GetFileName(p)}", "Recent", async () =>
             {
                 if (System.IO.File.Exists(p))
                 {
@@ -6470,7 +6479,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                     ViewModel.StatusText = $"Couldn't open {System.IO.Path.GetFileName(p)}: the file was moved or deleted.";
                     ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
                 }
-            }));
+            }, Keywords: keywords));
         }
 
         return cmds;
@@ -9497,7 +9506,29 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         RecordFindHistory(FindTextBox?.Text);
         EnsureUnfoldedForFind();
-        if (_findMatches.Count == 0) { UpdateFindCount(); return; }
+        var query = FindTextBox?.Text ?? string.Empty;
+        if (query.Length == 0)
+        {
+            UpdateFindCount();
+            var docText = PasteTextBox.Text ?? string.Empty;
+            if (docText.Length == 0)
+            {
+                AnnounceStatus("The document is empty: nothing to find.");
+            }
+            else
+            {
+                AnnounceStatus("Type the text to find first, then press Enter.");
+            }
+            FindTextBox?.Focus(FocusState.Keyboard);
+            return;
+        }
+
+        if (_findMatches.Count == 0)
+        {
+            UpdateFindCount();
+            AnnounceStatus($"No matches found for \"{query}\".");
+            return;
+        }
         // If the user has moved the caret since the last match, carry on from the caret (past any
         // selection), not from the old match.
         var current = _findMatchIndex;
@@ -9693,8 +9724,16 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // Replace / Replace All with an empty Find box did nothing; say what's missing and put the caret there.
     private void AskForFindText()
     {
-        ViewModel.StatusText = "Type the text to find first, then Replace.";
-        ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
+        var docText = PasteTextBox.Text ?? string.Empty;
+        if (docText.Length == 0)
+        {
+            AnnounceStatus("The document is empty: nothing to replace.");
+        }
+        else
+        {
+            ViewModel.StatusText = "Type the text to find first, then Replace.";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
+        }
         FindTextBox?.Focus(FocusState.Keyboard);
     }
 
