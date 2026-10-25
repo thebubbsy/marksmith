@@ -18862,3 +18862,19 @@ the matrix: Recent exports (`ExportHistoryFlyout`, last touched run #181) and th
 
 **Release (same run, #263):** tagged **v3.77.0** on `93b3157` (it also carries run #262, which shipped without a tag); Release workflow run 40206911735 succeeded; user-facing notes prepended to the generated body
 (https://github.com/thebubbsy/marksmith/releases/tag/v3.77.0). `MarksmithBaseVersion` is now 3.78.0. Run #264's commit `812fb3e` landed after the tag, so it ships in the next release.
+
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #266 (2026-10-26, 06:05–06:35 AEDT)
+
+**Agent / Execution Metadata**
+- Trigger: Scheduled hourly MarkSmith WinUI 3 Desktop Polish Routine
+- Verified: Desktop build (Debug/x64) 0 errors; smoke-launch `Marksmith.exe` (PID 36052, ran smoothly, cleanly stopped); Run 266 + Run 265 test suites (31/31 passed in 842ms).
+
+**Delivered (user-visible):**
+1. **Recent exports list keyboard Enter / Space activation**: Pressing Enter or Space on a resolved row activates "Open exported file" (or reports "Couldn't open <file>: file was moved or deleted." if missing), fulfilling the context menu's advertised `KeyboardAcceleratorTextOverride = "Enter"`.
+2. **Outline Table of Contents list keyboard Enter / Space activation**: Pressing Enter or Space on an outline heading jumps to that section in both editor and preview, matching `KeyboardAcceleratorTextOverride = "Enter"`.
+3. **Lint list keyboard Enter / Space activation**: Pressing Enter or Space on an issue row jumps to the issue line and triggers the issue radar beacon, matching `KeyboardAcceleratorTextOverride = "Enter"`.
+4. **Status bar message host Ctrl+C copy parity**: When focused, pressing Ctrl+C copies the status message immediately with a transient notification bubble, providing keyboard parity with double-tap.
+5. **OCR Inspection Studio copy menus empty-state polish**: Both page-sheet and toolbar copy menus now disable when empty (`IsEnabled = hasPageMd` / `hasAllMd`), format counts consistently as "characters" (eliminating "chars"), and clearly explain why nothing was copied if triggered when empty ("Nothing to copy yet: no pages have been scanned" / "has no Markdown").
+6. **MindMap Galaxy Studio status & topology menu polish**: The status bar context menu's "Copy status message" and "Copy map topology overview" items now disable when empty and explain why nothing was copied if invoked with an empty canvas or status line.
+7. **Diagram Studio status text polish**: Deleting a single node now names the node (`Deleted 'Start Node'.`), multiple nodes format as `Deleted N nodes.` (eliminating robotic `node(s)`), deleting a connector names both endpoints (`Deleted connector: 'A' → 'B'.`), Select All names single nodes or announces `No shapes on the canvas to select.`, and Paste names single pasted nodes.

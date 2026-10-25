@@ -7733,24 +7733,38 @@ namespace MarkSmith.Views.MindMap
 
             menu.Items.Add(new MenuFlyoutSeparator());
 
+            var hasStatus = !string.IsNullOrWhiteSpace(ViewModel.StatusMessage);
             var copyStatusItem = new MenuFlyoutItem
             {
                 Text = "Copy status message",
-                Icon = new FontIcon { Glyph = "\uE8C8" }
+                Icon = new FontIcon { Glyph = "\uE8C8" },
+                IsEnabled = hasStatus
             };
             copyStatusItem.Click += (_, _) =>
             {
-                CopyAndReport(ViewModel.StatusMessage ?? "", "Copied status message to clipboard");
+                if (string.IsNullOrWhiteSpace(ViewModel.StatusMessage))
+                {
+                    ViewModel.StatusMessage = "Nothing to copy yet: status line is empty.";
+                    return;
+                }
+                CopyAndReport(ViewModel.StatusMessage, "Copied status message to clipboard");
             };
             menu.Items.Add(copyStatusItem);
 
+            var hasTopology = ViewModel.Nodes.Count > 0;
             var copyTopologyItem = new MenuFlyoutItem
             {
                 Text = "Copy map topology overview",
-                Icon = new FontIcon { Glyph = "\uE946" }
+                Icon = new FontIcon { Glyph = "\uE946" },
+                IsEnabled = hasTopology
             };
             copyTopologyItem.Click += (_, _) =>
             {
+                if (ViewModel.Nodes.Count == 0)
+                {
+                    ViewModel.StatusMessage = "Nothing to copy yet: the map has no nodes.";
+                    return;
+                }
                 var summary = $"{ViewModel.Title} — {ViewModel.NodesCountText}, {ViewModel.LinksCountText}";
                 CopyAndReport(summary, "Copied map topology overview to clipboard");
             };

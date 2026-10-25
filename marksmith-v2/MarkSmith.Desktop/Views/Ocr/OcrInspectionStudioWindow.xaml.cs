@@ -1087,29 +1087,46 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
 
         var menu = new MenuFlyout();
 
+        var pageMd = _session.CurrentPage?.AssembledPageMarkdown ?? string.Empty;
+        bool hasPageMd = !string.IsNullOrWhiteSpace(pageMd);
         var copyPageItem = new MenuFlyoutItem
         {
             Text = "Copy current page Markdown",
             Icon = new FontIcon { Glyph = "\uE8C8" },
-            KeyboardAcceleratorTextOverride = _markdownScopeIsDocument ? "" : "Ctrl+Shift+C"
+            KeyboardAcceleratorTextOverride = _markdownScopeIsDocument ? "" : "Ctrl+Shift+C",
+            IsEnabled = hasPageMd
         };
         copyPageItem.Click += (_, _) =>
         {
-            var pageMd = _session.CurrentPage?.AssembledPageMarkdown ?? string.Empty;
-            if (string.IsNullOrWhiteSpace(pageMd)) return;
-            CopyAndReport(pageMd, $"Copied current page Markdown ({pageMd.Length:N0} chars) to clipboard.");
+            if (string.IsNullOrWhiteSpace(pageMd))
+            {
+                SetFooterStatusText(_session.Pages.Count == 0
+                    ? "Nothing to copy yet: no pages have been scanned."
+                    : "Nothing to copy yet: the current page has no Markdown.");
+                return;
+            }
+            CopyAndReport(pageMd, $"Copied current page Markdown ({pageMd.Length:N0} characters) to clipboard.");
         };
         menu.Items.Add(copyPageItem);
 
+        var allMd = _session.GetDocumentMarkdown();
+        bool hasAllMd = !string.IsNullOrWhiteSpace(allMd);
         var copyAllItem = new MenuFlyoutItem
         {
             Text = "Copy full document Markdown",
-            Icon = new FontIcon { Glyph = "\uE8C8" }
+            Icon = new FontIcon { Glyph = "\uE8C8" },
+            IsEnabled = hasAllMd
         };
         copyAllItem.Click += (_, _) =>
         {
-            var allMd = _session.GetDocumentMarkdown();
-            CopyAndReport(allMd, "Copied full document Markdown to clipboard.");
+            if (string.IsNullOrWhiteSpace(allMd))
+            {
+                SetFooterStatusText(_session.Pages.Count == 0
+                    ? "Nothing to copy yet: no pages have been scanned."
+                    : "Nothing to copy yet: the document has no Markdown.");
+                return;
+            }
+            CopyAndReport(allMd, $"Copied full document Markdown ({allMd.Length:N0} characters) to clipboard.");
         };
         menu.Items.Add(copyAllItem);
 
@@ -1617,34 +1634,57 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         var target = sender as FrameworkElement ?? CopyMarkdownButton;
         var menu = new MenuFlyout();
 
+        bool hasPreview = !string.IsNullOrWhiteSpace(MarkdownPreviewTextBox?.Text);
         var copyPreviewItem = new MenuFlyoutItem
         {
             Text = "Copy live Markdown preview",
             Icon = new FontIcon { Glyph = "\uE8C8" },
-            KeyboardAcceleratorTextOverride = "Ctrl+Shift+C"
+            KeyboardAcceleratorTextOverride = "Ctrl+Shift+C",
+            IsEnabled = hasPreview
         };
         copyPreviewItem.Click += (s, ev) => OnCopyMarkdownClick(s, ev);
         menu.Items.Add(copyPreviewItem);
 
+        var md = _session.CurrentPage?.AssembledPageMarkdown ?? string.Empty;
+        bool hasPageMd = !string.IsNullOrWhiteSpace(md);
         var copyPageItem = new MenuFlyoutItem
         {
             Text = "Copy current page Markdown",
-            Icon = new FontIcon { Glyph = "\uE8C8" }
+            Icon = new FontIcon { Glyph = "\uE8C8" },
+            IsEnabled = hasPageMd
         };
         copyPageItem.Click += (_, _) =>
         {
-            var md = _session.CurrentPage?.AssembledPageMarkdown ?? string.Empty;
-            CopyAndReport(md, $"Copied current page Markdown ({md.Length:N0} chars) to clipboard.");
+            if (string.IsNullOrWhiteSpace(md))
+            {
+                SetFooterStatusText(_session.Pages.Count == 0
+                    ? "Nothing to copy yet: no pages have been scanned."
+                    : "Nothing to copy yet: the current page has no Markdown.");
+                return;
+            }
+            CopyAndReport(md, $"Copied current page Markdown ({md.Length:N0} characters) to clipboard.");
         };
         menu.Items.Add(copyPageItem);
 
+        var docMd = _session.GetDocumentMarkdown();
+        bool hasDocMd = !string.IsNullOrWhiteSpace(docMd);
         var copyDocItem = new MenuFlyoutItem
         {
             Text = "Copy full document Markdown",
-            Icon = new FontIcon { Glyph = "\uE8C8" }
+            Icon = new FontIcon { Glyph = "\uE8C8" },
+            IsEnabled = hasDocMd
         };
         copyDocItem.Click += (_, _) =>
-            CopyAndReport(_session.GetDocumentMarkdown(), "Copied full document Markdown to clipboard.");
+        {
+            if (string.IsNullOrWhiteSpace(docMd))
+            {
+                SetFooterStatusText(_session.Pages.Count == 0
+                    ? "Nothing to copy yet: no pages have been scanned."
+                    : "Nothing to copy yet: the document has no Markdown.");
+                return;
+            }
+            CopyAndReport(docMd, $"Copied full document Markdown ({docMd.Length:N0} characters) to clipboard.");
+        };
         menu.Items.Add(copyDocItem);
 
         menu.Items.Add(new MenuFlyoutSeparator());

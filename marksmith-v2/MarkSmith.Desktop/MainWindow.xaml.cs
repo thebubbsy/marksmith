@@ -2595,7 +2595,21 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         bool shift = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Shift)
             .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
 
-        if (e.Key == Windows.System.VirtualKey.Application || (e.Key == Windows.System.VirtualKey.F10 && shift))
+        if ((e.Key == Windows.System.VirtualKey.Enter || e.Key == Windows.System.VirtualKey.Space) && !ctrl && !shift)
+        {
+            e.Handled = true;
+            if (!entry.OutputMissing)
+            {
+                ExportHistoryFlyout?.Hide();
+                OpenExportedFile(entry.OutputPath);
+            }
+            else
+            {
+                ViewModel.StatusText = $"Couldn't open {Path.GetFileName(entry.OutputPath)}: file was moved or deleted.";
+                ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
+            }
+        }
+        else if (e.Key == Windows.System.VirtualKey.Application || (e.Key == Windows.System.VirtualKey.F10 && shift))
         {
             e.Handled = true;
             var anchor = (e.OriginalSource as FrameworkElement) ?? HistoryList;
@@ -2941,8 +2955,22 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     }
 
     // Enter / Space open the same copy menu as a right-click (Shift+F10 goes through the bridge).
+    // Ctrl+C copies the status message immediately, matching the double-tap affordance.
     private void OnStatusMsgHostKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
     {
+        bool ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control)
+            .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+        if (ctrl && e.Key == Windows.System.VirtualKey.C)
+        {
+            var text = ViewModel.StatusText;
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                Services.CopyFeedback.CopyWithBubble(StatusMsgHost, text, "Copied status message");
+                e.Handled = true;
+                return;
+            }
+        }
+
         if (e.Key is not (Windows.System.VirtualKey.Enter or Windows.System.VirtualKey.Space)) return;
         e.Handled = true;
         Services.KeyboardContextMenu.Invoke(StatusMsgHost, OnStatusMsgTextRightTapped);
@@ -3183,7 +3211,12 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var entry = FindListItemFromSource<Services.TocEntry>(e.OriginalSource as DependencyObject, TocList);
         if (entry is null) return;
 
-        if (e.Key == Windows.System.VirtualKey.Application || (e.Key == Windows.System.VirtualKey.F10 && shift))
+        if ((e.Key == Windows.System.VirtualKey.Enter || e.Key == Windows.System.VirtualKey.Space) && !ctrl && !shift)
+        {
+            e.Handled = true;
+            NavigateToTocEntry(entry);
+        }
+        else if (e.Key == Windows.System.VirtualKey.Application || (e.Key == Windows.System.VirtualKey.F10 && shift))
         {
             e.Handled = true;
             var anchor = (e.OriginalSource as FrameworkElement) ?? TocList;
@@ -11138,7 +11171,12 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var issue = FindListItemFromSource<LintRow>(e.OriginalSource as DependencyObject, LintList);
         if (issue is null) return;
 
-        if (e.Key == Windows.System.VirtualKey.Application || (e.Key == Windows.System.VirtualKey.F10 && shift))
+        if ((e.Key == Windows.System.VirtualKey.Enter || e.Key == Windows.System.VirtualKey.Space) && !ctrl && !shift)
+        {
+            e.Handled = true;
+            JumpToLintIssue(issue);
+        }
+        else if (e.Key == Windows.System.VirtualKey.Application || (e.Key == Windows.System.VirtualKey.F10 && shift))
         {
             e.Handled = true;
             var anchor = (e.OriginalSource as FrameworkElement) ?? LintList;

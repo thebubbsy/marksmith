@@ -2006,7 +2006,9 @@ public partial class MermaidStudioViewModel : ObservableObject
 
             SelectedNodes.Clear();
             SelectedNode = null;
-            StatusText = $"Deleted {nodesToDelete.Count} node(s).";
+            StatusText = nodesToDelete.Count == 1
+                ? $"Deleted '{DisplayName(nodesToDelete[0])}'."
+                : $"Deleted {nodesToDelete.Count} nodes.";
         }
         else if (SelectedConnector != null)
         {
@@ -2014,7 +2016,7 @@ public partial class MermaidStudioViewModel : ObservableObject
             var connToDelete = SelectedConnector;
             Connectors.Remove(connToDelete);
             SelectedConnector = null;
-            StatusText = "Deleted connector.";
+            StatusText = $"Deleted connector: '{DisplayNameOf(connToDelete.SourceNodeId)}' → '{DisplayNameOf(connToDelete.TargetNodeId)}'.";
         }
     }
 
@@ -2029,6 +2031,11 @@ public partial class MermaidStudioViewModel : ObservableObject
     [RelayCommand]
     public void SelectAll()
     {
+        if (Nodes.Count == 0)
+        {
+            StatusText = "No shapes on the canvas to select.";
+            return;
+        }
         SelectedNodes.Clear();
         foreach (var n in Nodes)
         {
@@ -2037,7 +2044,9 @@ public partial class MermaidStudioViewModel : ObservableObject
         }
         SelectedNode = SelectedNodes.LastOrDefault();
         SelectedConnector = null;
-        StatusText = $"Selected {SelectedNodes.Count} node(s).";
+        StatusText = SelectedNodes.Count == 1
+            ? $"Selected '{DisplayName(SelectedNode!)}'."
+            : $"Selected all {SelectedNodes.Count} nodes.";
     }
 
     [RelayCommand]
@@ -2353,7 +2362,9 @@ public partial class MermaidStudioViewModel : ObservableObject
             SelectedNodes.Add(n);
         }
         SelectedNode = created.LastOrDefault();
-        StatusText = $"Pasted {created.Count} node(s).";
+        StatusText = created.Count == 1
+            ? $"Pasted '{DisplayName(created[0])}'."
+            : $"Pasted {created.Count} nodes.";
     }
 
     // Collision-free node id: node_N where N is the first free integer.
