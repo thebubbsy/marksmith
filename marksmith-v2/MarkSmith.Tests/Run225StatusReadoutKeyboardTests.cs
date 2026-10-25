@@ -123,7 +123,11 @@ public class Run225StatusReadoutKeyboardTests
         var end = code.IndexOf("\n    }", start, StringComparison.Ordinal);
         var body = code[start..end];
         Assert.Contains("if (e.Key is not (Windows.System.VirtualKey.Enter or Windows.System.VirtualKey.Space)) return;", body);
-        Assert.True(body.IndexOf("return;", StringComparison.Ordinal) < body.IndexOf("e.Handled = true;", StringComparison.Ordinal));
+        // Run #266 added a Ctrl+C copy above it, which handles only Ctrl+C; every other key still
+        // returns before the Enter/Space branch marks it handled.
+        var guard = body.IndexOf("if (e.Key is not (Windows.System.VirtualKey.Enter", StringComparison.Ordinal);
+        Assert.True(guard < body.LastIndexOf("e.Handled = true;", StringComparison.Ordinal));
+        Assert.Contains("if (ctrl && e.Key == Windows.System.VirtualKey.C)", body);
     }
 
     [Fact]

@@ -646,6 +646,9 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     /// merged "- Banana / - Apple / - Cherry" into a single node, and the audits counted one item.</summary>
     public string OutlineText => NormalizeLineBreaks(MarkdownText);
 
+    /// <summary>What outline commands and SVG exports say when there is no outline to act on.</summary>
+    public const string EmptyOutlineMessage = "The outline is empty: add a node, or type bullet points on the Markdown tab.";
+
     public static string NormalizeLineBreaks(string? text) =>
         (text ?? "").Replace("\r\n", "\n").Replace('\r', '\n');
 

@@ -2847,7 +2847,12 @@ namespace MarkSmith.Views.SmartArtStudio
         private void CopyOutlineMarkdown()
         {
             string md = (ViewModel.OutlineText).Trim();
-            if (string.IsNullOrEmpty(md)) return;
+            if (string.IsNullOrEmpty(md))
+            {
+                // Ctrl+C and the Copy button did nothing on an empty outline; say why.
+                ViewModel.StatusMessage = "Nothing to copy: the outline is empty.";
+                return;
+            }
             CopyAndReport(md, "Copied outline bullets to clipboard.", CopyOutlineMarkdownButton);
         }
 
@@ -3006,16 +3011,16 @@ namespace MarkSmith.Views.SmartArtStudio
         private void OnCopySvgDataUriClick(object sender, RoutedEventArgs e)
         {
             string svg = GetExportSvg(1.0);
-            if (string.IsNullOrWhiteSpace(svg)) return;
+            if (!HasExportSvg(svg)) return;
             string b64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(svg));
             string uri = "data:image/svg+xml;base64," + b64;
-            CopyAndReport(uri, $"Copied SVG Data URI to clipboard ({uri.Length} chars).", ExportSvgButton);
+            CopyAndReport(uri, $"Copied SVG Data URI to clipboard ({MarkSmith.Services.CountText.Of(uri.Length, "character")}).", ExportSvgButton);
         }
 
         private async void OnSaveSvgFileClick(object sender, RoutedEventArgs e)
         {
             string svg = GetExportSvg(2.0);
-            if (string.IsNullOrWhiteSpace(svg)) return;
+            if (!HasExportSvg(svg)) return;
             try
             {
                 string suggestedName = $"{ViewModel.SelectedLayout?.Name ?? "smartart"}-diagram.svg";
@@ -3066,8 +3071,28 @@ namespace MarkSmith.Views.SmartArtStudio
         private void CopySvgToClipboard(double scale, string label)
         {
             string svg = GetExportSvg(scale);
-            if (string.IsNullOrWhiteSpace(svg)) return;
-            CopyAndReport(svg, $"Copied {label} to clipboard ({svg.Length} bytes).", ExportSvgButton);
+            if (!HasExportSvg(svg)) return;
+            // svg.Length counts characters, not bytes (it said "bytes" before).
+            CopyAndReport(svg, $"Copied {label} to clipboard ({MarkSmith.Services.CountText.Of(svg.Length, "character")}).", ExportSvgButton);
+        }
+
+        // The SVG copies and Save SVG did nothing while the preview had no diagram yet; say why.
+        private bool HasExportSvg(string? svg)
+        {
+            if (!string.IsNullOrWhiteSpace(svg)) return true;
+            ViewModel.StatusMessage = string.IsNullOrWhiteSpace(ViewModel.OutlineText)
+                ? SmartArtDesignStudioViewModel.EmptyOutlineMessage
+                : "No diagram preview to export yet: wait for the preview to finish drawing.";
+            return false;
+        }
+
+        // Outline commands on an empty outline returned without a word; returns the outline, or null after saying why.
+        private string? OutlineForCommand()
+        {
+            string markdown = ViewModel.OutlineText;
+            if (!string.IsNullOrWhiteSpace(markdown)) return markdown;
+            ViewModel.StatusMessage = SmartArtDesignStudioViewModel.EmptyOutlineMessage;
+            return null;
         }
 
         // Window-level shortcuts: Delete/Backspace = delete node, F2 = rename, Ctrl+D = duplicate,
@@ -4261,8 +4286,7 @@ namespace MarkSmith.Views.SmartArtStudio
 
         private void OnPromoteAllClick(object sender, RoutedEventArgs e)
         {
-            string markdown = ViewModel.OutlineText;
-            if (string.IsNullOrWhiteSpace(markdown)) return;
+            if (OutlineForCommand() is not string markdown) return;
             var lines = markdown.Split('\n');
             var sb = new System.Text.StringBuilder();
             bool changed = false;
@@ -4299,12 +4323,16 @@ namespace MarkSmith.Views.SmartArtStudio
                 UpdateOutlineStats();
                 ViewModel.StatusMessage = "Promoted all outline items out 1 level · Ctrl+Z to undo";
             }
+            else
+            {
+                // Nothing indented: this used to do nothing at all.
+                ViewModel.StatusMessage = "Every outline item is already at the root level.";
+            }
         }
 
         private void OnDemoteAllClick(object sender, RoutedEventArgs e)
         {
-            string markdown = ViewModel.OutlineText;
-            if (string.IsNullOrWhiteSpace(markdown)) return;
+            if (OutlineForCommand() is not string markdown) return;
             var lines = markdown.Split('\n');
             var sb = new System.Text.StringBuilder();
             for (int i = 0; i < lines.Length; i++)
@@ -4327,8 +4355,7 @@ namespace MarkSmith.Views.SmartArtStudio
 
         private void OnFlattenAllClick(object sender, RoutedEventArgs e)
         {
-            string markdown = ViewModel.OutlineText;
-            if (string.IsNullOrWhiteSpace(markdown)) return;
+            if (OutlineForCommand() is not string markdown) return;
             var lines = markdown.Split('\n');
             var sb = new System.Text.StringBuilder();
             for (int i = 0; i < lines.Length; i++)
@@ -4356,35 +4383,44 @@ namespace MarkSmith.Views.SmartArtStudio
 
         private void OnReverseOutlineClick(object sender, RoutedEventArgs e)
         {
-            string markdown = ViewModel.OutlineText;
-            if (string.IsNullOrWhiteSpace(markdown)) return;
-            ViewModel.ReplaceOutline(SmartArtDesignStudioViewModel.ReverseOutline(markdown));
+            if (OutlineForCommand() is not string markdown) return;
+            // An unchanged result (one item) still claimed "Reversed"; ReplaceOutline adds no undo step then.
+            if (!ViewModel.ReplaceOutline(SmartArtDesignStudioViewModel.ReverseOutline(markdown)))
+            {
+                ViewModel.StatusMessage = "Reversing doesn't change this outline: it has only one line.";
+                return;
+            }
             UpdateOutlineStats();
             ViewModel.StatusMessage = "Reversed outline items order · Ctrl+Z to undo";
         }
 
         private void OnSortOutlineAscendingClick(object sender, RoutedEventArgs e)
         {
-            string markdown = ViewModel.OutlineText;
-            if (string.IsNullOrWhiteSpace(markdown)) return;
-            ViewModel.ReplaceOutline(SmartArtDesignStudioViewModel.SortOutlineAlphabetically(markdown, ascending: true));
+            if (OutlineForCommand() is not string markdown) return;
+            if (!ViewModel.ReplaceOutline(SmartArtDesignStudioViewModel.SortOutlineAlphabetically(markdown, ascending: true)))
+            {
+                ViewModel.StatusMessage = "The outline is already in A to Z order.";
+                return;
+            }
             UpdateOutlineStats();
             ViewModel.StatusMessage = "Sorted outline items alphabetically (A to Z) · Ctrl+Z to undo";
         }
 
         private void OnSortOutlineDescendingClick(object sender, RoutedEventArgs e)
         {
-            string markdown = ViewModel.OutlineText;
-            if (string.IsNullOrWhiteSpace(markdown)) return;
-            ViewModel.ReplaceOutline(SmartArtDesignStudioViewModel.SortOutlineAlphabetically(markdown, ascending: false));
+            if (OutlineForCommand() is not string markdown) return;
+            if (!ViewModel.ReplaceOutline(SmartArtDesignStudioViewModel.SortOutlineAlphabetically(markdown, ascending: false)))
+            {
+                ViewModel.StatusMessage = "The outline is already in Z to A order.";
+                return;
+            }
             UpdateOutlineStats();
             ViewModel.StatusMessage = "Sorted outline items reverse alphabetically (Z to A) · Ctrl+Z to undo";
         }
 
         private void OnTrimTrailingWhitespaceClick(object sender, RoutedEventArgs e)
         {
-            string markdown = ViewModel.OutlineText;
-            if (string.IsNullOrEmpty(markdown)) return;
+            if (OutlineForCommand() is not string markdown) return;
             var trimmed = SmartArtDesignStudioViewModel.TrimTrailingWhitespace(markdown);
             if (trimmed != markdown)
             {
@@ -4400,8 +4436,7 @@ namespace MarkSmith.Views.SmartArtStudio
 
         private void OnStandardiseBulletsClick(object sender, RoutedEventArgs e)
         {
-            string markdown = ViewModel.OutlineText;
-            if (string.IsNullOrEmpty(markdown)) return;
+            if (OutlineForCommand() is not string markdown) return;
             var standardised = SmartArtDesignStudioViewModel.StandardiseBullets(markdown, '-');
             if (standardised != markdown)
             {
@@ -4417,8 +4452,7 @@ namespace MarkSmith.Views.SmartArtStudio
 
         private void OnNormalizeIndentationClick(object sender, RoutedEventArgs e)
         {
-            string markdown = ViewModel.OutlineText;
-            if (string.IsNullOrEmpty(markdown)) return;
+            if (OutlineForCommand() is not string markdown) return;
             var normalized = SmartArtDesignStudioViewModel.NormalizeIndentation(markdown, 2);
             if (normalized != markdown)
             {

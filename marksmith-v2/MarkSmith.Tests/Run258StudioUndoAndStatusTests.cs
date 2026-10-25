@@ -110,7 +110,8 @@ public class Run258StudioUndoAndStatusTests
     {
         var code = Read(SmartArtWindow);
         Assert.DoesNotContain("ViewModel.MarkdownText ?? \"\"", code);
-        Assert.True(code.Split("ViewModel.OutlineText").Length - 1 >= 20);
+        // Run #268 routed nine outline commands through OutlineForCommand(), which reads OutlineText once.
+        Assert.True(code.Split("ViewModel.OutlineText").Length - 1 + code.Split("OutlineForCommand()").Length - 1 >= 20);
     }
 
     [Fact]

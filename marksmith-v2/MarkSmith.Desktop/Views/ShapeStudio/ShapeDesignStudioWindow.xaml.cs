@@ -5808,8 +5808,14 @@ namespace MarkSmith.Views.ShapeStudio
         private void OnSelectionFitInsideCanvasClick(object sender, RoutedEventArgs e)
         {
             var sel = ViewModel.Shapes.Where(s => s.IsSelected).ToList();
-            if (sel.Count == 0) sel = ViewModel.Shapes.ToList();
-            if (sel.Count == 0) return;
+            bool wholeCanvas = sel.Count == 0;
+            if (wholeCanvas) sel = ViewModel.Shapes.ToList();
+            if (sel.Count == 0)
+            {
+                // Fit inside canvas did nothing on an empty canvas; say why (like Center and Snap to grid).
+                ViewModel.StatusMessage = "No shapes on the canvas to fit.";
+                return;
+            }
 
             double minX = sel.Min(s => s.X);
             double minY = sel.Min(s => s.Y);
@@ -5834,11 +5840,14 @@ namespace MarkSmith.Views.ShapeStudio
                 UpdateAdorner();
                 UpdateMultiSelectionAdorner();
                 UpdateSelectionBoundsPill();
-                ViewModel.StatusMessage = $"Clamped selection inside canvas bounds (dx={dx:F0}, dy={dy:F0}).";
+                // Used to report the raw clamp offsets, with no undo hint.
+                ViewModel.StatusMessage = $"Moved {MarkSmith.Services.CountText.Of(sel.Count, "shape")} inside the canvas · Ctrl+Z to undo";
             }
             else
             {
-                ViewModel.StatusMessage = "Selection is already completely inside canvas bounds with padding.";
+                ViewModel.StatusMessage = wholeCanvas
+                    ? "Every shape is already inside the canvas."
+                    : sel.Count == 1 ? "The shape is already inside the canvas." : "The selection is already inside the canvas.";
             }
         }
 

@@ -150,7 +150,8 @@ public class Run242FoldCountAndSilentCopiesTests
     {
         var body = Method(Read("Views", "SuiteHubView.xaml.cs"), "OnRecentDocsCountPillClick");
         var copy = body.IndexOf("await ClipboardWriter.TrySetTextAsync(summary)", StringComparison.Ordinal);
-        var fail = body.IndexOf("success: false", StringComparison.Ordinal);
+        // Run #268 added an earlier "success: false" for a list with no documents left; look after the copy.
+        var fail = copy >= 0 ? body.IndexOf("success: false", copy, StringComparison.Ordinal) : -1;
         var tick = body.IndexOf("\\u2713", StringComparison.Ordinal);
         Assert.True(copy >= 0 && fail > copy && tick > fail, "the failure returns before the tick");
     }

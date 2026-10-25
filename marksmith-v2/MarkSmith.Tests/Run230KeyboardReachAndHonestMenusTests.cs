@@ -223,7 +223,9 @@ public class Run230KeyboardReachAndHonestMenusTests
         var sheet = Method(code, "void OnPageSheetRightTapped(");
         var copyPage = sheet.Substring(sheet.IndexOf("var copyPageItem", StringComparison.Ordinal));
         copyPage = copyPage.Substring(0, copyPage.IndexOf("menu.Items.Add(copyPageItem);", StringComparison.Ordinal));
-        Assert.Contains("AssembledPageMarkdown", copyPage);
+        // Run #266 hoisted the page's Markdown into pageMd (it also drives IsEnabled).
+        Assert.Contains("var pageMd = _session.CurrentPage?.AssembledPageMarkdown", sheet);
+        Assert.Contains("pageMd", copyPage);
         Assert.DoesNotContain("OnCopyMarkdownClick", copyPage);
         // Ctrl+Shift+C copies the preview, so it's only shown when the preview is the page.
         Assert.Contains("_markdownScopeIsDocument ? \"\" : \"Ctrl+Shift+C\"", copyPage);

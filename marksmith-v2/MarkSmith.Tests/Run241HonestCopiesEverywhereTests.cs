@@ -133,8 +133,9 @@ public class Run241HonestCopiesEverywhereTests
     public void MainWindow_InventoryCopies_UseCopyAndAnnounce()
     {
         var code = Read("MainWindow.xaml.cs");
-        Assert.Contains("CopyAndAnnounce(sb.ToString().TrimEnd(), $\"Copied {footnotes.Count:N0} footnote(s)", code);
-        Assert.Contains("CopyAndAnnounce(joined, $\"Copied {diagrams.Count:N0} diagram/visual block(s)", code);
+        // Run #267 moved these to CountText ("3 footnotes" instead of "3 footnote(s)").
+        Assert.Contains("CopyAndAnnounce(sb.ToString().TrimEnd(), $\"Copied {CountText.Of(footnotes.Count, \"footnote\")}", code);
+        Assert.Contains("CopyAndAnnounce(joined, $\"Copied {CountText.Of(diagrams.Count, \"diagram/visual block\")}", code);
         Assert.Contains("CopyAndAnnounce(md, $\"Copied Markdown ({stats.Words:N0} words", code);
     }
 

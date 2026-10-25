@@ -2167,7 +2167,14 @@ public sealed partial class SuiteHubView : UserControl
 
         var existing = files.Where(File.Exists).ToList();
 
-        if (existing.Count == 0) return;
+        if (existing.Count == 0)
+        {
+            // Clicking the pill did nothing once every recent document had been moved or deleted.
+            SetNotification(files.Count == 0
+                ? "No recent documents to copy yet."
+                : "Nothing to copy: the recent documents were moved or deleted.", success: false);
+            return;
+        }
 
         var summary = string.Join(Environment.NewLine, existing);
 
@@ -2185,7 +2192,7 @@ public sealed partial class SuiteHubView : UserControl
 
         }
 
-        SetNotification($"Copied {existing.Count} recent document paths to clipboard.", success: true);
+        SetNotification($"Copied {CountText.Of(existing.Count, "recent document path")} to clipboard.", success: true);
 
         if (RecentDocsCountText is null) return;
 
@@ -2193,7 +2200,7 @@ public sealed partial class SuiteHubView : UserControl
 
         var before = RecentDocsCountText.Text;
 
-        var copied = $"\u2713 {existing.Count} paths";
+        var copied = $"\u2713 {CountText.Of(existing.Count, "path")}";
 
         RecentDocsCountText.Text = copied;
 

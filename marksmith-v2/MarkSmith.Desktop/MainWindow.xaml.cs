@@ -9618,7 +9618,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         EnsureUnfoldedForFind();
         var query = FindTextBox?.Text ?? string.Empty;
-        if (query.Length == 0) return;
+        if (query.Length == 0) { AskForFindText(); return; }
         var replacement = ReplaceTextBox?.Text ?? string.Empty;
         var text = PasteTextBox.Text ?? string.Empty;
         var cmp = FindComparison;
@@ -9665,12 +9665,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
     }
 
+    // Replace / Replace All with an empty Find box did nothing; say what's missing and put the caret there.
+    private void AskForFindText()
+    {
+        ViewModel.StatusText = "Type the text to find first, then Replace.";
+        ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
+        FindTextBox?.Focus(FocusState.Keyboard);
+    }
+
     // Replace every match in the document in one pass (one undo step).
     private void OnReplaceAllClick(object sender, RoutedEventArgs e)
     {
         EnsureUnfoldedForFind();
         var query = FindTextBox?.Text ?? string.Empty;
-        if (query.Length == 0) return;
+        if (query.Length == 0) { AskForFindText(); return; }
         var replacement = ReplaceTextBox?.Text ?? string.Empty;
         var wholeWord = MatchWholeWordCheck?.IsChecked == true;
         var useRegex = UseRegexCheck?.IsChecked == true;
@@ -11066,7 +11074,13 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private void OnCopyAllLintIssuesClick(object sender, RoutedEventArgs e)
     {
-        if (_lintIssues.Count == 0) return;
+        if (_lintIssues.Count == 0)
+        {
+            // Copy all issues used to do nothing on a clean document.
+            ViewModel.StatusText = "Nothing to copy: the document has no Markdown issues.";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
+            return;
+        }
         var allText = string.Join(Environment.NewLine, _lintIssues.Select(i => $"Line {i.Line}: {i.Message}"));
         if (CopyAllLintButton is not null)
         {
@@ -14893,7 +14907,12 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
     {
         var tb = PasteTextBox;
         var text = tb.Text ?? string.Empty;
-        if (text.Length == 0) return;
+        if (text.Length == 0)
+        {
+            ViewModel.StatusText = "The document is empty: nothing to clean up.";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
+            return;
+        }
 
         var hadCrlf = text.Contains("\r\n");
         var norm = text.Replace("\r\n", "\n").Replace('\r', '\n'); // the TextBox's own breaks are a bare '\r'
@@ -14930,10 +14949,10 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         var result = string.Join("\n", cleaned);
         if (hadCrlf) result = result.Replace("\n", "\r\n");
         var caret = Math.Clamp(tb.SelectionStart, 0, result.Length);
-        tb.Text = result;
-        tb.SelectionStart = caret;
-        tb.SelectionLength = 0;
-        ViewModel.StatusText = $"Cleaned up {changes} issue{(changes == 1 ? "" : "s")} (trailing spaces, blank-line runs).";
+        // Setting Text directly jumped the editor to the top and merged the cleanup into the typing undo
+        // burst; ApplyEditorTextEdit keeps the scroll position and makes it its own Ctrl+Z step.
+        ApplyEditorTextEdit(result, caret, 0);
+        ViewModel.StatusText = $"Cleaned up {MarkSmith.Services.CountText.Of(changes, "issue")} (trailing spaces, blank-line runs) · Ctrl+Z to undo";
         ViewModel.StatusSeverity = Models.StatusSeverity.Success;
     }
 
