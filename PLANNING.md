@@ -18483,3 +18483,7 @@ user-facing notes prepended to the generated body
 
 **Total user-visible improvements: 8** (4 in the main window's status bar / Diagnostics, 1 in Insert ▸ SmartArt,
 3 in Shape Studio).
+
+**Release (same run):** tagged **v3.74.0** on `525ac3b`; Release workflow run 40193157336 succeeded;
+user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.74.0). `MarksmithBaseVersion` is now 3.75.0.
