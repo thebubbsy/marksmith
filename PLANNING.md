@@ -18707,3 +18707,7 @@ mouse: UIA patterns + PrintWindow only.
    right-click menu, and SmartArt Markdown-box Ctrl+Z after "Sort A→Z".
 
 **Total user-visible improvements: 12** (6 in Find / Replace, 3 in Tools line editing, 3 in the status bar).
+
+**Release (same run):** tagged **v3.76.0** on `a2f226d`; Release workflow run 40202706943 succeeded;
+user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.76.0). `MarksmithBaseVersion` is now 3.77.0.
