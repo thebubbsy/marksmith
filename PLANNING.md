@@ -19151,3 +19151,7 @@ alone, since they can't fire).
 3. Review studio status bar timeouts across long notices to ensure readability before dismiss.
 
 **Total user-visible improvements: 15** (1 Version History, 2 OCR, 3 Document Galaxy, 4 Shape Studio, 5 main window).
+
+**Release (same run):** tagged **v3.80.0** on `f0329db` (part 1, items 1-9); Release workflow run 40235599545 succeeded; user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.80.0). Part 2 (`2fa2af7`, items 10-15, committed by the concurrent agent while the release built) is not in
+v3.80.0 and ships in the next tag. `MarksmithBaseVersion` is now 3.81.0.
