@@ -17593,3 +17593,98 @@ OptionRow, the plugin card, ExtensionHintBar / ExtensionTip, WelcomeTour and the
 **Release (same run):** tagged **v3.66.0** on `600ae31`; Release workflow run 40162652713 succeeded;
 user-facing notes prepended to the generated body
 (https://github.com/thebubbsy/marksmith/releases/tag/v3.66.0). `MarksmithBaseVersion` is now 3.67.0.
+
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #252 (2026-10-25, 16:00–17:00 AEDT)
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running in the Claude desktop app. The task template asks for
+  "Antigravity AI Agent (Google DeepMind)"; that would be untrue for this run, so the real identity is recorded.
+- Modes: Scheduled Hourly Automation Routine (bypass-permissions, no live user)
+- Trigger: scheduled task `commit-to-main-ship-improvement--r4efinement`
+- Agents used: 1 (one session acting as orchestrator, coding worker and skeptical reviewer; no
+  subagents). Session `5bfe61bd-e077-4688-b320-f1ae865b0289`.
+- Worked in the clean clone `%TEMP%\ms249` (already at `origin/main` ec22623). The local checkout (far behind,
+  with another session's uncommitted edits and `EverythingHttpPlugin/*`) was not touched. `%TEMP%\ms_run251`
+  was deleted first (6.4 GB free on C:).
+
+**Reviewed:** run #251's Next up. Item 1 (remaining `PreviewKeyDown` handlers): OCR Studio already guards its
+root handler; the Insert dialog body's PreviewKeyDown only records whether a combo dropdown is open; Mind Map's
+tag-pill handler is control-level. None needed a change. The audit then moved to the other leak run #251 found,
+**`KeyboardAccelerator`s**. Only two places declare them: Diagram Studio (guarded by run #251, except two
+lambdas built in code) and the main window (33 accelerators, none guarded). Items 2 and 3 were not done.
+
+**Baseline first** (`%TEMP%\ms_run252\base`, unmodified ec22623, PID 29932, live keys after 30 s idle):
+- Word-count menu open ▸ F11: focus mode turned **On** behind the open menu.
+- Same menu ▸ Ctrl+F: the find bar opened and took focus, and the menu stayed open; after Esc it was **still
+  open** (stranded), with focus back in the editor.
+- Editor ▸ Shift+F10 (text menu open, focus on "Undo") ▸ Ctrl+B: `****` was inserted behind the menu and the
+  menu closed. Ctrl+1 then turned the line into a heading.
+- Go to line dialog ▸ F11: focus mode did **not** change. Dialogs don't leak, so nothing was claimed for them.
+
+**Delivered (user-visible):**
+1. **F11 in an open menu no longer toggles focus mode behind it.**
+2. **Ctrl+F / Ctrl+H / F3 in an open menu no longer open the find bar and leave the menu stranded.**
+3. **Ctrl+B / Ctrl+I in the editor's text menu no longer wrap the text behind it in `**` / `*`.** The keys
+   are the menu's, and the menu stays open.
+4. **Ctrl+1–4, Ctrl+Z and Ctrl+Y in the editor's text menu no longer change headings or undo behind it.**
+5. **The window-wide shortcuts stay out of open menus too.** Export (Ctrl+E, Ctrl+Shift+E / D / P / T),
+   email draft (Ctrl+Shift+O), Open (Ctrl+O), Save (Ctrl+S), Print (Ctrl+P), Diagram Studio (Ctrl+Shift+M),
+   shortcuts sheet (F1), Settings (Ctrl+,), Alt+Up / Alt+Down / Ctrl+D line moves and the portal-blur and debug
+   toggles all came from the same unguarded accelerators. Ctrl+K pressed while the command palette is open still
+   closes it (the palette is itself a popup, so it is exempt).
+6. **Diagram Studio: Ctrl+[ / Ctrl+] (and with Shift) no longer reorder the selected shape behind an open
+   menu.** These four accelerators are built in code and were missed by run #251's guard.
+
+**Implementation summary.**
+- `MainWindow.xaml.cs`: new `PopupOwnsKeys()` (`PopupKeys.FocusIsOutside(RootGrid)`). All 24 handlers named by
+  `Invoked=` in `MainWindow.xaml` (the root grid's and the editor TextBox's) now start with
+  `if (PopupOwnsKeys()) return;`. `OnCommandPaletteInvoked` uses
+  `if (!Controls.CommandPalette.IsOpen && PopupOwnsKeys()) return;`. The code-built Ctrl+, accelerator is
+  guarded too.
+- `Views/Mermaid/MermaidDiagramStudioControl.xaml.cs`: the z-order lambda starts with `if (MenuOwnsKeys()) return;`.
+- Tests: new `Run252WindowAcceleratorsInPopupsTests` (5 cases). Every main-window `Invoked=` handler starts with
+  the guard. The palette exemption is in place. Ctrl+, is guarded before `OnSettingsClick`. No guard line sets
+  `Handled`. Every Diagram Studio `accel.Invoked` lambda starts with `MenuOwnsKeys()`.
+
+**Skeptical review.**
+- Focus traps: nothing collapses or disables a control.
+- Key swallowing: every guard only `return`s without `Handled`, so the menu gets the key exactly as before.
+  With focus in the editor, find bar or any control inside RootGrid, `FocusIsOutside` is false and the
+  shortcuts behave as before. The undo handler's "always mark handled" rule still holds whenever focus is in the
+  editor; when focus is in the menu, the TextBox's native undo can't run either.
+- No handler is called directly from a menu item or button (grep for every handler name), so the guard can't
+  block a menu command that reuses one.
+- Behaviour change to know about: shortcuts typed inside the command palette's search box (other than Ctrl+K)
+  no longer reach the window. Run #251 already made the same trade for Ctrl+G / Ctrl+/.
+- HoverPolish / theme / files / async: nothing added.
+
+**Verified.**
+- Build: Desktop built to `%TEMP%\ms_run252\b` with 0 errors (baseline to `%TEMP%\ms_run252\base`).
+- Tests: targeted sweep (Run252, Run251, Run250, KeyboardShortcut, Mermaid): 385/385 passed. Full suite:
+  6015 passed, 1 skipped and 7 failed. The 7 failures are all `GovernanceDocsSyncTests`; they fail the same way
+  on a clean clone because the governance docs are gitignored (run #249 logged the same 7).
+- Live: the baseline repro above (UIA + real keys, PID 29932, `MARKSMITH_CONFIG_DIR` in the session scratchpad,
+  no other Marksmith running). The scratch window was found **minimized** partway through (most likely by the
+  user), so it was restored and the editor-menu check re-run.
+- **Not verified live on the fixed build.** Right after the fixed build (PID 25728) launched, the PC locked
+  (LogonUI running, no foreground window), so SendKeys could not reach it. A watcher waited 28 minutes and the PC
+  stayed locked. A UIA-only smoke check passed: the process was responding, the main window and its controls
+  were present, and the type-name scan was clean. PID 25728 was then stopped. The fix is covered by the source
+  tests above, and the baseline repro shows the bug.
+
+**Noticed, not fixed:**
+- Diagram Studio z-order in a menu could not be shown live: the scripted click landed on Templates rather than a
+  node, and the z-order status text isn't exposed to UIA.
+- `CommandPalette` keeps its own `OnPreviewKeyDown`; menus opened from palette rows are popups of a popup, and
+  were not audited.
+
+**Next up (Run #253):**
+1. Live check of this run's fix if it was not verified (it was not verified this run): word-count menu ▸ F11 / Ctrl+F, and the
+   editor text menu ▸ Ctrl+B / Ctrl+1, then the same keys with no menu open.
+2. Run #251's item 2: Diagram Studio Delete / Ctrl+Z with no menu open, and the Preset combo name with a seeded
+   presets.json.
+3. Run #250's item 1: live keyboard pass on the SmartArt / Mind Map guards.
+
+**Total user-visible improvements: 6.**

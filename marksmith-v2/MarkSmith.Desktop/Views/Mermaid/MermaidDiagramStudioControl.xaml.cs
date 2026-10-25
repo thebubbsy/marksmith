@@ -100,6 +100,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
             bool isShift = shift, isForward = forward;
             accel.Invoked += (_, args) =>
             {
+                if (MenuOwnsKeys()) return;
                 if (IsEditingText()) return;
                 if (isForward)
                 {

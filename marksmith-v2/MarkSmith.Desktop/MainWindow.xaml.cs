@@ -351,6 +351,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         settingsAccelerator.Invoked += (_, args) =>
         {
+            if (PopupOwnsKeys()) return;
             args.Handled = true;
             OnSettingsClick(this, new RoutedEventArgs());
         };
@@ -1509,6 +1510,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // Looking Glass share one TextBox).
     private void OnUndoAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (PopupOwnsKeys()) return;
         // ALWAYS mark handled: even with an empty app stack, Ctrl+Z must never fall through to the
         // TextBox's native undo — it has its own (never-populated) stack, so falling through would
         // pop a "ghost" step that moves the text the wrong way.
@@ -1520,6 +1522,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private void OnRedoAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (PopupOwnsKeys()) return;
         args.Handled = true;
         var snap = ViewModel.RedoStep();
         if (snap is null) return;
@@ -3575,6 +3578,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // developer/test path for exercising the free-vs-pro gates on demand.
     private void OnDevProToggleInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (PopupOwnsKeys()) return;
         args.Handled = true;
         var (pro, message) = App.License.ToggleDevPro();
         ViewModel.StatusText = message;
@@ -3584,6 +3588,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private void OnHiddenResetLicenseInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (PopupOwnsKeys()) return;
         args.Handled = true;
 #if !DEBUG
         // Go-live: the hidden reset (which refunds the trial) is a developer affordance — dead in
@@ -5846,6 +5851,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private void OnToggleDebugModeInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (PopupOwnsKeys()) return;
         ViewModel.IsDebugModeEnabled = !ViewModel.IsDebugModeEnabled;
         ViewModel.StatusText = ViewModel.IsDebugModeEnabled ? "Debug Mode Enabled (HTML logging active)" : "Debug Mode Disabled";
         ViewModel.StatusSeverity = ViewModel.IsDebugModeEnabled ? Models.StatusSeverity.Warning : Models.StatusSeverity.Informational;
@@ -5856,33 +5862,44 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private void OnOpenFileAcceleratorInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (PopupOwnsKeys()) return;
         OnBrowseFileClick(this, new RoutedEventArgs());
         args.Handled = true;
     }
 
     private void OnGeneratePdfAcceleratorInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (PopupOwnsKeys()) return;
         if (ViewModel.IsNotBusy) _ = ViewModel.ConvertToPdfAsync();
         args.Handled = true;
     }
 
     private void OnExportDocxAcceleratorInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (PopupOwnsKeys()) return;
         if (ViewModel.IsNotBusy) _ = ViewModel.ConvertToDocxAsync();
         args.Handled = true;
     }
 
     private void OnExportPptxAcceleratorInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (PopupOwnsKeys()) return;
         if (ViewModel.IsNotBusy) _ = ViewModel.ConvertToPptxAsync();
         args.Handled = true;
     }
 
     private void OnMermaidStudioAcceleratorInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (PopupOwnsKeys()) return;
         OnOpenMermaidStudioClick(this, new RoutedEventArgs());
         args.Handled = true;
     }
+
+    // A menu or flyout opened from the window lives in a popup outside RootGrid, but the window's
+    // KeyboardAccelerators still fire for keys pressed in it: F11 toggled focus mode and Ctrl+F opened the
+    // find bar behind an open menu, and Ctrl+B in the editor's own text menu bolded the text behind it.
+    // Those keys are the popup's. (Ctrl+K still closes the command palette, which is itself a popup.)
+    private bool PopupOwnsKeys() => PopupKeys.FocusIsOutside(RootGrid);
 
     private void OnRootPreviewKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
     {
@@ -5944,18 +5961,21 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private void OnShortcutsCheatsheetInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (PopupOwnsKeys()) return;
         _ = ShowShortcutsCheatsheetAsync();
         args.Handled = true;
     }
 
     private void OnCommandPaletteInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (!Controls.CommandPalette.IsOpen && PopupOwnsKeys()) return;
         _ = ShowCommandPaletteAsync();
         args.Handled = true;
     }
 
     private void OnSaveDocumentAcceleratorInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (PopupOwnsKeys()) return;
         _ = SaveDocumentToFileAsync();
         args.Handled = true;
     }
@@ -6062,6 +6082,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private void OnFindAcceleratorInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (PopupOwnsKeys()) return;
         ShowFindBar();
         args.Handled = true;
     }
@@ -6549,6 +6570,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private void OnEmailDraftAcceleratorInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (PopupOwnsKeys()) return;
         if (ViewModel.IsNotBusy) _ = ViewModel.CreateEmailDraftAsync();
         args.Handled = true;
     }
@@ -9798,6 +9820,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // no query yet it opens the find bar instead.
     private void OnFindNextAcceleratorInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (PopupOwnsKeys()) return;
         args.Handled = true;
         if (string.IsNullOrEmpty(FindTextBox.Text)) { ShowFindBar(); return; }
         if (FindBar.Visibility != Visibility.Visible)
@@ -10007,6 +10030,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private void OnReplaceAcceleratorInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (PopupOwnsKeys()) return;
         ShowFindBar(replace: true);
         args.Handled = true;
     }
@@ -14995,6 +15019,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
 
     private void OnMoveLineUpAcceleratorInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (PopupOwnsKeys()) return;
         if (!EditorHasFocus()) return;
         MoveSelectedLines(-1);
         args.Handled = true;
@@ -15002,6 +15027,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
 
     private void OnMoveLineDownAcceleratorInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (PopupOwnsKeys()) return;
         if (!EditorHasFocus()) return;
         MoveSelectedLines(1);
         args.Handled = true;
@@ -15009,6 +15035,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
 
     private void OnDuplicateLineAcceleratorInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (PopupOwnsKeys()) return;
         if (!EditorHasFocus()) return;
         DuplicateCurrentLines();
         args.Handled = true;
@@ -15167,6 +15194,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
 
     private void OnFocusModeAcceleratorInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (PopupOwnsKeys()) return;
         if (FocusModeToggle != null) FocusModeToggle.IsChecked = FocusModeToggle.IsChecked != true;
         args.Handled = true;
     }
@@ -15294,6 +15322,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
     // Ctrl+Alt+X: toggle the Looking Glass portal's surrounding focus blur.
     private void OnTogglePortalBlurInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (PopupOwnsKeys()) return;
         ViewModel.PortalFocusBlur = !ViewModel.PortalFocusBlur;
         PushPortalBlurToPage(ViewModel.PortalFocusBlur, ViewModel.PortalSurroundBlurRadius);
         args.Handled = true;
@@ -15396,6 +15425,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
 
     private void OnPrintAcceleratorInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (PopupOwnsKeys()) return;
         PrintDocument();
         args.Handled = true;
     }
@@ -16350,6 +16380,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
     // Ctrl+B / Ctrl+I / Ctrl+1-4 (editor-scoped accelerators, listed in Core's KeyboardShortcuts).
     private void OnFormatAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (PopupOwnsKeys()) return;
         args.Handled = true;
         switch (sender.Key)
         {
