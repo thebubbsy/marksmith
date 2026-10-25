@@ -90,6 +90,10 @@ namespace MarkSmith.Views.SmartArtStudio
                 (PreviewZoomResetBtn, OnPreviewZoomResetRightTapped),
                 (OutlineStatsPill, OnOutlineStatsPillRightTapped),
                 (OutlineMetricsPill, OnOutlineMetricsPillRightTapped));
+            // Options menus that keep Cut / Copy / Paste over a selection and open from Shift+F10;
+            // their RightTapped handlers replaced the text menu and were mouse only.
+            TextBoxMenu.Attach(MarkdownTextBox, FillMarkdownTextBoxMenu);
+            TextBoxMenu.AttachInner(LayoutSearch, FillLayoutSearchMenu);
             CloseGuard.Attach(this, () => ViewModel.HasUnkeptWork, () =>
             {
                 ViewModel.InsertIntoDocument();
@@ -272,11 +276,8 @@ namespace MarkSmith.Views.SmartArtStudio
             }
         }
 
-        private void OnLayoutSearchRightTapped(object sender, RightTappedRoutedEventArgs e)
+        private void FillLayoutSearchMenu(MenuFlyout menu)
         {
-            e.Handled = true;
-            var menu = new MenuFlyout();
-
             var copyQueryItem = new MenuFlyoutItem
             {
                 Text = "Copy search query",
@@ -375,8 +376,6 @@ namespace MarkSmith.Views.SmartArtStudio
             };
             focusOutlineItem.Click += (_, _) => OutlineScroll.Focus(FocusState.Keyboard);
             menu.Items.Add(focusOutlineItem);
-
-            menu.ShowAt(LayoutSearch, e.GetPosition(LayoutSearch));
         }
 
         private void OnLayoutCategoryComboKeyDown(object sender, KeyRoutedEventArgs e)
@@ -2030,6 +2029,13 @@ namespace MarkSmith.Views.SmartArtStudio
 
         private void OnRenameLostFocus(object sender, RoutedEventArgs e) => ViewModel.CommitRename();
 
+        private static bool IsWithinTextBox(DependencyObject? element)
+        {
+            for (; element is not null; element = VisualTreeHelper.GetParent(element))
+                if (element is TextBox) return true;
+            return false;
+        }
+
         private void OnRenameTextBoxDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
         {
             if (sender is TextBox tb)
@@ -2039,11 +2045,15 @@ namespace MarkSmith.Views.SmartArtStudio
             }
         }
 
-        private void OnRenameTextBoxRightTapped(object sender, RightTappedRoutedEventArgs e)
+        // Rename boxes live in the row template, so each gets its menu as it loads; TextBoxMenu
+        // ignores the repeat Loaded of a recycled row.
+        private void OnRenameTextBoxLoaded(object sender, RoutedEventArgs e)
         {
-            if (sender is not TextBox tb) return;
-            e.Handled = true;
-            var menu = new MenuFlyout();
+            if (sender is TextBox tb) TextBoxMenu.Attach(tb, menu => FillRenameTextBoxMenu(tb, menu));
+        }
+
+        private void FillRenameTextBoxMenu(TextBox tb, MenuFlyout menu)
+        {
             string text = tb.Text ?? "";
             bool hasText = !string.IsNullOrEmpty(text);
 
@@ -2113,14 +2123,14 @@ namespace MarkSmith.Views.SmartArtStudio
             var selectAllItem = new MenuFlyoutItem { Text = "Select all", Icon = new FontIcon { Glyph = "\uE8B3" }, IsEnabled = hasText };
             selectAllItem.Click += (_, _) => tb.SelectAll();
             menu.Items.Add(selectAllItem);
-
-            menu.ShowAt(tb, e.GetPosition(tb));
         }
 
         // ------------------------------------------------------------------ context menus
 
         private void OnRowRightTapped(object sender, RightTappedRoutedEventArgs e)
         {
+            // A right-click in the rename box is the box's own (text or casing) menu.
+            if (e.OriginalSource is DependencyObject source && IsWithinTextBox(source)) return;
             if (sender is FrameworkElement fe && fe.DataContext is StudioNodeViewModel node)
             {
                 ViewModel.Select(node);
@@ -2133,6 +2143,7 @@ namespace MarkSmith.Views.SmartArtStudio
         private void OnOutlineAreaRightTapped(object sender, RightTappedRoutedEventArgs e)
         {
             if (e.Handled) return;
+            if (e.OriginalSource is DependencyObject source && IsWithinTextBox(source)) return;
             ShowOutlineAreaContextMenu(OutlineScroll, e.GetPosition(OutlineScroll));
             e.Handled = true;
         }
@@ -3093,19 +3104,9 @@ namespace MarkSmith.Views.SmartArtStudio
             MarkdownTextBox?.SelectAll();
         }
 
-        private void OnMarkdownTextBoxRightTapped(object sender, RightTappedRoutedEventArgs e)
+        private void FillMarkdownTextBoxMenu(MenuFlyout menu)
         {
             if (MarkdownTextBox is null) return;
-            if (!string.IsNullOrEmpty(MarkdownTextBox.SelectedText)) return;
-            e.Handled = true;
-            ShowMarkdownTextBoxContextMenu(e.GetPosition(MarkdownTextBox));
-        }
-
-        private void ShowMarkdownTextBoxContextMenu(Windows.Foundation.Point? position)
-        {
-            if (MarkdownTextBox is null) return;
-            var menu = new MenuFlyout();
-
             var insertItem = new MenuFlyoutItem
             {
                 Text = "Insert into document",
@@ -3239,9 +3240,6 @@ namespace MarkSmith.Views.SmartArtStudio
                 EditorTabs.SelectedItem = OutlineTab;
             };
             menu.Items.Add(switchToOutlineItem);
-
-            if (position.HasValue) menu.ShowAt(MarkdownTextBox, position.Value);
-            else menu.ShowAt(MarkdownTextBox);
         }
 
         private void OnStatusBarDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)

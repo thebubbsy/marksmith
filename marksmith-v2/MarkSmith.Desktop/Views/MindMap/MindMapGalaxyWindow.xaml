@@ -964,8 +964,7 @@
                                     <TextBox x:Name="NodeIconBox" Grid.Column="0" Text="{Binding Icon, Mode=TwoWay}" MaxLength="4" HorizontalAlignment="Stretch" TextAlignment="Center"
                                              FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Emoji, Segoe UI"
                                              DoubleTapped="OnNodeIconBoxDoubleTapped"
-                                             RightTapped="OnNodeIconBoxRightTapped"
-                                             ToolTipService.ToolTip="An emoji or Segoe Fluent icon · Double-click to clear/default · Right-click or use picker for presets" KeyDown="OnInspectorFieldKeyDown">
+                                             ToolTipService.ToolTip="An emoji or Segoe Fluent icon · Double-click to clear/default · Right-click, Shift+F10 or the picker for presets" KeyDown="OnInspectorFieldKeyDown">
                                         <TextBox.Header>
                                             <TextBlock Text="Icon" FontFamily="{ThemeResource ContentControlThemeFontFamily}" />
                                         </TextBox.Header>

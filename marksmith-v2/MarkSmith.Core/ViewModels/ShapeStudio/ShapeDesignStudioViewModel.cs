@@ -59,6 +59,7 @@ public partial class ShapeCanvasItemViewModel : ObservableObject
     private string _text = "";
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RotationLabel))]
     private int _rotation;
 
     [ObservableProperty]
@@ -126,6 +127,9 @@ public partial class ShapeCanvasItemViewModel : ObservableObject
 
     /// <summary>A connector or drawn line: it has a colour and a weight rather than a fill.</summary>
     public bool IsLine => PathPoints is { Count: >= 2 } || string.Equals(Prst, "line", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Accessible name for the inspector's rotation readout button, e.g. "Rotation 45°".</summary>
+    public string RotationLabel => $"Rotation {Rotation}°";
 
     /// <summary>The inspector's colour row: "Fill" for shapes, "Colour" for lines.</summary>
     public string ColourLabel => IsLine ? "Colour" : "Fill";

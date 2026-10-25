@@ -142,6 +142,7 @@ namespace MarkSmith.Views.MindMap
             TextBoxMenu.Attach(TitleBox, FillTitleBoxMenu);
             TextBoxMenu.Attach(TagsBox, FillTagsBoxMenu);
             TextBoxMenu.Attach(LinkLabelBox, FillLinkLabelBoxMenu);
+            TextBoxMenu.Attach(NodeIconBox, FillNodeIconMenu);
             UnsavedBadge.RegisterPropertyChangedCallback(UIElement.VisibilityProperty, (_, _) => MoveFocusOffUnsavedBadge());
             SearchStepperPill.RegisterPropertyChangedCallback(UIElement.VisibilityProperty, (_, _) => MoveFocusOffSearchStepperPill());
             var iconPath = System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "app.ico");
@@ -765,8 +766,14 @@ namespace MarkSmith.Views.MindMap
 
         private void ShowNodeIconPickerFlyout(FrameworkElement target, Point pos)
         {
-            if (ViewModel.SelectedNode is not { } node) return;
             var menu = new MenuFlyout();
+            FillNodeIconMenu(menu);
+            if (menu.Items.Count > 0) menu.ShowAt(target, pos);
+        }
+
+        private void FillNodeIconMenu(MenuFlyout menu)
+        {
+            if (ViewModel.SelectedNode is not { } node) return;
 
             void ApplyIcon(string glyph, string label)
             {
@@ -817,8 +824,6 @@ namespace MarkSmith.Views.MindMap
             clearItem.IsEnabled = !string.IsNullOrEmpty(node.Icon);
             clearItem.Click += (_, _) => ApplyIcon(string.Empty, "Clear");
             menu.Items.Add(clearItem);
-
-            menu.ShowAt(target, pos);
 
             void AddIconItem(MenuFlyoutSubItem parent, string text, string glyph, Action act)
             {

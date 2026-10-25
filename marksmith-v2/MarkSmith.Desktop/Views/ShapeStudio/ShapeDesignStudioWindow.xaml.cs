@@ -152,11 +152,19 @@ namespace MarkSmith.Views.ShapeStudio
                 (FillSwatchButton, OnFillSwatchButtonRightTapped),
                 (RotationSlider, OnRotationSliderRightTapped),
                 (ResetRotationButton, OnResetRotationButtonRightTapped),
+                (RotationReadoutButton, OnResetRotationButtonRightTapped),
                 (ZoomButton, OnZoomButtonRightTapped));
             // Options menus that keep Cut / Copy / Paste over a selection and open from Shift+F10;
             // their RightTapped handlers replaced the text menu and were mouse only.
             TextBoxMenu.Attach(LabelTextBox, FillLabelTextBoxMenu);
             TextBoxMenu.Attach(FuseImagePathBox, FillFuseImagePathBoxMenu);
+            TextBoxMenu.Attach(FillHexBox, FillFillHexBoxMenu);
+            // The number boxes' menus go on the TextBox inside each one's template.
+            TextBoxMenu.AttachInner(PositionXNumberBox, FillPositionNumberBoxMenu);
+            TextBoxMenu.AttachInner(PositionYNumberBox, FillPositionNumberBoxMenu);
+            TextBoxMenu.AttachInner(SizeWidthNumberBox, FillSizeNumberBoxMenu);
+            TextBoxMenu.AttachInner(SizeHeightNumberBox, FillSizeNumberBoxMenu);
+            TextBoxMenu.AttachInner(StrokeWeightNumberBox, FillStrokeWeightMenu);
             CloseGuard.Attach(this, () => ViewModel.HasUnkeptWork, () =>
             {
                 ViewModel.InsertIntoDocument();
@@ -659,6 +667,10 @@ namespace MarkSmith.Views.ShapeStudio
         private void OnRootPreviewKeyDown(object sender, KeyRoutedEventArgs e)
         {
             var focused = FocusManager.GetFocusedElement(this.RootGrid.XamlRoot);
+            // An open menu or flyout routes its keys through here too (its popup sits outside RootGrid).
+            // They are its own: Esc closes it, Delete and Ctrl+C / V / Z act inside it. Esc used to
+            // clear the selection behind a still-open menu, and Delete removed the selected shapes.
+            if (focused is DependencyObject f && !IsWithinRootGrid(f)) return;
             bool ctrl = IsDown(VirtualKey.Control);
             bool shift = IsDown(VirtualKey.Shift);
 
@@ -843,6 +855,13 @@ namespace MarkSmith.Views.ShapeStudio
         private static bool IsDown(VirtualKey key) =>
             Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(key)
                 .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+
+        private bool IsWithinRootGrid(DependencyObject? obj)
+        {
+            for (; obj is not null; obj = VisualTreeHelper.GetParent(obj))
+                if (ReferenceEquals(obj, RootGrid)) return true;
+            return false;
+        }
 
         private static bool IsInsideNumberBox(DependencyObject? obj)
         {
@@ -4201,16 +4220,23 @@ namespace MarkSmith.Views.ShapeStudio
             ShowFillQuickPaletteMenu(sender as FrameworkElement ?? FillSwatchButton, shape, KeyboardContextMenu.PointIn(e, sender as UIElement));
         }
 
-        private void OnFillHexBoxRightTapped(object sender, RightTappedRoutedEventArgs e)
+        private void FillFillHexBoxMenu(MenuFlyout flyout)
         {
-            e.Handled = true;
-            if (ViewModel.SelectedShape is not { } shape) return;
-            ShowFillQuickPaletteMenu(sender as FrameworkElement ?? FillHexBox, shape, e.GetPosition(sender as UIElement));
+            if (ViewModel.SelectedShape is { } shape) FillFillQuickPaletteMenu(flyout, shape);
         }
 
         private void ShowFillQuickPaletteMenu(FrameworkElement target, ShapeCanvasItemViewModel shape, Windows.Foundation.Point? position = null)
         {
             var flyout = new MenuFlyout();
+            FillFillQuickPaletteMenu(flyout, shape);
+            if (position.HasValue)
+                flyout.ShowAt(target, position.Value);
+            else
+                flyout.ShowAt(target);
+        }
+
+        private void FillFillQuickPaletteMenu(MenuFlyout flyout, ShapeCanvasItemViewModel shape)
+        {
             bool isLine = shape.IsLine;
             string kind = isLine ? "line" : "fill";
             string currentHex = (shape.Fill ?? (isLine ? "666666" : "0078D4")).TrimStart('#').ToUpperInvariant();
@@ -4296,11 +4322,6 @@ namespace MarkSmith.Views.ShapeStudio
                 shape.Fill = isLine ? "666666" : "0078D4";
                 ViewModel.StatusMessage = $"Reset {(isLine ? "line" : "fill")} colour";
             }));
-
-            if (position.HasValue)
-                flyout.ShowAt(target, position.Value);
-            else
-                flyout.ShowAt(target);
         }
 
         private void OnResetRotationButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -4355,6 +4376,9 @@ namespace MarkSmith.Views.ShapeStudio
             ViewModel.ResetRotation();
         }
 
+        private void OnRotationReadoutButtonClick(object sender, RoutedEventArgs e) =>
+            KeyboardContextMenu.Invoke(RotationReadoutButton, OnResetRotationButtonRightTapped);
+
         private void OnRotationSliderRightTapped(object sender, RightTappedRoutedEventArgs e)
         {
             e.Handled = true;
@@ -4371,12 +4395,8 @@ namespace MarkSmith.Views.ShapeStudio
             }
         }
 
-        private void OnStrokeWeightRightTapped(object sender, RightTappedRoutedEventArgs e)
+        private void FillStrokeWeightMenu(MenuFlyout flyout)
         {
-            e.Handled = true;
-            if (sender is not FrameworkElement target) return;
-            var flyout = new MenuFlyout();
-
             void SetWeight(double pt)
             {
                 if (ViewModel.SelectedShape is { } s)
@@ -4403,8 +4423,6 @@ namespace MarkSmith.Views.ShapeStudio
                     CopyAndReport($"{s.StrokeWidthPt:0.##} pt", $"Copied line weight {s.StrokeWidthPt:0.##} pt to clipboard.");
                 }
             }));
-
-            flyout.ShowAt(target, e.GetPosition(target));
         }
 
         private void OnNumberBoxDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
@@ -4416,12 +4434,8 @@ namespace MarkSmith.Views.ShapeStudio
             }
         }
 
-        private void OnPositionNumberBoxRightTapped(object sender, RightTappedRoutedEventArgs e)
+        private void FillPositionNumberBoxMenu(MenuFlyout flyout)
         {
-            e.Handled = true;
-            if (sender is not FrameworkElement target) return;
-            var flyout = new MenuFlyout();
-
             flyout.Items.Add(ShapeMenuItem("Align to left edge (X = 0)", "\uE8E4", () =>
             {
                 if (ViewModel.SelectedShape is { } s)
@@ -4471,16 +4485,10 @@ namespace MarkSmith.Views.ShapeStudio
                     CopyAndReport($"X={s.X:0}, Y={s.Y:0}", $"Copied position (X={s.X:0}, Y={s.Y:0})");
                 }
             }));
-
-            flyout.ShowAt(target, e.GetPosition(target));
         }
 
-        private void OnSizeNumberBoxRightTapped(object sender, RightTappedRoutedEventArgs e)
+        private void FillSizeNumberBoxMenu(MenuFlyout flyout)
         {
-            e.Handled = true;
-            if (sender is not FrameworkElement target) return;
-            var flyout = new MenuFlyout();
-
             void SetSize(double w, double h)
             {
                 if (ViewModel.SelectedShape is { } s)
@@ -4513,8 +4521,6 @@ namespace MarkSmith.Views.ShapeStudio
                     CopyAndReport($"W={s.Width:0}, H={s.Height:0}", $"Copied dimensions ({s.Width:0} × {s.Height:0})");
                 }
             }));
-
-            flyout.ShowAt(target, e.GetPosition(target));
         }
 
         private static T? FindDescendant<T>(DependencyObject? parent) where T : DependencyObject

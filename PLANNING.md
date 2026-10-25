@@ -17237,3 +17237,124 @@ again: the workstation was locked for the whole run.
 **Release (same run):** tagged **v3.63.0** on `3731030`; Release workflow run 40070089544 succeeded;
 user-facing notes prepended to the generated body
 (https://github.com/thebubbsy/marksmith/releases/tag/v3.63.0). `MarksmithBaseVersion` is now 3.64.0.
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #249 (2026-10-25, 13:15–14:05 AEDT)
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running in the Claude desktop app. The task template asks for
+  "Antigravity AI Agent (Google DeepMind)"; that would be untrue for this run, so the real identity is recorded.
+- Modes: Scheduled Hourly Automation Routine (bypass-permissions, no live user)
+- Trigger: scheduled task `commit-to-main-ship-improvement--r4efinement`
+- Agents used: 1 (one session acting as orchestrator, coding worker and skeptical reviewer; no
+  subagents). Session `3789dd17-ac11-4d65-871c-5ac629d19ca3`.
+- Worked in run #248's clean clone (renamed `%TEMP%\ms249`, at `origin/main` 4737971). The local checkout is
+  still far behind with another session's uncommitted edits; it was not touched. `ms_run248` was deleted first
+  (the TEMP drive had 5 GB free).
+
+**Reviewed:** run #248's Next up. Item 2 (a `TextBoxMenu` overload for NumberBox) and item 3 (SmartArt's
+Markdown box, rename boxes and `LayoutSearch`) are done. Item 1 (live keyboard pass) was partly done: the
+workstation was unlocked, so real Shift+F10 / End / Down / Delete / Esc keys went to the Shape Studio
+inspector. That pass found item 1 below.
+
+**Delivered (user-visible):**
+1. **Shape Studio: Esc closes an open menu, and keys in a menu stay in it.** Live check: with the X box's
+   menu open, Esc didn't close it. The window's `OnRootPreviewKeyDown` cleared the shape selection instead, and
+   the inspector collapsed under a menu that stayed on screen. A flyout's keys tunnel through its target's
+   ancestors, so RootGrid's handler saw them first. Delete / Backspace in any studio menu therefore deleted the
+   selected shapes, and Ctrl+C / V / Z / Y ran behind the menu. The handler now returns when focus isn't inside
+   `RootGrid`, which covers menus, flyouts and dialogs.
+2. **Shape Studio: the X / Y and W / H boxes keep their text menu and open their options from Shift+F10.**
+   Their RightTapped menus were mouse only, and they replaced Cut / Copy / Paste even over selected digits. The new
+   `TextBoxMenu.AttachInner` puts the shared menu on the TextBox inside the NumberBox template. With a caret,
+   right-click, Shift+F10 and the Menu key open Align / Centre / Copy position or the size presets. With a
+   selection they open the stock text menu.
+3. **Shape Studio: the line-weight box and the fill hex box work the same way.** The hex box's menu builder is
+   now shared with the swatch button (`FillFillQuickPaletteMenu`).
+4. **Shape Studio: the rotation readout is a button.** "0°" was a TextBlock with right-click and double-click
+   handlers only. It is now a link-style button. Click, right-click, Shift+F10 and the Menu key open the angle
+   presets, and it is bridged. Screen readers hear "Rotation 45°" (new Core `ShapeCanvasItemViewModel.RotationLabel`).
+   Without that name, UIA had fallen back to the tooltip text. The readout's double-click reset was dropped, so
+   one gesture does one thing; the menu's first item is Reset.
+5. **SmartArt Studio: the Markdown box and the layout search** use `TextBoxMenu` (the search uses `AttachInner`
+   on the AutoSuggestBox). Their options open from Shift+F10, and a selection keeps the text menu.
+6. **SmartArt Studio: the outline rename box** gets its casing menu from `TextBoxMenu` on Loaded. The row and the
+   outline area's RightTapped handlers now ignore clicks from inside a TextBox. Before, the row handled the click,
+   and its menu would have replaced the box's.
+7. **Mind Map: the node icon box** uses `TextBoxMenu` with the picker's icon menu (`FillNodeIconMenu`, shared with
+   the picker button, which shows nothing when no node is selected).
+
+**Implementation summary.**
+- `Services/TextBoxMenu.cs`:
+  - `Attach` is idempotent through a `ConditionalWeakTable`. A templated box re-attached on a recycled Loaded
+    would otherwise capture the options menu as its "text" menu.
+  - New `AttachInner(Control host, fill)` finds the template's TextBox now (after `ApplyTemplate`) or on Loaded.
+- `Views/ShapeStudio/ShapeDesignStudioWindow.xaml(.cs)`:
+  - Five handlers became fill methods: `OnPosition/OnSizeNumberBoxRightTapped`, `OnStrokeWeightRightTapped` and
+    `OnFillHexBoxRightTapped` became `Fill…Menu`, and `ShowFillQuickPaletteMenu` now delegates to
+    `FillFillQuickPaletteMenu`. Their XAML RightTapped attributes were removed.
+  - `RotationReadoutButton` was added, with `OnRotationReadoutButtonClick` and an entry in the bridge table.
+  - `OnRootPreviewKeyDown` gets the `IsWithinRootGrid` guard. Tooltips now say "Right-click or Shift+F10".
+- `Views/SmartArtStudio/…`: `FillLayoutSearchMenu`, `FillMarkdownTextBoxMenu` (the old Show… wrapper was removed),
+  `OnRenameTextBoxLoaded` / `FillRenameTextBoxMenu`, and `IsWithinTextBox` guards in `OnRowRightTapped` and
+  `OnOutlineAreaRightTapped`.
+- `Views/MindMap/…`: `FillNodeIconMenu` was split from `ShowNodeIconPickerFlyout`, and NodeIconBox's RightTapped
+  was removed.
+- Core `ShapeDesignStudioViewModel.cs`: `RotationLabel`, notified from `_rotation`.
+- Tests: new `Run249NumberBoxAndStudioTextMenusTests` (17 cases) covers:
+  - AttachInner and idempotency;
+  - the six templated controls and three text boxes: no RightTapped, the attach call, and fill-only bodies;
+  - the shared hex / swatch builder and the icon picker;
+  - the rename box's Loaded attach and the row guards;
+  - the rotation button and `RotationLabel` change notification;
+  - the Shape Studio popup-key guard, which must come before every shortcut.
+
+**Skeptical review.**
+- Focus traps: none added. After Esc closes a menu, focus returns to the box that opened it (verified live).
+  The inspector still collapses only on a real deselect.
+- Key swallowing: the new guard swallows fewer keys. No new key handlers were added. TextBox / NumberBox keys
+  are unchanged; the early return for them was already there.
+- Flyouts / HoverPolish: the menus are built by the same `ShapeMenuItem` / `MenuItem` helpers. The new button is
+  inside RootGrid, which `HoverPolish.Track` covers.
+- Theme: no resource lookups were added. Files / async: none opened. The async paste items are unchanged.
+- Line endings: the clone's working files are LF. One CRLF injected by a script was caught and normalised
+  before building.
+
+**Verified.**
+- Build: Desktop built to `%TEMP%\ms_run249\b` with 0 errors, twice. The second build added the key guard and
+  the rotation name.
+- Full suite (first build): 5993 passed, 7 failed, 1 skipped. All 7 failures are the known
+  `GovernanceDocsSyncTests`, which need gitignored docs. After the second build, Run249 / 248 / 245 / 233 and
+  all ShapeStudio classes pass (484/484).
+- Live UIA, first build (PID 22196): the rotation button opened its 6-item menu. Its name was the tooltip,
+  which was fixed. Shift+F10 on the focused X box gave the text menu, because focus selects the number. With the
+  menu open, Esc cleared the selection, and that bug is item 1.
+- Live UIA + real keys, second build (PID 6396, `MARKSMITH_CONFIG_DIR` in the session scratchpad, keys sent only
+  after 30 s idle and with the scratch window in the foreground):
+  - `Hyperlink 'Rotation 0°'`.
+  - X box: End then Shift+F10 opened Align to left edge | Align to top edge | Center horizontally | Center
+    vertically | Copy position.
+  - In that menu, Down moved to the 2nd item and Delete left all 4 shapes. Esc closed the menu, focus went back
+    to the X box, and the selection was kept.
+  - W box: the size presets (6 items). Hex box: Copy #0078D4 | Paste hex colour | Pick fill colour… | Quick
+    colours | Invert colour | Reset.
+  - Rotation button with keyboard focus: Shift+F10 opened its 6 presets, and Esc returned focus to the button.
+  - Both instances were stopped by PID. No other Marksmith was running.
+- **Not verified live:** the SmartArt Markdown box, layout search and rename box, and Mind Map's icon box
+  (source-contract tests only).
+
+**Noticed, not fixed:**
+- A keyboard user who Tabs into any `TextBoxMenu` box gets its text selected, so Shift+F10 shows the stock text
+  menu. The options menu needs an arrow / End first. Consider an "Options…" entry in the text menu
+  (TextCommandBarFlyout secondary commands), or say so in the tooltips.
+- Other window-level PreviewKeyDown handlers may have the same menu-key leak. History's `OnRootPreviewKeyDown`
+  acts on plain Up / Down / Home / End keyed off `OriginalSource.DataContext`. OCR Studio's
+  `IsTextOrComboInputFocused` already treats `MenuFlyoutItemBase` as input. MainWindow only uses Ctrl / Alt chords.
+- The "Copy rotation angle" / "Copy dimensions" items were not invoked live (the clipboard rule).
+
+**Next up (Run #250):**
+1. Audit History's root key handler with a menu open (live: open a version's menu, then press Down / Delete / Esc).
+2. Live keyboard pass on SmartArt (Markdown box, layout search, rename box) and the Mind Map icon box.
+3. Decide on the Tab-selects-all / options-menu discoverability item above.
+
+**Total user-visible improvements: 7.**
