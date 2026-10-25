@@ -18026,3 +18026,114 @@ OCR Studio and Version History).
 **Release (same run):** tagged **v3.70.0** on `7c593d4`; Release workflow run 40177271361 succeeded;
 user-facing notes prepended to the generated body
 (https://github.com/thebubbsy/marksmith/releases/tag/v3.70.0). `MarksmithBaseVersion` is now 3.71.0.
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #256 (2026-10-25, 20:00–20:45 AEDT)
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), desktop app Code tab. (The task template names an Antigravity / Google DeepMind
+  identity; that is not what ran this session, so it is recorded as it actually was.)
+- Modes: Scheduled Hourly Automation Routine (scheduled task `commit-to-main-ship-improvement--r4efinement`)
+- Trigger: Scheduled hourly routine run
+- Agents Used: 1. A single session (`32624c23-3f49-41b0-b3b3-0458f03b643b`) did orchestration, coding and the
+  skeptical review itself; no subagents were spawned.
+
+**Workspace.** Reused the clean clone `%TEMP%\ms249` (already at `d5880bf`). Baseline built to
+`%TEMP%\ms_run256\base`, changes to `%TEMP%\ms_run256\b`. The user's own tree in `marksmith` was not touched.
+
+**Audit (run #255's Next up item 3: icon / job mismatches in Settings, Suite Hub and the Insert dialogs).** Settings and
+the Insert dialogs held up; Suite Hub's recent documents menu (the ⋯ button beside the recent strip, also opened by the
+"N docs" pill and the strip's right-click) did not:
+- about 48 rows at the top level (reports, advisors and file-rewriting actions interleaved), reaching past the hub;
+- 43 items there and in its Diagnostics submenu all used the picture glyph E8B9, and a few others borrowed unrelated
+  glyphs (a font glyph for code fences and headings, a 3D box for tables, "restore" for deduplication);
+- "Copy workspace file size distribution & storage bloat advisor" appeared twice, both running the same report;
+- "Apply … dialect normalization", "Apply … table … fixes" and "Restore … backups" rewrote every recent document on one
+  click, synchronously on the UI thread; "Clear recent documents history" erased the list without asking;
+- seven Diagnostics entries were in Title Case among sentence-case ones, and the two MAX_PATH audits read alike.
+
+Run #255's "Noticed, not fixed" History focus ring was traced too: with no document, the subtitle button "No document
+selected" is the first tab stop (focused on open), and Enter / click copied the sentence "No document selected" as a
+"file path" (baseline build, live: the clipboard read back `No document selected`).
+
+**Delivered (user-visible):**
+1. **Suite Hub: the recent documents menu is 15 rows, not ~48.** Open / filter / the four everyday copies / refresh /
+   clear stay at the top; the rest moved into **Library reports** (13), **Workspace advisors** (20) and
+   **Normalize & fix files** (5), each with a tooltip; Diagnostics stays last.
+2. **Suite Hub: "Normalize Markdown dialect?" is asked before the dialect normalization rewrites files**, naming how
+   many documents, what changes (code fences, list markers, heading styles) and that a backup of each is kept.
+3. **Suite Hub: "Align Markdown tables?" is asked before table alignment rewrites files.**
+4. **Suite Hub: "Restore table backups?" is asked before backups overwrite documents**, warning that later edits are lost.
+5. **Suite Hub: "Clear recent documents?" is asked before the list is erased** (only when it isn't already empty), and
+   says the files themselves aren't touched. Cancel holds focus in every question, so Enter / Esc never go ahead.
+6. **Suite Hub: the three file-rewriting actions run off the UI thread**, so the hub no longer freezes while they work.
+7. **Suite Hub: the duplicate file size advisor entry is gone** (its handler too).
+8. **Suite Hub: every item in the menu has a fitting icon**: tables, links, images, code, headings, frontmatter, tags,
+   tasks, maths, diagrams, reading time, restore, preview (dry run), edit (apply), wrench (generate). None uses the
+   picture glyph now, and the Markdown-links, table-formatting and deduplication items lost their borrowed glyphs.
+9. **Suite Hub: Diagnostics entries are all sentence case** ("Audit workspace relative links & orphan markdown assets").
+10. **Suite Hub: the two path length audits say what differs**: "…path length distribution & MAX_PATH audit" and
+    "…path length, nesting depth & MAX_PATH (260 char) audit".
+11. **Version History: with no document, the file name can't be copied as a path** (click and the right-click menu both
+    do nothing instead of copying "No document selected").
+12. **Version History: opens without a focus ring on "No document selected".** The subtitle leaves the tab order while
+    there's no document (focus is moved off it first), and its tooltip / help text say why ("Versions appear here once
+    a document is saved"); it rejoins with the original text when a document loads.
+
+**Implementation summary.**
+- New `Services/ConfirmFlyout.cs`: `AskAsync(anchor, title, message, confirmText)` → `Task<bool>`. A Flyout (the hub is
+  a ContentDialog, so a second dialog can't open) with an accent action button and Cancel; Cancel focused on open;
+  HoverPolish applied on open; body text via `ThemeBrush.Set`; shown on a Low-priority dispatcher tick so the menu that
+  asked has closed; resolves false on any dismissal or if the anchor has left the tree.
+- `Views/SuiteHubView.xaml`: `RecentDocsFlyout` regrouped (script-generated from the existing items, so every name,
+  handler and text survived); glyphs; sentence case; MAX_PATH labels (order kept alphabetical for the Diagnostics test).
+- `Views/SuiteHubView.xaml.cs`: `ConfirmRecentDocsActionAsync` (anchors to `RecentDocsActionBtn` when on screen, else
+  the hub) + `DocumentCount`; the three Apply / Restore handlers ask first and call the service in `Task.Run`;
+  `OnClearRecentDocsClick` is async and asks first; `OnCopyWorkspaceFileSizeAdvisorClick` removed.
+- `Views/History/HistoryWindow.xaml.cs`: `UpdateFileNameButton()` (constructor + `SelectedFile` changes);
+  `OnFileNameButtonClick` / `OnFileNameRightTapped` use `SelectedFile` only.
+- Tests: new `Run256RecentDocsMenuAndHistoryTests` (10 cases: top-level shape and submenus; no E8B9 plus specific
+  glyphs; no duplicate labels / handlers; Diagnostics sentence case; ask-then-`Task.Run` order for each rewrite;
+  clear-history confirm; ConfirmFlyout contract; History button contract). `SuiteHubAndTourPolishTests` (Run #173
+  surface 6) now asserts the duplicate is gone and the surviving advisor is wired.
+
+**Skeptical review.**
+- Focus traps: `UpdateFileNameButton` moves focus to SearchBox before `IsTabStop = false`. Clearing history collapses
+  the recent strip while focus is in the confirm flyout; live, focus returned to "Recent documents actions" afterwards.
+- Key swallowing: no key handlers added or changed; the flyout uses stock Esc / Enter handling.
+- Flyouts: ConfirmFlyout calls `HoverPolish.Apply` on Opened (PopupRoot is outside the tracked tree).
+- Theme: `ThemeBrush.Set` for the secondary text; `AccentButtonStyle` / `BodyStrongTextBlockStyle` are Styles, looked up
+  the way `UpdateBannerPresenter` already does.
+- Files / async: the services already guard each file; work moved off the UI thread. A second Apply while one runs
+  would need its own confirmation but is not otherwise blocked (noted below).
+
+**Verified.**
+- Build: Desktop to `%TEMP%\ms_run256\b`, 0 errors (rebuilt after the last glyph edit); baseline `%TEMP%\ms_run256\base`.
+- Tests: Run256 + MenuDiagnostics + SuiteHub* + History* + Run22* 603/603. Full suite: 6058 passed, 1 skipped, 7 failed;
+  the 7 are all `GovernanceDocsSyncTests` (gitignored governance docs; they fail on any clean clone, as runs #249 and
+  #252–#255 logged).
+- Live (UIA + PrintWindow + one CopyFromScreen while the user was idle; PID 18272 new build, 34768 baseline, each
+  stopped by PID; no other Marksmith was running): config seeded with two scratch copies of example docs. Menu: 15
+  top-level items, bottom at y=739 of a 1032 px work area; the screen capture shows the submenus and icons. Apply
+  dialect / Restore / Clear history each showed its question with Cancel holding keyboard focus; Cancel left both docs
+  byte-identical (MD5) and the list intact; "Clear list" emptied `recent_files.json`, showed the empty-state text and
+  returned focus to the menu button. Version History with no document: new build, FileNameButton not keyboard-focusable,
+  focus on SearchBox, invoking it left the clipboard unchanged; baseline, FileNameButton focused on open and invoking
+  it copied "No document selected".
+- Side effect: the live check wrote a sentinel string to the clipboard (overwriting whatever was there).
+
+**Noticed, not fixed:**
+- Nothing stops a second "Apply …" from starting while the first is still rewriting (each needs its own confirmation).
+- The dialect normalizer treats any `---` line under a paragraph as a setext underline (CommonMark-correct, but a writer
+  who meant a horizontal rule gets a `##` heading); the dry run shows it, and the question could mention it.
+- The Insert cluster's double expand (run #255) is a plain XAML `MenuFlyout`; most likely a UIA realisation quirk, not
+  user-facing; left alone.
+
+**Next up (Run #257):**
+1. Audit the other long menus (MainWindow's code-built Diagnostics folds, History's timeline menu, Galaxy) for the same
+   duplicate-label / shared-glyph problems; extend the "no duplicate label" test to them.
+2. Look for other one-click file rewrites outside Suite Hub (Galaxy, History restore-all) and route them through
+   `ConfirmFlyout` or a ContentDialog.
+3. If the PC is unlocked and idle: the OCR badge hover check and the long-standing live key checks (run #252 item 1).
+
+**Total user-visible improvements: 12** (10 in Suite Hub, 2 in Version History).

@@ -3727,11 +3727,13 @@ Some paragraph in between.
         Assert.Contains("auditScopeTransitions", historyCs);
         Assert.Contains("AuditIdentifierScopeTransitions", historyCs);
 
-        // Surface 6: SuiteHubView - CopyWorkspaceFileSizeAdvisorItem
+        // Surface 6: SuiteHubView - the file size advisor. Run #256 removed this item: it repeated
+        // CopyWorkspaceFileSizeDistributionAdvisorItem word for word and ran the same report.
         var suiteXaml = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml"));
         var suiteCs = File.ReadAllText(DesktopPath("Views", "SuiteHubView.xaml.cs"));
-        Assert.Contains("CopyWorkspaceFileSizeAdvisorItem", suiteXaml);
-        Assert.Contains("OnCopyWorkspaceFileSizeAdvisorClick", suiteCs);
+        Assert.DoesNotContain("CopyWorkspaceFileSizeAdvisorItem", suiteXaml);
+        Assert.Contains("CopyWorkspaceFileSizeDistributionAdvisorItem", suiteXaml);
+        Assert.Contains("OnCopyWorkspaceFileSizeDistributionAdvisorClick", suiteCs);
     }
 
     [Fact]

@@ -4214,45 +4214,6 @@ public sealed partial class SuiteHubView : UserControl
 
 
 
-    private async void OnCopyWorkspaceFileSizeAdvisorClick(object sender, RoutedEventArgs e)
-
-    {
-
-        try
-
-        {
-
-            var files = App.RecentFiles?.Load() ?? new List<string>();
-
-            var audit = RecentFilesService.AuditWorkspaceFileSizeDistribution(files);
-
-            var clipboardError = await Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
-
-            var copyMessage = $"Copied File Size Distribution advisor: {audit.StorageHealthCategory} · {audit.StorageCompactnessScore:0.#}% score";
-            SetNotification(clipboardError is null ? copyMessage : Services.CopyStatusText.Failed(copyMessage, clipboardError), success: clipboardError is null);
-
-            if (RecentDocsActionBtn != null)
-
-            {
-
-                Services.CopyFeedback.ApplyButtonTick(RecentDocsActionBtn, null, "\u2713 Copied");
-
-            }
-
-        }
-
-        catch (Exception ex)
-
-        {
-
-            SetNotification($"Couldn't audit workspace file size distribution: {ex.Message}", success: false);
-
-        }
-
-    }
-
-
-
     private async void OnCopyWorkspaceDocumentGraphAdvisorClick(object sender, RoutedEventArgs e)
 
     {
@@ -4735,7 +4696,9 @@ public sealed partial class SuiteHubView : UserControl
 
             var files = App.RecentFiles?.Load() ?? new List<string>();
 
-            var result = RecentFilesService.ApplyWorkspaceDialectNormalization(files);
+            if (!await ConfirmRecentDocsActionAsync("Normalize Markdown dialect?", $"Rewrites code fences, list markers and heading styles in {DocumentCount(files.Count)} from your recent list to one style. A backup of each changed file is kept.", "Rewrite files")) return;
+
+            var result = await Task.Run(() => RecentFilesService.ApplyWorkspaceDialectNormalization(files));
 
             var clipboardError = await Services.ClipboardWriter.TrySetTextAsync(result.Summary);
 
@@ -5285,7 +5248,9 @@ private async void OnAuditWorkspaceMarkdownTableAutoAlignAndExportClick(object s
 
             var files = App.RecentFiles?.Load() ?? new List<string>();
 
-            var result = RecentFilesService.ApplyWorkspaceTableAutoAlignmentFixes(explicitFiles: files);
+            if (!await ConfirmRecentDocsActionAsync("Align Markdown tables?", $"Pads and aligns the table columns in {DocumentCount(files.Count)} from your recent list. A .bak.md backup of each changed file is kept.", "Rewrite files")) return;
+
+            var result = await Task.Run(() => RecentFilesService.ApplyWorkspaceTableAutoAlignmentFixes(explicitFiles: files));
 
             var clipboardError = await Services.ClipboardWriter.TrySetTextAsync(result.Summary);
 
@@ -5324,7 +5289,9 @@ private async void OnAuditWorkspaceMarkdownTableAutoAlignAndExportClick(object s
 
             var files = App.RecentFiles?.Load() ?? new List<string>();
 
-            var result = RecentFilesService.RestoreWorkspaceTableAutoAlignmentBackups(explicitFiles: files);
+            if (!await ConfirmRecentDocsActionAsync("Restore table backups?", $"Puts back the .bak.md copy of each of {DocumentCount(files.Count)} from your recent list that has one. Edits made since the tables were aligned are lost.", "Restore backups")) return;
+
+            var result = await Task.Run(() => RecentFilesService.RestoreWorkspaceTableAutoAlignmentBackups(explicitFiles: files));
 
             var clipboardError = await Services.ClipboardWriter.TrySetTextAsync(result.Summary);
 
@@ -6088,13 +6055,29 @@ private void OnClearRecentFilterClick(object sender, RoutedEventArgs e)
 
 
 
-    private void OnClearRecentDocsClick(object sender, RoutedEventArgs e)
+    // Asks before an action from the recent documents menu rewrites the user's files or erases the
+    // list: that menu is long, and one stray click used to run these straight away. The hub is a
+    // ContentDialog, so the question is a flyout by the menu's button rather than a second dialog.
+    private Task<bool> ConfirmRecentDocsActionAsync(string title, string message, string confirmText)
+    {
+        FrameworkElement anchor = RecentDocsActionBtn is { XamlRoot: not null, ActualWidth: > 0 } ? RecentDocsActionBtn : this;
+        return Services.ConfirmFlyout.AskAsync(anchor, title, message, confirmText);
+    }
+
+    private static string DocumentCount(int count) => count == 1 ? "1 document" : $"{count} documents";
+
+
+    private async void OnClearRecentDocsClick(object sender, RoutedEventArgs e)
 
     {
 
         try
 
         {
+
+            var count = App.RecentFiles?.Load().Count ?? 0;
+
+            if (count > 0 && !await ConfirmRecentDocsActionAsync("Clear recent documents?", $"Removes {DocumentCount(count)} from the list. The files themselves are not touched.", "Clear list")) return;
 
             App.RecentFiles?.Clear();
 

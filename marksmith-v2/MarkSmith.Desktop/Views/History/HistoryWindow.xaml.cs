@@ -115,6 +115,23 @@ public sealed partial class HistoryWindow : Window
         // blinking in an empty search field read as "type something", and Ctrl+F reaches it.
         _openedAt = DateTime.UtcNow;
         TimelineScroll.LayoutUpdated += OnTimelineLayoutUpdated;
+        UpdateFileNameButton();
+    }
+
+    // With no document there is no path behind "No document selected": the button used to copy that
+    // sentence as a "file path", and as the first tab stop it opened the window with a focus ring on
+    // it. It stays visible as the subtitle, but leaves the tab order and says why there's nothing to copy.
+    private void UpdateFileNameButton()
+    {
+        var hasFile = _vm.SelectedFile is not null;
+        if (!hasFile && ReferenceEquals(FocusedElement(), FileNameButton)) SearchBox.Focus(FocusState.Programmatic);
+        FileNameButton.IsTabStop = hasFile;
+        ToolTipService.SetToolTip(FileNameButton, hasFile
+            ? "Current document · Click to copy the full path, Right-click or Shift+F10 for path options"
+            : "No document selected · Versions appear here once a document is saved");
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(FileNameButton, hasFile
+            ? "Current document. Enter copies its full path, Shift+F10 for path options."
+            : "No document has history yet.");
     }
 
     // Null until the window's content has a XamlRoot. The first timeline load runs from the constructor,
@@ -265,6 +282,10 @@ public sealed partial class HistoryWindow : Window
         else if (e.PropertyName == nameof(HistoryWindowViewModel.Notice))
         {
             ShowNotice();
+        }
+        else if (e.PropertyName == nameof(HistoryWindowViewModel.SelectedFile))
+        {
+            UpdateFileNameButton();
         }
         else if (e.PropertyName == nameof(HistoryWindowViewModel.Selected))
         {
@@ -1931,8 +1952,8 @@ public sealed partial class HistoryWindow : Window
     private void OnFileNameRightTapped(object sender, RightTappedRoutedEventArgs e)
     {
         e.Handled = true;
-        var file = _vm.SelectedFile;
-        var filePath = file?.Summary.FilePath ?? _vm.FileName;
+        if (_vm.SelectedFile is not { } file) return; // "No document selected" is not a path to copy
+        var filePath = file.Summary.FilePath;
         var menu = new MenuFlyout();
 
         var copyPath = new MenuFlyoutItem
@@ -1953,7 +1974,7 @@ public sealed partial class HistoryWindow : Window
         };
         copyName.Click += (_, _) =>
         {
-            var name = file?.FileName ?? Path.GetFileName(filePath);
+            var name = file.FileName ?? Path.GetFileName(filePath);
             CopyAndNotify(name, $"Copied file name: {name}");
         };
         menu.Items.Add(copyName);
@@ -1999,7 +2020,7 @@ public sealed partial class HistoryWindow : Window
 
     private void OnFileNameButtonClick(object sender, RoutedEventArgs e)
     {
-        var filePath = _vm.SelectedFile?.Summary.FilePath ?? _vm.FileName;
+        var filePath = _vm.SelectedFile?.Summary.FilePath;
         if (!string.IsNullOrWhiteSpace(filePath))
         {
             CopyAndNotify(filePath, $"Copied file path: {filePath}");
