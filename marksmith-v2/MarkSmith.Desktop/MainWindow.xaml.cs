@@ -5886,6 +5886,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private void OnRootPreviewKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
     {
+        // An open menu or flyout routes its keys through here (PreviewKeyDown tunnels from the root):
+        // Ctrl+G opened Go to line over an open status-bar menu and left the menu stranded behind it.
+        if (PopupKeys.FocusIsOutside(RootGrid)) return;
         var ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control)
             .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
         var shift = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Shift)

@@ -9,6 +9,9 @@ public sealed class ExportPreset
 {
     public string Name { get; set; } = "";
 
+    // What a screen reader announces for the Preset box and its rows (it read "MarkSmith.Models.ExportPreset").
+    public override string ToString() => Name;
+
     public string Theme { get; set; } = "GitHub Light";
     public int ContentWidth { get; set; } = 820;
     public bool A4FixedWidth { get; set; }

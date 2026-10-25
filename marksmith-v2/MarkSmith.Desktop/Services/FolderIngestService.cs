@@ -96,7 +96,11 @@ public sealed class FolderIngestService : IDisposable
 // it) exists, so the picker never suggests paths this machine has never heard of.
 public static class AiAgentFolderPresets
 {
-    public record FolderPreset(string Name, string Description, string Path);
+    public record FolderPreset(string Name, string Description, string Path)
+    {
+        // What a screen reader announces for the quick-pick row (it read the record's debug text).
+        public override string ToString() => $"{Name}, {Path}";
+    }
 
     public static List<FolderPreset> GetAvailablePresets()
     {

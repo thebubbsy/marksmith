@@ -406,6 +406,11 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
     private bool IsEditingText() =>
         XamlRoot is { } root && FocusManager.GetFocusedElement(root) is TextBox;
 
+    // A menu or flyout opened in the studio lives in a popup outside RootGrid, but these accelerators
+    // still fire for keys pressed in it: Delete in a node's menu deleted the node behind it, Down
+    // nudged it and Ctrl+Z undid a step. Those keys are the popup's.
+    private bool MenuOwnsKeys() => PopupKeys.FocusIsOutside(RootGrid);
+
     // Shortcuts no TextBox uses (Ctrl+Shift+C / E) still work from the Code pane.
     private bool IsEditingTextOutsideCode() =>
         IsEditingText() && CodeEditorTextBox.FocusState == FocusState.Unfocused;
@@ -549,6 +554,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
     // accelerators run before the TextBox sees the key, so this used to undo a canvas step instead.
     private void OnUndoAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (MenuOwnsKeys()) return;
         if (IsEditingText()) return;
         UndoRedo(redo: false);
         args.Handled = true;
@@ -556,6 +562,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
 
     private void OnRedoAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (MenuOwnsKeys()) return;
         if (IsEditingText()) return;
         UndoRedo(redo: true);
         args.Handled = true;
@@ -587,6 +594,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
 
     private void OnDeleteAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (MenuOwnsKeys()) return;
         if (IsEditingText()) return;
         ViewModel?.DeleteSelected();
         args.Handled = true;
@@ -594,6 +602,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
 
     private void OnDuplicateAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (MenuOwnsKeys()) return;
         if (IsEditingText()) return;
         ViewModel?.DuplicateSelected();
         args.Handled = true;
@@ -601,6 +610,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
 
     private void OnCopyAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (MenuOwnsKeys()) return;
         if (IsEditingText()) return;
         ViewModel?.CopySelected();
         args.Handled = true;
@@ -608,6 +618,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
 
     private void OnCopySvgAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (MenuOwnsKeys()) return;
         if (IsEditingTextOutsideCode()) return;
         OnCopySvgClick(CopySvgButton, new RoutedEventArgs());
         args.Handled = true;
@@ -615,6 +626,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
 
     private void OnExportSvgAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (MenuOwnsKeys()) return;
         if (IsEditingTextOutsideCode()) return;
         OnExportSvgClick(ExportSvgButton, new RoutedEventArgs());
         args.Handled = true;
@@ -622,6 +634,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
 
     private void OnPasteAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (MenuOwnsKeys()) return;
         if (IsEditingText()) return;
         ViewModel?.PasteClipboard();
         args.Handled = true;
@@ -629,6 +642,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
 
     private void OnSelectAllAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (MenuOwnsKeys()) return;
         if (IsEditingText()) return;
         ViewModel?.SelectAll();
         args.Handled = true;
@@ -636,12 +650,14 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
 
     private void OnRenameAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (MenuOwnsKeys()) return;
         if (IsEditingText()) return;
         if (_canvas.StartSelectedInPlaceEdit()) args.Handled = true;
     }
 
     private void OnFindShapesAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (MenuOwnsKeys()) return;
         if (CodeEditorTextBox.FocusState != FocusState.Unfocused) return;
         if (LeftPanePivot.SelectedIndex != 0) LeftPanePivot.SelectedIndex = 0;
         _palette.FocusSearchBox();
@@ -650,12 +666,14 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
 
     private void OnSyncAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (MenuOwnsKeys()) return;
         OnSyncToMarkdownClick(this, new RoutedEventArgs());
         args.Handled = true;
     }
 
     private void OnFocusInspectorAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (MenuOwnsKeys()) return;
         if (ViewModel is null) return;
         if (ViewModel.SelectedNode is not null && NodeInspectorPanel.Visibility == Visibility.Visible)
         {
@@ -673,6 +691,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
 
     private void OnTabCycleAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (MenuOwnsKeys()) return;
         if (!IsFocusWithinCanvas() || ViewModel is null || ViewModel.Nodes.Count == 0) return;
         bool reverse = sender.Modifiers.HasFlag(Windows.System.VirtualKeyModifiers.Shift);
         ViewModel.CycleSelection(reverse);
@@ -681,6 +700,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
 
     private void OnContextMenuAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (MenuOwnsKeys()) return;
         if (IsEditingText()) return;
         // A focused toolbar/zoom/quick-add button opens its own menu (KeyboardContextMenu bridge);
         // opening the canvas menu as well would dismiss it straight away.
@@ -691,6 +711,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
 
     private void OnEscapeAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (MenuOwnsKeys()) return;
         if (IsEditingText()) return;
         // Esc mid-drag puts the shapes back; only an idle Esc clears the selection.
         if (!_canvas.CancelActiveGesture()) ViewModel?.ClearSelection();
@@ -699,6 +720,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
 
     private void OnNudgeAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (MenuOwnsKeys()) return;
         if (IsEditingText() || ViewModel is null) return;
         bool coarse = sender.Modifiers.HasFlag(Windows.System.VirtualKeyModifiers.Shift);
         var (dx, dy) = sender.Key switch
@@ -716,24 +738,28 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
 
     private void OnZoomInAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (MenuOwnsKeys()) return;
         _canvas.ZoomIn();
         args.Handled = true;
     }
 
     private void OnZoomOutAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (MenuOwnsKeys()) return;
         _canvas.ZoomOut();
         args.Handled = true;
     }
 
     private void OnZoomResetAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (MenuOwnsKeys()) return;
         _canvas.ZoomReset();
         args.Handled = true;
     }
 
     private void OnSelectShapesTabAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (MenuOwnsKeys()) return;
         if (IsEditingText() && FocusManager.GetFocusedElement(XamlRoot) is TextBox tb && tb != CodeEditorTextBox) return;
         LeftPanePivot.SelectedIndex = 0;
         args.Handled = true;
@@ -741,6 +767,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
 
     private void OnSelectCodeTabAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (MenuOwnsKeys()) return;
         LeftPanePivot.SelectedIndex = 1;
         CodeEditorTextBox.Focus(FocusState.Programmatic);
         args.Handled = true;
@@ -748,6 +775,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
 
     private void OnSelectPreviewTabAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (MenuOwnsKeys()) return;
         if (IsEditingText() && FocusManager.GetFocusedElement(XamlRoot) is TextBox tb && tb != CodeEditorTextBox) return;
         LeftPanePivot.SelectedIndex = 2;
         args.Handled = true;

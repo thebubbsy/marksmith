@@ -24,6 +24,9 @@ public sealed class HistoryEntry
         ? (string.IsNullOrWhiteSpace(SourceLabel) ? "Untitled document" : SourceLabel)
         : DocumentTitle;
 
+    // What a screen reader announces for the Recent exports row (it read "MarkSmith.Models.HistoryEntry").
+    public override string ToString() => $"{Title}, {Subtitle}";
+
     // Human-readable output size ("512 B", "18.4 KB", "1.2 MB"); empty when unknown.
     public string OutputSizeText => OutputSizeBytes switch
     {

@@ -17479,3 +17479,113 @@ done. The live History check also found item 7, an older bug.
 **Release (same run):** tagged **v3.65.0** on `4da4bef`; Release workflow run 40158298257 succeeded;
 user-facing notes prepended to the generated body
 (https://github.com/thebubbsy/marksmith/releases/tag/v3.65.0). `MarksmithBaseVersion` is now 3.66.0.
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #251 (2026-10-25, 15:00–15:45 AEDT)
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running in the Claude desktop app. The task template asks for
+  "Antigravity AI Agent (Google DeepMind)"; that would be untrue for this run, so the real identity is recorded.
+- Modes: Scheduled Hourly Automation Routine (bypass-permissions, no live user)
+- Trigger: scheduled task `commit-to-main-ship-improvement--r4efinement`
+- Agents used: 1 (one session acting as orchestrator, coding worker and skeptical reviewer; no
+  subagents). Session `961340fa-e4de-46a1-bedf-43e90346c437`.
+- Worked in the clean clone `%TEMP%\ms249` (fast-forwarded to `origin/main` 6eaceb5). The local checkout (far
+  behind, with another session's uncommitted edits and `EverythingHttpPlugin/*`) was not touched.
+  `%TEMP%\ms_run250` was deleted first (8.1 GB free on C:).
+
+**Reviewed:** run #250's Next up. Item 2 (the History `GetFocusedElement(null)` pattern in other windows) is
+done: all 42 `GetFocusedElement(` calls are already null-safe or run only from key handlers, so nothing needed
+changing. Run #250's "noticed" items (control-level handlers and MainWindow's root chords inside menus) were
+tested live against an **unmodified baseline build** before any fix was kept. Items 1 and 3 were not done.
+
+**Method change: baseline first.** The first pass guarded 10 handlers on the theory from run #250. A baseline
+build (changes stashed) then showed most of them never see a menu's keys. Bubbling `KeyDown` handlers,
+including ones added with `handledEventsToo` such as the `KeyboardContextMenu` bridge, did not fire for Delete,
+Shift+F10 or Ctrl+G pressed in a menu anchored inside them. Only **tunnelling `PreviewKeyDown`** and
+**`KeyboardAccelerator`s** leak. The guards on the Recent exports / Outline / Lint lists, SettingsCard,
+OptionRow, the plugin card, ExtensionHintBar / ExtensionTip, WelcomeTour and the bridge were reverted as no-ops.
+
+**Delivered (user-visible):**
+1. **Diagram Studio: Delete in an open menu no longer deletes the selected shape.** Baseline, live: with a node
+   selected and the Templates menu open, Delete took the diagram from 3 nodes / 2 connectors to 2 / 0 behind the
+   menu, which stayed open.
+2. **Diagram Studio: the other canvas shortcuts stay out of open menus too.** Ctrl+Z (seen live undoing behind
+   the menu), Ctrl+Y, Ctrl+D, Ctrl+C / V, Ctrl+A, F2, Tab, the arrow-key nudges, Ctrl+Enter sync and the zoom /
+   pane keys all came from the same 23 window-wide accelerators. They now leave keys pressed in a menu, flyout or
+   text menu to that popup.
+3. **Main window: Ctrl+G in an open menu no longer opens Go to line on top of it.** Baseline, live: with the
+   word-count menu open, Ctrl+G opened the Go to line dialog. Esc then closed the dialog and left the menu
+   stranded open behind it. Ctrl+, / Ctrl+/ / Ctrl+0 / Alt+Z go through the same root handler and now also leave a
+   menu's keys alone. In the editor they work as before (verified live).
+4. **Recent exports rows are read by name.** A screen reader announced every row as
+   "MarkSmith.Models.HistoryEntry" (UIA, baseline). Rows now read "Alpha, PDF · Markdown · Default · 25/10/2026
+   3:02 PM".
+5. **The Preset box reads the preset's name.** `ExportPreset` had no `ToString`, so the Preset combo's rows and
+   its selected value were announced as "MarkSmith.Models.ExportPreset".
+6. **The AI-agent folder quick-pick reads the folder.** Its rows announced the record's debug text
+   ("FolderPreset { Name = …, Description = …, Path = … }"); they now read "Claude Desktop, C:\…\Exports".
+
+**Implementation summary.**
+- `Views/Mermaid/MermaidDiagramStudioControl.xaml.cs`: new `MenuOwnsKeys()` (`PopupKeys.FocusIsOutside(RootGrid)`);
+  every one of the 23 `On…AcceleratorInvoked` handlers now starts with `if (MenuOwnsKeys()) return;`.
+- `MainWindow.xaml.cs`: `OnRootPreviewKeyDown` returns first when `PopupKeys.FocusIsOutside(RootGrid)`.
+- `MarkSmith.Core/Models/HistoryEntry.cs`: `ToString() => $"{Title}, {Subtitle}"`.
+- `MarkSmith.Core/Models/ExportPreset.cs`: `ToString() => Name`.
+- `Services/FolderIngestService.cs`: `AiAgentFolderPresets.FolderPreset` gets a body with
+  `ToString() => $"{Name}, {Path}"`.
+- Tests: new `Run251ControlKeysAndAcceleratorsTests` (5 cases): every Mermaid accelerator handler starts with the
+  guard and every `Invoked=` in the XAML is one of them; the MainWindow guard runs before any key and never sets
+  `Handled`; HistoryEntry / ExportPreset / FolderPreset names.
+
+**Skeptical review.**
+- Focus traps: nothing collapses or disables a control.
+- Key swallowing: both guards only `return`, so a menu gets every key it got before. With no popup open, focus is
+  inside RootGrid and behaviour is unchanged (main window verified live; the Diagram Studio no-menu Delete was
+  not re-run, see below). Text boxes inside the studio are inside RootGrid, so their existing `IsEditingText`
+  checks still apply.
+- Behaviour change to know about: the Command Palette is a `Popup`, so Ctrl+G / Ctrl+/ / Ctrl+, typed inside the
+  palette no longer jump to those dialogs (they used to open over it). The palette's own keys are unaffected.
+- `ToString` overrides: nothing in the app interpolates these objects or calls their `ToString` (grep). JSON
+  persistence uses properties, so history.json and presets.json are unchanged.
+- HoverPolish / theme / files / async: nothing added.
+
+**Verified.**
+- Build: Desktop built to `%TEMP%\ms_run251\b` with 0 errors. The baseline was built to `%TEMP%\ms_run251\base` from
+  the same commit with the Desktop changes stashed.
+- Tests: first sweep (Run251 draft / 250 / 249, KeyboardContextMenu, Mermaid, ExtensionHint / Tip, WelcomeTour,
+  SettingsCard, OptionRow): 467/467 passed. Final sweep (Run251, Run250, HistoryEntry, ExportPreset / Preset,
+  Mermaid, HistoryService): 596/596 passed.
+- Live (UIA + real keys, scratch PIDs 29596 baseline and 23308 fixed, `MARKSMITH_CONFIG_DIR` in the session
+  scratchpad with a seeded history.json, keys only after 30 s idle with the scratch window in front, no other
+  Marksmith running, both PIDs stopped):
+  - Recent exports rows: baseline "MarkSmith.Models.HistoryEntry" ×3; fixed "Alpha, PDF · Markdown · Default ·
+    25/10/2026 3:02 PM" etc.
+  - Word-count menu ▸ Ctrl+G: baseline opened Go to line over the menu (focus in "Line and column"), and the menu
+    stayed open after Esc; fixed: no dialog, the menu kept focus, and Esc closed it.
+  - Editor ▸ Alt+Z twice toggled wrap Off / On, and Ctrl+G opened Go to line (fixed build).
+  - Diagram Studio, "Check Conditions" selected, Templates menu ▸ Delete then Ctrl+Z: baseline 3/2 → 2/0 → 3/2
+    behind the open menu; fixed 3/2 throughout. Esc closed the menu in both.
+  - The first baseline pass ran with the first-run Welcome tour open (fresh config). Those results were discarded
+    and re-run after Skip.
+- **Not verified live:** Diagram Studio Delete / Ctrl+Z with no menu open on the fixed build (the window could not
+  take the foreground; process 3044 held it). The Preset combo and folder quick-pick names are covered by tests
+  only.
+
+**Noticed, not fixed:**
+- While the baseline's word-count menu was stranded behind Go to line, a SmartArt Studio window opened in the
+  scratch instance during the next script's Alt + Ctrl+G keys. The cause was not pinned down; it may be an access
+  key reached through the stranded menu. With fix 3 the menu can no longer be stranded that way.
+- Other windows' `PreviewKeyDown` handlers are the ones to audit for this leak (Shape Studio and History already
+  guard theirs). Plain `KeyDown` handlers were shown not to need it.
+- Other ItemsControl-based rows (Mind Map tag chips, Shape / SmartArt swatches) are buttons with their own names,
+  so they were not changed.
+
+**Next up (Run #252):**
+1. Audit the remaining `PreviewKeyDown` handlers (Mind Map, SmartArt, OCR, Insert dialogs) live, with a baseline
+   build first.
+2. Live check of the Diagram Studio Delete / Ctrl+Z with no menu open, plus the Preset combo name with a seeded
+   presets.json.
+3. Run #250's item 1: live keyboard pass on the SmartArt / Mind Map guards.
+
+**Total user-visible improvements: 6.**
