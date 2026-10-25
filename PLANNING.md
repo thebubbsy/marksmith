@@ -18141,3 +18141,112 @@ selected" is the first tab stop (focused on open), and Enter / click copied the 
 **Release (same run):** tagged **v3.71.0** on `1a7f9d7`; Release workflow run 40180842201 succeeded;
 user-facing notes prepended to the generated body
 (https://github.com/thebubbsy/marksmith/releases/tag/v3.71.0). `MarksmithBaseVersion` is now 3.72.0.
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #257 (2026-10-25, 20:50–21:45 AEDT)
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), desktop app Code tab. (The task template names an Antigravity / Google DeepMind
+  identity; that is not what ran this session, so it is recorded as it actually was.)
+- Modes: Scheduled Hourly Automation Routine (scheduled task `commit-to-main-ship-improvement--r4efinement`)
+- Trigger: Scheduled hourly routine run
+- Agents Used: 1. A single session (`ec714806-4247-471f-82cc-37ecfbcbaf81`) did orchestration, coding and the
+  skeptical review itself; no subagents were spawned.
+
+**Workspace.** Reused the clean clone `%TEMP%\ms249` (at `298f463`, level with origin). Build to
+`%TEMP%\ms_run257\b`. The user's own tree in `marksmith` (117 modified files, runs #221–#239 leftovers) was not touched.
+
+**Audit (run #256's Next up item 1: other long menus).** A scan of every XAML `MenuFlyout` with 6+ items found:
+- Shape Studio's selection menu (the bounds pill) had **35 rows at the top level**. Three "distribute" rows read alike
+  ("Distribute horizontally (equal spacing)", "Distribute shapes evenly (Horizontal)", "Distribute uniform horizontal
+  spacing (Equal gutters)") but do different things (left edges evenly spaced vs equal gaps vs equal gaps rounded to
+  whole pixels); a star glyph stood for "Lock aspect ratio" and "uniform spacing", a chat-bubble play glyph for
+  "Distribute evenly (Vertical)", a font glyph and a contact card for the first two distribute rows, and the palette
+  glyph for opacity, shadow, corner style, radius, radial layout and 8px grid.
+- The Diagnostics submenus of Shape Studio, SmartArt Studio and the Mind Map Galaxy used the picture
+  glyph E8B9 on 19 / 46 / 46 entries and the palette glyph on ~30 non-colour ones; 22 labels were in Title Case.
+- 14 Shape Studio and 5 Galaxy *edit* actions (equal gaps, flip, match size, snap, reverse stacking, select similar,
+  auto-colour, attach orphans, roll up progress, normalise casing) copied their result summary through
+  `CopyAndReport`, so each one silently replaced the user's clipboard.
+- Run #256's Noticed list: Suite Hub let a second file-rewriting Apply / Restore start while the first was still running.
+History's restore paths already confirm; the Galaxy's bulk edits are undoable (they push undo), so they need no question.
+
+**Delivered (user-visible):**
+1. **Shape Studio: the selection menu is 11 rows, not 35.** Center / Make square / Reset rotation / Copy bounds stay at
+   the top; the rest moved into **Arrange**, **Align & distribute**, **Size & snap**, **Rotate & flip**, **Style** and
+   **Select similar**, each with an icon and a tooltip saying what is inside; Diagnostics stays last. The Arrange items
+   keep their Ctrl+] / Ctrl+[ / Ctrl+Shift+] / Ctrl+Shift+[ hints.
+2. **Shape Studio: the five distribute rows say what each does**: "Space left edges evenly (horizontal / vertical)",
+   "Equal gaps between shapes (horizontal / vertical)", "Equal gaps in whole pixels (horizontal)". Long labels were
+   shortened too ("Nudge overlapping shapes apart", "Reverse stacking order", "Flip horizontally", "Match size to the
+   primary shape", "Select shapes of the same kind / with the same fill colour").
+3. **Shape Studio: every selection-menu icon fits its action** (target for centre, square for make square, ⇄ / ⇅ for
+   horizontal / vertical spacing, layers for stacking, mirror for flip, lock for aspect lock, widescreen for 16:9,
+   frame / rounded frame for corners, half-tone for opacity, light for shadow, circle for radial, grid for snapping).
+   No star, no picture, and the palette only on "same fill colour".
+4. **Shape Studio Diagnostics: 50 entries got fitting icons** (projection cube, layers, connectors, arrows, contrast,
+   grid, ratio, symmetry, stroke, curve…) and 7 Title Case labels became sentence case.
+5. **SmartArt Studio Diagnostics: 48 entries got fitting icons** (funnel, gear, rings, matrix grid, process arrow, cycle,
+   hierarchy…) and 7 Title Case labels became sentence case.
+6. **Mind Map Galaxy Diagnostics: 48 entries got fitting icons** (bridges as links, centrality as target, cycles as sync,
+   clusters as tiles, crossings, collisions…) and 8 Title Case labels became sentence case.
+7. **Shape Studio and the Galaxy: 19 edit actions no longer overwrite the clipboard.** They report their result on the
+   status line only; commands that say Copy, and the Diagnostics reports, still copy.
+8. **Suite Hub: only one file rewrite runs at a time.** A second Apply dialect / Align tables / Restore backups while one
+   is running says "Still rewriting your recent documents. Try again when that finishes." (before asking, and again
+   after the question), and the hub says "Rewriting N documents…" while the work runs.
+
+**Implementation summary.**
+- `Views/ShapeStudio/ShapeDesignStudioWindow.xaml`: `SelectionBoundsFlyout` regrouped by a script from the existing
+  item blocks (every x:Name, Click and accelerator hint survived; six new `MenuFlyoutSubItem`s `Selection*SubItem`);
+  labels and glyphs as above; Diagnostics glyphs / sentence case.
+- `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml`, `Views/MindMap/MindMapGalaxyWindow.xaml`: Diagnostics glyphs
+  (ordered keyword table, applied only to E8B9 entries and E790 entries whose label has no colour word) and sentence
+  case (acronyms such as SmartArt, DAG, SCC, MST, WCAG, Venn, Tarjan, Kuratowski kept). Glyphs were rendered from
+  Segoe Fluent Icons before choosing them.
+- `ShapeDesignStudioWindow.xaml.cs`, `MindMapGalaxyWindow.xaml.cs`: new `ReportEdit(summary)` (first line of the
+  summary to `ViewModel.StatusMessage`, no clipboard); the 19 handlers call it instead of `CopyAndReport`.
+- `Views/SuiteHubView.xaml.cs`: `_recentDocsRewriteRunning` + `RecentDocsRewriteIsRunning()`; the three handlers refuse
+  while running, set the flag around `Task.Run` and clear it in `finally`.
+- Tests: new `Run257StudioMenusAndEditReportsTests` (34 cases): selection menu shape, submenus with tooltips and icons,
+  accelerator hints in Arrange, every action present exactly once (≥100), distinct distribute labels, no star /
+  picture / stray palette at top level; per studio Diagnostics: no E8B9, palette only on colour labels, no glyph on more
+  than a third of entries, sentence case; the 19 handlers use `ReportEdit` and never the clipboard; `ReportEdit` itself
+  has no clipboard access; Suite Hub's guard order (refuse → ask → re-check → mark → Task.Run → finally clear).
+
+**Skeptical review.**
+- Focus traps: nothing is collapsed or disabled; submenus are stock `MenuFlyoutSubItem`s inside the existing flyout.
+- Key swallowing: no key handlers added or changed; the Arrange accelerators live on the window, the hints only moved.
+- Flyouts: no new flyouts; Suite Hub's question still uses `ConfirmFlyout` (HoverPolish on open).
+- Theme: no brushes touched.
+- Files / async: the rewrite flag is only read and written on the UI thread; `finally` clears it even if the service
+  throws (the outer catch still reports the error). The flag doesn't block reports or the other menu actions.
+
+**Verified.**
+- Build: Desktop to `%TEMP%\ms_run257\b`, 0 errors (23 existing warnings).
+- Tests: Run257 34/34; targeted Run244–246 / Run256 / ShapeStudio* / SmartArt* / MindMap* / SuiteHub* /
+  MenuDiagnostics* 1392/1392. Full suite: 6092 passed, 1 skipped, 7 failed, all `GovernanceDocsSyncTests`
+  (gitignored governance docs; they fail on any clean clone, as runs #249 and #252–#256 logged).
+- Live (UIA + PrintWindow, no keys; PID 34564, the only Marksmith running, stopped by PID): Shape Studio opened via
+  Insert ▸ Diagrams and studios ▸ Shape Studio…; invoking the bounds pill listed 11 top-level rows ending at y=710 of a
+  1032 px work area; expanding Arrange showed the four items with AcceleratorKey Ctrl+] / Ctrl+[ / Ctrl+Shift+] /
+  Ctrl+Shift+[ plus "Reverse stacking order"; Align & distribute showed the five new distribute labels. Invoking
+  "Equal gaps between shapes (horizontal)" on an empty canvas put "Distribute evenly (Horizontal): Requires at least 3
+  shapes (Found 0)" on the status line and left the clipboard unchanged (SHA-256 of its text compared before/after;
+  nothing written or printed).
+
+**Noticed, not fixed:**
+- The VM's status text still uses the old names ("Distribute evenly (Horizontal): …"); it could follow the new labels.
+- "Equal gaps between shapes" and "Equal gaps in whole pixels" are near-duplicates (the second rounds and skips no-op
+  moves); one could absorb the other once tests no longer pin both items.
+- Diagnostics in all three studios still hold near-identical audits (e.g. four Z-order occlusion audits in Shape Studio,
+  three bipartite / three cycle audits in the Galaxy); folding those needs a check of which reports actually differ.
+
+**Next up (Run #258):**
+1. Compare the near-identical Diagnostics audits' outputs (Shape Z-order ×4, Galaxy cycles ×3 / bipartite ×2 /
+   articulation ×3) and fold true duplicates, as run #256 did for Suite Hub's advisor.
+2. Bring the Shape Studio VM status texts in line with the renamed menu items.
+3. Sweep other `CopyAndReport` callers (SmartArt, Diagram Studio, OCR) for edits that shouldn't touch the clipboard.
+
+**Total user-visible improvements: 8** (4 in Shape Studio, 1 in SmartArt Studio, 1 in the Galaxy, 1 across Shape Studio
+and the Galaxy, 1 in Suite Hub).

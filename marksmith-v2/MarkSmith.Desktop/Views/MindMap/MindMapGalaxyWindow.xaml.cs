@@ -23,6 +23,16 @@ namespace MarkSmith.Views.MindMap
 {
     public sealed partial class MindMapGalaxyWindow : Window
     {
+        // Reports an edit's result on the status line. Edits (arrange, recolour, normalise) used to
+        // copy their summary as well, which silently replaced whatever the user had on the clipboard;
+        // only commands that say Copy, and the Diagnostics reports, put text there now.
+        private void ReportEdit(string? summary)
+        {
+            if (ViewModel is null) return;
+            var line = summary?.Split('\n')[0].Trim();
+            if (!string.IsNullOrWhiteSpace(line)) ViewModel.StatusMessage = line;
+        }
+
         // Copies text and reports it on the status line. These copies used to discard ClipboardWriter's
         // result, so a busy clipboard still said "Copied ...". With no message, the command has already
         // put its result on the status line; a failed copy is added to it. A tick button shows a tick
@@ -3947,7 +3957,7 @@ namespace MarkSmith.Views.MindMap
             if (ViewModel == null) return;
             var (nodeCount, maxDepth, distinctColors) = ViewModel.AutoColorizeByHierarchy();
             var summary = MindMapStudioViewModel.FormatHierarchyColorSummary(nodeCount, maxDepth, distinctColors);
-            CopyAndReport(summary, summary);
+            ReportEdit(summary);
             RequestRedraw();
         }
 
@@ -3956,7 +3966,7 @@ namespace MarkSmith.Views.MindMap
             if (ViewModel == null) return;
             var (attachedCount, rootLabel, totalNodes) = ViewModel.AttachOrphansToRoot();
             var summary = MindMapStudioViewModel.FormatOrphanAttachmentSummary(attachedCount, rootLabel, totalNodes);
-            CopyAndReport(summary, summary);
+            ReportEdit(summary);
             RequestRedraw();
         }
 
@@ -3975,7 +3985,7 @@ namespace MarkSmith.Views.MindMap
             var (updatedParents, leafCount, rootProgress) = ViewModel.RollupSubtreeProgress();
             var summary = MindMapStudioViewModel.FormatSubtreeProgressRollupSummary(
                 updatedParents, leafCount, rootProgress, ViewModel.Nodes.Count);
-            CopyAndReport(summary, summary);
+            ReportEdit(summary);
             RequestRedraw();
         }
 
@@ -3983,7 +3993,7 @@ namespace MarkSmith.Views.MindMap
         {
             if (ViewModel == null) return;
             var (colorizedNodes, distinctTags, colorsApplied) = ViewModel.AutoColorizeByPrimaryTag();
-            CopyAndReport(ViewModel.StatusMessage);
+            ReportEdit(ViewModel.StatusMessage);
             RequestRedraw();
         }
 
@@ -4012,7 +4022,7 @@ namespace MarkSmith.Views.MindMap
         {
             if (ViewModel == null) return;
             var (modified, total, summary) = ViewModel.NormalizeNodeTextCasing(NodeCasingMode.TitleCase);
-            CopyAndReport(summary);
+            ReportEdit(summary);
         }
 
         private void OnAuditInactiveNodesClick(object sender, RoutedEventArgs e)

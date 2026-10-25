@@ -290,7 +290,7 @@
                                         <MenuFlyoutSubItem Text="Diagnostics">
                                             <MenuFlyoutSubItem.Icon><FontIcon Glyph="&#xE9D9;" /></MenuFlyoutSubItem.Icon>
                                             <MenuFlyoutItem x:Name="OutlineStatsAuditMatrixQuadrantGeometryItem" Text="Audit 2x2 matrix / quadrant geometry &amp; text balance symmetry" Click="OnOutlineStatsAuditMatrixQuadrantGeometryClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE80A;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="OutlineStatsAuditMatrixQuadrantSymmetryItem" Text="Audit 2x2 matrix quadrant axis symmetry &amp; item distribution" Click="OnAuditMatrixQuadrantSymmetryClick">
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xF158;" /></MenuFlyoutItem.Icon>
@@ -299,34 +299,34 @@
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE74C;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="OutlineStatsAuditQuadrantGridBalanceItem" Text="Audit 2x2 matrix quadrant grid balance &amp; diagonal symmetry" Click="OnOutlineStatsAuditQuadrantGridBalanceClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE80A;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="OutlineStatsAuditChevronProcessStrideGeometryItem" Text="Audit chevron &amp; arrow process flow stride proportionality &amp; phase length" Click="OnOutlineStatsAuditChevronProcessStrideGeometryClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE72A;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="OutlineStatsAuditProcessSequencePacingItem" Text="Audit chevron &amp; linear process sequence pacing &amp; aspect ratio" Click="OnAuditProcessSequencePacingClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE72A;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="AuditLinearFlowRhythmItem" Text="Audit chevron / linear flow arrowhead aspect ratio &amp; progression rhythm" Click="OnAuditLinearFlowRhythmClick">
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE823;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="OutlineStatsAuditChevronGeometryItem" Text="Audit chevron / process arrow gap &amp; angle consistency" Click="OnOutlineStatsAuditChevronGeometryClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE72A;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
-                                            <MenuFlyoutItem x:Name="OutlineStatsAuditChevronProcessMilestoneProgressionItem" Text="Audit Chevron Process Milestone Monotonic Progression &amp; Phase Skips" Click="OnOutlineStatsAuditChevronProcessMilestoneProgressionClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                            <MenuFlyoutItem x:Name="OutlineStatsAuditChevronProcessMilestoneProgressionItem" Text="Audit chevron process milestone monotonic progression &amp; phase skips" Click="OnOutlineStatsAuditChevronProcessMilestoneProgressionClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE72A;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="OutlineStatsAuditTargetBullseyeRingGeometryItem" Text="Audit concentric target &amp; bullseye ring radial symmetry &amp; label alignment" Click="OnOutlineStatsAuditTargetBullseyeRingGeometryClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEA3A;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="AuditContainerDensityItem" Text="Audit container slide width density &amp; overflow risk" Click="OnAuditContainerDensityClick">
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE809;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="OutlineStatsAuditCycleProcessDirectionalityItem" Text="Audit cycle process flow closed-loop directionality &amp; arrow parity" Click="OnOutlineStatsAuditCycleProcessDirectionalityClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE895;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="OutlineStatsAuditCycleIntervalItem" Text="Audit cycle process interval uniformity &amp; radial chord balance" Click="OnOutlineStatsAuditCycleIntervalClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEA3A;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="AuditCyclicFlowContinuityItem" Text="Audit cyclic flow continuity &amp; loop closure" Click="OnAuditCyclicFlowContinuityClick">
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE72C;" /></MenuFlyoutItem.Icon>
@@ -335,13 +335,13 @@
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8D2;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="OutlineStatsAuditFunnelStageProportionalityItem" Text="Audit funnel / pipeline stage conversion rate proportionality" Click="OnOutlineStatsAuditFunnelStageProportionalityClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE71C;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="OutlineStatsAuditFunnelPyramidProgressionItem" Text="Audit funnel/pyramid progression volume &amp; stage ingestion taper" Click="OnOutlineStatsAuditFunnelPyramidProgressionClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE71C;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="OutlineStatsAuditGearMechanismGeometryItem" Text="Audit gear &amp; cogwheel intermeshing teeth, pitch radii &amp; kinematic loop" Click="OnOutlineStatsAuditGearMechanismGeometryClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE713;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="AuditBranchingFactorItem" Text="Audit hierarchy branching factor &amp; depth balance" Click="OnAuditBranchingFactorClick">
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE809;" /></MenuFlyoutItem.Icon>
@@ -352,11 +352,11 @@
                                             <MenuFlyoutItem x:Name="OutlineStatsAuditHierarchyBranchingItem" Text="Audit hierarchy tree aspect ratio, branching balance &amp; fan ergonomics" Click="OnAuditHierarchyBranchingClick">
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xF158;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
-                                            <MenuFlyoutItem x:Name="OutlineStatsAuditHierarchyTreeFanOutRatioItem" Text="Audit Hierarchy Tree Fan-Out Ratio &amp; Management Span of Control" Click="OnOutlineStatsAuditHierarchyTreeFanOutRatioClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                            <MenuFlyoutItem x:Name="OutlineStatsAuditHierarchyTreeFanOutRatioItem" Text="Audit hierarchy tree fan-out ratio &amp; management span of control" Click="OnOutlineStatsAuditHierarchyTreeFanOutRatioClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xF003;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="AuditAspectRatioFitItem" Text="Audit layout aspect ratio &amp; container fit" Click="OnAuditAspectRatioFitClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xECAA;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="AuditTypographyFontFitItem" Text="Audit layout typography scaling, label font-fit &amp; text clipping" Click="OnAuditTypographyFontFitClick">
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8D2;" /></MenuFlyoutItem.Icon>
@@ -367,11 +367,11 @@
                                             <MenuFlyoutItem x:Name="AuditLinearFlowMonotonicityItem" Text="Audit linear flow monotonicity &amp; step layout fit" Click="OnAuditLinearFlowMonotonicityClick">
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8A9;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
-                                            <MenuFlyoutItem x:Name="OutlineStatsAuditMatrixQuadrantCoordinateParityItem" Text="Audit Matrix / Quad-Quadrant Layout Symmetry &amp; Coordinate Parity" Click="OnOutlineStatsAuditMatrixQuadrantCoordinateParityClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                            <MenuFlyoutItem x:Name="OutlineStatsAuditMatrixQuadrantCoordinateParityItem" Text="Audit matrix / quad-quadrant layout symmetry &amp; coordinate parity" Click="OnOutlineStatsAuditMatrixQuadrantCoordinateParityClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE80A;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="OutlineStatsAuditMatrixCentroidBalanceItem" Text="Audit matrix 4-quadrant centroid balance &amp; axis symmetry" Click="OnOutlineStatsAuditMatrixCentroidBalanceClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE80A;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="AuditCharBudgetsItem" Text="Audit node character count budgets &amp; truncation risk" Click="OnAuditCharBudgetsClick">
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8A5;" /></MenuFlyoutItem.Icon>
@@ -389,19 +389,19 @@
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE9F9;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="AuditPyramidTaperingItem" Text="Audit pyramid &amp; funnel layer mass tapering &amp; apex overload" Click="OnAuditPyramidTaperingClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE71C;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="OutlineStatsAuditPyramidApexProportionalityItem" Text="Audit pyramid &amp; funnel tier apex proportionality &amp; area balance" Click="OnOutlineStatsAuditPyramidApexProportionalityClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE71C;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
-                                            <MenuFlyoutItem x:Name="OutlineStatsAuditPyramidFunnelHierarchyInversionItem" Text="Audit Pyramid / Funnel Inverted Geometry &amp; Hierarchy Inversion" Click="OnOutlineStatsAuditPyramidFunnelHierarchyInversionClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                            <MenuFlyoutItem x:Name="OutlineStatsAuditPyramidFunnelHierarchyInversionItem" Text="Audit pyramid / funnel inverted geometry &amp; hierarchy inversion" Click="OnOutlineStatsAuditPyramidFunnelHierarchyInversionClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE71C;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="AuditPyramidProportionalityItem" Text="Audit pyramid / funnel stage area proportionality &amp; taper" Click="OnAuditPyramidProportionalityClick">
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE80A;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="OutlineStatsAuditPyramidHierarchyGeometryItem" Text="Audit pyramid / funnel tier hierarchy symmetry &amp; apex readability" Click="OnOutlineStatsAuditPyramidHierarchyGeometryClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE71C;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="AuditRadialCycleBalanceItem" Text="Audit radial cycle / hub-and-spoke angular balance &amp; orbital pacing" Click="OnAuditRadialCycleBalanceClick">
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7C1;" /></MenuFlyoutItem.Icon>
@@ -409,85 +409,85 @@
                                             <MenuFlyoutItem x:Name="AuditSiblingVarianceItem" Text="Audit sibling text length variance &amp; visual symmetry" Click="OnAuditSiblingVarianceClick">
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE809;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
-                                            <MenuFlyoutItem x:Name="OutlineStatsAuditMatrixQuadrantDistributionItem" Text="Audit SmartArt 2x2 Matrix Quadrant Distribution &amp; Diagonal Balance" Click="OnOutlineStatsAuditMatrixQuadrantDistributionClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                            <MenuFlyoutItem x:Name="OutlineStatsAuditMatrixQuadrantDistributionItem" Text="Audit SmartArt 2x2 matrix quadrant distribution &amp; diagonal balance" Click="OnOutlineStatsAuditMatrixQuadrantDistributionClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE80A;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="OutlineStatsAuditAlternatingFlowItem" Text="Audit SmartArt alternating flow rhythm, step parity &amp; bilateral balance" Click="OnOutlineStatsAuditAlternatingFlowClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE736;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="OutlineStatsAuditChevronProcessFlowItem" Text="Audit SmartArt chevron &amp; arrow process sequence directionality &amp; transition flow" Click="OnOutlineStatsAuditChevronProcessFlowClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE72A;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="OutlineStatsAuditChevronUniformityItem" Text="Audit SmartArt chevron &amp; horizontal process flow monotonic sizing &amp; chevron notch uniformity" Click="OnOutlineStatsAuditChevronUniformityClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE72A;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="AuditColorHierarchyItem" Text="Audit SmartArt color hierarchy, depth gradients &amp; chromatic harmony" Click="OnAuditColorHierarchyClick">
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="OutlineStatsAuditTargetBullseyeProgressionItem" Text="Audit SmartArt concentric target / bullseye ring radius progression &amp; area balance" Click="OnOutlineStatsAuditTargetBullseyeProgressionClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEA3A;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="OutlineStatsAuditCycleRadialAngularItem" Text="Audit SmartArt cycle &amp; radial node angular distribution, polar spacing &amp; equidistance" Click="OnOutlineStatsAuditCycleRadialAngularClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEA3A;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="OutlineStatsAuditCycleSequenceItem" Text="Audit SmartArt cycle layout sequence monotonicity &amp; loop closure" Click="OnOutlineStatsAuditCycleSequenceClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE895;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="OutlineStatsAuditFunnelPyramidItem" Text="Audit SmartArt funnel &amp; pyramid layout monotonic staging &amp; volume progression" Click="OnOutlineStatsAuditFunnelPyramidClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE71C;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="OutlineStatsAuditFunnelPyramidProportionsItem" Text="Audit SmartArt funnel &amp; pyramid layout step proportions &amp; text inscription" Click="OnOutlineStatsAuditFunnelPyramidProportionsClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE71C;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="OutlineStatsAuditFunnelPyramidTaperItem" Text="Audit SmartArt funnel / pyramid stage ingestion flow &amp; volume tapering" Click="OnOutlineStatsAuditFunnelPyramidTaperClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE71C;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="OutlineStatsAuditHierarchyBalanceItem" Text="Audit SmartArt hierarchy level indentation depth &amp; sibling balance" Click="OnOutlineStatsAuditHierarchyBalanceClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xF003;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="OutlineStatsAuditHierarchyTreeBalanceItem" Text="Audit SmartArt hierarchy tree depth balance, subtree branching &amp; leaf node uniformity" Click="OnOutlineStatsAuditHierarchyBranchingClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xF003;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="OutlineStatsAuditListTextDensityBalanceItem" Text="Audit SmartArt list item text density &amp; line count balance" Click="OnOutlineStatsAuditListTextDensityBalanceClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8D2;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="OutlineStatsAuditMatrixCellSymmetryItem" Text="Audit SmartArt matrix &amp; grid layout cell symmetry, aspect ratio &amp; label balance" Click="OnOutlineStatsAuditMatrixCellSymmetryClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE80A;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="OutlineStatsAuditMatrixQuadrantItem" Text="Audit SmartArt matrix quadrant balance &amp; categorical symmetry" Click="OnOutlineStatsAuditMatrixQuadrantClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE80A;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="OutlineStatsAuditMatrixQuadrantBalanceItem" Text="Audit SmartArt multi-level matrix quadrant symmetry &amp; balance" Click="OnOutlineStatsAuditMatrixQuadrantBalanceClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE80A;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="OutlineStatsAuditHierarchyOrgChartBalanceItem" Text="Audit SmartArt organizational hierarchy balance, depth &amp; span of control" Click="OnOutlineStatsAuditHierarchyOrgChartBalanceClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xF003;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="OutlineStatsAuditProcessStepFlowItem" Text="Audit SmartArt process step flow, directionality &amp; transition sequence" Click="OnOutlineStatsAuditProcessStepFlowClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE72A;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="OutlineStatsAuditRadialSymmetryItem" Text="Audit SmartArt radial &amp; hub-and-spoke angular distribution &amp; symmetry" Click="OnOutlineStatsAuditRadialSymmetryClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEA3A;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="OutlineStatsAuditVennRadialBalanceItem" Text="Audit SmartArt radial / Venn diagram overlap area &amp; intersection balance" Click="OnOutlineStatsAuditVennRadialBalanceClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEA3A;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="OutlineStatsAuditRadialGearCycleItem" Text="Audit SmartArt radial gear cycle mechanical engagement &amp; angular pitch" Click="OnOutlineStatsAuditRadialGearCycleClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE713;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="OutlineStatsAuditPyramidProportionalityItem" Text="Audit SmartArt segmented pyramid / layer hierarchy proportionality &amp; apex fit" Click="OnOutlineStatsAuditPyramidProportionalityClick">
                                             
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE71C;" /></MenuFlyoutItem.Icon>
                                             
                                             </MenuFlyoutItem>
-                                            <MenuFlyoutItem x:Name="OutlineStatsAuditSegmentedCycleAngleSlicingItem" Text="Audit SmartArt Segmented Radial Cycle Angle Slicing &amp; Chord Symmetry" Click="OnOutlineStatsAuditSegmentedCycleAngleSlicingClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                            <MenuFlyoutItem x:Name="OutlineStatsAuditSegmentedCycleAngleSlicingItem" Text="Audit SmartArt segmented radial cycle angle slicing &amp; chord symmetry" Click="OnOutlineStatsAuditSegmentedCycleAngleSlicingClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEA3A;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="OutlineStatsAuditTimelineIntervalsItem" Text="Audit SmartArt timeline &amp; process milestones chronological ordering &amp; interval balance" Click="OnOutlineStatsAuditTimelineIntervalsClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE72A;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="OutlineStatsAuditVennOverlapSymmetryItem" Text="Audit SmartArt Venn diagram set overlap, intersect symmetry &amp; boolean cardinality" Click="OnOutlineStatsAuditVennOverlapSymmetryClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEA3A;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="AuditTimelineChronologyItem" Text="Audit timeline milestone chronology &amp; date format consistency" Click="OnAuditTimelineChronologyClick">
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE823;" /></MenuFlyoutItem.Icon>
@@ -496,16 +496,16 @@
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE823;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="OutlineStatsAuditVennGeometryItem" Text="Audit Venn diagram &amp; overlapping set geometry harmony" Click="OnOutlineStatsAuditVennGeometryClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEA3A;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="OutlineStatsAuditVennOverlapItem" Text="Audit Venn diagram circular overlap geometry &amp; set inclusion balance" Click="OnAuditVennOverlapClick">
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE81E;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
-                                            <MenuFlyoutItem x:Name="OutlineStatsAuditVennDiagramSetIntersectionItem" Text="Audit Venn Diagram Set Intersection &amp; Cardinality Balance" Click="OnOutlineStatsAuditVennDiagramSetIntersectionClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B9;" /></MenuFlyoutItem.Icon>
+                                            <MenuFlyoutItem x:Name="OutlineStatsAuditVennDiagramSetIntersectionItem" Text="Audit Venn diagram set intersection &amp; cardinality balance" Click="OnOutlineStatsAuditVennDiagramSetIntersectionClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEA3A;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="AuditVennCompletenessItem" Text="Audit Venn diagram set overlap completeness &amp; intersections" Click="OnAuditVennCompletenessClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEA3A;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                         </MenuFlyoutSubItem>
                                     </MenuFlyout>

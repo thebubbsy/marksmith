@@ -4694,23 +4694,35 @@ public sealed partial class SuiteHubView : UserControl
 
         {
 
+            if (RecentDocsRewriteIsRunning()) return;
+
             var files = App.RecentFiles?.Load() ?? new List<string>();
 
             if (!await ConfirmRecentDocsActionAsync("Normalize Markdown dialect?", $"Rewrites code fences, list markers and heading styles in {DocumentCount(files.Count)} from your recent list to one style. A backup of each changed file is kept.", "Rewrite files")) return;
 
-            var result = await Task.Run(() => RecentFilesService.ApplyWorkspaceDialectNormalization(files));
-
-            var clipboardError = await Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-
-            var copyMessage = $"Applied: {result.TotalReplacementsApplied} replacements across {result.FilesNormalized} files ({result.BackupsCreatedCount} backups)";
-            SetNotification(clipboardError is null ? copyMessage : Services.CopyStatusText.Failed(copyMessage, clipboardError), success: clipboardError is null);
-
-            if (RecentDocsActionBtn != null)
-
+            if (RecentDocsRewriteIsRunning()) return;
+            _recentDocsRewriteRunning = true;
+            SetNotification($"Rewriting {DocumentCount(files.Count)}…");
+            try
             {
+                var result = await Task.Run(() => RecentFilesService.ApplyWorkspaceDialectNormalization(files));
 
-                Services.CopyFeedback.ApplyButtonTick(RecentDocsActionBtn, null, "\u2713 Applied");
+                var clipboardError = await Services.ClipboardWriter.TrySetTextAsync(result.Summary);
 
+                var copyMessage = $"Applied: {result.TotalReplacementsApplied} replacements across {result.FilesNormalized} files ({result.BackupsCreatedCount} backups)";
+                SetNotification(clipboardError is null ? copyMessage : Services.CopyStatusText.Failed(copyMessage, clipboardError), success: clipboardError is null);
+
+                if (RecentDocsActionBtn != null)
+
+                {
+
+                    Services.CopyFeedback.ApplyButtonTick(RecentDocsActionBtn, null, "\u2713 Applied");
+
+                }
+            }
+            finally
+            {
+                _recentDocsRewriteRunning = false;
             }
 
         }
@@ -5246,23 +5258,35 @@ private async void OnAuditWorkspaceMarkdownTableAutoAlignAndExportClick(object s
 
         {
 
+            if (RecentDocsRewriteIsRunning()) return;
+
             var files = App.RecentFiles?.Load() ?? new List<string>();
 
             if (!await ConfirmRecentDocsActionAsync("Align Markdown tables?", $"Pads and aligns the table columns in {DocumentCount(files.Count)} from your recent list. A .bak.md backup of each changed file is kept.", "Rewrite files")) return;
 
-            var result = await Task.Run(() => RecentFilesService.ApplyWorkspaceTableAutoAlignmentFixes(explicitFiles: files));
-
-            var clipboardError = await Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-
-            var copyMessage = result.Summary;
-            SetNotification(clipboardError is null ? copyMessage : Services.CopyStatusText.Failed(copyMessage, clipboardError), success: clipboardError is null);
-
-            if (RecentDocsActionBtn != null)
-
+            if (RecentDocsRewriteIsRunning()) return;
+            _recentDocsRewriteRunning = true;
+            SetNotification($"Rewriting {DocumentCount(files.Count)}…");
+            try
             {
+                var result = await Task.Run(() => RecentFilesService.ApplyWorkspaceTableAutoAlignmentFixes(explicitFiles: files));
 
-                Services.CopyFeedback.ApplyButtonTick(RecentDocsActionBtn, null, "\u2713 Auto-Align");
+                var clipboardError = await Services.ClipboardWriter.TrySetTextAsync(result.Summary);
 
+                var copyMessage = result.Summary;
+                SetNotification(clipboardError is null ? copyMessage : Services.CopyStatusText.Failed(copyMessage, clipboardError), success: clipboardError is null);
+
+                if (RecentDocsActionBtn != null)
+
+                {
+
+                    Services.CopyFeedback.ApplyButtonTick(RecentDocsActionBtn, null, "\u2713 Auto-Align");
+
+                }
+            }
+            finally
+            {
+                _recentDocsRewriteRunning = false;
             }
 
         }
@@ -5287,23 +5311,35 @@ private async void OnAuditWorkspaceMarkdownTableAutoAlignAndExportClick(object s
 
         {
 
+            if (RecentDocsRewriteIsRunning()) return;
+
             var files = App.RecentFiles?.Load() ?? new List<string>();
 
             if (!await ConfirmRecentDocsActionAsync("Restore table backups?", $"Puts back the .bak.md copy of each of {DocumentCount(files.Count)} from your recent list that has one. Edits made since the tables were aligned are lost.", "Restore backups")) return;
 
-            var result = await Task.Run(() => RecentFilesService.RestoreWorkspaceTableAutoAlignmentBackups(explicitFiles: files));
-
-            var clipboardError = await Services.ClipboardWriter.TrySetTextAsync(result.Summary);
-
-            var copyMessage = result.Summary;
-            SetNotification(clipboardError is null ? copyMessage : Services.CopyStatusText.Failed(copyMessage, clipboardError), success: clipboardError is null);
-
-            if (RecentDocsActionBtn != null)
-
+            if (RecentDocsRewriteIsRunning()) return;
+            _recentDocsRewriteRunning = true;
+            SetNotification($"Rewriting {DocumentCount(files.Count)}…");
+            try
             {
+                var result = await Task.Run(() => RecentFilesService.RestoreWorkspaceTableAutoAlignmentBackups(explicitFiles: files));
 
-                Services.CopyFeedback.ApplyButtonTick(RecentDocsActionBtn, null, "\u2713 Restored");
+                var clipboardError = await Services.ClipboardWriter.TrySetTextAsync(result.Summary);
 
+                var copyMessage = result.Summary;
+                SetNotification(clipboardError is null ? copyMessage : Services.CopyStatusText.Failed(copyMessage, clipboardError), success: clipboardError is null);
+
+                if (RecentDocsActionBtn != null)
+
+                {
+
+                    Services.CopyFeedback.ApplyButtonTick(RecentDocsActionBtn, null, "\u2713 Restored");
+
+                }
+            }
+            finally
+            {
+                _recentDocsRewriteRunning = false;
             }
 
         }
@@ -6062,6 +6098,17 @@ private void OnClearRecentFilterClick(object sender, RoutedEventArgs e)
     {
         FrameworkElement anchor = RecentDocsActionBtn is { XamlRoot: not null, ActualWidth: > 0 } ? RecentDocsActionBtn : this;
         return Services.ConfirmFlyout.AskAsync(anchor, title, message, confirmText);
+    }
+
+    // One rewrite of the recent documents at a time: a second Apply / Restore started while the
+    // first is still writing would read files that are halfway through being changed.
+    private bool _recentDocsRewriteRunning;
+
+    private bool RecentDocsRewriteIsRunning()
+    {
+        if (!_recentDocsRewriteRunning) return false;
+        SetNotification("Still rewriting your recent documents. Try again when that finishes.", success: false);
+        return true;
     }
 
     private static string DocumentCount(int count) => count == 1 ? "1 document" : $"{count} documents";

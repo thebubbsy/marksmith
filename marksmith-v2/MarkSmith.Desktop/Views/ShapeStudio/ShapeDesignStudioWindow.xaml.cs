@@ -16,6 +16,16 @@ namespace MarkSmith.Views.ShapeStudio
 {
     public sealed partial class ShapeDesignStudioWindow : Window
     {
+        // Reports an edit's result on the status line. Edits (arrange, recolour, normalise) used to
+        // copy their summary as well, which silently replaced whatever the user had on the clipboard;
+        // only commands that say Copy, and the Diagnostics reports, put text there now.
+        private void ReportEdit(string? summary)
+        {
+            if (ViewModel is null) return;
+            var line = summary?.Split('\n')[0].Trim();
+            if (!string.IsNullOrWhiteSpace(line)) ViewModel.StatusMessage = line;
+        }
+
         // Copies text and reports it on the status line. These copies used to discard ClipboardWriter's
         // result, so a busy clipboard still said "Copied ...". With no message, the command has already
         // put its result on the status line; a failed copy is added to it. A tick button shows a tick
@@ -6047,7 +6057,7 @@ namespace MarkSmith.Views.ShapeStudio
             if (ViewModel == null) return;
             ViewModel.ReverseSelectedZOrder();
             var summary = MarkSmith.ViewModels.ShapeStudio.ShapeDesignStudioViewModel.FormatZOrderSummary(ViewModel.Shapes, ViewModel.Shapes.Where(s => s.IsSelected));
-            CopyAndReport(summary);
+            ReportEdit(summary);
             UpdateAdorner();
             UpdateMultiSelectionAdorner();
         }
@@ -6057,7 +6067,7 @@ namespace MarkSmith.Views.ShapeStudio
             if (ViewModel == null) return;
             var (adjusted, total, maxDelta) = ViewModel.NormalizeShapePrecision(1.0);
             var summary = MarkSmith.ViewModels.ShapeStudio.ShapeDesignStudioViewModel.FormatPrecisionNormalizationSummary(adjusted, total, 1.0, maxDelta);
-            CopyAndReport(summary);
+            ReportEdit(summary);
             UpdateAdorner();
             UpdateMultiSelectionAdorner();
         }
@@ -6067,7 +6077,7 @@ namespace MarkSmith.Views.ShapeStudio
             if (ViewModel == null) return;
             var (resized, total, targetW, targetH, refLabel) = ViewModel.MatchSelectedShapeDimensions(matchWidth: true, matchHeight: true);
             var summary = MarkSmith.ViewModels.ShapeStudio.ShapeDesignStudioViewModel.FormatDimensionMatchSummary(resized, total, targetW, targetH, refLabel);
-            CopyAndReport(summary);
+            ReportEdit(summary);
             UpdateAdorner();
             UpdateMultiSelectionAdorner();
         }
@@ -6077,7 +6087,7 @@ namespace MarkSmith.Views.ShapeStudio
             if (ViewModel == null) return;
             var (flipped, pivotX, pivotY) = ViewModel.FlipSelectedShapes(horizontal: true, vertical: false);
             var summary = MarkSmith.ViewModels.ShapeStudio.ShapeDesignStudioViewModel.FormatFlipTransformSummary(flipped, horizontal: true, vertical: false, pivotX, pivotY);
-            CopyAndReport(summary);
+            ReportEdit(summary);
             UpdateAdorner();
             UpdateMultiSelectionAdorner();
         }
@@ -6086,7 +6096,7 @@ namespace MarkSmith.Views.ShapeStudio
         {
             if (ViewModel == null) return;
             var (matched, total, kind, fill, summary) = ViewModel.SelectSimilarShapes(matchKind: true, matchFill: false);
-            CopyAndReport(summary);
+            ReportEdit(summary);
             UpdateAdorner();
             UpdateMultiSelectionAdorner();
         }
@@ -6095,7 +6105,7 @@ namespace MarkSmith.Views.ShapeStudio
         {
             if (ViewModel == null) return;
             var (matched, total, kind, fill, summary) = ViewModel.SelectSimilarShapes(matchKind: false, matchFill: true);
-            CopyAndReport(summary);
+            ReportEdit(summary);
             UpdateAdorner();
             UpdateMultiSelectionAdorner();
         }
@@ -6104,7 +6114,7 @@ namespace MarkSmith.Views.ShapeStudio
         {
             if (ViewModel == null) return;
             var (nudged, total, summary) = ViewModel.ResolveShapeOverlaps(16.0);
-            CopyAndReport(summary);
+            ReportEdit(summary);
             UpdateAdorner();
             UpdateMultiSelectionAdorner();
         }
@@ -6113,7 +6123,7 @@ namespace MarkSmith.Views.ShapeStudio
         {
             if (ViewModel == null) return;
             var (distCount, total, summary) = ViewModel.DistributeShapesEvenly(DistributionAxis.Horizontal);
-            CopyAndReport(summary);
+            ReportEdit(summary);
             UpdateAdorner();
             UpdateMultiSelectionAdorner();
         }
@@ -6122,7 +6132,7 @@ namespace MarkSmith.Views.ShapeStudio
         {
             if (ViewModel == null) return;
             var (distCount, total, summary) = ViewModel.DistributeShapesEvenly(DistributionAxis.Vertical);
-            CopyAndReport(summary);
+            ReportEdit(summary);
             UpdateAdorner();
             UpdateMultiSelectionAdorner();
         }
@@ -6131,7 +6141,7 @@ namespace MarkSmith.Views.ShapeStudio
         {
             if (ViewModel == null) return;
             var (scaledCount, total, factor, summary) = ViewModel.ScaleSelectedShapesProportionally(1.25);
-            CopyAndReport(summary);
+            ReportEdit(summary);
             UpdateAdorner();
             UpdateMultiSelectionAdorner();
         }
@@ -6140,7 +6150,7 @@ namespace MarkSmith.Views.ShapeStudio
         {
             if (ViewModel == null) return;
             var (arrangedCount, rx, ry, summary) = ViewModel.DistributeShapesRadially();
-            CopyAndReport(summary);
+            ReportEdit(summary);
             UpdateAdorner();
             UpdateMultiSelectionAdorner();
         }
@@ -6163,7 +6173,7 @@ namespace MarkSmith.Views.ShapeStudio
         {
             if (ViewModel == null) return;
             var (targets, modified, summary) = ViewModel.QuantizeShapeCoordinates(8.0);
-            CopyAndReport(summary);
+            ReportEdit(summary);
             UpdateAdorner();
             UpdateMultiSelectionAdorner();
         }
@@ -6179,7 +6189,7 @@ namespace MarkSmith.Views.ShapeStudio
         {
             if (ViewModel == null) return;
             var (targets, modified, summary) = ViewModel.EnforceAspectRatioLock(1.0, "1:1 Square");
-            CopyAndReport(summary);
+            ReportEdit(summary);
             UpdateAdorner();
             UpdateMultiSelectionAdorner();
         }
@@ -6195,7 +6205,7 @@ namespace MarkSmith.Views.ShapeStudio
         {
             if (ViewModel == null) return;
             var (targets, modified, gap, summary) = ViewModel.DistributeSpacingUniformly(DistributionAxis.Horizontal);
-            CopyAndReport(summary);
+            ReportEdit(summary);
             UpdateAdorner();
             UpdateMultiSelectionAdorner();
         }
