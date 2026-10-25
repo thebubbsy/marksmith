@@ -117,6 +117,12 @@ public sealed partial class HistoryWindow : Window
         TimelineScroll.LayoutUpdated += OnTimelineLayoutUpdated;
     }
 
+    // Null until the window's content has a XamlRoot. The first timeline load runs from the constructor,
+    // and its selection changes ask where focus is: GetFocusedElement(null) threw, which the load reported
+    // as "Couldn't read the history of …" and left no version selected.
+    private DependencyObject? FocusedElement() =>
+        RootGrid.XamlRoot is { } root ? Microsoft.UI.Xaml.Input.FocusManager.GetFocusedElement(root) as DependencyObject : null;
+
     private DateTime _openedAt;
     private bool _initialFocusDone;
 
@@ -124,7 +130,7 @@ public sealed partial class HistoryWindow : Window
     {
         if (_initialFocusDone) return;
         // Only while the window is opening, and never over something the person chose themselves.
-        var focused = Microsoft.UI.Xaml.Input.FocusManager.GetFocusedElement(RootGrid.XamlRoot);
+        var focused = FocusedElement();
         bool untouched = focused is null || (ReferenceEquals(focused, SearchBox) && SearchBox.Text.Length == 0);
         if (!untouched || DateTime.UtcNow - _openedAt > TimeSpan.FromSeconds(3))
         {
@@ -292,14 +298,14 @@ public sealed partial class HistoryWindow : Window
             if (_vm.HasSelectedHeader) return;
             // The timestamp button collapses (on HasSelectedHeader, raised next) with the selection;
             // move focus while it still shows.
-            var focused = Microsoft.UI.Xaml.Input.FocusManager.GetFocusedElement(RootGrid.XamlRoot);
+            var focused = FocusedElement();
             if (ReferenceEquals(focused, SelectedHeaderButton))
                 TimelineFilterStatusPill.Focus(FocusState.Programmatic);
         }
         else if (e.PropertyName == nameof(HistoryWindowViewModel.ShowTimeline) && !_vm.ShowTimeline)
         {
             // The jump arrows disable with nothing to jump to; don't strand keyboard focus on them.
-            var focused = Microsoft.UI.Xaml.Input.FocusManager.GetFocusedElement(RootGrid.XamlRoot);
+            var focused = FocusedElement();
             if (ReferenceEquals(focused, JumpLatestButton) || ReferenceEquals(focused, JumpOldestButton))
                 SearchBox.Focus(FocusState.Programmatic);
         }
@@ -1538,6 +1544,9 @@ public sealed partial class HistoryWindow : Window
     private void OnRootPreviewKeyDown(object sender, KeyRoutedEventArgs e)
     {
         if (_dialogOpen) return;
+        // Keys pressed inside an open version / document menu are the menu's: Down used to move the
+        // timeline selection (and close the menu) instead of moving to the next menu item.
+        if (PopupKeys.FocusIsOutside(RootGrid)) return;
         var isCtrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
         var isShift = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
         if (isCtrl || isShift) return;
@@ -1621,6 +1630,8 @@ public sealed partial class HistoryWindow : Window
     private void OnRootKeyDown(object sender, KeyRoutedEventArgs e)
     {
         if (_dialogOpen) return;
+        // S, F2, Delete and Ctrl+C inside an open menu starred, renamed, deleted or copied the version behind it.
+        if (PopupKeys.FocusIsOutside(RootGrid)) return;
         var isCtrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
         var isShift = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
         var isAlt = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Menu).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
@@ -2050,7 +2061,7 @@ public sealed partial class HistoryWindow : Window
     // keyboard user on one of them would be left with focus on nothing. Land on the view switcher.
     private void HandFocusOffCollapsingDiffTools()
     {
-        if (Microsoft.UI.Xaml.Input.FocusManager.GetFocusedElement(RootGrid.XamlRoot) is not DependencyObject focused) return;
+        if (FocusedElement() is not DependencyObject focused) return;
         UIElement[] collapsing = { DiffChangeStepperPill, DiffSearchPill, DeltaMeterButton, DiffWordDeltaPill,
             DiffWrapButton, DiffLineJumpButton, DiffIgnoreWhitespaceButton, CommitShaCopyPill, CopyToolbarButton };
         if (!collapsing.Any(c => IsWithin(focused, c))) return;

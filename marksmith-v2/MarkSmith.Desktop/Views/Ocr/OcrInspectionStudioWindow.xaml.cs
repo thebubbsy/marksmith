@@ -2226,6 +2226,10 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
     {
         try
         {
+            // Keys pressed inside an open menu, flyout or dialog are its own. Esc in a flyout that isn't a
+            // menu discarded the studio, and Ctrl+Shift+R in an element menu reset the page behind it.
+            if (PopupKeys.FocusIsOutside(RootGrid)) return;
+
             bool ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control)
                 .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
             bool shift = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Shift)

@@ -3012,6 +3012,9 @@ namespace MarkSmith.Views.SmartArtStudio
         // TextBoxes (rename box, Markdown Data) keep their native keys — focus guard.
         private void OnRootGridKeyDown(object sender, KeyRoutedEventArgs e)
         {
+            // Keys pressed inside an open menu bubble here too. Delete / Backspace in a node's menu deleted
+            // the selected node behind it, and F2 / Ctrl+Z / Ctrl+D acted behind it as well.
+            if (PopupKeys.FocusIsOutside(RootGrid)) return;
             var ctrl = (Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control)
                         & Windows.UI.Core.CoreVirtualKeyStates.Down) == Windows.UI.Core.CoreVirtualKeyStates.Down;
             var shift = (Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift)

@@ -17362,3 +17362,116 @@ inspector. That pass found item 1 below.
 **Release (same run):** tagged **v3.64.0** on `0b0db31`; Release workflow run 40155741845 succeeded;
 user-facing notes prepended to the generated body
 (https://github.com/thebubbsy/marksmith/releases/tag/v3.64.0). `MarksmithBaseVersion` is now 3.65.0.
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #250 (2026-10-25, 14:00–14:45 AEDT)
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running in the Claude desktop app. The task template asks for
+  "Antigravity AI Agent (Google DeepMind)"; that would be untrue for this run, so the real identity is recorded.
+- Modes: Scheduled Hourly Automation Routine (bypass-permissions, no live user)
+- Trigger: scheduled task `commit-to-main-ship-improvement--r4efinement`
+- Agents used: 1 (one session acting as orchestrator, coding worker and skeptical reviewer; no
+  subagents). Session `1fc90582-870e-44c8-bfc7-ef465775d950`.
+- Worked in run #249's clean clone (`%TEMP%\ms249`, at `origin/main` 6f68e22). The local checkout (far behind,
+  with another session's uncommitted edits and `EverythingHttpPlugin/*`) was not touched. `ms_run249` was deleted
+  first (the TEMP drive had 4.2 GB free).
+
+**Reviewed:** run #249's Next up. Item 1 (History's root key handler with a menu open) is done and was the
+same leak, which also turned up in SmartArt, Mind Map, Suite Hub and OCR. Item 3 (Tab selects a box's text,
+so Shift+F10 gives the text menu) is done (item 6 below). Item 2 (live SmartArt / Mind Map text boxes) was not
+done. The live History check also found item 7, an older bug.
+
+**Delivered (user-visible):**
+1. **History: keys pressed in an open menu stay in the menu.** Down / Up / Home / End in a version's menu moved
+   the timeline selection and closed the menu instead of moving through it. S starred, F2 renamed, Delete
+   deleted and Ctrl+C copied the version behind the menu. Both of History's root handlers now leave those keys to
+   the menu.
+2. **SmartArt Studio: Delete in a menu no longer deletes the node.** The RootGrid KeyDown handler deleted the
+   selected node on Delete / Backspace pressed inside an open menu. F2, Ctrl+Z / Y / D also acted behind the menu.
+3. **Mind Map: Ctrl+Z / Ctrl+D / Ctrl+L / Ctrl+S in a menu stay in the menu.** They undid, duplicated, opened the
+   Connect dialog or saved behind an open menu.
+4. **Suite Hub: number keys in a card or chip menu no longer launch a studio.** The hub's handler sees handled
+   keys too, so 1–6 inside a menu opened a studio or copied a config. F1 opened the shortcuts flyout over it,
+   and Shift+F10 opened a second card menu.
+5. **OCR Studio: keys in a menu, flyout or dialog stay there.** Esc in a non-menu flyout discarded the studio
+   (through the close guard), and Ctrl+Shift+R in an element menu reset the page behind it.
+6. **Text boxes with their own options menu offer "More options" in the text menu.** Tabbing into a box selects
+   its text, so Shift+F10 showed Cut / Copy / Select All and the box's options needed End first. Every
+   `TextBoxMenu` box (28 call sites across MainWindow, History, Command Palette, Insert image, Mermaid, the node palette,
+   Mind Map, OCR, Shape and SmartArt Studio) now has a "More options" entry in its text menu. The entry closes the
+   text menu and opens the box's own menu.
+7. **History opens on the newest version instead of an error.** Opening History for a file showed "Couldn't read the
+   history of notes.md: The parameter is incorrect. xamlRoot", and no version was selected or diffed. The
+   first timeline load runs from the constructor. Its selection changes asked
+   `FocusManager.GetFocusedElement(RootGrid.XamlRoot)` while XamlRoot was still null, and that threw into the
+   load's catch.
+
+**Implementation summary.**
+- New `Services/PopupKeys.cs`: `FocusIsOutside(root)` is true when keyboard focus sits outside `root` (an open
+  menu / flyout / dialog popup), and false with no XamlRoot or no focus.
+- First statement of each window-level key handler is now `if (PopupKeys.FocusIsOutside(<root>)) return;`:
+  History `OnRootPreviewKeyDown` and `OnRootKeyDown`, SmartArt `OnRootGridKeyDown`, Mind Map `OnRootKeyDown`,
+  Suite Hub `OnHubKeyDown` (root `this`, before the Esc / notification check), and OCR `OnRootKeyDown`.
+  Shape Studio already had its own `IsWithinRootGrid` guard (run #249).
+- `Services/TextBoxMenu.cs`: when the captured text menu is a `CommandBarFlyout`, its `Opening` adds a
+  "More options" `AppBarButton` to `SecondaryCommands`. Only the box the menu is opening on adds it
+  (`bar.Target`), and only once (tag check). Click hides the text menu, then shows the options menu on the box
+  through the dispatcher.
+- `Views/History/HistoryWindow.xaml.cs`: new `FocusedElement()` (null until RootGrid has a XamlRoot) replaces the
+  four `GetFocusedElement(RootGrid.XamlRoot)` calls (opening focus, header collapse, jump-arrow collapse, diff
+  tools collapse).
+- Tests: new `Run250PopupKeysAndMoreOptionsTests` (10 cases): the helper contract, a theory that every guarded
+  handler checks focus before it reads any key, that the hub handler still sees handled keys, the More options
+  wiring (target check, once per opening, hide then show), and History's null-safe focus lookup.
+
+**Skeptical review.**
+- Focus traps: nothing new collapses or disables a control. History's focus hand-offs still run once the window
+  has a XamlRoot. Before that nothing can hold focus, so skipping them is safe.
+- Key swallowing: the guards only return; they never set `Handled`. Menus, flyouts and dialogs get every key they
+  got before, and the window handlers ignore them. Keys inside each window are unchanged: no XamlRoot or no focus
+  counts as inside. Mind Map's canvas-with-no-focus case (`focused is null`) still reaches its handler.
+- Popups inside the roots: none of the five views hosts a `Popup` or `TeachingTip`. Suite Hub's `Notification`
+  is an inline `InfoBar`, so Esc still closes it.
+- More options: the text menu is captured per box. The `Target` check covers a menu that might be shared. The
+  options menu opens after the text menu has closed, so they never overlap.
+- HoverPolish / theme: one `AppBarButton` in a `CommandBarFlyout` (stock styling, no brush lookups).
+- Files / async: none opened or added.
+
+**Verified.**
+- Build: Desktop built to `%TEMP%\ms_run250\b` with 0 errors, twice. The second build added the History fix.
+  The first build's `-p:OutDir=…\b\"` came from Bash, and the trailing `\"` swallowed the quote, so the output
+  went elsewhere. Build from PowerShell instead.
+- Tests: targeted sweep (Run250 / 249 / 238 / 223, History, SmartArt, MindMap, SuiteHub, Ocr): 1343/1343 passed.
+  After the History fix, Run250 + History: 253/253 passed.
+- Live UIA + real keys: scratch PIDs 22440, then 25736, with `MARKSMITH_CONFIG_DIR` in the session scratchpad and
+  History seeded through `VersionHistoryService.CaptureAsync`. Keys were sent only after 30 s or more of idle,
+  with the scratch window in the foreground. No other Marksmith was running, and both PIDs were stopped.
+  - First build: History opened with the "Couldn't read the history … xamlRoot" bar and nothing selected
+    (PrintWindow). That is item 7.
+  - Second build: no notice, and `SelectedHeaderButton` = "Selected version Sunday, 25 October 2026 · 14:20",
+    with the diff shown.
+  - Focused v3 ▸ Shift+F10 opened Rename… | Star | Copy version Markdown | Copy diff patch | Copy line delta |
+    Restore to editor… | Delete version…. After Down, then S, the menu was still open, the selected header was
+    unchanged and no version was starred. Esc closed it.
+  - History search box ("Checkpoint", Ctrl+A) ▸ Shift+F10 opened Cut | Copy | Select All | **More options**.
+    Invoking More options opened Focus timeline | Clear search filter | Show starred versions only | Take
+    checkpoint, and Esc closed it.
+- **Not verified live:** the SmartArt, Mind Map, Suite Hub and OCR guards (source-contract tests only; same helper
+  as the verified History path).
+
+**Noticed, not fixed:**
+- Other windows may call `GetFocusedElement(X.XamlRoot)` from view-model callbacks that can run before the window
+  is shown (the History pattern). Grep for `GetFocusedElement(` in handlers reached from constructors.
+- The menu-key leak may exist in control-level handlers too (Mermaid inspector, node palette list, Settings
+  cards). Those run only for their own subtree, so a menu opened from inside them would also tunnel there.
+- MainWindow's `OnRootPreviewKeyDown` (Ctrl+, / Ctrl+G / Ctrl+/ / Alt+Z) still runs inside menus. Those chords
+  open dialogs or toggle wrap, so they were left alone.
+
+**Next up (Run #251):**
+1. Live keyboard pass on SmartArt (Delete inside a node menu) and Mind Map (Ctrl+D inside a menu) to confirm the
+   new guards there.
+2. Sweep the other windows for the History `GetFocusedElement(null)` pattern.
+3. Run #249's item 2: SmartArt Markdown box / layout search / rename box and Mind Map icon box, now with More options.
+
+**Total user-visible improvements: 7.**

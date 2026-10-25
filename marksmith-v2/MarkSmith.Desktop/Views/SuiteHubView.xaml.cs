@@ -431,6 +431,14 @@ public sealed partial class SuiteHubView : UserControl
 
     {
 
+        // This handler sees handled keys too, so keys pressed inside an open card or chip menu reached it:
+
+        // 1-6 launched a studio behind the menu, F1 opened the shortcuts flyout and Shift+F10 a second menu.
+
+        if (PopupKeys.FocusIsOutside(this)) return;
+
+
+
         if (e.Key == VirtualKey.Escape && Notification.IsOpen)
 
         {

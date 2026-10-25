@@ -33,6 +33,10 @@ public static class TextBoxMenu
             optionsMenu.Items.Clear();
             fill(optionsMenu);
         };
+        // Tabbing into a box selects its text, so Shift+F10 shows the text menu. That menu carries a
+        // "More options" entry, or keyboard users could only reach the options by pressing End first.
+        if (textMenu is CommandBarFlyout bar)
+            bar.Opening += (_, _) => AddMoreOptions(bar, box, optionsMenu);
         void Sync() => box.ContextFlyout = string.IsNullOrEmpty(box.SelectedText) ? optionsMenu : textMenu;
         box.SelectionChanged += (_, _) => Sync();
         Sync();
@@ -53,6 +57,26 @@ public static class TextBoxMenu
         }
         host.Loaded += (_, _) => TryAttach();
         TryAttach();
+    }
+
+    private const string MoreOptionsTag = "TextBoxMenu.MoreOptions";
+
+    private static void AddMoreOptions(CommandBarFlyout bar, TextBox box, MenuFlyout optionsMenu)
+    {
+        // The text menu rebuilds its commands as it opens. If one menu ever serves several boxes,
+        // only the box it is opening on adds the entry.
+        if (!ReferenceEquals(bar.Target, box)) return;
+        foreach (var command in bar.SecondaryCommands)
+            if (command is FrameworkElement { Tag: MoreOptionsTag }) return;
+        var more = new AppBarButton { Label = "More options", Icon = new SymbolIcon(Symbol.More), Tag = MoreOptionsTag };
+        ToolTipService.SetToolTip(more, "This box's own options (the menu it shows with nothing selected)");
+        more.Click += (_, _) =>
+        {
+            bar.Hide();
+            // After the text menu has closed, so the two never share the screen.
+            box.DispatcherQueue.TryEnqueue(() => optionsMenu.ShowAt(box));
+        };
+        bar.SecondaryCommands.Add(more);
     }
 
     private static TextBox? FindTextBox(DependencyObject parent)

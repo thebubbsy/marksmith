@@ -3720,6 +3720,9 @@ namespace MarkSmith.Views.MindMap
 
         private async void OnRootKeyDown(object sender, KeyRoutedEventArgs e)
         {
+            // Keys pressed inside an open menu or flyout are its own: Ctrl+Z, Ctrl+D or Ctrl+L there
+            // undid, duplicated or connected nodes behind it.
+            if (PopupKeys.FocusIsOutside(RootGrid)) return;
             // Never steal a keystroke that belongs to a text box in the inspector,
             // except Ctrl+F which should always jump to the SearchBox.
             var focused = FocusManager.GetFocusedElement(this.Content.XamlRoot);
