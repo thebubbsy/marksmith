@@ -236,11 +236,21 @@ namespace MarkSmith.Views.ShapeStudio
         private static extern uint GetDpiForWindow(IntPtr hwnd);
 
         // The colour-scheme button drops its name when the toolbar is too narrow for it; it used to
-        // slide over the Duplicate and Delete buttons instead.
+        // slide over the Duplicate and Delete buttons instead. The strip's one-line width is summed from
+        // its children: measuring the WrapRow itself at infinite width here would leave that unwrapped
+        // size behind for the next arrange.
         private void OnToolbarSizeChanged(object sender, SizeChangedEventArgs e)
         {
-            ToolStrip.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-            bool roomy = e.NewSize.Width - 16 >= ToolStrip.DesiredSize.Width + 180;
+            double stripWidth = 0;
+            int shown = 0;
+            foreach (var child in ToolStrip.Children)
+            {
+                if (child.Visibility != Visibility.Visible || child.DesiredSize.Width <= 0) continue;
+                stripWidth += child.DesiredSize.Width;
+                shown++;
+            }
+            stripWidth += Math.Max(0, shown - 1) * ToolStrip.HorizontalSpacing;
+            bool roomy = e.NewSize.Width - 16 >= stripWidth + 180;
             PaletteNameText.Visibility = roomy ? Visibility.Visible : Visibility.Collapsed;
         }
 

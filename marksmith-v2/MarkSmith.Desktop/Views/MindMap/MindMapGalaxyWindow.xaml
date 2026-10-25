@@ -6,6 +6,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:conv="using:MarkSmith.Converters"
+    xmlns:ui="using:MarkSmith.Controls"
     xmlns:vm="using:MarkSmith.ViewModels.MindMap"
     mc:Ignorable="d"
     Title="Document Galaxy — MarkSmith">
@@ -785,7 +786,8 @@
                         DoubleTapped="OnConnectionLegendDoubleTapped"
                         RightTapped="OnConnectionLegendRightTapped"
                         ToolTipService.ToolTip="Connection legend · Double-click to toggle, Right-click for options">
-                    <StackPanel Orientation="Horizontal" Spacing="14">
+                    <!-- Wraps the hint onto its own line when the map is narrow (it used to be cut off). -->
+                    <ui:WrapRow HorizontalSpacing="14" VerticalSpacing="4">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <Rectangle Width="16" Height="2" Fill="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
                             <TextBlock Text="Parent and child" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -799,7 +801,7 @@
                             <TextBlock Text="Found on import" FontSize="11" FontStyle="Italic" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         </StackPanel>
                         <TextBlock Text="Drag or Alt+Arrows to move · Arrows to navigate · Double-click to open" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
-                    </StackPanel>
+                    </ui:WrapRow>
                 </Border>
 
                 <!-- FLOATING MINIMAP (Bottom-Left) -->

@@ -17692,3 +17692,105 @@ lambdas built in code) and the main window (33 accelerators, none guarded). Item
 **Release (same run):** tagged **v3.67.0** on `8fa80f6`; Release workflow run 40167197480 succeeded;
 user-facing notes prepended to the generated body
 (https://github.com/thebubbsy/marksmith/releases/tag/v3.67.0). `MarksmithBaseVersion` is now 3.68.0.
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #253 (2026-10-25, 17:05–17:45 AEDT)
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running in the Claude desktop app. The task template asks for
+  "Antigravity AI Agent (Google DeepMind)"; that would be untrue for this run, so the real identity is recorded.
+- Modes: Scheduled Hourly Automation Routine (bypass-permissions, no live user)
+- Trigger: scheduled task `commit-to-main-ship-improvement--r4efinement`
+- Agents used: 1 (one session acting as orchestrator, coding worker and skeptical reviewer; no
+  subagents). Session `ae89e613-ce2a-47e2-9697-46cbf68e3316`.
+- Worked in the clean clone `%TEMP%\ms249` (already at `origin/main` 937ae42). The local checkout (224 commits
+  behind, with another session's uncommitted edits and `EverythingHttpPlugin/*`) was not touched.
+  `%TEMP%\ms_run252` was deleted first (6.4 GB free on C:).
+
+**Reviewed:** run #252's Next up. **The PC was locked for the whole run** (LogonUI running, no foreground
+window, 45 min idle at the start), so items 1–3 (live key checks) could not be done; SendKeys can't reach a
+locked desktop. The run switched to checks UIA can do without keys:
+- A type-name scan (rows whose screen-reader name is a .NET type name) across the main window, Shape Studio,
+  SmartArt Studio, Diagram Studio, Document Galaxy and History: **clean**. A static lead (colour-scheme rows with
+  no `ToString`) was a false alarm: a template-level `AutomationProperties.Name` does reach the list row.
+- A new **clip sweep** (session scratchpad `clipped.ps1`): every button / tab / edit / link that is in the UIA
+  tree but has Empty bounds or is under 14 px wide, skipping list / menu / scroller contents. It found the bugs
+  below.
+
+**Baseline first** (`%TEMP%\ms_run253\base`, unmodified 937ae42, PID 18096, `MARKSMITH_CONFIG_DIR` in the
+session scratchpad, studios opened via Insert ▸ Diagrams and studios):
+- SmartArt Studio: `OutlineTab` and `MarkdownTab` had **Empty bounds** (the Outline | Markdown switcher was not
+  on screen at all), `OutlineNextMatchButton` Empty, `DemoteButton` 9 px wide. The outline pane is a fixed 424 px
+  column, so this held at every window size.
+- SmartArt Studio: the preview zoom bar (zoom out, 100%, zoom in, fit) was white-on-white in the dark theme.
+- Shape Studio at its default 1440 px: Distribute vertically, Bring to front, Send to back, Rotate left / right,
+  Duplicate and Delete had Empty bounds; at its 1180 px minimum, 12 tools did.
+- Document Galaxy at its minimum width: the connection legend's hint ended "Drag or Alt+Arrows to move · A".
+
+**Delivered (user-visible):**
+1. **SmartArt Studio: the Outline | Markdown tabs are back.** The stats, text-volume and find pills sat in an
+   Auto column beside the tabs and took the whole 424 px header, leaving the tabs zero width. The header is now a
+   `WrapRow`: tabs and the stats pill on the first line, the text-volume and find pills on the second.
+2. **SmartArt Studio: the outline find pill's "Next matching node" button is no longer cut off**, and its match
+   count ("2/5", "0 matches") has room.
+3. **SmartArt Studio: the outline toolbar's Demote button is whole again** (was a 9 px sliver). Child / Sibling
+   padding 9→7, their icon gap 6→4, button spacing 3→2 and divider margins 4→2 fit all 11 items in the pane with
+   7 px spare; it is a `WrapRow`, so larger text scaling wraps instead of clipping.
+4. **SmartArt Studio: the preview zoom bar is readable.** Its background was `LayerOnAcrylicFillColorDefaultBrush`
+   (a translucent white) over the white WebView; it is now `SolidBackgroundFillColorTertiaryBrush`, the same
+   opaque surface Document Galaxy's legend uses.
+5. **Shape Studio: no canvas tool is cut off any more.** The tool strip is a `WrapRow`, and it shares an outer
+   `WrapRow` with the snap / colour-scheme controls (no Auto column). At the default size all 17 tools sit on one
+   line with the controls below; at the minimum width the tools take two lines. (A first attempt that only made
+   the strip wrap inside the old star column squeezed it to 130 px, three buttons a line; seen live and replaced.)
+6. **Document Galaxy: the connection legend's hint wraps onto its own line** instead of running off the edge.
+
+**Implementation summary.**
+- `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml`: `xmlns:ui`; header Grid → `ui:WrapRow`; outline
+  toolbar StackPanel → `ui:WrapRow` with the tighter spacing; zoom HUD background.
+- `Views/ShapeStudio/ShapeDesignStudioWindow.xaml`: `xmlns:ui`; toolbar columns → outer `ui:WrapRow`;
+  `ToolStrip` → `ui:WrapRow`.
+- `Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs`: `OnToolbarSizeChanged` no longer calls
+  `ToolStrip.Measure(∞)` out of band (with a WrapRow that would leave the unwrapped size behind for the next
+  arrange); it sums the visible children's widths plus spacing. Same palette-name rule as before.
+- `Views/MindMap/MindMapGalaxyWindow.xaml`: `xmlns:ui`; legend StackPanel → `ui:WrapRow`.
+- Tests: new `Run253StudioToolbarsWrapTests` (8 cases): namespaces and balanced WrapRows in all three files;
+  the SmartArt header holds the tabs first plus every pill; the outline toolbar holds all 7 icon buttons with the
+  trimmed paddings and dividers; the zoom HUD is opaque; Shape Studio's strip holds every tool, shares a WrapRow
+  with the snap controls and has no ColumnDefinition; no out-of-band `ToolStrip.Measure(`; the Galaxy legend wraps.
+
+**Skeptical review.**
+- Focus traps / key swallowing: nothing collapses, disables or handles keys. Tab order follows document order,
+  which is unchanged.
+- Code-behind: no handler casts these panels to `StackPanel` or uses `Orientation` / `Spacing` (grep);
+  `OutlineToolbar` and `ToolStrip` are only used as menu anchors, which a Panel still is.
+- Layout loops: the SizeChanged handler now only reads `DesiredSize`, so it can't trigger a re-measure.
+- Theme: both brushes are `{ThemeResource}`. HoverPolish / files / async: nothing added.
+- Trade-off: Shape Studio's snap / colour controls now start at the left of their own line instead of hugging the
+  right edge, and the toolbar is two lines tall at the default size (it was one line with 7 tools missing).
+
+**Verified.**
+- Build: Desktop built to `%TEMP%\ms_run253\b` with 0 errors (baseline to `%TEMP%\ms_run253\base`).
+- Tests: Run253 8/8; related sweep (Run25x, SmartArt, ShapeStudio / ShapeDesign, MindMap, Galaxy, WrapRow,
+  Toolbar) 1098/1098. Full suite: 6023 passed, 1 skipped, 7 failed; the 7 are all `GovernanceDocsSyncTests`, which fail on any clean clone because the governance docs are gitignored (runs #249 and #252 logged the same 7).
+- Live (UIA + PrintWindow, PIDs 17312 then 31092, each stopped afterwards; no other Marksmith running): the
+  clip sweep is **clean in all five windows** at their default sizes and at their minimum widths. SmartArt:
+  OutlineTab 94×40, MarkdownTab 115×40, OutlineNextMatchButton 20×20, DemoteButton 32×32 ending 7 px inside the
+  pane. Screenshots show the readable zoom bar, Shape Studio's full tool row and the wrapped Galaxy legend. The
+  type-name scan stayed clean.
+- **Not verified live:** anything needing keys (the PC stayed locked), including run #252's accelerator fix.
+
+**Noticed, not fixed:**
+- Document Galaxy's node Icon box showed an odd glyph for the "Project" node in the guided tour; not investigated.
+- The clip sweep only covers windows it can open by UIA. OCR Studio (needs a document), Theme Builder, Settings
+  and the Insert dialogs were not swept.
+
+**Next up (Run #254):**
+1. If the PC is unlocked: run #252's live key check (word-count menu ▸ F11 / Ctrl+F; editor text menu ▸
+   Ctrl+B / Ctrl+1; then the same keys with no menu open).
+2. Run the clip sweep over Settings, Theme Builder, the Insert dialogs and OCR Studio (seed a PDF), at default
+   and minimum sizes.
+3. Run #251's item 2 and run #250's item 1 (Diagram Studio Delete / Ctrl+Z with no menu; SmartArt / Mind Map
+   live keyboard guards), both of which need an unlocked desktop.
+
+**Total user-visible improvements: 6.**

@@ -6,6 +6,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:conv="using:MarkSmith.Converters"
+    xmlns:ui="using:MarkSmith.Controls"
     mc:Ignorable="d"
     Title="Shape Studio — MarkSmith">
 
@@ -398,11 +399,12 @@
 
                     <Grid Grid.Row="0" Padding="8,6" Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}" CornerRadius="8,8,0,0"
                           SizeChanged="OnToolbarSizeChanged">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel x:Name="ToolStrip" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center"
+                        <!-- The tools and the snap / colour controls share a line when they fit; otherwise the
+                             controls drop to a line of their own, and the tools wrap only if they alone are too
+                             wide. As one fixed row the tools' right end (z-order, rotate, duplicate, delete) was
+                             cut off. -->
+                        <ui:WrapRow HorizontalSpacing="12" VerticalSpacing="6">
+                        <ui:WrapRow x:Name="ToolStrip" HorizontalSpacing="4" VerticalSpacing="4" VerticalAlignment="Center"
                                     Background="Transparent" IsHitTestVisible="True"
                                     RightTapped="OnToolStripRightTapped"
                                     ToolTipService.ToolTip="Canvas tools (Right-click for options)">
@@ -448,10 +450,10 @@
                             <Button x:Name="DeleteSelectionToolButton" Style="{StaticResource ToolIconButton}" Command="{Binding RemoveSelectedCommand}" AutomationProperties.Name="Delete" RightTapped="OnToolStripRightTapped" ToolTipService.ToolTip="Delete the selection (Del, Right-click or Shift+F10 for options)">
                                 <FontIcon Glyph="&#xE74D;" FontSize="14" />
                             </Button>
-                        </StackPanel>
+                        </ui:WrapRow>
 
                         <!-- Grid Snap & Colour scheme controls -->
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                             <Button x:Name="GridSnapButton" Style="{StaticResource ToolIconButton}" Padding="8,4"
                                     Click="OnGridSnapButtonClick"
                                     RightTapped="OnGridSnapButtonRightTapped"
@@ -910,6 +912,7 @@
                                 </DropDownButton.Flyout>
                             </DropDownButton>
                         </StackPanel>
+                        </ui:WrapRow>
                     </Grid>
 
                     <!-- dense trace preview -->
