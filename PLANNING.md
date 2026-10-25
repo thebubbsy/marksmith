@@ -17794,3 +17794,7 @@ session scratchpad, studios opened via Insert ▸ Diagrams and studios):
    live keyboard guards), both of which need an unlocked desktop.
 
 **Total user-visible improvements: 6.**
+
+**Release (same run):** tagged **v3.68.0** on `15a440f`; Release workflow run 40169522991 succeeded;
+user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.68.0). `MarksmithBaseVersion` is now 3.69.0.
