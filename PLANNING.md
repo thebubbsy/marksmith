@@ -18596,3 +18596,7 @@ was active (last input 30 s before the live step), so no keys or mouse: UIA patt
 
 **Total user-visible improvements: 8** (6 in the main window's Find / Replace and lint auto-fix, 1 app-wide
 clipboard, 1 in SmartArt Studio).
+
+**Release (same run):** tagged **v3.75.0** on `dfa5693`; Release workflow run 40196961086 succeeded;
+user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.75.0). `MarksmithBaseVersion` is now 3.76.0.
