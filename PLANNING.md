@@ -17475,3 +17475,7 @@ done. The live History check also found item 7, an older bug.
 3. Run #249's item 2: SmartArt Markdown box / layout search / rename box and Mind Map icon box, now with More options.
 
 **Total user-visible improvements: 7.**
+
+**Release (same run):** tagged **v3.65.0** on `4da4bef`; Release workflow run 40158298257 succeeded;
+user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.65.0). `MarksmithBaseVersion` is now 3.66.0.
