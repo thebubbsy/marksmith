@@ -304,7 +304,8 @@
                                      ScrollViewer.VerticalScrollBarVisibility="Auto"
                                      ToolTipService.ToolTip="Edit the Mermaid source; the canvas follows when you pause. Ctrl+Enter writes it to the document, Right-click or Shift+F10 for options" />
                             <Border Grid.Row="1" Background="#232334" Padding="8,4">
-                                <TextBlock x:Name="CodeStatusText" FontSize="10" Foreground="#8D99AE"
+                                <!-- Wraps: clipboard errors carry the exception text and run wider than the pane. -->
+                                <TextBlock x:Name="CodeStatusText" FontSize="10" Foreground="#8D99AE" TextWrapping="WrapWholeWords"
                                            AutomationProperties.LiveSetting="Polite"
                                            Text="Edits sync to the canvas automatically" />
                             </Border>

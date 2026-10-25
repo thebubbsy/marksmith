@@ -99,6 +99,9 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         // The read-only preview's options menu opens from the keyboard too; a selection keeps the
         // box's own Copy / Select all menu.
         TextBoxMenu.Attach(MarkdownPreviewTextBox, FillMarkdownPreviewMenu);
+        // The banner and footer trim at narrow widths; the full line is then a hover away.
+        TrimmedTextToolTip.Attach(StatusBannerText, StatusSubtext, FooterStatusText,
+            WordStreamText, SelectedElementBadgeText);
         ConfigureWindowChrome();
         SizeForDisplay();
 
@@ -151,6 +154,13 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             int height = Math.Min((int)(820 * scale), workArea.Height - 60);
 
             AppWindow.Resize(new SizeInt32(Math.Max(980, width), Math.Max(660, height)));
+            // Below ~980 DIPs the three panes can't all fit: the page buttons vanished from the
+            // title bar and the Markdown pane lost its Copy button, so stop the window there.
+            if (AppWindow.Presenter is OverlappedPresenter presenter)
+            {
+                presenter.PreferredMinimumWidth = Math.Min((int)(MinimumWidthDips * scale), workArea.Width);
+                presenter.PreferredMinimumHeight = Math.Min((int)(MinimumHeightDips * scale), workArea.Height);
+            }
         }
         catch
         {
@@ -158,19 +168,33 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         }
     }
 
+    private const int MinimumWidthDips = 980;
+    private const int MinimumHeightDips = 600;
+
     private void OnRootSizeChanged(object sender, SizeChangedEventArgs e)
     {
         if (CanvasPaneColumn is null || InspectorPaneColumn is null) return;
         double w = e.NewSize.Width;
-        if (w > 0 && w < 1120)
+        bool compact = w > 0 && w < 1120;
+        if (compact)
         {
             CanvasPaneColumn.Width = new GridLength(360);
-            InspectorPaneColumn.Width = new GridLength(290);
+            InspectorPaneColumn.Width = new GridLength(280);
         }
         else if (w >= 1120)
         {
             CanvasPaneColumn.Width = new GridLength(460);
             InspectorPaneColumn.Width = new GridLength(340);
+        }
+        // Narrow title bar: the page buttons go icon-only (their tooltips and names still say
+        // Previous / Next page) and the engine badge gives up width, so the page controls stay
+        // on screen instead of being squeezed out of the centre column.
+        if (w > 0)
+        {
+            var labels = compact ? Visibility.Collapsed : Visibility.Visible;
+            PrevPageLabelText.Visibility = labels;
+            NextPageLabelText.Visibility = labels;
+            EngineBadgeBorder.MaxWidth = compact ? 130 : 190;
         }
         UpdatePageSheetDimensions();
     }

@@ -4,6 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:ui="using:MarkSmith.Controls"
     mc:Ignorable="d"
     Title="OCR Inspection Studio — MarkSmith">
 
@@ -109,15 +110,17 @@
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
                 <!-- Status Banner & Subtitle -->
                 <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
+                    <!-- A Grid, not a horizontal StackPanel: inside a StackPanel the banner had unlimited
+                         width, so it could never trim and was cut mid-word by the CTA buttons. -->
+                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
                         <FontIcon x:Name="StatusBannerIcon" Glyph="&#xE73E;" FontSize="14"
                                   Foreground="{ThemeResource SystemFillColorSuccessBrush}" VerticalAlignment="Center" />
-                        <TextBlock x:Name="StatusBannerText"
+                        <TextBlock x:Name="StatusBannerText" Grid.Column="1"
                                    Text="Scan In Progress — Decomposing layout geometry and recognizing elements…"
-                                   FontSize="13" FontWeight="SemiBold"
+                                   FontSize="13" FontWeight="SemiBold" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
                                    Foreground="{ThemeResource TextFillColorPrimaryBrush}" VerticalAlignment="Center"
                                    AutomationProperties.LiveSetting="Polite" />
-                    </StackPanel>
+                    </Grid>
                     <TextBlock x:Name="StatusSubtext"
                                Text="Flick through pages (←/→), navigate elements (↑/↓), or press 1–8 to reclassify the selected block. Hit 'Import into MarkSmith' (Ctrl+Enter) to apply."
                                FontSize="11.5" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
@@ -278,8 +281,11 @@
                             Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                             BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1">
                         <StackPanel Spacing="6">
-                            <Grid ColumnDefinitions="*,Auto">
-                                <TextBlock Text="QUICK RECLASSIFY SELECTED" FontSize="10.5" FontWeight="SemiBold"
+                            <!-- "QUICK RECLASSIFY SELECTED" ran into the key hint in the narrow layout. -->
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                <TextBlock Text="QUICK RECLASSIFY" FontSize="10.5" FontWeight="SemiBold"
+                                           TextTrimming="CharacterEllipsis"
+                                           ToolTipService.ToolTip="Change the type of the selected element"
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
                                 <TextBlock Text="Keys 1–8 · R reset" Grid.Column="1" FontSize="10" FontFamily="Consolas"
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
@@ -320,24 +326,29 @@
                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
                 <Grid RowDefinitions="Auto,*" RowSpacing="8">
                     <!-- Pane Header & View Toggle -->
-                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
-                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <!-- A WrapRow, not a Grid: the scope box and Copy used to take the whole header and
+                         cut the title to "LIVE MARI" (and drop Copy at narrow widths); now they move
+                         to their own line when the title and both controls don't fit side by side. -->
+                    <ui:WrapRow x:Name="MarkdownPaneHeader" Grid.Row="0" HorizontalSpacing="6" VerticalSpacing="6">
+                        <StackPanel x:Name="MarkdownPaneTitle" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="0,0,10,0">
                             <Ellipse Width="7" Height="7" Fill="{ThemeResource SystemFillColorSuccessBrush}" />
                             <TextBlock Text="LIVE MARKDOWN PREVIEW" FontSize="11" FontWeight="SemiBold"
                                        CharacterSpacing="30" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         </StackPanel>
 
+                        <!-- Scope + Copy wrap together, so Copy never ends up alone on a line. -->
+                        <StackPanel x:Name="MarkdownPaneActions" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                         <!-- Toggle between Current Page and Full Document view -->
-                        <ComboBox x:Name="MarkdownScopeComboBox" Grid.Column="1"
+                        <ComboBox x:Name="MarkdownScopeComboBox"
                                   SelectionChanged="OnMarkdownScopeChanged"
                                   Padding="10,4" FontSize="11.5"
                                   AutomationProperties.Name="Markdown preview scope"
-                                  ToolTipService.ToolTip="Switch between Current Page Markdown and Full Document Markdown">
-                            <ComboBoxItem Content="Current Page Markdown" />
-                            <ComboBoxItem Content="Full Document Markdown" />
+                                  ToolTipService.ToolTip="Show the Markdown for the current page or the full document">
+                            <ComboBoxItem Content="Current page" />
+                            <ComboBoxItem Content="Full document" />
                         </ComboBox>
 
-                        <Button x:Name="CopyMarkdownButton" Grid.Column="2" Click="OnCopyMarkdownClick"
+                        <Button x:Name="CopyMarkdownButton" Click="OnCopyMarkdownClick"
                                 Padding="8,4" CornerRadius="4" FontSize="11.5"
                                 AutomationProperties.Name="Copy live Markdown preview"
                                 ToolTipService.ToolTip="Copy live Markdown preview to clipboard (Ctrl+Shift+C) · Right-click or Shift+F10 for export options"
@@ -347,13 +358,16 @@
                                 <TextBlock Text="Copy" FontSize="11.5" />
                             </StackPanel>
                         </Button>
-                    </Grid>
+                        </StackPanel>
+                    </ui:WrapRow>
 
                     <!-- Markdown Source Viewer -->
                     <Border Grid.Row="1" CornerRadius="6" Padding="10"
                             Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                             BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1">
-                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
+                        <!-- Horizontal scrolling off: with it on, the box measured at infinite width, so
+                             TextWrapping="Wrap" never applied and long lines ran past the pane edge. -->
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                             <TextBox x:Name="MarkdownPreviewTextBox"
                                      IsReadOnly="True"
                                      FontFamily="Consolas" FontSize="12"
@@ -378,6 +392,7 @@
                 <TextBlock x:Name="FooterStatusText"
                            Text="OCR Studio active — Ready to finalize document import into MarkSmith."
                            FontSize="11.5" Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                           TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" Margin="0,0,12,0"
                            AutomationProperties.LiveSetting="Polite" />
                 <!-- A button, so the keyboard can copy the metrics and reach the footer menu (Shift+F10). -->
                 <Button x:Name="SessionMetricsButton" Grid.Column="1" Click="OnSessionMetricsButtonClick"

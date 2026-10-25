@@ -17798,3 +17798,107 @@ session scratchpad, studios opened via Insert ▸ Diagrams and studios):
 **Release (same run):** tagged **v3.68.0** on `15a440f`; Release workflow run 40169522991 succeeded;
 user-facing notes prepended to the generated body
 (https://github.com/thebubbsy/marksmith/releases/tag/v3.68.0). `MarksmithBaseVersion` is now 3.69.0.
+
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #254 (2026-10-25, 18:00–18:50 AEDT)
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running in the Claude desktop app. The task template asks for
+  "Antigravity AI Agent (Google DeepMind)"; that would be untrue for this run, so the real identity is recorded.
+- Modes: Scheduled Hourly Automation Routine (bypass-permissions, no live user)
+- Trigger: scheduled task `commit-to-main-ship-improvement--r4efinement`
+- Agents used: 1 (one session acting as orchestrator, coding worker and skeptical reviewer; no
+  subagents). Session `70f2428c-0579-40bd-a779-66be7f744be5`.
+- Worked in the clean clone `%TEMP%\ms249` (already at `origin/main` d4e4152). The local checkout and
+  `EverythingHttpPlugin/*` were not touched. 6.6 GB free on C: at the start.
+
+**Reviewed:** run #253's Next up. The PC was locked when the run started (LogonUI running), so items 1 and 3
+(live key checks) were skipped again; it unlocked late in the run, after the live checks, and no keys or mouse
+were sent. Item 2 was done with a new **clip sweep v2** (session scratchpad `clip2.ps1`): it also reports controls
+inside scrollers that are cut horizontally (under 14 px wide with a normal height, or past the window's right
+edge), which the run #253 sweep skipped.
+
+**Baseline** (`%TEMP%\ms_run254\base`, unmodified d4e4152, PIDs 14164 / 29464 / then a PDF launch; config in the
+session scratchpad):
+- **Settings** (all 7 pages) at the default size and at the main window's minimum (1120×640): clean.
+- **Insert dialogs** (Link, Image, Table, Code block, and Rich components ▸ Tab group, Video embed, Chart, Data
+  grid, Columns, Drawing canvas, Random tile map) at the minimum: clean. Suite Hub, Keyboard shortcuts and
+  Extension setup at the minimum: clean. (There is no separate Theme Builder window to sweep.)
+- **OCR Studio** (opened by launching `Marksmith.exe <examples\product-spec.pdf>`): at the default 1220 px the
+  Live Markdown header read **"LIVE MARI"**. At 700 px (the window had no minimum size) `PrevPageButton`,
+  `NextPageButton` and `CopyMarkdownButton` had Empty bounds and `MarkdownScopeComboBox` ran past the window edge;
+  the status banner was cut mid-word ("Inspect Detectec") and the footer status mid-word too.
+
+**Delivered (user-visible):**
+1. **OCR Studio: the Live Markdown header is whole.** It is a `WrapRow` now: the title on one line and the
+   scope box plus Copy (grouped, so Copy never sits alone) on the next when they don't fit beside it.
+2. **OCR Studio: shorter scope choices**, "Current page" / "Full document" (were "Current Page Markdown" /
+   "Full Document Markdown" under a header that already says Markdown), so scope + Copy fit the narrow pane.
+3. **OCR Studio: the window stops at 980×600** (`PreferredMinimumWidth/Height`, DPI-scaled, the same floor
+   `SizeForDisplay` already opened it at). Below that the three panes could not fit and controls vanished.
+4. **OCR Studio: page navigation stays in the title bar at narrow widths.** Under 1120 px the Previous / Next
+   buttons go icon-only (names and tooltips unchanged) and the engine badge caps at 130 px.
+5. **OCR Studio: the status banner trims with an ellipsis** instead of being cut mid-word. It sat in a horizontal
+   StackPanel (unlimited width, so it could never trim); it is a Grid now.
+6. **OCR Studio: the footer status line trims with an ellipsis** too.
+7. **OCR Studio: trimmed readouts show their full text on hover** (banner, subtitle, footer, OCR stream line,
+   selected-element badge) through the existing `TrimmedTextToolTip` helper.
+8. **OCR Studio: "QUICK RECLASSIFY" no longer runs into "Keys 1–8 · R reset"** in the narrow layout (caption
+   shortened from "QUICK RECLASSIFY SELECTED", column spacing, ellipsis, explanatory tooltip).
+9. **OCR Studio: the Live Markdown preview wraps long lines.** It asked for `TextWrapping="Wrap"` inside a
+   horizontally scrolling ScrollViewer, so it never wrapped and lines ran off the pane ("authorises ca").
+10. **Diagram Studio: the code pane's status line wraps.** Minor: at the default pane width the syntax-error line
+    fits (checked live); a clipboard error, which carries the exception text, would have run off the pane.
+
+**Implementation summary.**
+- `Views/Ocr/OcrInspectionStudioWindow.xaml`: `xmlns:ui`; banner StackPanel → `Auto,*` Grid with trimming;
+  Live Markdown header Grid → `ui:WrapRow` (`MarkdownPaneHeader`, `MarkdownPaneTitle`, `MarkdownPaneActions`);
+  scope items and tooltip; Quick-reclassify caption; preview ScrollViewer horizontal scrolling disabled; footer
+  status trimming.
+- `Views/Ocr/OcrInspectionStudioWindow.xaml.cs`: `TrimmedTextToolTip.Attach(...)` after `TextBoxMenu.Attach`;
+  `MinimumWidthDips` / `MinimumHeightDips` applied in `SizeForDisplay`; `OnRootSizeChanged` has a `compact`
+  flag that also hides the page-button labels and caps the badge; compact inspector 290 → 280.
+- `Views/Mermaid/MermaidDiagramStudioControl.xaml`: `CodeStatusText` wraps whole words.
+- Tests: new `Run254OcrStudioNarrowLayoutTests` (12 cases): WrapRow header order and grouping, no stale
+  `Grid.Column`; short scope items; minimum size wired to the constants and the sizing floor; compact title bar
+  collapses only label TextBlocks (never the buttons) and keeps the accessible names; compact columns leave the
+  Markdown pane ≥ 260 px at 980; banner / footer trimming; banner not in a horizontal StackPanel; tooltips
+  attached; caption spacing; preview wraps; Diagram Studio status wraps.
+
+**Skeptical review.**
+- Focus traps: only the two label TextBlocks inside the page buttons collapse; the buttons stay visible and
+  focusable. Nothing is disabled.
+- Key swallowing: no key handlers touched. Shift+F10 bridges still point at the same elements
+  (`CopyMarkdownButton` moved panels, not identity); `HoverPolish.Apply(RootGrid)` still reaches it.
+- Code-behind: nothing reads the scope items' text (only `SelectedIndex`), nothing casts the header's parent,
+  and the preview's ScrollViewer is unnamed (no horizontal `ChangeView` anywhere).
+- Tooltips: the footer grid's own tooltip still shows when the line isn't trimmed (the helper sets null then).
+- Theme / files / async: no new brushes, file access or async callbacks.
+
+**Verified.**
+- Build: Desktop built to `%TEMP%\ms_run254\b` with 0 errors (baseline to `%TEMP%\ms_run254\base`).
+- Tests: Run254 12/12; related sweep (Run230, Run234, Run241, Run253, Ocr*, Mermaid*) 518/519; the one failure
+  was a Run254 assertion matching my own XAML comment, fixed and rerun (Run254 12/12). Full suite: 6035 passed, 1 skipped, 7 failed; the 7 are all `GovernanceDocsSyncTests` (the governance docs are gitignored, so they fail on any clean clone, as runs #249, #252 and #253 logged).
+- Live (UIA + PrintWindow, PID 29332 then 30780, each stopped afterwards; no other Marksmith running): OCR Studio
+  clip sweep **clean at 1220 and at its new 980×600 minimum** (a Resize(700,500) request now lands at 980×600).
+  At 980: Previous 28×20 and Next 28×20 on screen, scope box 135 px and Copy 61 px beside it, banner untrimmed
+  at 551 px; Next page moved the indicator to "Page 2 of 4". Screenshots show the wrapped header, wrapped
+  preview text and the separated Quick-reclassify caption. Diagram Studio: invalid code set through
+  ValuePattern showed "⚠ Mermaid syntax error — fix the highlighted code" on one 243 px line.
+- **Not verified live:** the trimmed-text tooltips (UIA doesn't expose a TextBlock's tooltip, and no mouse
+  hover was sent); any key checks.
+
+**Noticed, not fixed:**
+- OCR Studio's page canvas draws the element labels ("#2 Heading") over the very text they label at small
+  zoom, which makes headings hard to read on the thumbnail.
+
+**Next up (Run #255):**
+1. If the PC is unlocked and idle: run #252's live key check (word-count menu ▸ F11 / Ctrl+F; editor text menu ▸
+   Ctrl+B / Ctrl+1), then run #251's item 2 and run #250's item 1 (Diagram Studio Delete / Ctrl+Z with no menu;
+   SmartArt / Mind Map keyboard guards).
+2. Hover-check the OCR Studio trimmed-text tooltips at 980 px.
+3. Run `clip2.ps1` over History, Diagram Studio, Shape / SmartArt Studio and Document Galaxy at their minimum
+   widths; v2 also catches horizontally cut controls inside scrollers, which the run #253 sweep skipped.
+
+**Total user-visible improvements: 10** (9 in OCR Studio, 1 minor in Diagram Studio).
