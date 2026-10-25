@@ -2638,7 +2638,12 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private async void CopyTextToStatusBar(string text, string successStatus)
     {
-        if (string.IsNullOrEmpty(text)) return;
+        if (string.IsNullOrEmpty(text))
+        {
+            // An empty heading (a bare "#") used to make its Copy items do nothing.
+            AnnounceStatus("Nothing to copy: that item has no text.");
+            return;
+        }
         var error = await Services.ClipboardWriter.TrySetTextAsync(text);
         ViewModel.StatusText = error ?? successStatus;
         ViewModel.StatusSeverity = error is null ? Models.StatusSeverity.Informational : Models.StatusSeverity.Warning;
@@ -6356,6 +6361,10 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 {
                     CopyAndAnnounce(stats, $"Copied document statistics: {stats}");
                 }
+                else
+                {
+                    AnnounceStatus("No statistics to copy yet: open or type a document first.");
+                }
             }, keywords: "words characters reading time count stats"),
 
             Do("Find", "Edit", () => ShowFindBar(), "edit.find", "search look up"),
@@ -6395,7 +6404,12 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             Do("Split view (editor and preview)", "View", () => ViewSplitTab.IsSelected = true),
             Do("Preview view (rendered page only)", "View", () => ViewPreviewTab.IsSelected = true),
             Do("Toggle focus mode", "View", () => { if (FocusModeToggle != null) FocusModeToggle.IsChecked = FocusModeToggle.IsChecked != true; }, "view.focus"),
-            Do("Toggle Looking Glass portal", "View", () => { if (LookingGlassToggle.IsEnabled) LookingGlassToggle.IsChecked = LookingGlassToggle.IsChecked != true; }),
+            Do("Toggle Looking Glass portal", "View", () =>
+            {
+                if (LookingGlassToggle.IsEnabled) LookingGlassToggle.IsChecked = LookingGlassToggle.IsChecked != true;
+                // Disabled while the email preview shows; the command used to do nothing then.
+                else AnnounceStatus("Turn off Preview as email to use Looking Glass.");
+            }),
             Do("Toggle preview as email", "View", () => EmailPreviewToggle.IsChecked = EmailPreviewToggle.IsChecked != true),
             Do("Toggle line numbers", "View", () =>
             {
@@ -6449,8 +6463,10 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 }
                 else
                 {
-                    ViewModel.InputFilePath = p;
-                    ViewModel.UsePasteSource = false;
+                    // Pointing the editor at a missing file used to blank it with no explanation;
+                    // keep the current document and say why instead.
+                    ViewModel.StatusText = $"Couldn't open {System.IO.Path.GetFileName(p)}: the file was moved or deleted.";
+                    ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
                 }
             }));
         }
@@ -6727,6 +6743,13 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             else
             {
                 markdown = vm.CurrentMarkdown ?? string.Empty;
+            }
+
+            // An empty document used to copy a blank HTML page and report success.
+            if (string.IsNullOrWhiteSpace(markdown))
+            {
+                AnnounceStatus("Nothing to copy: the document is empty.");
+                return;
             }
 
             var html = vm.BuildPreviewHtml(vm.PrepareMarkdown(markdown), interactive: false);

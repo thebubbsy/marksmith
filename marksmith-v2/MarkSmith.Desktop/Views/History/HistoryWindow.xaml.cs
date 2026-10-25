@@ -1704,6 +1704,12 @@ public sealed partial class HistoryWindow : Window
             e.Handled = true;
             _ = CopyVersionMarkdownAsync(copyTarget, CopyToolbarButton, CopyToolbarIcon);
         }
+        else if (isCtrl && e.Key == VirtualKey.C && !inTextBox && !isAlt && e.OriginalSource is not (TextBlock or RichTextBlock))
+        {
+            // No version to copy: say so instead of the shortcut doing nothing.
+            e.Handled = true;
+            _vm.ShowNotice(_vm.NothingToCopyMessage(patch: isShift));
+        }
         else if (e.Key == VirtualKey.F5 && !isCtrl && !isAlt)
         {
             // Advertised as F5 on the version and Documents-header menus.

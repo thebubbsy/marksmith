@@ -4709,6 +4709,13 @@ namespace MarkSmith.Views.ShapeStudio
 
         private async void OnCopyMarkdownClick(object sender, RoutedEventArgs e)
         {
+            // Ctrl+C reaches this from anywhere on the canvas; an empty canvas used to copy an empty
+            // block and report "Copied 0 shapes".
+            if (ViewModel.Shapes.Count == 0)
+            {
+                ViewModel.StatusMessage = "No shapes on the canvas to copy: add a shape or pick a preset first.";
+                return;
+            }
             try
             {
                 // SnapshotComposed carries Text/TextColor too — the copy must round-trip the
@@ -4721,7 +4728,7 @@ namespace MarkSmith.Views.ShapeStudio
                     return;
                 }
                 ViewModel.MarkKept();
-                ViewModel.StatusMessage = $"Copied {ViewModel.Shapes.Count} shapes as a :::shapes Markdown block.";
+                ViewModel.StatusMessage = $"Copied {CountText.Of(ViewModel.Shapes.Count, "shape")} as a :::shapes Markdown block.";
                 if (ExportDropDownButton is not null)
                 {
                     MarkSmith.Services.CopyFeedback.ApplyButtonTick(ExportDropDownButton, null);

@@ -2178,7 +2178,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         // The card menus land here; say why nothing was copied instead of doing nothing.
         if (_selectedElement is null)
         {
-            SetFooterStatusText("Nothing to copy yet: select an element on the page first.");
+            SetFooterStatusText("Nothing to copy yet: select an element on the page first. Ctrl+Shift+C copies the page's Markdown.");
             return;
         }
         if (string.IsNullOrWhiteSpace(_selectedElement.CurrentMarkdown))
@@ -2373,11 +2373,9 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
 
             if (e.Key == Windows.System.VirtualKey.C && ctrl && !shift && !alt)
             {
-                if (_selectedElement is not null)
-                {
-                    e.Handled = true;
-                    CopySelectedElementMarkdown();
-                }
+                // With no element selected this says so (it used to do nothing).
+                e.Handled = true;
+                CopySelectedElementMarkdown();
                 return;
             }
 

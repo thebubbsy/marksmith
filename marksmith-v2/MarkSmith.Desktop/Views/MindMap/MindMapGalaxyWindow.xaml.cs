@@ -3795,6 +3795,11 @@ namespace MarkSmith.Views.MindMap
                     await CopyNodeTitleAsync(ViewModel.SelectedNode);
                     e.Handled = true;
                     return;
+                // No node selected: say why nothing was copied (this used to do nothing).
+                case Windows.System.VirtualKey.C when ctrl && !shift && canvasFocused:
+                    ViewModel.StatusMessage = "Nothing to copy: select a node to copy its title. Ctrl+Shift+C copies the whole map as a flowchart.";
+                    e.Handled = true;
+                    return;
                 case Windows.System.VirtualKey.C when ctrl && shift && canvasFocused:
                     CopyMermaid(asFlowchart: true, "flowchart");
                     e.Handled = true;

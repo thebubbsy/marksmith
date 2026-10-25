@@ -258,6 +258,17 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
 
     public bool HasSelection => Selected is not null;
 
+    /// <summary>Why Ctrl+C / Ctrl+Shift+C copied nothing: there is no version to copy from. The
+    /// shortcuts used to do nothing at all here.</summary>
+    public string NothingToCopyMessage(bool patch)
+    {
+        string what = patch ? "its diff patch" : "its Markdown";
+        if (SelectedFile is null) return $"Nothing to copy: pick a document on the left, then select a version to copy {what}.";
+        if (!HasVersions) return "Nothing to copy: this document has no saved versions yet.";
+        if (FilterHidesAll) return "Nothing to copy: the search or starred filter hides every version. Clear it to pick one.";
+        return $"Nothing to copy: select a version on the timeline to copy {what}.";
+    }
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowNoVersions))]
     private FileSummaryViewModel? _selectedFile;

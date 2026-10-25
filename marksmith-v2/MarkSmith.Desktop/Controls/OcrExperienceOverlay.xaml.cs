@@ -1535,7 +1535,12 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
         {
             text = string.Join("\n\n---\n\n", _assembledPages);
         }
-        if (string.IsNullOrWhiteSpace(text)) return;
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            // Ctrl+C works from the first frame; before any page is assembled it used to do nothing.
+            StageStatusText.Text = "Nothing to copy yet: the Markdown appears here once the first page is assembled.";
+            return;
+        }
 
         var error = await Services.ClipboardWriter.TrySetTextAsync(text);
         if (CopyFinalMarkdownButton is not null) Services.CopyFeedback.ApplyButtonTick(CopyFinalMarkdownButton, error);

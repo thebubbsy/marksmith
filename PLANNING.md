@@ -19047,3 +19047,91 @@ Mind Map, Diagram Studio and OCR had none left after runs #265–#266.
 
 **Release (same run):** tagged **v3.79.0** on `c19deeb`; Release workflow run 40232034168 succeeded; user-facing notes prepended to the generated body
 (https://github.com/thebubbsy/marksmith/releases/tag/v3.79.0). `MarksmithBaseVersion` is now 3.80.0.
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #269 (2026-10-26, 08:01–08:45 AEDT)
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), Claude desktop app Code tab. Not an Antigravity / Google DeepMind agent; the
+  task template asks for that identity, but this entry records the agent that actually ran.
+- Modes: Scheduled hourly automation routine, unattended (bypass-permissions)
+- Trigger: Scheduled hourly routine run (`commit-to-main-ship-improvement--r4efinement`)
+- Agents used: 1 (single agent acting as orchestrator, coding worker and skeptical reviewer; no subagents).
+  Session 58b29280-cad3-4586-9e3c-e57e8b96de7e.
+- Concurrency note: while this run was in progress, another agent started editing the same working tree with a
+  similar sweep (Mind Map duplicate / copy Mermaid, Shape Studio duplicate / reorder / export, OCR reset, main
+  window transform on an empty line) and appended its own tests to this run's new test file. This run committed
+  only its own hunks (a filtered patch applied to the index) and its own 15 tests, and verified that staged tree
+  by itself (checkout-index copy, build and tests). The other agent's edits were left in the working tree, unstaged.
+
+**Picked up:** run #268's Next up item 3 ("continue the silent-return sweep into non-Click paths: KeyDown
+shortcuts and command-palette actions"). A script listed copy / export / key / palette methods that return early
+with no status line; each hit was checked against how it is reached (disabled buttons and menu items were left
+alone, since they can't fire).
+
+**Delivered (user-visible):**
+1. **Version History Ctrl+C / Ctrl+Shift+C with no version selected** did nothing. They now explain, depending on
+   the state: "Nothing to copy: pick a document on the left, then select a version to copy its Markdown." / "…
+   this document has no saved versions yet." / "… the search or starred filter hides every version. Clear it to
+   pick one." / "… select a version on the timeline to copy its diff patch." (new
+   `HistoryWindowViewModel.NothingToCopyMessage(patch)`). Text boxes and selectable text keep their own Ctrl+C.
+2. **OCR Inspection Studio Ctrl+C with no element selected** did nothing (the shortcut was gated on a selection);
+   it now says "Nothing to copy yet: select an element on the page first. Ctrl+Shift+C copies the page's
+   Markdown."
+3. **OCR overlay Copy (button, Ctrl+C, menus) before any page is assembled** did nothing; it now says "Nothing to
+   copy yet: the Markdown appears here once the first page is assembled."
+4. **Document Galaxy Ctrl+C on the canvas with no node selected** did nothing; it now says "Nothing to copy:
+   select a node to copy its title. Ctrl+Shift+C copies the whole map as a flowchart."
+5. **Shape Studio Ctrl+C on an empty canvas** copied an empty block and said "Copied 0 shapes as a :::shapes
+   Markdown block." It now says "No shapes on the canvas to copy: add a shape or pick a preset first.", and a real
+   copy uses a real plural ("Copied 1 shape …").
+6. **Command palette "Open recent: …" on a moved or deleted file** pointed the editor at the missing path, which
+   blanked the editor with no explanation. It now keeps the current document and warns "Couldn't open notes.md:
+   the file was moved or deleted."
+7. **Copy the rendered HTML on an empty document** (palette and Copy HTML button) copied a blank HTML page and
+   said "Rendered HTML copied to the clipboard."; it now says "Nothing to copy: the document is empty."
+8. **Palette "Toggle Looking Glass portal" while Preview as email is on** did nothing (the toggle is disabled
+   then); it now says "Turn off Preview as email to use Looking Glass." The first wording was cut off with an
+   ellipsis in the live status bar, so it was shortened.
+9. **Palette "Copy document statistics" with no statistics** and **empty heading copies** (Outline items for a
+   bare "#") now say why nothing was copied instead of doing nothing.
+
+**Implementation Summary**
+- Modified: `MarkSmith.Core/ViewModels/History/HistoryWindowViewModel.cs` (`NothingToCopyMessage`),
+  `Views/History/HistoryWindow.xaml.cs` (OnRootKeyDown fallback branch), `Views/Ocr/OcrInspectionStudioWindow.xaml.cs`,
+  `Controls/OcrExperienceOverlay.xaml.cs`, `Views/MindMap/MindMapGalaxyWindow.xaml.cs`,
+  `Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs`, `MainWindow.xaml.cs` (palette commands, Copy HTML,
+  `CopyTextToStatusBar`). BOMs and line endings kept.
+- Tests: new `Run269SilentShortcutsExplainThemselvesTests` (15 cases: two History VM state tests against a real
+  `VersionHistoryService` in a temp dir, History key-branch ordering, OCR studio / overlay, Galaxy case ordering,
+  Shape Studio guard order and plurals, the palette commands, Copy HTML guard order, empty copy text).
+- Skeptical review: nothing collapsed or disabled. Key handlers: the new History branch sits after both real copy
+  branches and skips TextBox / TextBlock / RichTextBlock sources and Alt; the OCR Ctrl+C branch is still after the
+  `inputFocused` return, so text boxes and open combo boxes keep Ctrl+C; the Galaxy case requires `canvasFocused`.
+  No flyouts created, no resource lookups, no file access added (the recent-file path only drops a write).
+- Build: `dotnet build … -p:OutDir=%TEMP%\ms_run269\b\` 0 errors (pre-existing warnings only), twice; the
+  staged-only tree was built and tested separately before commit.
+- Tests: Run2xx + History + CommandPalette + ShapeStudio + MindMap + Ocr filter, 1800/1800 passed; after the last
+  wording change, Run269 + Run268 + CommandPalette 53/53.
+- Live UIA (isolated `MARKSMITH_CONFIG_DIR`; scratch PIDs 24696, 26668 and 8852 launched and stopped by this run;
+  welcome tour skipped via its Skip button; palette driven by setting the search box and invoking the first
+  result, no keystrokes): "Copy the rendered HTML" on the empty document → status "Nothing to copy: the document
+  is empty."; Preview as email on (LookingGlassToggle IsEnabled=False) → palette "Toggle Looking Glass portal" →
+  the status bar screenshot shows the new line (cut off, hence item 8's shorter wording). Shape Studio's "Copy as
+  Markdown" menu item is already disabled on an empty canvas, so only Ctrl+C reaches item 5. The user was active
+  at the keyboard (idle under 1 s), so no keys were sent: items 1, 2, 4 and 5 (Ctrl+C paths) are verified by
+  source tests only.
+
+**Noticed, not fixed:**
+- "Copy document statistics" never really has empty stats (the status bar always shows "0 words · 0 min read"),
+  so the first half of item 9 is a safety net more than a visible fix.
+- The Insert dialogs' Copy button is already disabled when there is no snippet; nothing to do there.
+
+**Next up (Run #270):**
+1. With the keyboard idle: press Ctrl+C in Version History (no version), OCR (no element), Galaxy (no node) and an
+   empty Shape Studio canvas live, plus Enter in an empty-Find Replace box (run #268 item).
+2. Seed a recent-files list with a deleted path and run "Open recent" from the palette live.
+3. Reconcile with the concurrent agent's sweep (its uncommitted Mind Map / Shape Studio / OCR / transform edits and
+   the tests it appended to `Run269SilentShortcutsExplainThemselvesTests.cs`) once it commits.
+
+**Total user-visible improvements: 9** (1 Version History, 2 OCR, 1 Document Galaxy, 1 Shape Studio, 4 main window).
