@@ -17589,3 +17589,7 @@ OptionRow, the plugin card, ExtensionHintBar / ExtensionTip, WelcomeTour and the
 3. Run #250's item 1: live keyboard pass on the SmartArt / Mind Map guards.
 
 **Total user-visible improvements: 6.**
+
+**Release (same run):** tagged **v3.66.0** on `600ae31`; Release workflow run 40162652713 succeeded;
+user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.66.0). `MarksmithBaseVersion` is now 3.67.0.
