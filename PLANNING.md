@@ -18369,3 +18369,7 @@ The user's own tree in `marksmith` (234 commits behind, 170 modified files) was 
    nothing newer).
 
 **Total user-visible improvements: 8** (4 in SmartArt Studio, 3 in Shape Studio, 1 across Shape Studio and the Galaxy).
+
+**Release (same run):** tagged **v3.73.0** on `fdbfa30`; Release workflow run 40189492222 succeeded;
+user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.73.0). `MarksmithBaseVersion` is now 3.74.0.
