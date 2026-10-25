@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.UI.Xaml;
@@ -6231,6 +6231,15 @@ namespace MarkSmith.Views.ShapeStudio
         {
             if (ViewModel == null) return;
             var (targets, modified, gap, summary) = ViewModel.DistributeSpacingUniformly(DistributionAxis.Horizontal);
+            ReportEdit(summary);
+            UpdateAdorner();
+            UpdateMultiSelectionAdorner();
+        }
+
+        private void OnSelectionDistributeSpacingVerticalClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null) return;
+            var (targets, modified, gap, summary) = ViewModel.DistributeSpacingUniformly(DistributionAxis.Vertical);
             ReportEdit(summary);
             UpdateAdorner();
             UpdateMultiSelectionAdorner();

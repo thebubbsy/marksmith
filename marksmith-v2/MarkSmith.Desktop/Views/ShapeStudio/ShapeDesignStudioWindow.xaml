@@ -1,4 +1,4 @@
-<Window
+﻿<Window
     x:Class="MarkSmith.Views.ShapeStudio.ShapeDesignStudioWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -603,6 +603,9 @@
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem x:Name="SelectionDistributeSpacingHorizontalItem" Text="Equal gaps in whole pixels (horizontal)" Click="OnSelectionDistributeSpacingHorizontalClick">
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8AB;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem x:Name="SelectionDistributeSpacingVerticalItem" Text="Equal gaps in whole pixels (vertical)" Click="OnSelectionDistributeSpacingVerticalClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8CB;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutSeparator />
                                             <MenuFlyoutItem x:Name="SelectionDistributeRadialItem" Text="Distribute shapes radially (Circular / Elliptical orbit)" Click="OnSelectionDistributeRadialClick">

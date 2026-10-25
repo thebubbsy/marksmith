@@ -18853,3 +18853,9 @@ the matrix: Recent exports (`ExportHistoryFlyout`, last touched run #181) and th
 
 **Total user-visible improvements: 14** (7 in Recent exports, 5 in the Diagram Studio palette, 1 in Version History,
 1 in history.json loading).
+
+**Run #263 Completion & Studio Harmonization Additions:**
+- **Shape Studio Whole-Pixel Vertical Parity**: Added missing SelectionDistributeSpacingVerticalItem ("Equal gaps in whole pixels (vertical)") and OnSelectionDistributeSpacingVerticalClick to ShapeDesignStudioWindow.xaml and .xaml.cs, pairing seamlessly with horizontal distribution.
+- **Theme Builder Name Normalization**: Theme name input now strips carriage returns and newlines (\r\n, \r, \n) when pasted from clipboard.
+- **Version History Notice Alignment**: HistoryWindowViewModel.NoticeLine trims leading whitespace so single-line notices align cleanly without indentation.
+- **Verification**: Run263StudioPolishAndHistoryResilienceTests (9/9 passed), regression suite (Runs 260-263, 102/102 passed), desktop build 0 errors, smoke-launch verified.
