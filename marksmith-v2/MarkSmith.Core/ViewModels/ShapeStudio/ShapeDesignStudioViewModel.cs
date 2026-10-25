@@ -1507,7 +1507,12 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
     public void DistributeDiagramOnCanvas(bool vertical = false)
     {
         var targets = SelectionCount >= 3 ? Selection.ToList() : Shapes.ToList();
-        if (targets.Count < 3) return;
+        if (targets.Count < 3)
+        {
+            // This used to return silently, so the Distribute button seemed to do nothing.
+            StatusMessage = $"Distribute needs at least 3 shapes on the canvas ({targets.Count} found)";
+            return;
+        }
         RecordUndo();
 
         if (!vertical)
@@ -2804,9 +2809,11 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         return true;
     }
 
+    private static string AxisWord(DistributionAxis axis) => axis == DistributionAxis.Horizontal ? "horizontal" : "vertical";
+
     private void EndArrange(string what, int count)
     {
-        StatusMessage = $"{what} {count} shapes";
+        StatusMessage = $"{what} {count} shapes · Ctrl+Z to undo";
         CanvasChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -2873,7 +2880,7 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         double end = ordered[^1].X;
         double step = (end - start) / (ordered.Count - 1);
         for (int i = 0; i < ordered.Count; i++) ordered[i].X = start + i * step;
-        EndArrange("Spaced out horizontally:", t.Count);
+        EndArrange("Spaced left edges evenly across", t.Count);
     }
 
     [RelayCommand(CanExecute = nameof(CanDistribute))]
@@ -2885,7 +2892,7 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         double end = ordered[^1].Y;
         double step = (end - start) / (ordered.Count - 1);
         for (int i = 0; i < ordered.Count; i++) ordered[i].Y = start + i * step;
-        EndArrange("Spaced out vertically:", t.Count);
+        EndArrange("Spaced top edges evenly across", t.Count);
     }
 
     private CancellationTokenSource? _generationCts;
@@ -4102,11 +4109,12 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
     /// </summary>
     public static string FormatDistributionSummary(int distributedCount, int totalCount, DistributionAxis axis, double gap = 0)
     {
+        // Worded like the selection menu's items, so the status line names the command that ran.
         if (totalCount < 3)
-            return $"Distribute evenly ({axis}): Requires at least 3 shapes (Found {totalCount})";
+            return $"Equal gaps between shapes ({AxisWord(axis)}): needs at least 3 shapes ({totalCount} found)";
 
         string shapeLabel = distributedCount == 1 ? "1 shape" : $"{distributedCount} shapes";
-        return $"Distribute evenly ({axis}): Balanced {shapeLabel} across {totalCount} shapes (Gap: {gap:0.#}px)";
+        return $"Equal gaps between shapes ({AxisWord(axis)}): moved {shapeLabel} of {totalCount} ({gap:0.#}px gaps)";
     }
 
     /// <summary>
@@ -4650,7 +4658,7 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         string axisStr = axis == DistributionAxis.Horizontal ? "Horizontal" : "Vertical";
         if (targets.Count < 3)
         {
-            string insufficient = $"Spacing distribution: Requires at least 3 shapes to distribute intermediate spacing ({targets.Count} found)";
+            string insufficient = $"Equal gaps in whole pixels ({AxisWord(axis)}): needs at least 3 shapes ({targets.Count} found)";
             StatusMessage = insufficient;
             return (targets.Count, 0, 0.0, insufficient);
         }
@@ -4687,7 +4695,7 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
 
         if (adjustments.Count == 0)
         {
-            string alreadyUniform = $"✓ {ordered.Count} shapes are already uniformly spaced ({uniformGap:0.#}px {axisStr.ToLowerInvariant()} gaps)";
+            string alreadyUniform = $"✓ Equal gaps in whole pixels ({AxisWord(axis)}): {ordered.Count} shapes already have {uniformGap:0.#}px gaps";
             StatusMessage = alreadyUniform;
             return (ordered.Count, 0, uniformGap, alreadyUniform);
         }
@@ -4701,7 +4709,7 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
             modified++;
         }
 
-        string summary = $"✓ Distributed uniform {axisStr.ToLowerInvariant()} spacing ({uniformGap:0.#}px gaps across {ordered.Count} shapes) · Ctrl+Z to undo";
+        string summary = $"✓ Equal gaps in whole pixels ({AxisWord(axis)}): {uniformGap:0.#}px gaps across {ordered.Count} shapes · Ctrl+Z to undo";
         StatusMessage = summary;
         CanvasChanged?.Invoke(this, EventArgs.Empty);
         return (ordered.Count, modified, uniformGap, summary);

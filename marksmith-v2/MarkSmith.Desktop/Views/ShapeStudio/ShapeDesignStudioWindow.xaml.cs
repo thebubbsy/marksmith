@@ -23,7 +23,11 @@ namespace MarkSmith.Views.ShapeStudio
         {
             if (ViewModel is null) return;
             var line = summary?.Split('\n')[0].Trim();
-            if (!string.IsNullOrWhiteSpace(line)) ViewModel.StatusMessage = line;
+            if (string.IsNullOrWhiteSpace(line)) return;
+            // The view model often reported this result already as "✓ … · Ctrl+Z to undo"; replacing
+            // that with the bare summary dropped the undo hint, so a line containing it is kept.
+            if (ViewModel.StatusMessage?.Contains(line, StringComparison.Ordinal) == true) return;
+            ViewModel.StatusMessage = line;
         }
 
         // Copies text and reports it on the status line. These copies used to discard ClipboardWriter's
@@ -1405,8 +1409,8 @@ namespace MarkSmith.Views.ShapeStudio
                 if (ViewModel.CanDistribute)
                 {
                     alignSub.Items.Add(new MenuFlyoutSeparator());
-                    alignSub.Items.Add(ShapeMenuItem("Distribute horizontally", "\uE8E3", () => ViewModel.DistributeHorizontalCommand.Execute(null)));
-                    alignSub.Items.Add(ShapeMenuItem("Distribute vertically", "\uE8E3", () => ViewModel.DistributeVerticalCommand.Execute(null)));
+                    alignSub.Items.Add(ShapeMenuItem("Space left edges evenly", "\uE8AB", () => ViewModel.DistributeHorizontalCommand.Execute(null)));
+                    alignSub.Items.Add(ShapeMenuItem("Space top edges evenly", "\uE8CB", () => ViewModel.DistributeVerticalCommand.Execute(null)));
                 }
                 flyout.Items.Add(new MenuFlyoutSeparator());
                 flyout.Items.Add(alignSub);
@@ -1456,8 +1460,8 @@ namespace MarkSmith.Views.ShapeStudio
                     if (ViewModel.CanDistribute)
                     {
                         alignSub.Items.Add(new MenuFlyoutSeparator());
-                        alignSub.Items.Add(ShapeMenuItem("Distribute horizontally", "\uE8E3", () => ViewModel.DistributeHorizontalCommand.Execute(null)));
-                        alignSub.Items.Add(ShapeMenuItem("Distribute vertically", "\uE8E3", () => ViewModel.DistributeVerticalCommand.Execute(null)));
+                        alignSub.Items.Add(ShapeMenuItem("Space left edges evenly", "\uE8AB", () => ViewModel.DistributeHorizontalCommand.Execute(null)));
+                        alignSub.Items.Add(ShapeMenuItem("Space top edges evenly", "\uE8CB", () => ViewModel.DistributeVerticalCommand.Execute(null)));
                     }
                     flyout.Items.Add(alignSub);
                 }
@@ -3027,8 +3031,8 @@ namespace MarkSmith.Views.ShapeStudio
                     Text = "Distribute shapes",
                     Icon = new FontIcon { Glyph = "\uE8E3" }
                 };
-                distSub.Items.Add(ShapeMenuItem("Distribute horizontally", "\uE8E3", () => { ViewModel.DistributeHorizontalCommand.Execute(null); UpdateMultiSelectionAdorner(); }));
-                distSub.Items.Add(ShapeMenuItem("Distribute vertically", "\uE8E3", () => { ViewModel.DistributeVerticalCommand.Execute(null); UpdateMultiSelectionAdorner(); }));
+                distSub.Items.Add(ShapeMenuItem("Space left edges evenly", "\uE8AB", () => { ViewModel.DistributeHorizontalCommand.Execute(null); UpdateMultiSelectionAdorner(); }));
+                distSub.Items.Add(ShapeMenuItem("Space top edges evenly", "\uE8CB", () => { ViewModel.DistributeVerticalCommand.Execute(null); UpdateMultiSelectionAdorner(); }));
                 flyout.Items.Add(distSub);
             }
 
@@ -4573,7 +4577,7 @@ namespace MarkSmith.Views.ShapeStudio
             horizSub.Items.Add(ShapeMenuItem("Align centre", "\uE8E3", () => ViewModel.AlignCenterCommand.Execute(null), enabled: canAlign));
             horizSub.Items.Add(ShapeMenuItem("Align right", "\uE8E2", () => ViewModel.AlignRightCommand.Execute(null), enabled: canAlign));
             horizSub.Items.Add(new MenuFlyoutSeparator());
-            horizSub.Items.Add(ShapeMenuItem("Distribute horizontally", "\uE8E2", () => ViewModel.DistributeHorizontalCommand.Execute(null), enabled: canAlign));
+            horizSub.Items.Add(ShapeMenuItem("Space left edges evenly", "\uE8AB", () => ViewModel.DistributeHorizontalCommand.Execute(null), enabled: canAlign));
             flyout.Items.Add(horizSub);
 
             var vertSub = new MenuFlyoutSubItem
@@ -4585,7 +4589,7 @@ namespace MarkSmith.Views.ShapeStudio
             vertSub.Items.Add(ShapeMenuItem("Align middle", "\uE8E3", () => ViewModel.AlignMiddleCommand.Execute(null), enabled: canAlign));
             vertSub.Items.Add(ShapeMenuItem("Align bottom", "\uE74B", () => ViewModel.AlignBottomCommand.Execute(null), enabled: canAlign));
             vertSub.Items.Add(new MenuFlyoutSeparator());
-            vertSub.Items.Add(ShapeMenuItem("Distribute vertically", "\uE8E3", () => ViewModel.DistributeVerticalCommand.Execute(null), enabled: canAlign));
+            vertSub.Items.Add(ShapeMenuItem("Space top edges evenly", "\uE8CB", () => ViewModel.DistributeVerticalCommand.Execute(null), enabled: canAlign));
             flyout.Items.Add(vertSub);
 
             flyout.Items.Add(new MenuFlyoutSeparator());
@@ -5729,20 +5733,30 @@ namespace MarkSmith.Views.ShapeStudio
             }
         }
 
+        // These used to overwrite the VM's line with "…with equal spacing", which was wrong (they
+        // space left / top edges, not gaps) and claimed success when fewer than 3 shapes were selected.
         private void OnSelectionDistributeHorizontallyClick(object sender, RoutedEventArgs e)
         {
+            if (ViewModel.SelectionCount < 3)
+            {
+                ViewModel.StatusMessage = "Select at least 3 shapes to space their left edges evenly.";
+                return;
+            }
             ViewModel.DistributeHorizontal();
             UpdateMultiSelectionAdorner();
             UpdateSelectionBoundsPill();
-            ViewModel.StatusMessage = "Distributed selected shapes horizontally with equal spacing.";
         }
 
         private void OnSelectionDistributeVerticallyClick(object sender, RoutedEventArgs e)
         {
+            if (ViewModel.SelectionCount < 3)
+            {
+                ViewModel.StatusMessage = "Select at least 3 shapes to space their top edges evenly.";
+                return;
+            }
             ViewModel.DistributeVertical();
             UpdateMultiSelectionAdorner();
             UpdateSelectionBoundsPill();
-            ViewModel.StatusMessage = "Distributed selected shapes vertically with equal spacing.";
         }
 
         private void OnSelectionFitInsideCanvasClick(object sender, RoutedEventArgs e)

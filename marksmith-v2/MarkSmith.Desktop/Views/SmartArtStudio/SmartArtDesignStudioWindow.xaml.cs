@@ -13,6 +13,19 @@ namespace MarkSmith.Views.SmartArtStudio
 {
     public sealed partial class SmartArtDesignStudioWindow : Window
     {
+        // Reports an outline edit's result on the status line. Edits (reverse, deduplicate, split,
+        // number, structure, balance, normalise quadrants) used to copy their summary too, which
+        // silently replaced whatever the user had on the clipboard; Copy commands and the
+        // Diagnostics reports still copy. A richer line the VM already set is kept.
+        private void ReportEdit(string? summary)
+        {
+            if (ViewModel is null) return;
+            var line = summary?.Split('\n')[0].Trim();
+            if (string.IsNullOrWhiteSpace(line)) return;
+            if (ViewModel.StatusMessage?.Contains(line, StringComparison.Ordinal) == true) return;
+            ViewModel.StatusMessage = line.StartsWith("✓", StringComparison.Ordinal) ? line : $"✓ {line}";
+        }
+
         // Copies text and reports it on the status line. These copies used to discard ClipboardWriter's
         // result, so a busy clipboard still said "Copied ...". With no message, the command has already
         // put its result on the status line; a failed copy is added to it. A tick button shows a tick
@@ -1766,7 +1779,7 @@ namespace MarkSmith.Views.SmartArtStudio
             };
             starterProcess.Click += (_, _) =>
             {
-                ViewModel.MarkdownText = "- Step 1: Discover\n- Step 2: Build\n- Step 3: Deliver";
+                ViewModel.ReplaceOutline("- Step 1: Discover\n- Step 2: Build\n- Step 3: Deliver");
                 ViewModel.StatusMessage = "Applied 3-Step Process starter template.";
             };
             starterSub.Items.Add(starterProcess);
@@ -1778,7 +1791,7 @@ namespace MarkSmith.Views.SmartArtStudio
             };
             starterHierarchy.Click += (_, _) =>
             {
-                ViewModel.MarkdownText = "- Executive Lead\n  - Engineering Team\n  - Product Design\n  - Operations";
+                ViewModel.ReplaceOutline("- Executive Lead\n  - Engineering Team\n  - Product Design\n  - Operations");
                 ViewModel.StatusMessage = "Applied Hierarchy starter template.";
             };
             starterSub.Items.Add(starterHierarchy);
@@ -1790,7 +1803,7 @@ namespace MarkSmith.Views.SmartArtStudio
             };
             starterCycle.Click += (_, _) =>
             {
-                ViewModel.MarkdownText = "- Plan\n- Do\n- Check\n- Act";
+                ViewModel.ReplaceOutline("- Plan\n- Do\n- Check\n- Act");
                 ViewModel.StatusMessage = "Applied 4-Stage Cycle starter template.";
             };
             starterSub.Items.Add(starterCycle);
@@ -1802,7 +1815,7 @@ namespace MarkSmith.Views.SmartArtStudio
             };
             starterComparison.Click += (_, _) =>
             {
-                ViewModel.MarkdownText = "- Option Alpha\n  - Advantage 1\n  - Consideration 1\n- Option Beta\n  - Advantage 2\n  - Consideration 2";
+                ViewModel.ReplaceOutline("- Option Alpha\n  - Advantage 1\n  - Consideration 1\n- Option Beta\n  - Advantage 2\n  - Consideration 2");
                 ViewModel.StatusMessage = "Applied Comparison starter template.";
             };
             starterSub.Items.Add(starterComparison);
@@ -1839,7 +1852,7 @@ namespace MarkSmith.Views.SmartArtStudio
                         var text = await pkg.GetTextAsync();
                         if (!string.IsNullOrWhiteSpace(text))
                         {
-                            ViewModel.MarkdownText = text;
+                            ViewModel.ReplaceOutline(text);
                             ViewModel.StatusMessage = "Pasted outline Markdown from clipboard.";
                         }
                     }
@@ -2808,7 +2821,7 @@ namespace MarkSmith.Views.SmartArtStudio
 
         private void CopyOutlineMarkdown()
         {
-            string md = (ViewModel.MarkdownText ?? "").Trim();
+            string md = (ViewModel.OutlineText).Trim();
             if (string.IsNullOrEmpty(md)) return;
             CopyAndReport(md, "Copied outline bullets to clipboard.", CopyOutlineMarkdownButton);
         }
@@ -3182,7 +3195,7 @@ namespace MarkSmith.Views.SmartArtStudio
             };
             tmplProcess.Click += (_, _) =>
             {
-                ViewModel.MarkdownText = "- Step 1: Discover\n- Step 2: Build\n- Step 3: Deliver";
+                ViewModel.ReplaceOutline("- Step 1: Discover\n- Step 2: Build\n- Step 3: Deliver");
                 ViewModel.StatusMessage = "Applied 3-Step Process template.";
             };
             starterTemplatesSub.Items.Add(tmplProcess);
@@ -3194,7 +3207,7 @@ namespace MarkSmith.Views.SmartArtStudio
             };
             tmplHierarchy.Click += (_, _) =>
             {
-                ViewModel.MarkdownText = "- Executive Lead\n  - Engineering Team\n  - Product Design\n  - Operations";
+                ViewModel.ReplaceOutline("- Executive Lead\n  - Engineering Team\n  - Product Design\n  - Operations");
                 ViewModel.StatusMessage = "Applied Hierarchy template.";
             };
             starterTemplatesSub.Items.Add(tmplHierarchy);
@@ -3206,7 +3219,7 @@ namespace MarkSmith.Views.SmartArtStudio
             };
             tmplCycle.Click += (_, _) =>
             {
-                ViewModel.MarkdownText = "- Plan\n- Do\n- Check\n- Act";
+                ViewModel.ReplaceOutline("- Plan\n- Do\n- Check\n- Act");
                 ViewModel.StatusMessage = "Applied 4-Stage Cycle template.";
             };
             starterTemplatesSub.Items.Add(tmplCycle);
@@ -3218,7 +3231,7 @@ namespace MarkSmith.Views.SmartArtStudio
             };
             tmplComparison.Click += (_, _) =>
             {
-                ViewModel.MarkdownText = "- Option Alpha\n  - Advantage 1\n  - Consideration 1\n- Option Beta\n  - Advantage 2\n  - Consideration 2";
+                ViewModel.ReplaceOutline("- Option Alpha\n  - Advantage 1\n  - Consideration 1\n- Option Beta\n  - Advantage 2\n  - Consideration 2");
                 ViewModel.StatusMessage = "Applied Comparison template.";
             };
             starterTemplatesSub.Items.Add(tmplComparison);
@@ -4223,7 +4236,7 @@ namespace MarkSmith.Views.SmartArtStudio
 
         private void OnPromoteAllClick(object sender, RoutedEventArgs e)
         {
-            string markdown = ViewModel.MarkdownText ?? "";
+            string markdown = ViewModel.OutlineText;
             if (string.IsNullOrWhiteSpace(markdown)) return;
             var lines = markdown.Split('\n');
             var sb = new System.Text.StringBuilder();
@@ -4257,15 +4270,15 @@ namespace MarkSmith.Views.SmartArtStudio
 
             if (changed)
             {
-                ViewModel.MarkdownText = sb.ToString();
+                ViewModel.ReplaceOutline(sb.ToString());
                 UpdateOutlineStats();
-                ViewModel.StatusMessage = "Promoted all outline items out 1 level.";
+                ViewModel.StatusMessage = "Promoted all outline items out 1 level · Ctrl+Z to undo";
             }
         }
 
         private void OnDemoteAllClick(object sender, RoutedEventArgs e)
         {
-            string markdown = ViewModel.MarkdownText ?? "";
+            string markdown = ViewModel.OutlineText;
             if (string.IsNullOrWhiteSpace(markdown)) return;
             var lines = markdown.Split('\n');
             var sb = new System.Text.StringBuilder();
@@ -4282,14 +4295,14 @@ namespace MarkSmith.Views.SmartArtStudio
                 if (hasCr) sb.Append('\r');
                 if (i < lines.Length - 1) sb.Append('\n');
             }
-            ViewModel.MarkdownText = sb.ToString();
+            ViewModel.ReplaceOutline(sb.ToString());
             UpdateOutlineStats();
-            ViewModel.StatusMessage = "Demoted all outline items in 1 level.";
+            ViewModel.StatusMessage = "Demoted all outline items in 1 level · Ctrl+Z to undo";
         }
 
         private void OnFlattenAllClick(object sender, RoutedEventArgs e)
         {
-            string markdown = ViewModel.MarkdownText ?? "";
+            string markdown = ViewModel.OutlineText;
             if (string.IsNullOrWhiteSpace(markdown)) return;
             var lines = markdown.Split('\n');
             var sb = new System.Text.StringBuilder();
@@ -4307,46 +4320,50 @@ namespace MarkSmith.Views.SmartArtStudio
                 if (hasCr) sb.Append('\r');
                 if (i < lines.Length - 1) sb.Append('\n');
             }
-            ViewModel.MarkdownText = sb.ToString();
+            if (!ViewModel.ReplaceOutline(sb.ToString()))
+            {
+                ViewModel.StatusMessage = "Every outline item is already at the root level.";
+                return;
+            }
             UpdateOutlineStats();
-            ViewModel.StatusMessage = "Flattened all outline items to root level.";
+            ViewModel.StatusMessage = "Flattened all outline items to root level · Ctrl+Z to undo";
         }
 
         private void OnReverseOutlineClick(object sender, RoutedEventArgs e)
         {
-            string markdown = ViewModel.MarkdownText ?? "";
+            string markdown = ViewModel.OutlineText;
             if (string.IsNullOrWhiteSpace(markdown)) return;
-            ViewModel.MarkdownText = SmartArtDesignStudioViewModel.ReverseOutline(markdown);
+            ViewModel.ReplaceOutline(SmartArtDesignStudioViewModel.ReverseOutline(markdown));
             UpdateOutlineStats();
-            ViewModel.StatusMessage = "Reversed outline items order.";
+            ViewModel.StatusMessage = "Reversed outline items order · Ctrl+Z to undo";
         }
 
         private void OnSortOutlineAscendingClick(object sender, RoutedEventArgs e)
         {
-            string markdown = ViewModel.MarkdownText ?? "";
+            string markdown = ViewModel.OutlineText;
             if (string.IsNullOrWhiteSpace(markdown)) return;
-            ViewModel.MarkdownText = SmartArtDesignStudioViewModel.SortOutlineAlphabetically(markdown, ascending: true);
+            ViewModel.ReplaceOutline(SmartArtDesignStudioViewModel.SortOutlineAlphabetically(markdown, ascending: true));
             UpdateOutlineStats();
-            ViewModel.StatusMessage = "Sorted outline items alphabetically (A to Z).";
+            ViewModel.StatusMessage = "Sorted outline items alphabetically (A to Z) · Ctrl+Z to undo";
         }
 
         private void OnSortOutlineDescendingClick(object sender, RoutedEventArgs e)
         {
-            string markdown = ViewModel.MarkdownText ?? "";
+            string markdown = ViewModel.OutlineText;
             if (string.IsNullOrWhiteSpace(markdown)) return;
-            ViewModel.MarkdownText = SmartArtDesignStudioViewModel.SortOutlineAlphabetically(markdown, ascending: false);
+            ViewModel.ReplaceOutline(SmartArtDesignStudioViewModel.SortOutlineAlphabetically(markdown, ascending: false));
             UpdateOutlineStats();
-            ViewModel.StatusMessage = "Sorted outline items reverse alphabetically (Z to A).";
+            ViewModel.StatusMessage = "Sorted outline items reverse alphabetically (Z to A) · Ctrl+Z to undo";
         }
 
         private void OnTrimTrailingWhitespaceClick(object sender, RoutedEventArgs e)
         {
-            string markdown = ViewModel.MarkdownText ?? "";
+            string markdown = ViewModel.OutlineText;
             if (string.IsNullOrEmpty(markdown)) return;
             var trimmed = SmartArtDesignStudioViewModel.TrimTrailingWhitespace(markdown);
             if (trimmed != markdown)
             {
-                ViewModel.MarkdownText = trimmed;
+                ViewModel.ReplaceOutline(trimmed);
                 UpdateOutlineStats();
                 ViewModel.StatusMessage = "Trimmed trailing whitespace from outline lines.";
             }
@@ -4358,12 +4375,12 @@ namespace MarkSmith.Views.SmartArtStudio
 
         private void OnStandardiseBulletsClick(object sender, RoutedEventArgs e)
         {
-            string markdown = ViewModel.MarkdownText ?? "";
+            string markdown = ViewModel.OutlineText;
             if (string.IsNullOrEmpty(markdown)) return;
             var standardised = SmartArtDesignStudioViewModel.StandardiseBullets(markdown, '-');
             if (standardised != markdown)
             {
-                ViewModel.MarkdownText = standardised;
+                ViewModel.ReplaceOutline(standardised);
                 UpdateOutlineStats();
                 ViewModel.StatusMessage = "Standardised outline bullet markers to '-'.";
             }
@@ -4375,12 +4392,12 @@ namespace MarkSmith.Views.SmartArtStudio
 
         private void OnNormalizeIndentationClick(object sender, RoutedEventArgs e)
         {
-            string markdown = ViewModel.MarkdownText ?? "";
+            string markdown = ViewModel.OutlineText;
             if (string.IsNullOrEmpty(markdown)) return;
             var normalized = SmartArtDesignStudioViewModel.NormalizeIndentation(markdown, 2);
             if (normalized != markdown)
             {
-                ViewModel.MarkdownText = normalized;
+                ViewModel.ReplaceOutline(normalized);
                 UpdateOutlineStats();
                 ViewModel.StatusMessage = "Normalized outline indentation to 2 spaces per level.";
             }
@@ -4392,14 +4409,14 @@ namespace MarkSmith.Views.SmartArtStudio
 
         private void OnCopyHierarchyMetricsClick(object sender, RoutedEventArgs e)
         {
-            string markdown = ViewModel.MarkdownText ?? "";
+            string markdown = ViewModel.OutlineText;
             var (_, _, _, _, summary) = SmartArtDesignStudioViewModel.AnalyzeHierarchyMetrics(markdown);
             CopyAndReport(summary, $"✓ {summary}");
         }
 
         private void OnCopyOutlineRootsOnlyClick(object sender, RoutedEventArgs e)
         {
-            string markdown = ViewModel.MarkdownText ?? "";
+            string markdown = ViewModel.OutlineText;
             var rootsOnly = SmartArtDesignStudioViewModel.FormatOutlineAtMaxDepth(markdown, 1);
             if (!string.IsNullOrWhiteSpace(rootsOnly))
             {
@@ -4413,83 +4430,80 @@ namespace MarkSmith.Views.SmartArtStudio
 
         private void OnAuditOutlineLineLengthsClick(object sender, RoutedEventArgs e)
         {
-            string markdown = ViewModel.MarkdownText ?? "";
+            string markdown = ViewModel.OutlineText;
             var summary = SmartArtDesignStudioViewModel.FormatOutlineLineLengthAuditSummary(markdown, 40);
             CopyAndReport(summary, $"✓ Copied line length audit: {summary}");
         }
 
         private void OnCopyOutlineHierarchyBreakdownClick(object sender, RoutedEventArgs e)
         {
-            string markdown = ViewModel.MarkdownText ?? "";
+            string markdown = ViewModel.OutlineText;
             var summary = SmartArtDesignStudioViewModel.FormatOutlineHierarchyBreakdown(markdown);
             CopyAndReport(summary, $"✓ Copied hierarchy breakdown: {summary}");
         }
 
         private void OnAuditOutlineBranchingClick(object sender, RoutedEventArgs e)
         {
-            string markdown = ViewModel.MarkdownText ?? "";
+            string markdown = ViewModel.OutlineText;
             var summary = SmartArtDesignStudioViewModel.FormatOutlineBranchingSummary(markdown);
             CopyAndReport(summary, $"✓ Copied branching audit: {summary}");
         }
 
         private void OnAuditOutlineTreeBalanceClick(object sender, RoutedEventArgs e)
         {
-            string markdown = ViewModel.MarkdownText ?? "";
+            string markdown = ViewModel.OutlineText;
             var summary = SmartArtDesignStudioViewModel.FormatOutlineBalanceSummary(markdown);
             CopyAndReport(summary, $"✓ Copied balance audit: {summary}");
         }
 
         private void OnAuditOutlineDepthDistributionClick(object sender, RoutedEventArgs e)
         {
-            string markdown = ViewModel.MarkdownText ?? "";
+            string markdown = ViewModel.OutlineText;
             var summary = SmartArtDesignStudioViewModel.FormatOutlineDepthDistributionSummary(markdown);
             CopyAndReport(summary, $"✓ Copied depth audit: {summary}");
         }
 
         private void OnReverseHierarchyOutlineClick(object sender, RoutedEventArgs e)
         {
-            string markdown = ViewModel.MarkdownText ?? "";
+            string markdown = ViewModel.OutlineText;
             var (reversed, blockCount, lineCount) = SmartArtDesignStudioViewModel.ReverseOutlineHierarchically(markdown);
             if (blockCount <= 1)
             {
                 ViewModel.StatusMessage = "At least 2 top-level outline blocks required to reverse.";
                 return;
             }
-            ViewModel.PushUndo();
-            ViewModel.MarkdownText = reversed;
+            ViewModel.ReplaceOutline(reversed);
             var summary = SmartArtDesignStudioViewModel.FormatHierarchyReverseSummary(blockCount, lineCount);
-            CopyAndReport(summary, $"✓ {summary}");
+            ReportEdit(summary);
         }
 
         private void OnDeduplicateOutlineClick(object sender, RoutedEventArgs e)
         {
-            string markdown = ViewModel.MarkdownText ?? "";
+            string markdown = ViewModel.OutlineText;
             var (deduped, removedCount, survivingCount) = SmartArtDesignStudioViewModel.DeduplicateOutlineNodes(markdown);
             var summary = SmartArtDesignStudioViewModel.FormatOutlineDeduplicationSummary(removedCount, survivingCount);
             if (removedCount > 0)
             {
-                ViewModel.PushUndo();
-                ViewModel.MarkdownText = deduped;
+                ViewModel.ReplaceOutline(deduped);
             }
-            CopyAndReport(summary, $"✓ {summary}");
+            ReportEdit(summary);
         }
 
         private void OnSplitLongOutlineClick(object sender, RoutedEventArgs e)
         {
-            string markdown = ViewModel.MarkdownText ?? "";
+            string markdown = ViewModel.OutlineText;
             var (splitMd, splitCount, resultingCount) = SmartArtDesignStudioViewModel.SplitLongOutlineItems(markdown, 45);
             var summary = SmartArtDesignStudioViewModel.FormatLongItemSplitSummary(splitCount, resultingCount, 45);
             if (splitCount > 0)
             {
-                ViewModel.PushUndo();
-                ViewModel.MarkdownText = splitMd;
+                ViewModel.ReplaceOutline(splitMd);
             }
-            CopyAndReport(summary, $"✓ {summary}");
+            ReportEdit(summary);
         }
 
         private void OnAutoNumberOutlineClick(object sender, RoutedEventArgs e)
         {
-            string markdown = ViewModel.MarkdownText ?? "";
+            string markdown = ViewModel.OutlineText;
             var (numberedMd, numberedNodes, maxDepth) = SmartArtDesignStudioViewModel.ApplyHierarchicalNumbering(markdown, stripExistingOnly: false);
             bool stripped = false;
             if (numberedNodes > 0 && string.Equals(numberedMd, markdown, StringComparison.Ordinal))
@@ -4500,36 +4514,35 @@ namespace MarkSmith.Views.SmartArtStudio
             }
             if (numberedNodes > 0 && !string.Equals(numberedMd, markdown, StringComparison.Ordinal))
             {
-                ViewModel.PushUndo();
-                ViewModel.MarkdownText = numberedMd;
+                ViewModel.ReplaceOutline(numberedMd);
             }
             var summary = SmartArtDesignStudioViewModel.FormatOutlineNumberingSummary(numberedNodes, maxDepth, stripped);
-            CopyAndReport(summary, $"✓ {summary}");
+            ReportEdit(summary);
         }
 
         private void OnRecommendLayoutsOutlineClick(object sender, RoutedEventArgs e)
         {
-            string markdown = ViewModel.MarkdownText ?? "";
+            string markdown = ViewModel.OutlineText;
             var summary = SmartArtDesignStudioViewModel.FormatLayoutRecommendationSummary(markdown);
             CopyAndReport(summary, $"✓ {summary}");
         }
 
         private void OnStructureByDelimiterOutlineClick(object sender, RoutedEventArgs e)
         {
-            string markdown = ViewModel.MarkdownText ?? "";
+            string markdown = ViewModel.OutlineText;
             var (structured, parents, items, summary) = SmartArtDesignStudioViewModel.StructureFlatOutlineByDelimiter(markdown);
             if (items > 0)
             {
-                ViewModel.MarkdownText = structured;
+                ViewModel.ReplaceOutline(structured);
             }
-            CopyAndReport(summary, $"✓ {summary}");
+            ReportEdit(summary);
         }
 
         private void OnBalanceOutlineDepthClick(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null) return;
             var (_, adjusted, summary) = ViewModel.BalanceOutlineNestingDepth(maxDepth: 2, mergeIntoParent: false);
-            CopyAndReport(summary, $"✓ {summary}");
+            ReportEdit(summary);
         }
 
         private void OnAuditTokenDensityClick(object sender, RoutedEventArgs e)
@@ -4606,7 +4619,7 @@ namespace MarkSmith.Views.SmartArtStudio
         {
             if (ViewModel == null) return;
             var result = ViewModel.NormalizeMatrixQuadrantHeaders();
-            CopyAndReport(result.Summary, $"✓ {result.Summary}");
+            ReportEdit(result.Summary);
         }
 
         private void OnAuditPyramidProportionalityClick(object sender, RoutedEventArgs e)

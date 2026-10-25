@@ -30,7 +30,11 @@ namespace MarkSmith.Views.MindMap
         {
             if (ViewModel is null) return;
             var line = summary?.Split('\n')[0].Trim();
-            if (!string.IsNullOrWhiteSpace(line)) ViewModel.StatusMessage = line;
+            if (string.IsNullOrWhiteSpace(line)) return;
+            // The view model often reported this result already as "✓ … · Ctrl+Z to undo"; replacing
+            // that with the bare summary dropped the undo hint, so a line containing it is kept.
+            if (ViewModel.StatusMessage?.Contains(line, StringComparison.Ordinal) == true) return;
+            ViewModel.StatusMessage = line;
         }
 
         // Copies text and reports it on the status line. These copies used to discard ClipboardWriter's

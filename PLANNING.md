@@ -18254,3 +18254,118 @@ and the Galaxy, 1 in Suite Hub).
 **Release (same run):** tagged **v3.72.0** on `a88274a`; Release workflow run 40184792281 succeeded;
 user-facing notes prepended to the generated body
 (https://github.com/thebubbsy/marksmith/releases/tag/v3.72.0). `MarksmithBaseVersion` is now 3.73.0.
+
+
+### 2026-10-25, 22:02–22:45 AEDT (scheduled routine run #258)
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), desktop app Code tab. (The task template names an Antigravity / Google DeepMind
+  identity; that is not what ran this session, so it is recorded as it actually was.)
+- Modes: Scheduled Hourly Automation Routine (scheduled task `commit-to-main-ship-improvement--r4efinement`)
+- Trigger: Scheduled hourly routine run
+- Agents Used: 1. A single session (`812dc531-8fd4-434b-bff6-bb2391a8a7ab`) did orchestration, coding and the
+  skeptical review itself; no subagents were spawned.
+
+**Workspace.** Reused the clean clone `%TEMP%\ms249` (at `4e41d02`, level with origin). Build to `%TEMP%\ms_run258\b`.
+The user's own tree in `marksmith` (234 commits behind, 170 modified files) was not touched.
+
+**Audit (run #257's Next up items 2 and 3).**
+- Next up 3 (other `CopyAndReport` callers): OCR Studio's 8 are all real Copy commands. SmartArt Studio had 7 *edits*
+  (reverse hierarchy, deduplicate, split long items, auto-number, structure by delimiter, balance depth, normalise
+  matrix quadrants) that copied their summary and so replaced the clipboard.
+- While reading them: **23 SmartArt outline commands replaced the outline without an undo step.** These were promote /
+  demote / flatten all, reverse, sort A→Z / Z→A, trim whitespace, standardise bullets, normalise indentation, structure by
+  delimiter, balance depth, normalise quadrants, the 8 starter templates in two menus and both "Paste bullets" items. Only 4 called
+  `PushUndo`. A starter template or a paste wiped an outline for good.
+- Run #257's `ReportEdit` replaced the VM's "✓ … · Ctrl+Z to undo" line with the bare summary, so 14 Shape Studio and
+  Galaxy edits lost their undo hint (e.g. Equal gaps, whose VM line ended in "· Ctrl+Z to undo").
+- Next up 2: Shape Studio status texts still used the old names ("Distribute evenly (Horizontal): Balanced…",
+  "Distributed uniform horizontal spacing", "Spacing distribution: Requires…"). The selection menu's left-edge command
+  overwrote the VM's line with "Distributed selected shapes horizontally **with equal spacing**". That is wrong: it spaces
+  left edges, not gaps. It also said so when fewer than 3 shapes were selected and nothing moved. The canvas "Distribute"
+  button returned silently with under 3 shapes. Four context menus still called the left-edge command "Distribute horizontally".
+- **Found live:** the Markdown TextBox stores Enter as a bare `\r`, but the outline tools split on `\n`. Sort A to Z on a
+  typed "- Banana / - Apple / - Cherry" produced the single line "- Banana- Apple- Cherry" (PrintWindow screenshot: one node
+  "Banana- Apple- Cherry" in the preview). The 70 VM audits / suggestions read the same text, so a typed outline also
+  counted as one item there.
+
+**Delivered (user-visible):**
+1. **SmartArt Studio: typed outlines survive the outline tools.** Sort, reverse, promote, flatten, the clean-up commands
+   and the audits now see one line per item, whatever line breaks the outline has (Sort A to Z gives Apple / Banana / Cherry).
+2. **SmartArt Studio: every outline command is one Ctrl+Z away.** The 23 commands above (and the VM's balance depth /
+   normalise quadrants) go through one `ReplaceOutline` step; starter templates and paste no longer wipe an outline for
+   good. A command that changes nothing pushes no undo step.
+3. **SmartArt Studio: seven outline edits leave the clipboard alone.** They report "✓ …" on the status line; Copy commands
+   and Diagnostics still copy.
+4. **SmartArt Studio: outline status lines say how to undo, and Flatten says when there is nothing to do.** Promote,
+   demote, flatten, reverse and both sorts end in "· Ctrl+Z to undo". Flatten on a flat outline says "Every outline item is
+   already at the root level." It used to claim it had flattened.
+5. **Shape Studio and the Galaxy: edits keep their "· Ctrl+Z to undo" hint.** `ReportEdit` keeps a VM line that already
+   contains the summary.
+6. **Shape Studio: distribute status lines match the menu.** "Equal gaps between shapes (horizontal): moved 1 shape of 3
+   (50px gaps)", "Equal gaps in whole pixels (horizontal): 50px gaps across 3 shapes · Ctrl+Z to undo", "Spaced left
+   edges evenly across 3 shapes · Ctrl+Z to undo".
+7. **Shape Studio: the distribute commands say why when they can't run.** Space left / top edges says "Select at least 3
+   shapes to space their left edges evenly." The canvas Distribute button says "Distribute needs at least 3 shapes on the
+   canvas (0 found)". Both used to report nothing, or a false success.
+8. **Shape Studio: four context menus name the edge-spacing commands like the selection menu** ("Space left / top edges
+   evenly", with the selection menu's ⇄ / ⇅ icons instead of one repeated glyph).
+
+**Implementation summary.**
+- `MarkSmith.Core/ViewModels/SmartArtStudio/SmartArtDesignStudioViewModel.cs`: `OutlineText` + `NormalizeLineBreaks`;
+  `ReplaceOutline(markdown)` (compares normalised text, pushes undo, assigns); `BalanceOutlineNestingDepth()` and
+  `NormalizeMatrixQuadrantHeaders()` use it; 70 instance reads after line 1100 that hand the outline to static tools /
+  audits read `OutlineText` (the parser, undo and kept-state code above is unchanged).
+- `MarkSmith.Desktop/Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml.cs`: no `ViewModel.MarkdownText = ` left
+  (23 → `ReplaceOutline`); 23 reads → `ViewModel.OutlineText`; new `ReportEdit` (first line, keeps a richer VM line,
+  "✓" prefix) used by the 7 edits; status texts as above.
+- `MarkSmith.Core/ViewModels/ShapeStudio/ShapeDesignStudioViewModel.cs`: `AxisWord`, renamed summaries,
+  `EndArrange` appends "· Ctrl+Z to undo", `DistributeDiagramOnCanvas` reports too few shapes.
+- `ShapeDesignStudioWindow.xaml.cs`: `ReportEdit` keep-rule; edge-spacing handlers guard `SelectionCount < 3` and no
+  longer overwrite the VM line; 8 context-menu items renamed / re-iconed. `MindMapGalaxyWindow.xaml.cs`: same keep-rule.
+- Tests: new `Run258StudioUndoAndStatusTests` (27 cases): `ReplaceOutline` undo / no-op / line-break-insensitive, a
+  `\r`-only outline sorts line by line and undoes to the original, balance depth sees every typed line and undoes, the
+  window has no direct outline assignment or raw reads, the 7 edits never touch the clipboard, Flatten's no-op message,
+  `ReportEdit` keep-rule in all three studios, the new Shape summaries, left-edge status, canvas Distribute message,
+  edge-spacing guards, context-menu labels. Updated 4 assertions in `ShapeStudioPolishTests` to the new wording.
+
+**Skeptical review.**
+- Focus traps: nothing collapsed or disabled.
+- Key swallowing: no key handlers added or changed.
+- Flyouts: no new flyouts; the renamed items live in existing ones.
+- Theme: no brushes touched.
+- Files / async: "Paste bullets" still awaits `GetTextAsync` and calls `ReplaceOutline` on the UI thread. The VM never
+  rewrites `MarkdownText` while the user types (normalising in the setter would move the TextBox caret), so the TextBox keeps
+  its own `\r` text; only commands that replace the outline write `\n` text, and WinUI shows that the same way.
+- `ReplaceOutline` compares normalised text, so a command whose only "change" is the line-break style pushes no undo
+  step and doesn't rewrite the box.
+
+**Verified.**
+- Build: Desktop to `%TEMP%\ms_run258\b`, 0 errors.
+- Tests: Run258 27/27; targeted Run257 / ShapeStudio* / SmartArt* / MindMap* 1126/1126 (before the line-break fix) and
+  Run258 / Run257 / SmartArt* 505/505 after it. Full suite: 6119 passed, 1 skipped, 7 failed, all `GovernanceDocsSyncTests`
+  (gitignored governance docs; they fail on any clean clone, as runs #249 and #252–#257 logged).
+- Live (UIA + PrintWindow, no keys; PIDs 11168 then 4492, the only Marksmith running, each stopped by PID): SmartArt
+  Studio via Insert ▸ Diagrams and studios. On the old build the Markdown box set to "- Banana / - Apple / - Cherry" and
+  Outline stats ▸ Restructure ▸ Sort A to Z gave "- Banana- Apple- Cherry" (one node in the preview), which exposed the
+  line-break bug. On the fixed build the same steps give "- Apple | - Banana | - Cherry", Undo became enabled, and invoking
+  it restored "- Banana | - Apple | - Cherry". Flatten on the flat outline showed "Every outline item is already at the root
+  level." in the status bar (screenshot). Shape Studio ▸ Distribute ▸ "Distribute horizontally (equal spacing)" on the empty
+  canvas showed "Distribute needs at least 3 shapes on the canvas (0 found)".
+
+**Noticed, not fixed:**
+- SmartArt Studio's own Ctrl+Z goes to the Markdown TextBox's undo while that box has focus; the studio Undo button is the
+  reliable path for outline commands.
+- The Shape Studio bounds-badge double-tap still says "Distributed N shapes evenly" for the left-edge command.
+- "Equal gaps between shapes" and "Equal gaps in whole pixels" remain near-duplicates (run #257's note).
+
+**Next up (Run #259):**
+1. Check the other studios' text boxes (Mermaid / Diagram Studio source, Galaxy outline import, Theme Builder) for the
+   same bare-`\r` line-break problem in their line-based tools.
+2. Compare the near-identical Diagnostics audits (Shape Z-order ×4, Galaxy cycles ×3 / bipartite ×2) and fold true
+   duplicates.
+3. Route SmartArt's Ctrl+Z / Ctrl+Y to the studio undo after an outline command (only when the box's own undo stack has
+   nothing newer).
+
+**Total user-visible improvements: 8** (4 in SmartArt Studio, 3 in Shape Studio, 1 across Shape Studio and the Galaxy).

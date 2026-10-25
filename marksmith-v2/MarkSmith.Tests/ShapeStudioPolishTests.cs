@@ -908,7 +908,7 @@ public class ShapeStudioPolishTests
     [Fact]
     public void Run148_DistributeShapesEvenly()
     {
-        Assert.Equal("Distribute evenly (Horizontal): Requires at least 3 shapes (Found 1)",
+        Assert.Equal("Equal gaps between shapes (horizontal): needs at least 3 shapes (1 found)",
             ShapeDesignStudioViewModel.FormatDistributionSummary(0, 1, DistributionAxis.Horizontal));
 
         var vm = new ShapeDesignStudioViewModel();
@@ -926,7 +926,7 @@ public class ShapeStudioPolishTests
         Assert.Equal(0, vm.Shapes[0].X);
         Assert.Equal(150, vm.Shapes[1].X); // 0 + 100 + 50 = 150
         Assert.Equal(300, vm.Shapes[2].X);
-        Assert.Contains("Distribute evenly (Horizontal): Balanced 1 shape across 3 shapes (Gap: 50px)", sumH);
+        Assert.Contains("Equal gaps between shapes (horizontal): moved 1 shape of 3 (50px gaps)", sumH);
 
         // Undo restores middle shape to X=50
         Assert.True(vm.CanUndo);
@@ -948,7 +948,7 @@ public class ShapeStudioPolishTests
         Assert.Equal(0, vm.Shapes[0].Y);
         Assert.Equal(100, vm.Shapes[1].Y); // 0 + 50 + 50 = 100
         Assert.Equal(200, vm.Shapes[2].Y);
-        Assert.Contains("Distribute evenly (Vertical): Balanced 1 shape across 3 shapes (Gap: 50px)", sumV);
+        Assert.Contains("Equal gaps between shapes (vertical): moved 1 shape of 3 (50px gaps)", sumV);
     }
 
     [Fact]
@@ -1226,7 +1226,7 @@ public class ShapeStudioPolishTests
         Assert.Equal(3, targets);
         Assert.Equal(1, modified);
         Assert.Equal(50.0, gap);
-        Assert.Contains("Distributed uniform horizontal spacing", summary);
+        Assert.Contains("Equal gaps in whole pixels (horizontal)", summary);
 
         // Shape 1 should now be at X = 0 + 100 + 50 = 150
         Assert.Equal(150.0, vm.Shapes[1].X);

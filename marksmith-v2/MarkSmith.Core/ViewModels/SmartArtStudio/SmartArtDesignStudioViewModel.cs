@@ -641,6 +641,25 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
     // ------------------------------------------------------------------ design operations
 
+    /// <summary>The outline with every line break as \n. The Markdown TextBox stores Enter as a bare \r,
+    /// and the outline tools split on \n, so a typed outline used to read as one line: Sort A to Z
+    /// merged "- Banana / - Apple / - Cherry" into a single node, and the audits counted one item.</summary>
+    public string OutlineText => NormalizeLineBreaks(MarkdownText);
+
+    public static string NormalizeLineBreaks(string? text) =>
+        (text ?? "").Replace("\r\n", "\n").Replace('\r', '\n');
+
+    /// <summary>Replaces the whole outline as one undoable step. Outline commands (promote, sort,
+    /// starter templates, paste, structure by delimiter…) used to assign MarkdownText directly, so
+    /// Ctrl+Z couldn't bring the old outline back. Returns false, pushing nothing, when unchanged.</summary>
+    public bool ReplaceOutline(string markdown)
+    {
+        if (string.Equals(OutlineText, NormalizeLineBreaks(markdown), StringComparison.Ordinal)) return false;
+        PushUndo();
+        MarkdownText = markdown ?? "";
+        return true;
+    }
+
     public void PushUndo()
     {
         _undoStack.Add(MarkdownText ?? "");
@@ -2370,10 +2389,10 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         int maxDepth = 2,
         bool mergeIntoParent = false)
     {
-        var (result, adjusted, total, summary) = BalanceOutlineNestingDepth(MarkdownText, maxDepth, mergeIntoParent);
+        var (result, adjusted, total, summary) = BalanceOutlineNestingDepth(OutlineText, maxDepth, mergeIntoParent);
         if (adjusted > 0)
         {
-            MarkdownText = result;
+            ReplaceOutline(result);
         }
         return (result, adjusted, summary);
     }
@@ -2475,7 +2494,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     public (int TotalBullets, int TotalWords, double MeanWords, int MinWords, int MaxWords, int VerboseCount, string Rating, string Summary)
         AuditOutlineTokenDensity()
     {
-        var result = AuditOutlineTokenDensity(MarkdownText);
+        var result = AuditOutlineTokenDensity(OutlineText);
         StatusMessage = result.Summary;
         return result;
     }
@@ -2589,7 +2608,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     public LayoutAspectRatioFit AuditLayoutAspectRatio()
     {
         int count = OutlineRows.Count > 0 ? OutlineRows.Count : 0;
-        return AuditLayoutAspectRatio(SelectedCategory, count, MarkdownText);
+        return AuditLayoutAspectRatio(SelectedCategory, count, OutlineText);
     }
 
     /// <summary>
@@ -2713,7 +2732,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     /// <summary>
     /// Audits outline item label lengths against category-specific character budgets to detect text truncation risks.
     /// </summary>
-    public NodeCharacterBudgetAudit AuditNodeCharacterBudgets() => AuditNodeCharacterBudgets(SelectedCategory, MarkdownText);
+    public NodeCharacterBudgetAudit AuditNodeCharacterBudgets() => AuditNodeCharacterBudgets(SelectedCategory, OutlineText);
 
     /// <summary>
     /// Audits outline item label lengths against category-specific character budgets to detect text truncation risks.
@@ -2862,7 +2881,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     /// <summary>
     /// Recommends Fluent UI icon glyphs based on outline bullet semantic keywords.
     /// </summary>
-    public OutlineIconRecommendationAudit RecommendIconsForOutline() => RecommendIconsForOutline(MarkdownText);
+    public OutlineIconRecommendationAudit RecommendIconsForOutline() => RecommendIconsForOutline(OutlineText);
 
     /// <summary>
     /// Recommends Fluent UI icon glyphs based on outline bullet semantic keywords.
@@ -3031,7 +3050,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     /// </summary>
     public HierarchyBranchingAudit AuditHierarchyBranchingFactor()
     {
-        var result = AuditHierarchyBranchingFactor(MarkdownText);
+        var result = AuditHierarchyBranchingFactor(OutlineText);
         StatusMessage = result.Summary;
         return result;
     }
@@ -3215,7 +3234,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     }
     public SmartArtProcessFlowChevronAudit AuditProcessFlowChevronUniformity()
     {
-        var audit = AuditProcessFlowChevronUniformity(MarkdownText, SelectedLayout?.DisplayName);
+        var audit = AuditProcessFlowChevronUniformity(OutlineText, SelectedLayout?.DisplayName);
         StatusMessage = audit.Summary;
         return audit;
     }
@@ -3326,7 +3345,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     
     public SmartArtTargetBullseyeAudit AuditTargetBullseyeRadiusProgression(string? markdown = null, string? layoutName = null)
     {
-        string md = markdown ?? MarkdownText;
+        string md = markdown ?? OutlineText;
         string layout = layoutName ?? SelectedLayout?.DisplayName ?? "Target Diagram";
         return AuditTargetBullseyeRadiusProgression(md, layout, isStatic: false);
     }
@@ -3455,7 +3474,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
     public SmartArtPyramidHierarchyAudit AuditPyramidLayerProportionality(string? markdown = null, string? layoutName = null)
     {
-        string md = markdown ?? MarkdownText;
+        string md = markdown ?? OutlineText;
         string layout = layoutName ?? SelectedLayout?.DisplayName ?? "Pyramid List";
         return AuditPyramidLayerProportionality(md, layout, isStatic: false);
     }
@@ -3596,7 +3615,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
     public SmartArtFunnelConversionAudit AuditFunnelStageProportionality(string? markdown = null, string? layoutName = null)
     {
-        string md = markdown ?? MarkdownText;
+        string md = markdown ?? OutlineText;
         string layout = layoutName ?? SelectedLayout?.DisplayName ?? "Funnel";
         return AuditFunnelStageProportionality(md, layout, isStatic: false);
     }
@@ -3718,7 +3737,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
     public SmartArtChevronProcessAudit AuditChevronProcessGeometry(string? markdown = null, string? layoutName = null)
     {
-        string md = markdown ?? MarkdownText;
+        string md = markdown ?? OutlineText;
         string layout = layoutName ?? SelectedLayout?.DisplayName ?? "Chevron Process";
         return AuditChevronProcessGeometry(md, layout, isStatic: false);
     }
@@ -3862,7 +3881,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
     public SmartArtMatrixQuadrantGeometryAudit AuditMatrixQuadrantGeometry(string? markdown = null, string? layoutName = null)
     {
-        string md = markdown ?? MarkdownText;
+        string md = markdown ?? OutlineText;
         string layout = layoutName ?? SelectedLayout?.DisplayName ?? "Matrix";
         return AuditMatrixQuadrantGeometry(md, layout, isStatic: false);
     }
@@ -4003,7 +4022,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
     public SmartArtPyramidHierarchyGeometryAudit AuditPyramidHierarchyGeometry(string? markdown = null, string? layoutName = null)
     {
-        string md = markdown ?? MarkdownText;
+        string md = markdown ?? OutlineText;
         string layout = layoutName ?? SelectedLayout?.DisplayName ?? "Pyramid";
         return AuditPyramidHierarchyGeometry(md, layout, isStatic: false);
     }
@@ -4153,7 +4172,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
     public SmartArtChevronProcessStrideAudit AuditChevronProcessStrideGeometry(string? markdown = null, string? layoutName = null)
     {
-        string md = markdown ?? MarkdownText;
+        string md = markdown ?? OutlineText;
         string layout = layoutName ?? SelectedLayout?.DisplayName ?? "Chevron Process";
         return AuditChevronProcessStrideGeometry(md, layout, isStatic: false);
     }
@@ -4292,7 +4311,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
     public SmartArtTargetBullseyeGeometryAudit AuditTargetBullseyeRingGeometry(string? markdown = null, string? layoutName = null)
     {
-        string md = markdown ?? MarkdownText;
+        string md = markdown ?? OutlineText;
         string layout = layoutName ?? SelectedLayout?.DisplayName ?? "Concentric Target";
         return AuditTargetBullseyeRingGeometry(md, layout, isStatic: false);
     }
@@ -4434,7 +4453,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
     public SmartArtGearMechanismAudit AuditGearMechanismGeometry(string? markdown = null, string? layoutName = null)
     {
-        string md = markdown ?? MarkdownText;
+        string md = markdown ?? OutlineText;
         string layout = layoutName ?? SelectedLayout?.DisplayName ?? "Gear Process";
         return AuditGearMechanismGeometry(md, layout, isStatic: false);
     }
@@ -4568,7 +4587,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
     public SmartArtMatrixCentroidBalanceAudit AuditMatrixAxisLabelAndCentroidBalance(string? markdown = null, string? layoutName = null)
     {
-        string md = markdown ?? MarkdownText;
+        string md = markdown ?? OutlineText;
         string layout = layoutName ?? SelectedLayout?.DisplayName ?? "Matrix";
         return AuditMatrixAxisLabelAndCentroidBalance(md, layout, isStatic: false);
     }
@@ -4702,7 +4721,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
     public SmartArtPyramidApexAudit AuditPyramidApexProportionality(string? markdown = null, string? layoutName = null)
     {
-        string md = markdown ?? MarkdownText;
+        string md = markdown ?? OutlineText;
         string layout = layoutName ?? SelectedLayout?.DisplayName ?? "Pyramid";
         return AuditPyramidApexProportionality(md, layout, isStatic: false);
     }
@@ -4881,7 +4900,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
     public SmartArtVennGeometryAudit AuditVennDiagramGeometry(string? markdown = null, string? layoutName = null)
     {
-        string md = markdown ?? MarkdownText;
+        string md = markdown ?? OutlineText;
         string layout = layoutName ?? SelectedLayout?.DisplayName ?? "Linear Venn";
         return AuditVennDiagramGeometry(md, layout, isStatic: false);
     }
@@ -5149,7 +5168,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     /// <summary>
     /// Audits sibling text length variance and visual symmetry balance of the active outline.
     /// </summary>
-    public SiblingTextVarianceAudit AuditSiblingTextLengthVariance() => AuditSiblingTextLengthVariance(MarkdownText);
+    public SiblingTextVarianceAudit AuditSiblingTextLengthVariance() => AuditSiblingTextLengthVariance(OutlineText);
 
     /// <summary>
     /// Audits sibling text length variance and visual symmetry balance from markdown outline text.
@@ -5296,7 +5315,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     /// Audits linear flow monotonicity, step ordering, and sequential progression across outline steps.
     /// Evaluates whether steps progress monotonically (e.g. numbered steps 1, 2, 3...) or have order inversions/regressions.
     /// </summary>
-    public LinearFlowMonotonicityAudit AuditLinearFlowMonotonicity() => AuditLinearFlowMonotonicity(MarkdownText, SelectedCategory);
+    public LinearFlowMonotonicityAudit AuditLinearFlowMonotonicity() => AuditLinearFlowMonotonicity(OutlineText, SelectedCategory);
 
     /// <summary>
     /// Audits linear flow monotonicity and directional flow vector from markdown outline text.
@@ -5420,7 +5439,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     /// <summary>
     /// Audits cyclic flow continuity, loop closure, and circular layout fit across outline items.
     /// </summary>
-    public CyclicFlowContinuityAudit AuditCyclicFlowContinuity() => AuditCyclicFlowContinuity(MarkdownText, SelectedCategory);
+    public CyclicFlowContinuityAudit AuditCyclicFlowContinuity() => AuditCyclicFlowContinuity(OutlineText, SelectedCategory);
 
     /// <summary>
     /// Audits cyclic flow continuity and circular loop closure across outline items.
@@ -5551,7 +5570,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     /// </summary>
     public MatrixQuadrantBalanceAudit AuditMatrixQuadrantBalance()
     {
-        return AuditMatrixQuadrantBalance(MarkdownText);
+        return AuditMatrixQuadrantBalance(OutlineText);
     }
 
     /// <summary>
@@ -5687,10 +5706,10 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     /// </summary>
     public MatrixQuadrantNormalizationResult NormalizeMatrixQuadrantHeaders()
     {
-        var result = NormalizeMatrixQuadrantHeaders(MarkdownText);
+        var result = NormalizeMatrixQuadrantHeaders(OutlineText);
         if (result.NormalizedHeadersCount > 0)
         {
-            MarkdownText = result.NormalizedMarkdown;
+            ReplaceOutline(result.NormalizedMarkdown);
         }
         StatusMessage = result.Summary;
         return result;
@@ -5823,7 +5842,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     /// </summary>
     public PyramidProportionalityAudit AuditPyramidStageProportionality()
     {
-        var result = AuditPyramidStageProportionality(MarkdownText);
+        var result = AuditPyramidStageProportionality(OutlineText);
         StatusMessage = result.Summary;
         return result;
     }
@@ -5983,7 +6002,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     /// </summary>
     public VennDiagramCompletenessAudit AuditVennDiagramCompleteness()
     {
-        var result = AuditVennDiagramCompleteness(MarkdownText);
+        var result = AuditVennDiagramCompleteness(OutlineText);
         StatusMessage = result.Summary;
         return result;
     }
@@ -6166,7 +6185,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     /// </summary>
     public TimelineChronologyAudit AuditTimelineMilestoneChronology()
     {
-        var result = AuditTimelineMilestoneChronology(MarkdownText);
+        var result = AuditTimelineMilestoneChronology(OutlineText);
         StatusMessage = result.Summary;
         return result;
     }
@@ -6408,7 +6427,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     /// </summary>
     public CyclicProcessConvergenceAudit AuditCyclicProcessConvergence(string? markdown = null)
     {
-        var result = AuditCyclicProcessConvergence(markdown ?? MarkdownText, SelectedCategory);
+        var result = AuditCyclicProcessConvergence(markdown ?? OutlineText, SelectedCategory);
         StatusMessage = result.Summary;
         return result;
     }
@@ -6607,7 +6626,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     /// </summary>
     public HierarchySpanOfControlAudit AuditHierarchySpanOfControl(string? markdown = null)
     {
-        string text = markdown ?? MarkdownText ?? string.Empty;
+        string text = markdown ?? OutlineText ?? string.Empty;
         if (string.IsNullOrWhiteSpace(text))
         {
             string emptySummary = "Hierarchy span of control audit: 0 nodes · Outline is empty";
@@ -6811,7 +6830,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     public SmartArtTypographyFontFitAudit AuditLayoutTypographyAndFontFit(
         string? markdown = null, double canvasWidth = 800.0, double canvasHeight = 500.0)
     {
-        string text = markdown ?? MarkdownText ?? string.Empty;
+        string text = markdown ?? OutlineText ?? string.Empty;
         if (string.IsNullOrWhiteSpace(text))
         {
             string emptySummary = "Typography font-fit audit: 0 nodes · Outline is empty";
@@ -6962,7 +6981,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     /// </summary>
     public SmartArtColorHierarchyAudit AuditColorHierarchyAndGradients(string? markdown = null, IReadOnlyList<string>? paletteHexes = null)
     {
-        string text = markdown ?? MarkdownText ?? string.Empty;
+        string text = markdown ?? OutlineText ?? string.Empty;
         if (string.IsNullOrWhiteSpace(text))
         {
             string emptySummary = "SmartArt color hierarchy audit: 0 nodes · Outline is empty";
@@ -7140,7 +7159,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     /// </summary>
     public LinearFlowChevronRhythmAudit AuditLinearFlowChevronRhythm(string? markdown = null)
     {
-        string text = markdown ?? MarkdownText ?? string.Empty;
+        string text = markdown ?? OutlineText ?? string.Empty;
         if (string.IsNullOrWhiteSpace(text))
         {
             string emptySummary = "Linear flow rhythm audit: 0 steps · Outline is empty";
@@ -7279,7 +7298,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     /// </summary>
     public SmartArtRadialCycleAudit AuditRadialCycleOrbitalBalance(string? markdown = null)
     {
-        string text = markdown ?? MarkdownText ?? string.Empty;
+        string text = markdown ?? OutlineText ?? string.Empty;
         if (string.IsNullOrWhiteSpace(text))
         {
             string emptySummary = "Radial cycle orbital balance audit: 0 spokes · Outline is empty";
@@ -7457,7 +7476,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     /// </summary>
     public SmartArtPyramidTaperingAudit AuditPyramidTaperingAndMassBalance(string? markdown = null, bool isInverted = false)
     {
-        string text = markdown ?? MarkdownText ?? string.Empty;
+        string text = markdown ?? OutlineText ?? string.Empty;
         if (string.IsNullOrWhiteSpace(text))
         {
             string emptySummary = "Pyramid tapering audit: 0 tiers · Outline is empty";
@@ -7653,7 +7672,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     /// </summary>
     public SmartArtMatrixQuadrantAudit AuditMatrixQuadrantSymmetry(string? markdown = null, string? layoutName = null)
     {
-        string text = markdown ?? MarkdownText ?? string.Empty;
+        string text = markdown ?? OutlineText ?? string.Empty;
         string layout = layoutName ?? SelectedLayout?.Alias ?? "matrix";
 
         if (string.IsNullOrWhiteSpace(text))
@@ -7875,7 +7894,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     /// </summary>
     public SmartArtVennOverlapAudit AuditVennDiagramOverlapAndSetBalance(string? markdown = null, string? layoutName = null)
     {
-        string text = markdown ?? MarkdownText ?? string.Empty;
+        string text = markdown ?? OutlineText ?? string.Empty;
 
         if (string.IsNullOrWhiteSpace(text))
         {
@@ -8037,7 +8056,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     }
     public SmartArtChevronProcessMilestoneAudit AuditChevronProcessMilestoneProgression(string? markdown = null, string? layoutName = null)
     {
-        string md = markdown ?? MarkdownText;
+        string md = markdown ?? OutlineText;
         string layout = layoutName ?? SelectedLayout?.DisplayName ?? "Chevron";
         return AuditChevronProcessMilestoneProgression(md, layout, isStatic: false);
     }
@@ -8225,7 +8244,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
     public SmartArtProcessSequenceAudit AuditProcessSequencePacing(string? markdown = null, string? layoutName = null)
     {
-        string text = markdown ?? MarkdownText ?? string.Empty;
+        string text = markdown ?? OutlineText ?? string.Empty;
         string layout = layoutName ?? SelectedLayout?.Name ?? "Linear Process";
 
         if (string.IsNullOrWhiteSpace(text))
@@ -8421,7 +8440,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     /// </summary>
     public SmartArtHierarchyBranchingAudit AuditHierarchyAspectAndBranching(string? markdown = null, string? layoutName = null)
     {
-        string input = markdown ?? MarkdownText ?? string.Empty;
+        string input = markdown ?? OutlineText ?? string.Empty;
         if (string.IsNullOrWhiteSpace(input))
         {
             return new SmartArtHierarchyBranchingAudit(
@@ -8589,7 +8608,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     /// </summary>
     public SmartArtTimelineChronologyAudit AuditTimelineMilestoneChronologyAndSpacing(string? markdown = null, string? layoutName = null)
     {
-        string input = markdown ?? MarkdownText ?? string.Empty;
+        string input = markdown ?? OutlineText ?? string.Empty;
         if (string.IsNullOrWhiteSpace(input))
         {
             return new SmartArtTimelineChronologyAudit(
@@ -8801,7 +8820,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     /// </summary>
     public SmartArtCycleIntervalAudit AuditCycleIntervalAndRadialChords(string? markdown = null, string? layoutName = null)
     {
-        string input = markdown ?? MarkdownText ?? string.Empty;
+        string input = markdown ?? OutlineText ?? string.Empty;
         if (string.IsNullOrWhiteSpace(input))
         {
             return new SmartArtCycleIntervalAudit(
@@ -8943,7 +8962,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
     public SmartArtQuadrantGridAudit AuditQuadrantGridBalance(string? markdown = null, string? layoutName = null)
     {
-        string input = markdown ?? MarkdownText ?? string.Empty;
+        string input = markdown ?? OutlineText ?? string.Empty;
         if (string.IsNullOrWhiteSpace(input))
         {
             return new SmartArtQuadrantGridAudit(
@@ -9095,7 +9114,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
     public SmartArtFunnelPyramidAudit AuditFunnelPyramidProgression(string? markdown = null, string? layoutName = null)
     {
-        string input = markdown ?? MarkdownText ?? string.Empty;
+        string input = markdown ?? OutlineText ?? string.Empty;
         if (string.IsNullOrWhiteSpace(input))
         {
             return new SmartArtFunnelPyramidAudit(
@@ -9234,7 +9253,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
     public SmartArtVennRadialAudit AuditVennRadialIntersectionBalance(string? markdown = null, string? layoutName = null)
     {
-        string input = markdown ?? MarkdownText ?? string.Empty;
+        string input = markdown ?? OutlineText ?? string.Empty;
         if (string.IsNullOrWhiteSpace(input))
         {
             return new SmartArtVennRadialAudit(
@@ -9400,7 +9419,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     /// </summary>
     public SmartArtListTextDensityAudit AuditListTextDensityBalance(string? markdown = null, string? layoutName = null)
     {
-        string input = markdown ?? MarkdownText ?? string.Empty;
+        string input = markdown ?? OutlineText ?? string.Empty;
         if (string.IsNullOrWhiteSpace(input))
         {
             return new SmartArtListTextDensityAudit(
@@ -9579,7 +9598,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     /// </summary>
     public SmartArtProcessStepFlowAudit AuditProcessStepFlowAndTransitions(string? markdown = null, string? layoutName = null)
     {
-        string input = markdown ?? MarkdownText ?? string.Empty;
+        string input = markdown ?? OutlineText ?? string.Empty;
         if (string.IsNullOrWhiteSpace(input))
         {
             return new SmartArtProcessStepFlowAudit(
@@ -9734,7 +9753,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     /// </summary>
     public SmartArtHierarchyBalanceAudit AuditHierarchyIndentationAndChildBalance(string? markdown = null, string? layoutName = null)
     {
-        string input = markdown ?? MarkdownText ?? string.Empty;
+        string input = markdown ?? OutlineText ?? string.Empty;
         if (string.IsNullOrWhiteSpace(input))
         {
             return new SmartArtHierarchyBalanceAudit(
@@ -9904,7 +9923,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     /// </summary>
     public SmartArtCycleSequenceAudit AuditCycleSequenceAndClosure(string? markdown = null, string? layoutName = null)
     {
-        string input = markdown ?? MarkdownText ?? string.Empty;
+        string input = markdown ?? OutlineText ?? string.Empty;
         string layout = layoutName ?? SelectedLayout?.DisplayName ?? SelectedLayout?.Name ?? "Cycle";
 
         if (string.IsNullOrWhiteSpace(input))
@@ -10086,7 +10105,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     /// </summary>
     public SmartArtMatrixBalanceAudit AuditMatrixQuadrantBalance(string? markdown = null, string? layoutName = null)
     {
-        string input = markdown ?? MarkdownText ?? string.Empty;
+        string input = markdown ?? OutlineText ?? string.Empty;
         string layout = layoutName ?? SelectedLayout?.DisplayName ?? SelectedLayout?.Name ?? "Quadrant Matrix";
 
         if (string.IsNullOrWhiteSpace(input))
@@ -10265,7 +10284,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     /// </summary>
     public SmartArtFunnelPyramidProgressionAudit AuditFunnelPyramidVolumeProgression(string? markdown = null, string? layoutName = null)
     {
-        string input = markdown ?? MarkdownText ?? string.Empty;
+        string input = markdown ?? OutlineText ?? string.Empty;
         string layout = layoutName ?? SelectedLayout?.DisplayName ?? SelectedLayout?.Name ?? "Funnel / Pyramid";
 
         bool isFunnel = layout.Contains("funnel", StringComparison.OrdinalIgnoreCase);
@@ -10426,7 +10445,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         string? markdown = null,
         string? layoutName = null)
     {
-        string input = markdown ?? MarkdownText ?? string.Empty;
+        string input = markdown ?? OutlineText ?? string.Empty;
         string layout = layoutName ?? SelectedLayout?.DisplayName ?? SelectedLayout?.Name ?? "Timeline / Process";
 
         if (string.IsNullOrWhiteSpace(input))
@@ -10602,7 +10621,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         string? markdown = null,
         string? layoutName = null)
     {
-        string input = markdown ?? MarkdownText ?? string.Empty;
+        string input = markdown ?? OutlineText ?? string.Empty;
         string layout = layoutName ?? SelectedLayout?.DisplayName ?? SelectedLayout?.Name ?? "Radial / Hub-and-Spoke";
 
         if (string.IsNullOrWhiteSpace(input))
@@ -10777,7 +10796,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     public SmartArtChevronProcessFlowAudit AuditChevronProcessFlowAndSpacing(
         string? markdown = null, string? layoutName = null)
     {
-        string md = markdown ?? MarkdownText ?? string.Empty;
+        string md = markdown ?? OutlineText ?? string.Empty;
         string layout = layoutName ?? SelectedLayout?.DisplayName ?? "Chevron Process";
 
         if (string.IsNullOrWhiteSpace(md))
@@ -10918,7 +10937,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     public SmartArtFunnelPyramidProportionsAudit AuditFunnelPyramidProportions(
         string? markdown = null, string? layoutName = null)
     {
-        string md = markdown ?? MarkdownText ?? string.Empty;
+        string md = markdown ?? OutlineText ?? string.Empty;
         string layout = layoutName ?? SelectedLayout?.DisplayName ?? "Funnel";
 
         if (string.IsNullOrWhiteSpace(md))
@@ -11079,7 +11098,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     public SmartArtMatrixSymmetryAudit AuditMatrixCellSymmetry(
         string? markdown = null, string? layoutName = null)
     {
-        string md = markdown ?? MarkdownText ?? string.Empty;
+        string md = markdown ?? OutlineText ?? string.Empty;
         string layout = layoutName ?? SelectedLayout?.DisplayName ?? "Grid Matrix";
 
         if (string.IsNullOrWhiteSpace(md))
@@ -11231,7 +11250,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     public SmartArtHierarchyOrgChartAudit AuditHierarchyOrgChartBalance(
         string? markdown = null, string? layoutName = null)
     {
-        string text = markdown ?? MarkdownText ?? string.Empty;
+        string text = markdown ?? OutlineText ?? string.Empty;
         string layout = layoutName ?? SelectedLayout?.DisplayName ?? "Organization Chart";
 
         if (string.IsNullOrWhiteSpace(text))
@@ -11415,7 +11434,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         string? markdown = null,
         string? layoutName = null)
     {
-        string text = markdown ?? MarkdownText ?? string.Empty;
+        string text = markdown ?? OutlineText ?? string.Empty;
         string layout = layoutName ?? SelectedLayout?.DisplayName ?? "Alternating Flow";
 
         if (string.IsNullOrWhiteSpace(text))
@@ -11558,7 +11577,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
     public SmartArtRadialGearAudit AuditRadialGearCycleEngagement()
     {
-        var audit = AuditRadialGearCycleEngagement(MarkdownText, SelectedLayout?.DisplayName);
+        var audit = AuditRadialGearCycleEngagement(OutlineText, SelectedLayout?.DisplayName);
         StatusMessage = audit.Summary;
         return audit;
     }
@@ -11651,7 +11670,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     }
     public SmartArtFunnelTaperAudit AuditFunnelPyramidVolumeTapering()
     {
-        var audit = AuditFunnelPyramidVolumeTapering(MarkdownText, SelectedLayout?.DisplayName);
+        var audit = AuditFunnelPyramidVolumeTapering(OutlineText, SelectedLayout?.DisplayName);
         StatusMessage = audit.Summary;
         return audit;
     }
@@ -11757,7 +11776,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
     public SmartArtMultiLevelMatrixQuadrantAudit AuditMatrixQuadrantSymmetryAndBalance()
     {
-        var audit = AuditMatrixQuadrantSymmetryAndBalance(MarkdownText, SelectedLayout?.DisplayName);
+        var audit = AuditMatrixQuadrantSymmetryAndBalance(OutlineText, SelectedLayout?.DisplayName);
         StatusMessage = audit.Summary;
         return audit;
     }
@@ -11908,7 +11927,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
     public SmartArtVennCardinalitySymmetryAudit AuditVennDiagramOverlapSymmetry()
     {
-        var audit = AuditVennDiagramOverlapSymmetry(MarkdownText, SelectedLayout?.DisplayName);
+        var audit = AuditVennDiagramOverlapSymmetry(OutlineText, SelectedLayout?.DisplayName);
         StatusMessage = audit.Summary;
         return audit;
     }
@@ -12032,7 +12051,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
     public SmartArtCycleRadialAngularAudit AuditCycleRadialAngularEquidistance()
     {
-        var audit = AuditCycleRadialAngularEquidistance(MarkdownText, SelectedLayout?.DisplayName);
+        var audit = AuditCycleRadialAngularEquidistance(OutlineText, SelectedLayout?.DisplayName);
         StatusMessage = audit.Summary;
         return audit;
     }
@@ -12170,7 +12189,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
     public SmartArtHierarchyTreeBalanceAudit AuditHierarchyTreeDepthAndBranchingBalance()
     {
-        var audit = AuditHierarchyTreeDepthAndBranchingBalance(MarkdownText, SelectedLayout?.DisplayName);
+        var audit = AuditHierarchyTreeDepthAndBranchingBalance(OutlineText, SelectedLayout?.DisplayName);
         StatusMessage = audit.Summary;
         return audit;
     }
@@ -12381,7 +12400,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
     public CycleProcessDirectionalityAudit AuditCycleProcessDirectionality(string? markdown = null, string? layoutName = null)
     {
-        string md = markdown ?? MarkdownText;
+        string md = markdown ?? OutlineText;
         string layout = layoutName ?? SelectedLayout?.DisplayName ?? "Cycle";
         return AuditCycleProcessDirectionality(md, layout, isStatic: false);
     }
@@ -12521,7 +12540,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
     public SmartArtPyramidFunnelHierarchyAudit AuditPyramidFunnelHierarchyInversion(string? markdown = null, string? layoutName = null)
     {
-        string md = markdown ?? MarkdownText;
+        string md = markdown ?? OutlineText;
         string layout = layoutName ?? SelectedLayout?.DisplayName ?? "Pyramid";
         return AuditPyramidFunnelHierarchyInversion(md, layout, isStatic: false);
     }
@@ -12654,7 +12673,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
     public SmartArtMatrixCoordinateParityAudit AuditMatrixQuadrantCoordinateParity(string? markdown = null, string? layoutName = null)
     {
-        string md = markdown ?? MarkdownText;
+        string md = markdown ?? OutlineText;
         string layout = layoutName ?? SelectedLayout?.DisplayName ?? "Matrix";
         return AuditMatrixQuadrantCoordinateParity(md, layout, isStatic: false);
     }
@@ -12827,7 +12846,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     
     public SmartArtVennDiagramSetIntersectionAudit AuditVennDiagramSetIntersection(string? markdown = null, string? layoutName = null)
     {
-        string md = markdown ?? MarkdownText;
+        string md = markdown ?? OutlineText;
         string layout = layoutName ?? SelectedLayout?.DisplayName ?? "Venn";
         return AuditVennDiagramSetIntersection(md, layout, isStatic: false);
     }
@@ -12964,7 +12983,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
     public SmartArtHierarchyTreeFanOutAudit AuditHierarchyTreeFanOutRatio(string? markdown = null, string? layoutName = null)
     {
-        string md = markdown ?? MarkdownText;
+        string md = markdown ?? OutlineText;
         string layout = layoutName ?? SelectedLayout?.DisplayName ?? "Hierarchy";
         return AuditHierarchyTreeFanOutRatio(md, layout, isStatic: false);
     }
@@ -13121,7 +13140,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
     public SmartArtSegmentedCycleAudit AuditSegmentedCycleAngleSlicing(string? markdown = null, string? layoutName = null)
     {
-        string md = markdown ?? MarkdownText;
+        string md = markdown ?? OutlineText;
         string layout = layoutName ?? SelectedLayout?.DisplayName ?? "SegmentedCycle";
         return AuditSegmentedCycleAngleSlicing(md, layout, isStatic: false);
     }
@@ -13276,7 +13295,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
     public SmartArtMatrixQuadrantDistributionAudit AuditMatrixQuadrantDistribution(string? markdown = null, string? layoutName = null)
     {
-        string md = markdown ?? MarkdownText;
+        string md = markdown ?? OutlineText;
         string layout = layoutName ?? SelectedLayout?.DisplayName ?? "Grid Matrix";
         return AuditMatrixQuadrantDistribution(md, layout, isStatic: false);
     }
