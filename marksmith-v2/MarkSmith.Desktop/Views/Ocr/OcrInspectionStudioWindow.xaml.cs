@@ -1165,11 +1165,15 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
 
     private void FillMarkdownPreviewMenu(MenuFlyout menu)
     {
+        // An empty preview (no pages yet, or a page with nothing recognised) has nothing to copy or
+        // select, so those two items are disabled instead of doing nothing.
+        bool hasPreview = !string.IsNullOrWhiteSpace(MarkdownPreviewTextBox.Text);
         var copyMarkdownItem = new MenuFlyoutItem
         {
             Text = "Copy Markdown preview",
             KeyboardAcceleratorTextOverride = "Ctrl+Shift+C",
-            Icon = new FontIcon { Glyph = "\uE8C8" }
+            Icon = new FontIcon { Glyph = "\uE8C8" },
+            IsEnabled = hasPreview
         };
         copyMarkdownItem.Click += (s, ev) => OnCopyMarkdownClick(s, ev);
         menu.Items.Add(copyMarkdownItem);
@@ -1178,7 +1182,8 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         {
             Text = "Select all",
             KeyboardAcceleratorTextOverride = "Ctrl+A",
-            Icon = new FontIcon { Glyph = "\uE8B3" }
+            Icon = new FontIcon { Glyph = "\uE8B3" },
+            IsEnabled = hasPreview
         };
         selectAllItem.Click += (_, _) =>
         {
@@ -2111,18 +2116,36 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
     private async void OnCopyMarkdownClick(object sender, RoutedEventArgs e)
     {
         string? md = MarkdownPreviewTextBox?.Text;
-        if (string.IsNullOrWhiteSpace(md)) return;
         string scopeLabel = _markdownScopeIsDocument ? "full document" : "current page";
+        // Ctrl+Shift+C works from anywhere in the studio, so with nothing to copy it says so rather
+        // than doing nothing.
+        if (string.IsNullOrWhiteSpace(md))
+        {
+            SetFooterStatusText(_session.Pages.Count == 0
+                ? "Nothing to copy yet: no pages have been scanned."
+                : $"Nothing to copy yet: the {scopeLabel} has no Markdown.");
+            return;
+        }
         var error = await ClipboardWriter.TrySetTextAsync(md);
         if (CopyMarkdownIcon is not null) CopyFeedback.ApplyIconTick(CopyMarkdownIcon, CopyMarkdownButton, error);
         SetFooterStatusText(error is null
-            ? $"Copied {scopeLabel} Markdown ({md.Length:N0} chars) to clipboard."
+            ? $"Copied {scopeLabel} Markdown ({md.Length:N0} characters) to clipboard."
             : $"Couldn't copy: {error}");
     }
 
     private async void CopySelectedElementMarkdown()
     {
-        if (_selectedElement is null || string.IsNullOrWhiteSpace(_selectedElement.CurrentMarkdown)) return;
+        // The card menus land here; say why nothing was copied instead of doing nothing.
+        if (_selectedElement is null)
+        {
+            SetFooterStatusText("Nothing to copy yet: select an element on the page first.");
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(_selectedElement.CurrentMarkdown))
+        {
+            SetFooterStatusText($"Nothing to copy yet: Element #{_selectedElement.Id} has no Markdown.");
+            return;
+        }
         int id = _selectedElement.Id;
         string kindName = _selectedElement.KindDisplayName;
         var error = await ClipboardWriter.TrySetTextAsync(_selectedElement.CurrentMarkdown);
@@ -2132,7 +2155,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         }
         else
         {
-            SetFooterStatusText(error);
+            SetFooterStatusText($"Couldn't copy: {error}");
         }
     }
 

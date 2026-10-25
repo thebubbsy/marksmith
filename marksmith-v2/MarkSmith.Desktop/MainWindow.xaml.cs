@@ -2585,8 +2585,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private void OnHistoryListKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
     {
-        var entry = FindListItemFromSource<Models.HistoryEntry>(e.OriginalSource as DependencyObject, HistoryList)
-                    ?? ViewModel.History.FirstOrDefault();
+        // Only the row the key came from (or the focused / selected row). It used to fall back to the
+        // first row, so Delete with no row resolved removed an export the user never picked.
+        var entry = FindListItemFromSource<Models.HistoryEntry>(e.OriginalSource as DependencyObject, HistoryList);
         if (entry is null) return;
 
         bool ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control)
@@ -3178,8 +3179,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             return;
         }
 
-        var entry = FindListItemFromSource<Services.TocEntry>(e.OriginalSource as DependencyObject, TocList)
-                    ?? (TocList?.ItemsSource as IEnumerable<Services.TocEntry>)?.FirstOrDefault();
+        // No first-row fallback: Ctrl+C copies the heading the key came from, never an unrelated one.
+        var entry = FindListItemFromSource<Services.TocEntry>(e.OriginalSource as DependencyObject, TocList);
         if (entry is null) return;
 
         if (e.Key == Windows.System.VirtualKey.Application || (e.Key == Windows.System.VirtualKey.F10 && shift))
@@ -11120,14 +11121,22 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private void OnLintListKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
     {
-        var issue = FindListItemFromSource<LintRow>(e.OriginalSource as DependencyObject, LintList)
-                    ?? (LintList?.ItemsSource as IEnumerable<LintRow>)?.FirstOrDefault();
-        if (issue is null) return;
-
         bool ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control)
             .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
         bool shift = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Shift)
             .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+
+        // Ctrl+Shift+C copies every issue, so it needs no row.
+        if (e.Key == Windows.System.VirtualKey.C && ctrl && shift)
+        {
+            e.Handled = true;
+            OnCopyAllLintIssuesClick(this, new RoutedEventArgs());
+            return;
+        }
+
+        // No first-row fallback: the menu and Ctrl+C act on the issue the key came from only.
+        var issue = FindListItemFromSource<LintRow>(e.OriginalSource as DependencyObject, LintList);
+        if (issue is null) return;
 
         if (e.Key == Windows.System.VirtualKey.Application || (e.Key == Windows.System.VirtualKey.F10 && shift))
         {
@@ -11139,11 +11148,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             e.Handled = true;
             CopyTextToStatusBar(issue.ToString(), $"Copied issue: {issue}");
-        }
-        else if (e.Key == Windows.System.VirtualKey.C && ctrl && shift)
-        {
-            e.Handled = true;
-            OnCopyAllLintIssuesClick(this, new RoutedEventArgs());
         }
     }
 

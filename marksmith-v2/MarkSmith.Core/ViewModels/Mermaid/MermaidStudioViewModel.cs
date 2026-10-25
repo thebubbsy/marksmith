@@ -1857,6 +1857,28 @@ public partial class MermaidStudioViewModel : ObservableObject
         return newNode;
     }
 
+    /// <summary>The palette's "Connect to '…'": adds the palette's shape to the right of
+    /// <paramref name="sourceNode"/>, linked from it, as one undo step. The status line used to
+    /// read "Added a shape connected to …" whichever shape was picked.</summary>
+    public DiagramNodeViewModel QuickAddPaletteShape(DiagramNodeViewModel sourceNode, MermaidPaletteItem item)
+    {
+        if (sourceNode is null) throw new ArgumentNullException(nameof(sourceNode));
+        if (item is null) throw new ArgumentNullException(nameof(item));
+
+        using var _ = SuspendEditTracking();
+
+        var added = QuickAddNode(sourceNode, "Right");
+        added.Shape = item.ShapeType;
+        added.Category = item.Category;
+        added.LabelText = item.DefaultText;
+        if (added.IsPseudoState) added.Width = added.Height = 28;
+        UpdateConnectedConnectors(added);
+        StatusText = added.IsPseudoState
+            ? $"Added {item.DisplayName} connected to '{DisplayName(sourceNode)}'."
+            : $"Added {item.DisplayName} connected to '{DisplayName(sourceNode)}'. Type to rename it.";
+        return added;
+    }
+
     public void UpdateConnectorGeometry(DiagramConnectorViewModel conn)
     {
         // Sequence messages are laid out as a whole (row order matters); a connector not yet in

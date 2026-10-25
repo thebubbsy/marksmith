@@ -99,16 +99,28 @@ public sealed partial class NodePaletteControl : UserControl
                 Text = $"Connect to '{ViewModels.Mermaid.MermaidStudioViewModel.DisplayName(selected)}'",
                 Icon = new FontIcon { Glyph = "\uE8AB" }
             };
-            connectItem.Click += (_, _) =>
-            {
-                var added = vm.QuickAddNode(selected, "Right");
-                added.Shape = item.ShapeType;
-                added.Category = item.Category;
-                added.LabelText = item.DefaultText;
-                if (added.IsPseudoState) added.Width = added.Height = 28;
-                vm.UpdateConnectedConnectors(added);
-            };
+            ToolTipService.SetToolTip(connectItem, $"Add {item.DisplayName} to the right of the selected shape, linked from it");
+            connectItem.Click += (_, _) => vm.QuickAddPaletteShape(selected, item);
             flyout.Items.Add(connectItem);
+        }
+        else if (DataContext is ViewModels.Mermaid.MermaidStudioViewModel { SelectedNode: null })
+        {
+            // Shown disabled rather than hidden, so the menu says the option exists and what it needs.
+            flyout.Items.Add(new MenuFlyoutItem
+            {
+                Text = "Connect to the selected shape (select a shape first)",
+                Icon = new FontIcon { Glyph = "\uE8AB" },
+                IsEnabled = false
+            });
+        }
+        else if (DataContext is ViewModels.Mermaid.MermaidStudioViewModel { SelectedNode: { CanQuickAdd: false } nonQuickAddNode })
+        {
+            flyout.Items.Add(new MenuFlyoutItem
+            {
+                Text = $"Connect not available for '{ViewModels.Mermaid.MermaidStudioViewModel.DisplayName(nonQuickAddNode)}'",
+                Icon = new FontIcon { Glyph = "\uE8AB" },
+                IsEnabled = false
+            });
         }
 
         if (position is { } pt)
