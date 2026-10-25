@@ -5620,13 +5620,19 @@ namespace MarkSmith.Views.ShapeStudio
             }
         }
 
+        // These three used to return silently with nothing to act on, and to record an undo step and
+        // report "Centered/Squared/Reset 3 shapes" even when nothing moved, so Ctrl+Z then seemed to do
+        // nothing. They now say why nothing happened and only record undo for a real change.
         private void OnSelectionCenterCanvasClick(object sender, RoutedEventArgs e)
         {
             var sel = ViewModel.Shapes.Where(s => s.IsSelected).ToList();
             if (sel.Count == 0) sel = ViewModel.Shapes.ToList();
-            if (sel.Count == 0) return;
+            if (sel.Count == 0)
+            {
+                ViewModel.StatusMessage = "No shapes on the canvas to center.";
+                return;
+            }
 
-            ViewModel.RecordUndo();
             double minX = sel.Min(s => s.X);
             double minY = sel.Min(s => s.Y);
             double maxX = sel.Max(s => s.X + s.Width);
@@ -5638,7 +5644,13 @@ namespace MarkSmith.Views.ShapeStudio
             const double canvasCenterY = 900.0;
             double dx = canvasCenterX - currentCenterX;
             double dy = canvasCenterY - currentCenterY;
+            if (Math.Abs(dx) < 0.5 && Math.Abs(dy) < 0.5)
+            {
+                ViewModel.StatusMessage = sel.Count == 1 ? "The shape is already centered on the canvas." : "These shapes are already centered on the canvas.";
+                return;
+            }
 
+            ViewModel.RecordUndo();
             foreach (var s in sel)
             {
                 s.X += dx;
@@ -5646,17 +5658,28 @@ namespace MarkSmith.Views.ShapeStudio
             }
             UpdateAdorner();
             UpdateSelectionBoundsPill();
-            ViewModel.StatusMessage = $"Centered {sel.Count} shape(s) on canvas.";
+            ViewModel.StatusMessage = $"Centered {CountText.Of(sel.Count, "shape")} on canvas · Ctrl+Z to undo";
         }
 
         private void OnSelectionMakeSquareClick(object sender, RoutedEventArgs e)
         {
             var sel = ViewModel.Shapes.Where(s => s.IsSelected).ToList();
             if (sel.Count == 0 && ViewModel.SelectedShape != null) sel.Add(ViewModel.SelectedShape);
-            if (sel.Count == 0) return;
+            if (sel.Count == 0)
+            {
+                ViewModel.StatusMessage = "Select a shape to make it square.";
+                return;
+            }
+
+            var changing = sel.Where(s => Math.Abs(s.Width - s.Height) >= 0.5).ToList();
+            if (changing.Count == 0)
+            {
+                ViewModel.StatusMessage = sel.Count == 1 ? "The shape is already square." : "These shapes are already square.";
+                return;
+            }
 
             ViewModel.RecordUndo();
-            foreach (var s in sel)
+            foreach (var s in changing)
             {
                 double side = Math.Max(s.Width, s.Height);
                 s.Width = side;
@@ -5664,23 +5687,34 @@ namespace MarkSmith.Views.ShapeStudio
             }
             UpdateAdorner();
             UpdateSelectionBoundsPill();
-            ViewModel.StatusMessage = $"Squared {sel.Count} shape(s) to equal width and height.";
+            ViewModel.StatusMessage = $"Squared {CountText.Of(changing.Count, "shape")} to equal width and height · Ctrl+Z to undo";
         }
 
         private void OnSelectionResetRotationClick(object sender, RoutedEventArgs e)
         {
             var sel = ViewModel.Shapes.Where(s => s.IsSelected).ToList();
             if (sel.Count == 0 && ViewModel.SelectedShape != null) sel.Add(ViewModel.SelectedShape);
-            if (sel.Count == 0) return;
+            if (sel.Count == 0)
+            {
+                ViewModel.StatusMessage = "Select a shape to reset its rotation.";
+                return;
+            }
+
+            var changing = sel.Where(s => s.Rotation != 0).ToList();
+            if (changing.Count == 0)
+            {
+                ViewModel.StatusMessage = sel.Count == 1 ? "The shape isn't rotated." : "None of these shapes are rotated.";
+                return;
+            }
 
             ViewModel.RecordUndo();
-            foreach (var s in sel)
+            foreach (var s in changing)
             {
                 s.Rotation = 0;
             }
             UpdateAdorner();
             UpdateSelectionBoundsPill();
-            ViewModel.StatusMessage = $"Reset rotation to 0° for {sel.Count} shape(s).";
+            ViewModel.StatusMessage = $"Reset rotation to 0° for {CountText.Of(changing.Count, "shape")} · Ctrl+Z to undo";
         }
 
         private void OnSelectionCopyBoundsClick(object sender, RoutedEventArgs e)

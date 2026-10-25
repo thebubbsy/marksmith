@@ -546,9 +546,13 @@
                                 <StackPanel Orientation="Horizontal" Spacing="2">
                                     <FontIcon Glyph="&#xE721;" FontSize="10.5" Margin="4,0,2,0" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                     <TextBox x:Name="OutlineSearchBox" Width="95" Height="24" Padding="4,1" FontSize="11"
-                                             PlaceholderText="Find node..." BorderThickness="0" Background="Transparent"
+                                             PlaceholderText="Find node…" BorderThickness="0" Background="Transparent"
+                                             AutomationProperties.Name="Find node in outline"
+                                             AutomationProperties.HelpText="Enter or F3 for the next match, Shift+Enter or Shift+F3 for the previous one, Esc to clear."
+                                             ToolTipService.ToolTip="Find node · Enter or F3 next, Shift+F3 previous, Esc clears"
                                              TextChanged="OnOutlineSearchBoxTextChanged" KeyDown="OnOutlineSearchBoxKeyDown" />
                                     <TextBlock x:Name="OutlineMatchCountLabel" Text="" FontSize="10" VerticalAlignment="Center" Margin="2,0"
+                                               AutomationProperties.LiveSetting="Polite"
                                                Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
                                     <Button x:Name="OutlinePrevMatchButton" Click="OnOutlinePrevMatchClick" Style="{StaticResource SubtleButtonStyle}"
                                             Width="20" Height="20" Padding="0" ToolTipService.ToolTip="Previous matching node (Shift+F3)"

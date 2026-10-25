@@ -2525,7 +2525,7 @@ public sealed partial class SuiteHubView : UserControl
 
                 var error = await Services.ClipboardWriter.TrySetTextAsync(text);
 
-                SetNotification(error is null ? $"Copied {list.Count} recent document path(s) to clipboard." : $"Couldn't copy the recent document paths. {error}", success: error is null);
+                SetNotification(error is null ? $"Copied {CountText.Of(list.Count, "recent document path")} to clipboard." : $"Couldn't copy the recent document paths. {error}", success: error is null);
 
             }
 
@@ -2575,7 +2575,7 @@ public sealed partial class SuiteHubView : UserControl
 
                 var clipboardError = await Services.ClipboardWriter.TrySetTextAsync(text);
 
-                var copyMessage = $"Copied {names.Count} recent file name(s) to clipboard.";
+                var copyMessage = $"Copied {CountText.Of(names.Count, "recent file name")} to clipboard.";
                 SetNotification(clipboardError is null ? copyMessage : Services.CopyStatusText.Failed(copyMessage, clipboardError), success: clipboardError is null);
 
             }
@@ -2626,7 +2626,7 @@ public sealed partial class SuiteHubView : UserControl
 
                 var clipboardError = await Services.ClipboardWriter.TrySetTextAsync(text);
 
-                var copyMessage = $"Copied {folders.Count} unique parent folder(s) to clipboard.";
+                var copyMessage = $"Copied {CountText.Of(folders.Count, "unique parent folder")} to clipboard.";
                 SetNotification(clipboardError is null ? copyMessage : Services.CopyStatusText.Failed(copyMessage, clipboardError), success: clipboardError is null);
 
             }
@@ -2675,7 +2675,7 @@ public sealed partial class SuiteHubView : UserControl
 
                 var clipboardError = await Services.ClipboardWriter.TrySetTextAsync(mdText);
 
-                var copyMessage = $"Copied {list.Count} recent document link(s) as Markdown.";
+                var copyMessage = $"Copied {CountText.Of(list.Count, "recent document link")} as Markdown.";
                 SetNotification(clipboardError is null ? copyMessage : Services.CopyStatusText.Failed(copyMessage, clipboardError), success: clipboardError is null);
 
             }

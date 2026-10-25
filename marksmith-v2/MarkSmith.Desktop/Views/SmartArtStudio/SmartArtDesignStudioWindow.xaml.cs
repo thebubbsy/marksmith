@@ -5121,7 +5121,7 @@ namespace MarkSmith.Views.SmartArtStudio
 
             if (string.IsNullOrEmpty(query))
             {
-                if (OutlineMatchCountLabel != null) OutlineMatchCountLabel.Text = "";
+                SetOutlineMatchCount("", "");
                 return;
             }
 
@@ -5137,17 +5137,13 @@ namespace MarkSmith.Views.SmartArtStudio
             {
                 _currentOutlineMatchIndex = 0;
                 SelectAndFocusOutlineMatch(_outlineSearchMatches[0]);
-                if (OutlineMatchCountLabel != null)
-                {
-                    OutlineMatchCountLabel.Text = $"1/{_outlineSearchMatches.Count}";
-                }
+                SetOutlineMatchCount($"1/{_outlineSearchMatches.Count}", $"Match 1 of {_outlineSearchMatches.Count}");
             }
             else
             {
-                if (OutlineMatchCountLabel != null)
-                {
-                    OutlineMatchCountLabel.Text = "0 matches";
-                }
+                SetOutlineMatchCount("No match", $"No node matches {query}");
+                // The status line kept the previous search's "Selected matching node" line.
+                ViewModel.StatusMessage = $"No node matches “{query}”.";
             }
         }
 
@@ -5157,10 +5153,20 @@ namespace MarkSmith.Views.SmartArtStudio
             _currentOutlineMatchIndex = (_currentOutlineMatchIndex + direction + _outlineSearchMatches.Count) % _outlineSearchMatches.Count;
             var match = _outlineSearchMatches[_currentOutlineMatchIndex];
             SelectAndFocusOutlineMatch(match);
-            if (OutlineMatchCountLabel != null)
-            {
-                OutlineMatchCountLabel.Text = $"{_currentOutlineMatchIndex + 1}/{_outlineSearchMatches.Count}";
-            }
+            SetOutlineMatchCount($"{_currentOutlineMatchIndex + 1}/{_outlineSearchMatches.Count}",
+                $"Match {_currentOutlineMatchIndex + 1} of {_outlineSearchMatches.Count}");
+        }
+
+        // The compact "2/5" count, with a spoken form for the polite live region so a screen reader
+        // hears each step ("Match 2 of 5"); the outline search used to be silent.
+        private void SetOutlineMatchCount(string text, string spoken)
+        {
+            if (OutlineMatchCountLabel == null) return;
+            OutlineMatchCountLabel.Text = text;
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(OutlineMatchCountLabel, spoken);
+            if (spoken.Length > 0)
+                Microsoft.UI.Xaml.Automation.Peers.FrameworkElementAutomationPeer.FromElement(OutlineMatchCountLabel)
+                    ?.RaiseAutomationEvent(Microsoft.UI.Xaml.Automation.Peers.AutomationEvents.LiveRegionChanged);
         }
 
         private void SelectAndFocusOutlineMatch(StudioNodeViewModel node)

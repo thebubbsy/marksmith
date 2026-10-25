@@ -661,9 +661,10 @@
                                 <StackPanel Orientation="Horizontal" Spacing="4">
                                     <FontIcon Glyph="&#xE721;" FontSize="11" Margin="4,0,2,0" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                     <TextBox x:Name="DiffSearchBox" Width="105" Height="26" MinHeight="0" Padding="4,2" FontSize="11"
-                                             PlaceholderText="Find in diff..." BorderThickness="0" Background="Transparent"
+                                             PlaceholderText="Find in diff…" BorderThickness="0" Background="Transparent"
                                              AutomationProperties.Name="Find in diff"
-                                             AutomationProperties.HelpText="Enter or F3 for the next match, Shift+F3 for the previous one."
+                                             AutomationProperties.HelpText="Ctrl+Shift+F to get here. Enter or F3 for the next match, Shift+F3 for the previous one, Esc to clear."
+                                             ToolTipService.ToolTip="Find in diff (Ctrl+Shift+F) · Enter or F3 next, Shift+F3 previous"
                                              TextChanged="OnDiffSearchBoxTextChanged" KeyDown="OnDiffSearchBoxKeyDown" />
                                     <TextBlock x:Name="DiffMatchCountLabel" Text="" FontSize="10.5" VerticalAlignment="Center" Margin="2,0"
                                                AutomationProperties.LiveSetting="Polite"

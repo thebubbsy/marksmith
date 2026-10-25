@@ -18878,3 +18878,76 @@ the matrix: Recent exports (`ExportHistoryFlyout`, last touched run #181) and th
 5. **OCR Inspection Studio copy menus empty-state polish**: Both page-sheet and toolbar copy menus now disable when empty (`IsEnabled = hasPageMd` / `hasAllMd`), format counts consistently as "characters" (eliminating "chars"), and clearly explain why nothing was copied if triggered when empty ("Nothing to copy yet: no pages have been scanned" / "has no Markdown").
 6. **MindMap Galaxy Studio status & topology menu polish**: The status bar context menu's "Copy status message" and "Copy map topology overview" items now disable when empty and explain why nothing was copied if invoked with an empty canvas or status line.
 7. **Diagram Studio status text polish**: Deleting a single node now names the node (`Deleted 'Start Node'.`), multiple nodes format as `Deleted N nodes.` (eliminating robotic `node(s)`), deleting a connector names both endpoints (`Deleted connector: 'A' → 'B'.`), Select All names single nodes or announces `No shapes on the canvas to select.`, and Paste names single pasted nodes.
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #267 (2026-10-26, 06:50–07:20 AEDT)
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), Claude desktop app Code tab. Not an Antigravity / Google DeepMind agent; the
+  task template asks for that identity, but this entry records the agent that actually ran.
+- Modes: Scheduled hourly automation routine, unattended (bypass-permissions)
+- Trigger: Scheduled hourly routine run (`commit-to-main-ship-improvement--r4efinement`)
+- Agents used: 1 (single agent acting as orchestrator, coding worker and skeptical reviewer; no subagents).
+  Session b01fda29-fa8d-4c47-a4e2-d7574e3af3c0.
+
+**Picked up:** runs #264–#266 left no "Next up" list, and #263's items were done by #264–#265. This run audited
+status-line wording across surfaces (a grep found 43 "word(s)" messages) and the find boxes in Version History and
+SmartArt Studio, plus Shape Studio's selection-bounds menu.
+
+**Delivered (user-visible):**
+1. **Main window inventory copies read as sentences.** 31 status lines and report headers ("Copied 1 Markdown
+   table(s)", "**Footnote Inventory**: 3 footnote(s)") now say "1 Markdown table" / "3 footnotes" through a new
+   Core `CountText.Of` / `CountText.Noun`. Covers links, code blocks, tables (Markdown and TSV), tasks, LaTeX math,
+   callouts and alerts, images, footnotes and diagram blocks.
+2. **Clearer wording on three main-window messages:** "Copied 4 image sources (URLs and file paths)" replaces
+   "image URL(s)/path(s)"; a single dropped image says "the dropped image"; a document with one footnote says
+   "The footnote has a matching inline reference and definition." instead of "All 1 footnote(s) …!".
+3. **Version History: Ctrl+Shift+F now reaches Find in diff.** The Ctrl+F branch also matched Ctrl+Shift+F and ran
+   first, so the find-in-diff shortcut never worked. The box now advertises it in a tooltip and help text, its
+   placeholder uses a real ellipsis, and the diff copy notices say "Copied 1 added line".
+4. **SmartArt Studio outline find is accessible.** The "Find node…" box had no accessible name or tooltip; it now
+   has both plus help text. Its match count is a polite live region with a spoken form ("Match 1 of 4",
+   "No node matches zzqx"), so screen readers hear each step (mirrors History's diff search).
+5. **SmartArt outline find clears a stale status line.** A search with no match left "Selected matching node:
+   'Executive Board'" from the previous query on the status bar; it now says `No node matches "zzqx".` and the
+   count reads "No match" (was "0 matches").
+6. **Shape Studio Center / Make square / Reset rotation explain themselves.** With nothing to act on they used to do
+   nothing silently; they now say "No shapes on the canvas to center.", "Select a shape to make it square." and
+   "Select a shape to reset its rotation."
+7. **Shape Studio no-op arranges no longer add a dead undo step.** Already-centered, already-square or unrotated
+   selections say so ("The shape is already square.") instead of recording an undo step that changes nothing and
+   claiming "Squared 3 shape(s)". Real changes count only the shapes that changed and end with "· Ctrl+Z to undo",
+   like the studio's other arrange actions.
+8. **Suite Hub recent-document copies** say "Copied 1 recent file name" / "3 unique parent folders" (four messages).
+
+**Implementation Summary**
+- New: `MarkSmith.Core/Services/CountText.cs`.
+- Modified: `MainWindow.xaml.cs`, `Views/History/HistoryWindow.xaml(.cs)`,
+  `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml(.cs)` (new `SetOutlineMatchCount`),
+  `Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs`, `Views/SuiteHubView.xaml.cs`. Each file's BOM and line
+  endings were kept (edits made with a byte-preserving Python helper).
+- Tests: `Run267PluralsFindBoxesAndShapeArrangeTests` (20 cases): CountText theory, a "no word(s) in quoted strings"
+  guard over the four swept files, History Ctrl+F / Ctrl+Shift+F ordering, SmartArt find naming and live region,
+  and Shape Studio no-op checks placed before `RecordUndo`.
+- Skeptical review: no control is collapsed or disabled; the History key change only narrows Ctrl+F (no arrow /
+  Delete handling touched); the new live-region helper is null-safe; no resource lookups or file access added.
+- Build: `dotnet build … -p:OutDir=%TEMP%\ms_run267\b\` 0 errors (pre-existing warnings only).
+- Tests: Run262–Run267 + SuiteAndTourPolish + ShapeStudio + SmartArt + History filters, 1212/1212 passed; Run267 alone
+  20/20 after the last edit.
+- Live UIA (PC locked all run, so UIA patterns only; isolated `MARKSMITH_CONFIG_DIR`, scratch PIDs 8456 and 11076
+  launched and stopped by this run): SmartArt `OutlineSearchBox` Name "Find node in outline" with the new help
+  text; query "e" → count named "Match 1 of 4"; "zzqx" → "No node matches zzqx", PrintWindow crop of the status
+  bar shows `No node matches "zzqx".` Shape Studio on an empty canvas, via the Selection bounds pill menu: the three
+  items reported the three new empty-state lines.
+
+**Noticed, not fixed:**
+- `Views/ImageInsertControl.cs` says "http(s) web addresses" (a protocol, left as is).
+- Shape Studio's arrange no-op paths were verified by tests only; a live check needs a seeded shape.
+- The Version History Ctrl+Shift+F fix was verified by source test only (no seeded history this run).
+
+**Next up (Run #268):**
+1. Seed a Shape Studio canvas (or a `.msshape` file) and verify the "already square" / "isn't rotated" lines live.
+2. Seed History (load a document with snapshots) and press Ctrl+Shift+F live once the PC is unlocked.
+3. Sweep the remaining studios (Mind Map, Diagram Studio, OCR) for silent `if (… == 0) return;` menu handlers.
+
+**Total user-visible improvements: 8** (2 main window, 1 Version History, 2 SmartArt Studio, 2 Shape Studio, 1 Suite Hub).

@@ -4748,7 +4748,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             var targetDir = await ResolveImageDropFolderAsync();
             if (targetDir is null)
             {
-                ViewModel.StatusText = "Couldn't find a folder to store the dropped image(s).";
+                ViewModel.StatusText = $"Couldn't find a folder to store the dropped {CountText.Noun(images.Count, "image")}.";
                 ViewModel.StatusSeverity = Models.StatusSeverity.Error;
                 return;
             }
@@ -11358,7 +11358,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
 
         var formatted = string.Join(Environment.NewLine, links.Select(l => $"- [{l.Label}]({l.Url})"));
-        CopyAndAnnounce(formatted, $"Copied {links.Count:N0} Markdown link(s) to clipboard");
+        CopyAndAnnounce(formatted, $"Copied {CountText.Of(links.Count, "Markdown link")} to clipboard");
     }
 
     private void OnStatusCopyLinksButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
@@ -11390,7 +11390,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 return;
             }
             var raw = string.Join(Environment.NewLine, links.Select(l => l.Url));
-            CopyAndAnnounce(raw, $"Copied {links.Count:N0} raw URL(s) to clipboard");
+            CopyAndAnnounce(raw, $"Copied {CountText.Of(links.Count, "raw URL")} to clipboard");
         };
         menu.Items.Add(rawUrlsItem);
 
@@ -12188,7 +12188,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         var formatted = string.Join(
             Environment.NewLine + Environment.NewLine,
             blocks.Select(b => $"```{b.Language}{Environment.NewLine}{b.Code}{Environment.NewLine}```"));
-        CopyAndAnnounce(formatted, $"Copied {blocks.Count:N0} fenced code block(s) ({totalLines:N0} lines) to clipboard");
+        CopyAndAnnounce(formatted, $"Copied {CountText.Of(blocks.Count, "fenced code block")} ({totalLines:N0} lines) to clipboard");
     }
 
     private void OnStatusCopyCodeButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
@@ -12221,7 +12221,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             }
             var raw = string.Join(Environment.NewLine + Environment.NewLine, blocks.Select(b => b.Code));
             var totalLines = blocks.Sum(b => b.LineCount);
-            CopyAndAnnounce(raw, $"Copied {blocks.Count:N0} raw code snippet(s) ({totalLines:N0} lines) to clipboard");
+            CopyAndAnnounce(raw, $"Copied {CountText.Of(blocks.Count, "raw code snippet")} ({totalLines:N0} lines) to clipboard");
         };
         menu.Items.Add(rawCodeItem);
 
@@ -12369,7 +12369,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
 
         var totalRows = tables.Sum(t => t.Rows.Count);
         var combined = string.Join(Environment.NewLine + Environment.NewLine, tables.Select(t => t.RawTable));
-        CopyAndAnnounce(combined, $"Copied {tables.Count:N0} Markdown table(s) ({totalRows:N0} data rows) to clipboard");
+        CopyAndAnnounce(combined, $"Copied {CountText.Of(tables.Count, "Markdown table")} ({totalRows:N0} data rows) to clipboard");
     }
 
     private void OnStatusCopyTablesButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
@@ -12413,7 +12413,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 }
             }
             var totalRows = tables.Sum(t => t.Rows.Count);
-            CopyAndAnnounce(sb.ToString().TrimEnd(), $"Copied {tables.Count:N0} table(s) ({totalRows:N0} rows) as TSV for Excel/Sheets");
+            CopyAndAnnounce(sb.ToString().TrimEnd(), $"Copied {CountText.Of(tables.Count, "table")} ({totalRows:N0} rows) as TSV for Excel/Sheets");
         };
         menu.Items.Add(copyTsvItem);
 
@@ -12524,7 +12524,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         int done = tasks.Count(t => t.IsCompleted);
         int pct = (int)Math.Round(done * 100.0 / tasks.Count);
         var combined = string.Join(Environment.NewLine, tasks.Select(t => t.RawLine));
-        CopyAndAnnounce(combined, $"Copied {tasks.Count:N0} task(s) ({done:N0}/{tasks.Count:N0} completed · {pct}%) to clipboard");
+        CopyAndAnnounce(combined, $"Copied {CountText.Of(tasks.Count, "task")} ({done:N0}/{tasks.Count:N0} completed · {pct}%) to clipboard");
     }
 
     private void OnStatusCopyTasksButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
@@ -12555,7 +12555,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 AnnounceStatus("No open/pending task list items found in document");
                 return;
             }
-            CopyAndAnnounce(string.Join(Environment.NewLine, pending.Select(t => t.RawLine)), $"Copied {pending.Count:N0} open/pending task(s) to clipboard");
+            CopyAndAnnounce(string.Join(Environment.NewLine, pending.Select(t => t.RawLine)), $"Copied {CountText.Of(pending.Count, "open/pending task")} to clipboard");
         };
         menu.Items.Add(copyPendingItem);
 
@@ -12572,7 +12572,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 AnnounceStatus("No completed task list items found in document");
                 return;
             }
-            CopyAndAnnounce(string.Join(Environment.NewLine, completed.Select(t => t.RawLine)), $"Copied {completed.Count:N0} completed task(s) to clipboard");
+            CopyAndAnnounce(string.Join(Environment.NewLine, completed.Select(t => t.RawLine)), $"Copied {CountText.Of(completed.Count, "completed task")} to clipboard");
         };
         menu.Items.Add(copyCompletedItem);
 
@@ -12798,7 +12798,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         int displayCount = exprs.Count(m => m.IsDisplay);
         int inlineCount = exprs.Count - displayCount;
         var output = string.Join(Environment.NewLine + Environment.NewLine, exprs.Select(m => m.RawDelimited));
-        CopyAndAnnounce(output, $"Copied {exprs.Count:N0} LaTeX math expression(s) ({displayCount:N0} display, {inlineCount:N0} inline) to clipboard");
+        CopyAndAnnounce(output, $"Copied {CountText.Of(exprs.Count, "LaTeX math expression")} ({displayCount:N0} display, {inlineCount:N0} inline) to clipboard");
     }
 
     private void OnStatusCopyMathButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
@@ -12829,7 +12829,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 AnnounceStatus("No display math blocks ($$...$$) found in document");
                 return;
             }
-            CopyAndAnnounce(string.Join(Environment.NewLine + Environment.NewLine, displayOnly.Select(m => m.RawDelimited)), $"Copied {displayOnly.Count:N0} display math block(s) to clipboard");
+            CopyAndAnnounce(string.Join(Environment.NewLine + Environment.NewLine, displayOnly.Select(m => m.RawDelimited)), $"Copied {CountText.Of(displayOnly.Count, "display math block")} to clipboard");
         };
         menu.Items.Add(copyDisplayItem);
 
@@ -12846,7 +12846,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 AnnounceStatus("No inline math expressions ($...$) found in document");
                 return;
             }
-            CopyAndAnnounce(string.Join(Environment.NewLine, inlineOnly.Select(m => m.RawDelimited)), $"Copied {inlineOnly.Count:N0} inline math expression(s) to clipboard");
+            CopyAndAnnounce(string.Join(Environment.NewLine, inlineOnly.Select(m => m.RawDelimited)), $"Copied {CountText.Of(inlineOnly.Count, "inline math expression")} to clipboard");
         };
         menu.Items.Add(copyInlineItem);
 
@@ -12864,7 +12864,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 return;
             }
             var sb = new System.Text.StringBuilder();
-            sb.AppendLine($"**LaTeX Math Inventory**: {exprs.Count:N0} expression(s) ({exprs.Count(m => m.IsDisplay):N0} display, {exprs.Count(m => !m.IsDisplay):N0} inline)");
+            sb.AppendLine($"**LaTeX Math Inventory**: {CountText.Of(exprs.Count, "expression")} ({exprs.Count(m => m.IsDisplay):N0} display, {exprs.Count(m => !m.IsDisplay):N0} inline)");
             sb.AppendLine();
             sb.AppendLine("| # | Mode | Line | LaTeX Expression |");
             sb.AppendLine("| ---: | :---: | ---: | :--- |");
@@ -13012,7 +13012,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         int admonitionCount = blocks.Count(b => b.IsAdmonition);
         int quoteCount = blocks.Count - admonitionCount;
         var output = string.Join(Environment.NewLine + Environment.NewLine, blocks.Select(b => b.RawBlock));
-        CopyAndAnnounce(output, $"Copied {blocks.Count:N0} callout/quote block(s) ({admonitionCount:N0} admonition, {quoteCount:N0} quote) to clipboard");
+        CopyAndAnnounce(output, $"Copied {CountText.Of(blocks.Count, "callout/quote block")} ({admonitionCount:N0} admonition, {quoteCount:N0} quote) to clipboard");
     }
 
     private void OnStatusCopyCalloutsButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
@@ -13043,7 +13043,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 AnnounceStatus("No admonition callouts (> [!TYPE]) found in document");
                 return;
             }
-            CopyAndAnnounce(string.Join(Environment.NewLine + Environment.NewLine, admonitions.Select(b => b.RawBlock)), $"Copied {admonitions.Count:N0} admonition callout block(s) to clipboard");
+            CopyAndAnnounce(string.Join(Environment.NewLine + Environment.NewLine, admonitions.Select(b => b.RawBlock)), $"Copied {CountText.Of(admonitions.Count, "admonition callout block")} to clipboard");
         };
         menu.Items.Add(copyAdmonitionsItem);
 
@@ -13062,7 +13062,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 AnnounceStatus("No high-priority alerts ([!IMPORTANT], [!WARNING], [!CAUTION]) found in document");
                 return;
             }
-            CopyAndAnnounce(string.Join(Environment.NewLine + Environment.NewLine, alerts.Select(b => b.RawBlock)), $"Copied {alerts.Count:N0} high-priority alert callout(s) to clipboard");
+            CopyAndAnnounce(string.Join(Environment.NewLine + Environment.NewLine, alerts.Select(b => b.RawBlock)), $"Copied {CountText.Of(alerts.Count, "high-priority alert callout")} to clipboard");
         };
         menu.Items.Add(copyAlertsItem);
 
@@ -13080,7 +13080,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 return;
             }
             var sb = new System.Text.StringBuilder();
-            sb.AppendLine($"**Callout & Blockquote Inventory**: {blocks.Count:N0} block(s) ({blocks.Count(b => b.IsAdmonition):N0} admonition, {blocks.Count(b => !b.IsAdmonition):N0} quote)");
+            sb.AppendLine($"**Callout & Blockquote Inventory**: {CountText.Of(blocks.Count, "block")} ({blocks.Count(b => b.IsAdmonition):N0} admonition, {blocks.Count(b => !b.IsAdmonition):N0} quote)");
             sb.AppendLine();
             sb.AppendLine("| # | Type | Start Line | Lines | Summary Preview |");
             sb.AppendLine("| ---: | :---: | ---: | ---: | :--- |");
@@ -13183,7 +13183,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         int mdCount = images.Count(img => img.SyntaxType == "Markdown");
         int htmlCount = images.Count - mdCount;
         var output = string.Join(Environment.NewLine, images.Select(img => img.RawTag));
-        CopyAndAnnounce(output, $"Copied {images.Count:N0} image reference(s) ({mdCount:N0} Markdown, {htmlCount:N0} HTML) to clipboard");
+        CopyAndAnnounce(output, $"Copied {CountText.Of(images.Count, "image reference")} ({mdCount:N0} Markdown, {htmlCount:N0} HTML) to clipboard");
     }
 
     private void OnStatusCopyImagesButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
@@ -13214,7 +13214,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 AnnounceStatus("No image URLs or file paths found in document");
                 return;
             }
-            CopyAndAnnounce(string.Join(Environment.NewLine, images.Select(img => img.SourceUrl)), $"Copied {images.Count:N0} image URL(s)/path(s) to clipboard");
+            CopyAndAnnounce(string.Join(Environment.NewLine, images.Select(img => img.SourceUrl)), $"Copied {CountText.Of(images.Count, "image source")} (URLs and file paths) to clipboard");
         };
         menu.Items.Add(copyUrlsItem);
 
@@ -13232,7 +13232,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 return;
             }
             var lines = missingAlt.Select(img => $"Ln {img.LineNumber}: {img.RawTag}");
-            CopyAndAnnounce(string.Join(Environment.NewLine, lines), $"Copied {missingAlt.Count:N0} image(s) missing alt text to clipboard");
+            CopyAndAnnounce(string.Join(Environment.NewLine, lines), $"Copied {CountText.Of(missingAlt.Count, "image")} missing alt text to clipboard");
         };
         menu.Items.Add(copyMissingAltItem);
 
@@ -13251,7 +13251,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             }
             int missingAltCount = images.Count(img => string.IsNullOrWhiteSpace(img.AltText));
             var sb = new System.Text.StringBuilder();
-            sb.AppendLine($"**Image Asset Inventory**: {images.Count:N0} image(s) ({missingAltCount:N0} missing alt text)");
+            sb.AppendLine($"**Image Asset Inventory**: {CountText.Of(images.Count, "image")} ({missingAltCount:N0} missing alt text)");
             sb.AppendLine();
             sb.AppendLine("| # | Syntax | Line | Alt Text | Source URL / Path |");
             sb.AppendLine("| ---: | :---: | ---: | :--- | :--- |");
@@ -13400,7 +13400,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
 
                 int missingDef = footnotes.Count(f => !f.DefinitionLine.HasValue);
         int unreferenced = footnotes.Count(f => f.ReferenceCount == 0);
-        CopyAndAnnounce(sb.ToString().TrimEnd(), $"Copied {footnotes.Count:N0} footnote(s) ({missingDef:N0} missing definition, {unreferenced:N0} unreferenced) to clipboard");
+        CopyAndAnnounce(sb.ToString().TrimEnd(), $"Copied {CountText.Of(footnotes.Count, "footnote")} ({missingDef:N0} missing definition, {unreferenced:N0} unreferenced) to clipboard");
     }
 
     private void OnStatusCopyFootnotesButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
@@ -13432,7 +13432,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             {
                 AnnounceStatus(footnotes.Count == 0
                     ? "No footnotes found in document"
-                    : $"All {footnotes.Count:N0} footnote(s) have matching inline references and definitions!");
+                    : (footnotes.Count == 1 ? "The footnote has a matching inline reference and definition." : $"All {footnotes.Count:N0} footnotes have matching inline references and definitions."));
                 return;
             }
             var sb = new System.Text.StringBuilder();
@@ -13443,7 +13443,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                     : $"UNREFERENCED DEFINITION (defined on Ln {fn.DefinitionLine})";
                 sb.AppendLine($"[^{fn.Id}] — {status}");
             }
-            CopyAndAnnounce(sb.ToString().TrimEnd(), $"Copied {issues.Count:N0} footnote audit issue(s) to clipboard");
+            CopyAndAnnounce(sb.ToString().TrimEnd(), $"Copied {CountText.Of(issues.Count, "footnote audit issue")} to clipboard");
         };
         menu.Items.Add(copyAuditItem);
 
@@ -13463,7 +13463,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 return;
             }
             var sb = new System.Text.StringBuilder();
-            sb.AppendLine($"**Footnote Inventory**: {footnotes.Count:N0} footnote(s)");
+            sb.AppendLine($"**Footnote Inventory**: {CountText.Of(footnotes.Count, "footnote")}");
             sb.AppendLine();
             sb.AppendLine("| # | Footnote ID | Refs | Ref Lines | Def Line | Status | Definition Text |");
             sb.AppendLine("| ---: | :--- | ---: | :--- | :--- | :---: | :--- |");
@@ -13633,7 +13633,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         var joined = string.Join(Environment.NewLine + Environment.NewLine, diagrams.Select(d => d.RawBlock));
                 int mermaidCount = diagrams.Count(d => d.Kind == "Mermaid");
         int wrapperCount = diagrams.Count - mermaidCount;
-        CopyAndAnnounce(joined, $"Copied {diagrams.Count:N0} diagram/visual block(s) ({mermaidCount:N0} Mermaid, {wrapperCount:N0} ::: wrapper) to clipboard");
+        CopyAndAnnounce(joined, $"Copied {CountText.Of(diagrams.Count, "diagram/visual block")} ({mermaidCount:N0} Mermaid, {wrapperCount:N0} ::: wrapper) to clipboard");
     }
 
     private void OnStatusCopyDiagramsButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
@@ -13665,7 +13665,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 AnnounceStatus("No ```mermaid diagram blocks found in document");
                 return;
             }
-            CopyAndAnnounce(string.Join(Environment.NewLine + Environment.NewLine, mermaids.Select(m => m.RawBlock)), $"Copied {mermaids.Count:N0} Mermaid diagram block(s) to clipboard");
+            CopyAndAnnounce(string.Join(Environment.NewLine + Environment.NewLine, mermaids.Select(m => m.RawBlock)), $"Copied {CountText.Of(mermaids.Count, "Mermaid diagram block")} to clipboard");
         };
         menu.Items.Add(copyMermaidOnlyItem);
 
@@ -13682,7 +13682,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 AnnounceStatus("No :::smartart / :::chart / :::shapes wrapper blocks found in document");
                 return;
             }
-            CopyAndAnnounce(string.Join(Environment.NewLine + Environment.NewLine, wrappers.Select(w => w.RawBlock)), $"Copied {wrappers.Count:N0} ::: visual wrapper block(s) to clipboard");
+            CopyAndAnnounce(string.Join(Environment.NewLine + Environment.NewLine, wrappers.Select(w => w.RawBlock)), $"Copied {CountText.Of(wrappers.Count, "::: visual wrapper block")} to clipboard");
         };
         menu.Items.Add(copyWrappersOnlyItem);
 
@@ -13702,7 +13702,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 return;
             }
             var sb = new System.Text.StringBuilder();
-            sb.AppendLine($"**Diagram & Visual Block Inventory**: {diagrams.Count:N0} block(s)");
+            sb.AppendLine($"**Diagram & Visual Block Inventory**: {CountText.Of(diagrams.Count, "block")}");
             sb.AppendLine();
             sb.AppendLine("| # | Block Kind | Layout / Subtype | Lines | Line Span |");
             sb.AppendLine("| ---: | :--- | :--- | ---: | :--- |");

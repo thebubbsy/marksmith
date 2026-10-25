@@ -1094,7 +1094,7 @@ public sealed partial class HistoryWindow : Window
             return;
         }
         var text = string.Join(Environment.NewLine, added);
-        CopyAndNotify(text, $"Copied {added.Count} added line(s) to clipboard.", CopyToolbarButton, $"\u2713 {added.Count} added");
+        CopyAndNotify(text, $"Copied {CountText.Of(added.Count, "added line")} to clipboard.", CopyToolbarButton, $"\u2713 {added.Count} added");
     }
 
     private void OnCopyRemovedLinesContextClick(object sender, RoutedEventArgs e)
@@ -1106,7 +1106,7 @@ public sealed partial class HistoryWindow : Window
             return;
         }
         var text = string.Join(Environment.NewLine, removed);
-        CopyAndNotify(text, $"Copied {removed.Count} removed line(s) to clipboard.", CopyToolbarButton, $"\u2713 {removed.Count} removed");
+        CopyAndNotify(text, $"Copied {CountText.Of(removed.Count, "removed line")} to clipboard.", CopyToolbarButton, $"\u2713 {removed.Count} removed");
     }
 
     private void OnCopyUnchangedLinesContextClick(object sender, RoutedEventArgs e)
@@ -1118,7 +1118,7 @@ public sealed partial class HistoryWindow : Window
             return;
         }
         var text = string.Join(Environment.NewLine, unchanged);
-        CopyAndNotify(text, $"Copied {unchanged.Count} unchanged context line(s) to clipboard.", CopyToolbarButton, $"\u2713 {unchanged.Count} context");
+        CopyAndNotify(text, $"Copied {CountText.Of(unchanged.Count, "unchanged context line")} to clipboard.", CopyToolbarButton, $"\u2713 {unchanged.Count} context");
     }
 
     private void OnCopyDiffStatsContextClick(object sender, RoutedEventArgs e)
@@ -1660,7 +1660,9 @@ public sealed partial class HistoryWindow : Window
         bool inFileList = e.OriginalSource is FrameworkElement { DataContext: FileSummaryViewModel };
         var focusedVersion = (e.OriginalSource as FrameworkElement)?.DataContext as VersionItemViewModel;
 
-        if (isCtrl && e.Key == VirtualKey.F)
+        // Ctrl+Shift+F must not match here: this branch used to take it, so the find-in-diff
+        // branch below never ran.
+        if (isCtrl && !isShift && e.Key == VirtualKey.F)
         {
             SearchBox.Focus(FocusState.Programmatic);
             SearchBox.SelectAll();
