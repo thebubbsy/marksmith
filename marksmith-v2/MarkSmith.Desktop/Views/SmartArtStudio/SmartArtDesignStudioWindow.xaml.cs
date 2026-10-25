@@ -3076,13 +3076,17 @@ namespace MarkSmith.Views.SmartArtStudio
             CopyAndReport(svg, $"Copied {label} to clipboard ({MarkSmith.Services.CountText.Of(svg.Length, "character")}).", ExportSvgButton);
         }
 
-        // The SVG copies and Save SVG did nothing while the preview had no diagram yet; say why.
+        // The SVG copies and Save SVG did nothing while the preview had no diagram yet, and copied the
+        // empty-state placeholder SVG for an empty outline; say why instead.
         private bool HasExportSvg(string? svg)
         {
+            if (string.IsNullOrWhiteSpace(ViewModel.OutlineText))
+            {
+                ViewModel.StatusMessage = SmartArtDesignStudioViewModel.EmptyOutlineMessage;
+                return false;
+            }
             if (!string.IsNullOrWhiteSpace(svg)) return true;
-            ViewModel.StatusMessage = string.IsNullOrWhiteSpace(ViewModel.OutlineText)
-                ? SmartArtDesignStudioViewModel.EmptyOutlineMessage
-                : "No diagram preview to export yet: wait for the preview to finish drawing.";
+            ViewModel.StatusMessage = "No diagram preview to export yet: wait for the preview to finish drawing.";
             return false;
         }
 

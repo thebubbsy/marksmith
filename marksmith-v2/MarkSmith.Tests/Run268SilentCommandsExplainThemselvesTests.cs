@@ -120,7 +120,11 @@ public class Run268SilentCommandsExplainThemselvesTests
         Assert.Contains("if (!HasExportSvg(svg)) return;", Body(src, "private void CopySvgToClipboard("));
         Assert.Contains("if (!HasExportSvg(svg)) return;", Body(src, "private void OnCopySvgDataUriClick("));
         Assert.Contains("if (!HasExportSvg(svg)) return;", Body(src, "private async void OnSaveSvgFileClick("));
-        Assert.Contains("No diagram preview to export yet", Body(src, "private bool HasExportSvg("));
+        var has = Body(src, "private bool HasExportSvg(");
+        Assert.Contains("No diagram preview to export yet", has);
+        // An empty outline still renders a placeholder SVG; it must be caught before the SVG check.
+        Assert.True(has.IndexOf("ViewModel.OutlineText", StringComparison.Ordinal)
+            < has.IndexOf("if (!string.IsNullOrWhiteSpace(svg)) return true;", StringComparison.Ordinal));
         Assert.DoesNotContain("bytes).\"", src);
         Assert.DoesNotContain("chars).\"", src);
     }

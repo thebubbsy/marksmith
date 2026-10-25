@@ -18954,3 +18954,93 @@ SmartArt Studio, plus Shape Studio's selection-bounds menu.
 
 **Release (same run):** tagged **v3.78.0** on `33759bc` (it also carries runs #264–#266, which shipped without a tag); Release workflow run 40229243962 succeeded; user-facing notes prepended to the generated body
 (https://github.com/thebubbsy/marksmith/releases/tag/v3.78.0). `MarksmithBaseVersion` is now 3.79.0.
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #268 (2026-10-26, 07:20–07:50 AEDT)
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), Claude desktop app Code tab. Not an Antigravity / Google DeepMind agent; the
+  task template asks for that identity, but this entry records the agent that actually ran.
+- Modes: Scheduled hourly automation routine, unattended (bypass-permissions)
+- Trigger: Scheduled hourly routine run (`commit-to-main-ship-improvement--r4efinement`)
+- Agents used: 1 (single agent acting as orchestrator, coding worker and skeptical reviewer; no subagents).
+  Session 60c6bafa-1c1e-4f55-8791-eba34c17af02.
+
+**Picked up:** run #267's Next up item 3 ("sweep the studios for silent `if (… == 0) return;` menu handlers"). A
+script listed every Click handler whose first lines return early on an empty count or string with no status
+line. The real hits were in SmartArt Studio (outline commands, Copy outline, SVG export), the main window
+(Replace, Clean up, Copy all lint issues), Shape Studio (Fit inside canvas) and Suite Hub (recent paths pill).
+Mind Map, Diagram Studio and OCR had none left after runs #265–#266.
+
+**Delivered (user-visible):**
+1. **SmartArt Studio outline commands explain an empty outline.** Promote all, Demote all, Flatten, Reverse,
+   Sort A to Z / Z to A, Trim trailing whitespace, Standardise bullets and Normalise indentation did nothing on
+   an empty outline. They now say "The outline is empty: add a node, or type bullet points on the Markdown tab."
+   (new shared `OutlineForCommand()` and `SmartArtDesignStudioViewModel.EmptyOutlineMessage`).
+2. **SmartArt no-op outline commands stop claiming changes.** Sorting an already-sorted outline said "Sorted
+   outline items alphabetically · Ctrl+Z to undo" with nothing to undo; it now says "The outline is already in
+   A to Z order." (or Z to A). Reverse on a one-line outline and Promote all on a flat outline say so too (Promote
+   all used to say nothing).
+3. **SmartArt Copy outline (Ctrl+C / Copy button) on an empty outline** says "Nothing to copy: the outline is
+   empty." instead of doing nothing.
+4. **SmartArt SVG export with nothing to export.** The four Copy SVG sizes, Copy SVG Data URI and Save SVG copied
+   the empty-state placeholder SVG for an empty outline (found live: "Copied 1x SVG (670 …)"), or did nothing
+   while the preview had no SVG. They now show the empty-outline message, or "No diagram preview to export yet:
+   wait for the preview to finish drawing." Copy sizes now say "670 characters" (they said "bytes", which was
+   wrong: it was the string length).
+5. **Find bar: Replace with an empty Find box.** Enter in the Replace box (and the Replace box's menu items) did
+   nothing when Find was empty; it now says "Type the text to find first, then Replace." and puts the caret in the
+   Find box.
+6. **Clean up document on an empty document** says "The document is empty: nothing to clean up." instead of
+   nothing.
+7. **Clean up keeps your place and undoes as one step.** It set the editor's Text directly, which jumped the
+   editor to the top and merged the clean-up into the typing undo burst. It now goes through
+   `ApplyEditorTextEdit` (scroll position kept, its own Ctrl+Z step) and says "Cleaned up 5 issues (trailing
+   spaces, blank-line runs) · Ctrl+Z to undo" (real plural via `CountText`).
+8. **Copy all lint issues on a clean document** (command palette or issue-list menu) says "Nothing to copy: the
+   document has no Markdown issues."
+9. **Shape Studio Fit inside canvas** on an empty canvas says "No shapes on the canvas to fit."; a real move
+   says "Moved 3 shapes inside the canvas · Ctrl+Z to undo" instead of "Clamped selection inside canvas bounds
+   (dx=-40, dy=0)", and a no-op says "The shape is already inside the canvas." / "Every shape is already inside
+   the canvas."
+10. **Suite Hub recent-paths pill** explains a list whose documents were all moved or deleted ("Nothing to copy:
+    the recent documents were moved or deleted.") and uses real plurals ("Copied 1 recent document path", "✓ 1
+    path").
+
+**Implementation Summary**
+- Modified: `MarkSmith.Core/ViewModels/SmartArtStudio/SmartArtDesignStudioViewModel.cs` (`EmptyOutlineMessage`),
+  `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml.cs` (`OutlineForCommand`, `HasExportSvg`),
+  `MainWindow.xaml.cs` (`AskForFindText`, Clean up, lint copy), `Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs`,
+  `Views/SuiteHubView.xaml.cs`. Each file's BOM and line endings kept (byte-preserving Python helper).
+- Tests: new `Run268SilentCommandsExplainThemselvesTests` (21 cases: nine outline commands, VM sort / reverse no-op
+  keeps the undo stack, SVG export guard order, Replace / Clean up / lint copy / Shape fit / Suite Hub contracts).
+  Refreshed stale assertions: Run241 and Run230 / Run225 had been failing on main since runs #266–#267 (the
+  CountText sweep, OCR's hoisted `pageMd`, the status host's Ctrl+C branch); Run242 and Run258 were adjusted for
+  this run's new early message and the `OutlineForCommand()` routing.
+- Skeptical review: nothing is collapsed or disabled; no key handler was changed (Replace's Enter path only gains a
+  message and focuses the visible Find box); Clean up now moves focus to the editor, as Replace All already did; no
+  resource lookups, flyout creation or file access added.
+- Build: `dotnet build … -p:OutDir=%TEMP%\ms_run268\b\` 0 errors (pre-existing warnings only), twice.
+- Tests: Run2xx + SuiteHub + SmartArt + ShapeStudio filter, 1889/1889 passed after the last edit.
+- Live UIA (PC locked, so UIA patterns plus PrintWindow crops; isolated `MARKSMITH_CONFIG_DIR`; scratch PIDs 27032 and
+  2560 launched and stopped by this run): Tools > Clean up document on the empty document → "The document is
+  empty: nothing to clean up."; on a messy document → "Cleaned up 5 issues … · Ctrl+Z to undo". Shape Studio
+  Selection bounds pill > Align & distribute > Fit inside canvas → StatusBarText "No shapes on the canvas to fit.".
+  SmartArt: Sort A to Z twice → "Sorted …" then "The outline is already in A to Z order."; cleared outline →
+  Promote all, Copy SVG 1x and Sort all show the empty-outline line (the SVG one only after the fix in item 4).
+  Replace / Replace All buttons are disabled with an empty Find box, and SendKeys is denied while locked, so the
+  Enter-in-Replace path (item 5) is verified by source test only.
+
+**Noticed, not fixed:**
+- `Views/SuiteHubView.xaml.cs` is double-spaced throughout in the repo (a blank line after every line); new code
+  there was added without the blank lines.
+- Version History Ctrl+Shift+F (run #267 Next up 2) and Shape Studio "already square" lines (Next up 1) still need
+  an unlocked desktop / seeded data.
+
+**Next up (Run #269):**
+1. With the PC unlocked: press Enter in an empty-Find Replace box and Ctrl+Shift+F in Version History live.
+2. Seed a `.msshape` with one shape and verify Fit inside canvas / Make square no-op lines live.
+3. Continue the silent-return sweep into non-Click paths: `KeyDown` shortcuts (Ctrl+C in studios) and
+   command-palette actions that call handlers whose buttons are disabled.
+
+**Total user-visible improvements: 10** (4 SmartArt Studio, 4 main window, 1 Shape Studio, 1 Suite Hub).
