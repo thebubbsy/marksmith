@@ -2624,6 +2624,9 @@ namespace MarkSmith.Views.ShapeStudio
             }
         }
 
+        // What a spacing badge's double-click / right-click act on, refreshed on every update.
+        private sealed record SpacingBadgeState(bool Horizontal, double AverageGap);
+
         private void UpdateDistributionSpacingBadges(List<ShapeCanvasItemViewModel> selected, double totalW, double totalH, double z)
         {
             if (DistributionSpacingBadgesCanvas == null) return;
@@ -2658,30 +2661,33 @@ namespace MarkSmith.Views.ShapeStudio
             {
                 var badge = new Border
                 {
-                    Background = (Brush)Application.Current.Resources["AcrylicBackgroundFillColorDefaultBrush"],
-                    BorderBrush = (Brush)Application.Current.Resources["SurfaceStrokeColorDefaultBrush"],
                     BorderThickness = new Thickness(1),
                     CornerRadius = new CornerRadius(3),
                     Padding = new Thickness(4, 1, 4, 1)
                 };
-                var tb = new TextBlock
-                {
-                    FontSize = 10,
-                    Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
-                };
+                var tb = new TextBlock { FontSize = 10 };
+                // ThemeBrush follows the studio's theme; a raw Resources lookup kept the brush of
+                // whichever theme was active when the badge was made.
+                ThemeBrush.Set(badge, Border.BackgroundProperty, "AcrylicBackgroundFillColorDefaultBrush");
                 badge.Child = tb;
+                // Badges are reused across selections, so the handlers read the current axis and
+                // gap from Tag (set below) instead of capturing the first selection's. Double-click
+                // equalises the gaps the badges measure, as the tooltip says; it used to space left
+                // edges and overwrite the VM's line with "Distributed N shapes evenly".
                 badge.DoubleTapped += (s, e) =>
                 {
                     e.Handled = true;
-                    if (totalW >= totalH) ViewModel.DistributeHorizontalCommand.Execute(null);
-                    else ViewModel.DistributeVerticalCommand.Execute(null);
+                    if (s is not Border { Tag: SpacingBadgeState state } || ViewModel == null) return;
+                    var (_, _, summary) = ViewModel.DistributeShapesEvenly(state.Horizontal ? DistributionAxis.Horizontal : DistributionAxis.Vertical);
+                    ReportEdit(summary);
+                    UpdateAdorner();
                     UpdateMultiSelectionAdorner();
-                    ViewModel.StatusMessage = $"Distributed {selected.Count} shapes evenly · Ctrl+Z to undo";
                 };
                 badge.RightTapped += (s, e) =>
                 {
                     e.Handled = true;
-                    ShowSpacingPresetsMenu(e.GetPosition(MainCanvas), totalW >= totalH, avgGap);
+                    if (s is not Border { Tag: SpacingBadgeState state }) return;
+                    ShowSpacingPresetsMenu(e.GetPosition(MainCanvas), state.Horizontal, state.AverageGap);
                 };
                 DistributionSpacingBadgesCanvas.Children.Add(badge);
             }
@@ -2695,19 +2701,20 @@ namespace MarkSmith.Views.ShapeStudio
                     continue;
                 }
                 b.Visibility = Visibility.Visible;
+                b.Tag = new SpacingBadgeState(isHorizontal, avgGap);
                 var tb = (TextBlock)b.Child;
                 double gap = gaps[i];
                 tb.Text = isEquidistant ? $"= {gap:F0} px" : $"d = {gap:F0} px";
 
                 if (isEquidistant)
                 {
-                    b.BorderBrush = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"];
-                    tb.Foreground = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"];
+                    ThemeBrush.Set(b, Border.BorderBrushProperty, "AccentFillColorDefaultBrush");
+                    ThemeBrush.Set(tb, TextBlock.ForegroundProperty, "AccentFillColorDefaultBrush");
                 }
                 else
                 {
-                    b.BorderBrush = (Brush)Application.Current.Resources["SurfaceStrokeColorDefaultBrush"];
-                    tb.Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"];
+                    ThemeBrush.Set(b, Border.BorderBrushProperty, "SurfaceStrokeColorDefaultBrush");
+                    ThemeBrush.Set(tb, TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
                 }
 
                 ToolTipService.SetToolTip(b, $"Spacing: {gap:F0} px · Double-click to equalize spacing, Right-click for spacing presets");

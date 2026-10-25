@@ -298,7 +298,9 @@ public sealed class SmartArtInsertControl : InsertDialogBody
         };
         resetItem.Click += (_, _) =>
         {
-            var lines = (_box.Text ?? "").Split('\n');
+            // Any line break: the TextBox stores Enter as a bare '\r', so splitting on '\n'
+            // only reset the first line of a typed outline.
+            var lines = (_box.Text ?? "").Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
             _box.Text = string.Join("\n", lines.Select(l => l.TrimStart()));
             _box.Focus(FocusState.Programmatic);
         };

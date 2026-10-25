@@ -18373,3 +18373,113 @@ The user's own tree in `marksmith` (234 commits behind, 170 modified files) was 
 **Release (same run):** tagged **v3.73.0** on `fdbfa30`; Release workflow run 40189492222 succeeded;
 user-facing notes prepended to the generated body
 (https://github.com/thebubbsy/marksmith/releases/tag/v3.73.0). `MarksmithBaseVersion` is now 3.74.0.
+
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #259 (2026-10-25, 23:00–23:40 AEDT)
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), desktop app Code tab. (The task template names an Antigravity / Google DeepMind
+  identity; that is not what ran this session, so it is recorded as it actually was.)
+- Modes: Scheduled Hourly Automation Routine (scheduled task `commit-to-main-ship-improvement--r4efinement`)
+- Trigger: Scheduled hourly routine run
+- Agents Used: 1. A single session (`e4d6cb2f-b57d-444d-aee8-5d225beb351f`) did orchestration, coding and the
+  skeptical review itself; no subagents were spawned.
+
+**Workspace.** Reused the clean clone `%TEMP%\ms249` (at `cfefac1`, level with origin). Baseline build to
+`%TEMP%\ms_run259\base`, fixed build to `%TEMP%\ms_run259\b`. The user's own tree in `marksmith` (236 commits behind,
+170 modified files) was not touched. The PC was locked all run (LogonUI up), so no keys: UIA + PrintWindow only.
+
+**Audit (run #258's Next up item 1: other text boxes' line-based tools).**
+- Studio text boxes are fine: Mermaid's parser splits on `\r\n` / `\r` / `\n`; SmartArt was fixed in run #258;
+  `SmartArtInsert.Parse` / `ShiftLines` already handle `\r`.
+- **The main editor is the real case.** `EditorDocument()` keeps the TextBox's bare `\r` breaks, and these readers
+  split on `\n` or use `(?m)^`: the nine status-bar Copy extractors (code blocks, tables, tasks, math, callouts,
+  images, footnotes, diagrams, TOC), 50 Diagnostics report items, and `TextSearch.ExtractMarkdownSectionBudgets`
+  (the § section breadcrumb). Each read the whole document as one line.
+- **Reproduced live on the baseline:** editor text "# Guide / Intro / ## Setup / ```bash … ``` / ## Usage / Run it."
+  set through UIA ValuePattern with `\r` breaks. More ▸ "Copy code blocks" said "No fenced code blocks found in
+  document", and with the caret on line 14 (TextPattern selection) the § breadcrumb stayed hidden.
+- Insert ▸ SmartArt's "Reset all indentations" split `_box.Text` on `\n`, so it reset only the first typed line.
+- Shape Studio spacing badges (run #258's "noticed" item): double-click ran the LEFT-EDGE command although the badge
+  shows gaps and its tooltip says "equalize spacing", then overwrote the VM's line with "Distributed N shapes evenly".
+  The badges are reused across selections but their handlers captured the first selection's axis and average gap.
+  Their brushes were raw `Application.Current.Resources` lookups.
+- The status bar's indentation / encoding helpers (`UpdateStatusIndentation`, `ConvertIndentation`,
+  `TrimTrailingWhitespace`, `ShowIndentFlyout`, `ToggleLineEndings`, `ShowEncodingFlyout`) had the same `\n` bug, but
+  **nothing in the UI calls the flyouts or toggles** (the pills are gone from MainWindow.xaml). Fixed in Core for
+  correctness and **not counted as user-visible**.
+
+**Delivered (user-visible):**
+1. **Status bar: the § section breadcrumb works.** It now appears and follows the caret's section ("§ Usage" on
+   line 14). It used to stay hidden, or name the first heading for the whole document. It reads the document (folds
+   open), so its line numbers match the caret's document line and the click-to-jump target.
+2. **Status bar: Copy code blocks finds code blocks.** The `(?m)^` fence regex now sees every line, so a fenced block
+   is no longer reported as "No fenced code blocks found in document".
+3. **Status bar: Copy TOC, tables, tasks, math, callouts, footnotes and diagrams see every line.** These extractors
+   all split on `\n`. Their line numbers (task jump targets) are now real.
+4. **Diagnostics reports count real lines.** The 50 report items that hand the document to `TextSearch` now pass it
+   with `\n` breaks.
+5. **Insert ▸ SmartArt: "Reset all indentations" resets every line** of a typed outline, not just the first.
+6. **Shape Studio: double-clicking a spacing badge equalises the gaps it shows.** It runs "Equal gaps between shapes"
+   on the badge row's axis and reports the VM's own line ("Equal gaps between shapes (horizontal): moved 1 shape of 3
+   (50px gaps) · Ctrl+Z to undo"). It used to space left edges and report a generic "Distributed N shapes evenly".
+7. **Shape Studio: spacing badges act on the current selection.** Double-click and right-click (spacing presets)
+   read the axis and average gap from the badge's `Tag`, refreshed on every update. Before, they used the values from
+   whichever selection first created the badge.
+8. **Shape Studio: spacing badges follow the studio theme** (`ThemeBrush.Set` for background, border and text).
+
+**Implementation summary.**
+- New `MarkSmith.Core/Services/Editor/EditorIndentation.cs`: `Detect` (tabs / 2 / 4 by line counts; a fair share of
+  2, 6, 10… depths means 2-space, since a 2-space document also has lines at 4 and 8), `Convert` (levels counted in
+  the document's own unit, so 4-space → "Spaces: 2" halves the indent; the old code divided by the target size and
+  changed nothing), `TrimTrailingWhitespace`. All keep each line's own break. Each returns a changed-line count.
+- `MainWindow.xaml.cs`: new `EditorDocumentLf()`; 9 extractors + 50 Diagnostics reads use it; breadcrumb gets
+  `EditorDocumentLf()`; `UpdateStatusIndentation` / `ConvertIndentation` / `TrimTrailingWhitespace` use the Core
+  helper and say "nothing to convert / trim" or the changed-line count (latent; no UI entry point).
+- `MarkSmith.Core/Services/TextSearch.cs`: `ExtractMarkdownSectionBudgets` splits on any line break.
+- `Views/SmartArtInsertControl.cs`: Reset all indentations splits on any line break.
+- `Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs`: `SpacingBadgeState` record in `Tag`; double-click →
+  `DistributeShapesEvenly(axis)` + `ReportEdit`; right-click reads `Tag`; ThemeBrush brushes.
+- Tests: new `Run259EditorLineBreakToolsTests` (27 cases): Detect over `\r` / `\n` / `\r\n`, tabs, the deep 2-space
+  case; Convert re-indents every line, 4↔2-space round trip, to tabs, mixed breaks, no-op count; Trim every line;
+  section budgets on `\r` text; source contracts for `EditorDocumentLf`, the 9 extractors, 0 raw Diagnostics reads,
+  the breadcrumb call, the indentation methods, SmartArt insert reset, badge double-click / Tag / ThemeBrush.
+
+**Skeptical review.**
+- Focus traps: nothing collapsed or disabled.
+- Key swallowing: no key handlers added or changed.
+- Flyouts: no new flyouts or dynamic buttons.
+- Theme: the spacing badges moved off raw Resources lookups to `ThemeBrush.Set`.
+- Files / async: none touched. `EditorDocumentLf()` is a length-preserving char swap on TextBox text (it only holds
+  bare `\r`), so offsets taken from it still match `PasteTextBox`. Copied extracts now carry `\n` breaks, which every
+  paste target accepts.
+- Cost: the breadcrumb now builds the `\n` copy on each caret move; `UpdateCursorPosition` already walks the whole
+  text there, so this is the same order of work.
+
+**Verified.**
+- Build: Desktop to `%TEMP%\ms_run259\b`, 0 errors (23 existing warnings).
+- Tests: Run259 + indentation / TextSearch / StatusBar filters 224/224. Full suite: 6146 passed, 1 skipped, 7 failed,
+  all `GovernanceDocsSyncTests` (gitignored governance docs; they fail on any clean clone, as runs #249 and #252–#258
+  logged).
+- Live (UIA + PrintWindow, PC locked, fresh `MARKSMITH_CONFIG_DIR` per launch, Welcome tour skipped; PIDs 9268 / 1808
+  baseline and 12972 / 13808 fixed, each stopped by PID): baseline "Copy code blocks" → "No fenced code blocks found in
+  document" and no breadcrumb at line 14; fixed build shows `StatusSectionBreadcrumbText` "§ Usage" at line 14.
+  Copy commands were NOT invoked on the fixed build, so the user's clipboard was left alone. The spacing badge
+  double-click and SmartArt insert reset are covered by tests only (no keys / double-tap while locked).
+
+**Noticed, not fixed:**
+- The indentation / encoding / line-ending status helpers in MainWindow have no UI entry point. Either wire the
+  flyouts to a status pill or delete them (a "line endings" toggle can't work on a TextBox, which stores `\r` only).
+- `ExtractDocumentLinks` and the other `EditorDocument()` readers above line 11500 weren't audited for `(?m)` regexes.
+- "Equal gaps between shapes" and "Equal gaps in whole pixels" remain near-duplicates.
+
+**Next up (Run #260):**
+1. Decide the orphaned status indentation / encoding helpers (wire or remove), and audit the remaining
+   `EditorDocument()` / `PasteTextBox.Text` readers for `(?m)^` or `Split('\n')`.
+2. Compare the near-identical Diagnostics audits (Shape Z-order ×4, Galaxy cycles ×3 / bipartite ×2) and fold true
+   duplicates.
+3. Route SmartArt's Ctrl+Z / Ctrl+Y to the studio undo after an outline command.
+
+**Total user-visible improvements: 8** (4 in the main window's status bar / Diagnostics, 1 in Insert ▸ SmartArt,
+3 in Shape Studio).

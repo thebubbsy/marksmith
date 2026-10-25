@@ -7754,7 +7754,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         CursorPosText.Text = DocumentStatsService.FormatCursorAndSelection(line, col, text.AsSpan(start, sel));
         UpdateStatusEncoding(text);
         UpdateStatusIndentation(text);
-        UpdateStatusSectionBreadcrumb(text, line);
+        // The document (folds open, '\n' breaks): `line` is a document line, and the TextBox's
+        // bare '\r' breaks made the whole document read as one section.
+        UpdateStatusSectionBreadcrumb(EditorDocumentLf(), line);
     }
 
     private int _currentHeadingLine = 0;
@@ -8357,51 +8359,12 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private void UpdateStatusIndentation(string? text)
     {
-        int spaces2Count = 0;
-        int spaces4Count = 0;
-        int tabsCount = 0;
-
-        if (!string.IsNullOrEmpty(text))
-        {
-            var lines = text.Split('\n');
-            foreach (var l in lines)
-            {
-                if (string.IsNullOrWhiteSpace(l)) continue;
-                int spaces = 0;
-                int tabs = 0;
-                for (int i = 0; i < l.Length; i++)
-                {
-                    if (l[i] == ' ') spaces++;
-                    else if (l[i] == '\t') tabs++;
-                    else break;
-                }
-                if (tabs > 0) tabsCount++;
-                else if (spaces > 0)
-                {
-                    if (spaces % 4 == 0) spaces4Count++;
-                    else if (spaces % 2 == 0) spaces2Count++;
-                }
-            }
-        }
-
-        if (tabsCount > spaces4Count && tabsCount > spaces2Count)
-        {
-            _currentIndentUseTabs = true;
-            _currentIndentSize = 4;
-            _currentIndentSummary = "Tabs";
-        }
-        else if (spaces2Count > spaces4Count)
-        {
-            _currentIndentUseTabs = false;
-            _currentIndentSize = 2;
-            _currentIndentSummary = "Spaces: 2";
-        }
-        else
-        {
-            _currentIndentUseTabs = false;
-            _currentIndentSize = 4;
-            _currentIndentSummary = "Spaces: 4";
-        }
+        // Judged from every line: it used to split on '\n' only, so it read the TextBox's '\r'
+        // text as one line and judged the style from line 1.
+        var style = MarkSmith.Services.Editor.EditorIndentation.Detect(text);
+        _currentIndentUseTabs = style.UseTabs;
+        _currentIndentSize = style.Size;
+        _currentIndentSummary = style.Summary;
     }
 
     private void ToggleIndentation()
@@ -8430,51 +8393,17 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         string text = PasteTextBox.Text ?? "";
         if (string.IsNullOrEmpty(text)) return;
 
-        var sb = new System.Text.StringBuilder(text.Length);
-        var lines = text.Split('\n');
-        for (int i = 0; i < lines.Length; i++)
+        // Every line, whatever its break: splitting on '\n' only re-indented line 1 of the
+        // TextBox's '\r' text and still announced the whole document as converted.
+        string styleName = toTabs ? "Tabs" : $"Spaces: {targetSpaces}";
+        var result = MarkSmith.Services.Editor.EditorIndentation.Convert(text, toTabs, targetSpaces);
+        if (result.ChangedLines == 0)
         {
-            string l = lines[i];
-            bool hasCr = l.EndsWith('\r');
-            string lineNoCr = hasCr ? l.Substring(0, l.Length - 1) : l;
-
-            int ws = 0;
-            int effectiveSpaces = 0;
-            while (ws < lineNoCr.Length && (lineNoCr[ws] == ' ' || lineNoCr[ws] == '\t'))
-            {
-                if (lineNoCr[ws] == '\t') effectiveSpaces += 4;
-                else effectiveSpaces += 1;
-                ws++;
-            }
-
-            if (ws > 0)
-            {
-                string rest = lineNoCr.Substring(ws);
-                if (toTabs)
-                {
-                    int tabCount = effectiveSpaces / 4;
-                    int remSpaces = effectiveSpaces % 4;
-                    sb.Append(new string('\t', tabCount));
-                    if (remSpaces > 0) sb.Append(new string(' ', remSpaces));
-                }
-                else
-                {
-                    int levels = targetSpaces == 2 ? effectiveSpaces / 2 : effectiveSpaces / 4;
-                    if (levels == 0 && effectiveSpaces > 0) levels = 1;
-                    sb.Append(new string(' ', levels * targetSpaces));
-                }
-                sb.Append(rest);
-            }
-            else
-            {
-                sb.Append(lineNoCr);
-            }
-
-            if (hasCr) sb.Append('\r');
-            if (i < lines.Length - 1) sb.Append('\n');
+            AnnounceStatus($"Indentation already uses {styleName}: nothing to convert");
+            return;
         }
 
-        string newText = sb.ToString();
+        string newText = result.Text;
         ViewModel.BreakUndoBurst();
         int caret = Math.Clamp(PasteTextBox.SelectionStart, 0, newText.Length);
         PasteTextBox.Text = newText;
@@ -8483,8 +8412,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         ViewModel.BreakUndoBurst();
         UpdateCursorPosition();
         _ = RefreshPreviewAsync();
-        string styleName = toTabs ? "Tabs" : $"Spaces: {targetSpaces}";
-        AnnounceStatus($"Converted document indentation to {styleName}");
+        AnnounceStatus($"Converted indentation to {styleName} on {result.ChangedLines:N0} line{(result.ChangedLines == 1 ? "" : "s")} · Ctrl+Z to undo");
     }
 
     private void TrimTrailingWhitespace()
@@ -8493,19 +8421,15 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         string text = PasteTextBox.Text ?? "";
         if (string.IsNullOrEmpty(text)) return;
 
-        var lines = text.Split('\n');
-        var sb = new System.Text.StringBuilder(text.Length);
-        for (int i = 0; i < lines.Length; i++)
+        // Every line: splitting on '\n' only trimmed just the end of the TextBox's '\r' text.
+        var result = MarkSmith.Services.Editor.EditorIndentation.TrimTrailingWhitespace(text);
+        if (result.ChangedLines == 0)
         {
-            string l = lines[i];
-            bool hasCr = l.EndsWith('\r');
-            string lineNoCr = hasCr ? l.Substring(0, l.Length - 1) : l;
-            sb.Append(lineNoCr.TrimEnd());
-            if (hasCr) sb.Append('\r');
-            if (i < lines.Length - 1) sb.Append('\n');
+            AnnounceStatus("No trailing whitespace found: nothing to trim");
+            return;
         }
 
-        string newText = sb.ToString();
+        string newText = result.Text;
         ViewModel.BreakUndoBurst();
         int caret = Math.Clamp(PasteTextBox.SelectionStart, 0, newText.Length);
         PasteTextBox.Text = newText;
@@ -8514,7 +8438,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         ViewModel.BreakUndoBurst();
         UpdateCursorPosition();
         _ = RefreshPreviewAsync();
-        AnnounceStatus("Trimmed trailing whitespace across all document lines");
+        AnnounceStatus($"Trimmed trailing whitespace on {result.ChangedLines:N0} line{(result.ChangedLines == 1 ? "" : "s")} · Ctrl+Z to undo");
     }
 
     private void ShowIndentFlyout(FrameworkElement target)
@@ -10584,6 +10508,12 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // The whole document behind the editor.
     private string EditorDocument() => _folds.Document(PasteTextBox?.Text ?? string.Empty);
 
+    // The document with '\n' line breaks, for readers that split lines or use (?m)^ anchors. The
+    // TextBox stores each break as a bare '\r', so those read the whole document as one line: the
+    // status bar's Copy code / tables / tasks / math / callouts / footnotes / diagrams / TOC found
+    // nothing past line 1, and the Diagnostics reports counted one line.
+    private string EditorDocumentLf() => EditorDocument().Replace("\r\n", "\n").Replace('\r', '\n');
+
     // Editor -> view model, on every edit (the job the TwoWay binding used to do).
     private void SyncDocumentFromEditor()
     {
@@ -11728,7 +11658,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         auditImageLinksItem.Click += (_, _) =>
         {
-            var text = EditorDocument();
+            var text = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.FormatImageAccessibilitySummary(text);
             CopyAndAnnounce(summary, summary);
         };
@@ -11741,7 +11671,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         auditMathDelimitersItem.Click += (_, _) =>
         {
-            var text = EditorDocument();
+            var text = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.FormatMathDelimiterSummary(text);
             CopyAndAnnounce(summary, summary);
         };
@@ -11754,7 +11684,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         auditReadingEaseItem.Click += (_, _) =>
         {
-            var text = EditorDocument();
+            var text = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.FormatReadingEaseSummary(text);
             CopyAndAnnounce(summary, summary);
         };
@@ -11767,7 +11697,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         auditFootnotesItem.Click += (_, _) =>
         {
-            var text = EditorDocument();
+            var text = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.AuditFootnoteReferenceIntegrity(text).Summary;
             CopyAndAnnounce(summary, summary);
         };
@@ -11780,7 +11710,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         auditBlockquoteCalloutsItem.Click += (_, _) =>
         {
-            var text = EditorDocument();
+            var text = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.AuditBlockquoteCalloutsAndDepth(text).Summary;
             CopyAndAnnounce(summary, summary);
         };
@@ -11793,7 +11723,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         auditDefinitionListsItem.Click += (_, _) =>
         {
-            var text = EditorDocument();
+            var text = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.AuditDefinitionListsAndGlossaryTerms(text).Summary;
             CopyAndAnnounce(summary, summary);
         };
@@ -11806,7 +11736,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         auditTaskListHierarchyItem.Click += (_, _) =>
         {
-            var text = EditorDocument();
+            var text = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.AuditTaskListHierarchyAndProgress(text).Summary;
             CopyAndAnnounce(summary, summary);
         };
@@ -11819,7 +11749,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         auditTableAlignmentSyntaxItem.Click += (_, _) =>
         {
-            var text = EditorDocument();
+            var text = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.AuditTableColumnAlignmentSyntax(text).Summary;
             CopyAndAnnounce(summary, summary);
         };
@@ -11832,7 +11762,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         auditFootnotePairingItem.Click += (_, _) =>
         {
-            var text = EditorDocument();
+            var text = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.AuditFootnoteReferencePairing(text).Summary;
             CopyAndAnnounce(summary, summary);
         };
@@ -11845,7 +11775,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         auditImageAltTextAccessibilityItem.Click += (_, _) =>
         {
-            var text = EditorDocument();
+            var text = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.AuditDocumentImageAltTextAndAccessibility(text).Summary;
             CopyAndAnnounce(summary, summary);
         };
@@ -11858,7 +11788,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         auditStrikethroughHighlightItem.Click += (_, _) =>
         {
-            var text = EditorDocument();
+            var text = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.AuditStrikethroughAndHighlightFormatting(text).Summary;
             CopyAndAnnounce(summary, summary);
         };
@@ -11871,7 +11801,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         auditBlockquoteNestingItem.Click += (_, _) =>
         {
-            var text = EditorDocument();
+            var text = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.AuditBlockquoteNestingAndCallouts(text).Summary;
             CopyAndAnnounce(summary, summary);
         };
@@ -11884,7 +11814,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         auditDefinitionListItem.Click += (_, _) =>
         {
-            var text = EditorDocument();
+            var text = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.AuditDefinitionListContinuityAndSpacing(text).Summary;
             CopyAndAnnounce(summary, summary);
         };
@@ -11897,7 +11827,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         auditFootnoteOrderItem.Click += (_, _) =>
         {
-            var text = EditorDocument();
+            var text = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.AuditFootnoteOrderAndOrphans(text).Summary;
             CopyAndAnnounce(summary, summary);
         };
@@ -11910,7 +11840,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         auditMathSyntaxItem.Click += (_, _) =>
         {
-            var text = EditorDocument();
+            var text = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.AuditInlineMathAndTexSyntax(text).Summary;
             CopyAndAnnounce(summary, summary);
         };
@@ -11923,7 +11853,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         auditHeaderAnchorTocItem.Click += (_, _) =>
         {
-            var text = EditorDocument();
+            var text = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.AuditHeaderAnchorsAndTocSync(text).Summary;
             CopyAndAnnounce(summary, summary);
         };
@@ -11936,7 +11866,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         auditCalloutSemanticsItem.Click += (_, _) =>
         {
-            var text = EditorDocument();
+            var text = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.AuditCalloutDepthAndSemantics(text).Summary;
             CopyAndAnnounce(summary, summary);
         };
@@ -11949,7 +11879,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         auditImageAccessibilityItem.Click += (_, _) =>
         {
-            var text = EditorDocument();
+            var text = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.AuditImageAccessibilityAndCaptions(text).Summary;
             CopyAndAnnounce(summary, summary);
         };
@@ -11962,7 +11892,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         auditFootnoteRefItem.Click += (_, _) =>
         {
-            var text = EditorDocument();
+            var text = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.AuditFootnoteAndReferenceDefinitions(text).Summary;
             CopyAndAnnounce(summary, summary);
         };
@@ -11975,7 +11905,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         auditTableAlignmentItem.Click += (_, _) =>
         {
-            var text = EditorDocument();
+            var text = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.AuditTableAlignmentAndDelimiters(text).Summary;
             CopyAndAnnounce(summary, summary);
         };
@@ -11988,7 +11918,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         auditTaskListPriorityItem.Click += (_, _) =>
         {
-            var text = EditorDocument();
+            var text = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.AuditTaskListPriorityAndDueDates(text).Summary;
             CopyAndAnnounce(summary, summary);
         };
@@ -12001,7 +11931,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         auditBlockquoteCalloutItem.Click += (_, _) =>
         {
-            var text = EditorDocument();
+            var text = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.AuditBlockquoteCalloutsAndAttribution(text).Summary;
             CopyAndAnnounce(summary, summary);
         };
@@ -12014,7 +11944,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         auditHtmlEntitiesItem.Click += (_, _) =>
         {
-            var text = EditorDocument();
+            var text = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownHtmlEntities(text).Summary; // AuditHtmlEntitiesAndEscapedCharacters
             CopyAndAnnounce(summary, summary);
         };
@@ -12027,7 +11957,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         auditFootnoteSequenceItem.Click += (_, _) =>
         {
-            var text = EditorDocument();
+            var text = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.AuditFootnoteReferencesAndDefinitions(text).Summary;
             CopyAndAnnounce(summary, summary);
         };
@@ -12040,7 +11970,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         auditListNestingItem.Click += (_, _) =>
         {
-            var text = EditorDocument();
+            var text = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.AuditListNestingAndMarkerSequence(text).Summary;
             CopyAndAnnounce(summary, summary);
         };
@@ -12053,7 +11983,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         auditInlineHtmlSecurityItem.Click += (_, _) =>
         {
-            var text = EditorDocument();
+            var text = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownInlineHtmlSecurity(text).Summary;
             CopyAndAnnounce(summary, summary);
         };
@@ -12066,7 +11996,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         auditTaskListProgressionItem.Click += (_, _) =>
         {
-            var text = EditorDocument();
+            var text = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownTaskListProgression(text).Summary;
             CopyAndAnnounce(summary, summary);
         };
@@ -12078,7 +12008,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         auditLinkReferencesItem.Click += (_, _) =>
         {
-            var text = EditorDocument();
+            var text = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownLinkReferenceDefinitions(text).Summary;
             CopyAndAnnounce(summary, summary);
         };
@@ -12090,7 +12020,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         auditFootnoteDefsItem.Click += (_, _) =>
         {
-            var text = EditorDocument();
+            var text = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownFootnoteDefinitions(text).Summary;
             CopyAndAnnounce(summary, summary);
         };
@@ -12102,7 +12032,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         auditMathDelimiterBalanceItem.Click += (_, _) =>
         {
-            var text = EditorDocument();
+            var text = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownMathDelimiters(text).Summary;
             CopyAndAnnounce(summary, summary);
         };
@@ -12115,7 +12045,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         auditStrikethroughItem.Click += (_, _) =>
         {
-            var text = EditorDocument();
+            var text = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownStrikethroughAndUnderline(text).Summary;
             CopyAndAnnounce(summary, summary);
         };
@@ -12128,7 +12058,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         auditTaskListsItem.Click += (_, _) =>
         {
-            var text = EditorDocument();
+            var text = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownTaskLists(text).Summary;
             CopyAndAnnounce(summary, summary);
         };
@@ -12141,7 +12071,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         auditFootnotesIntegrityItem.Click += (_, _) =>
         {
-            var docText = EditorDocument();
+            var docText = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownFootnotes(docText).Summary;
             CopyAndAnnounce(summary, summary);
         };
@@ -12154,7 +12084,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         auditBlockquoteHierarchyItem.Click += (_, _) =>
         {
-            var docText = EditorDocument();
+            var docText = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownBlockquoteNesting(docText).Summary;
             CopyAndAnnounce(summary, summary);
         };
@@ -12167,7 +12097,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         auditHorizontalRulesItem.Click += (_, _) =>
         {
-            var docText = EditorDocument();
+            var docText = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownHorizontalRules(docText).Summary;
             CopyAndAnnounce(summary, summary);
         };
@@ -12180,7 +12110,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         auditDefinitionListsConsistencyItem.Click += (_, _) =>
         {
-            var docText = EditorDocument();
+            var docText = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownDefinitionLists(docText).Summary;
             CopyAndAnnounce(summary, summary);
         };
@@ -12192,7 +12122,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         auditAbbreviationsConsistencyItem.Click += (_, _) =>
         {
-            var docText = EditorDocument();
+            var docText = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownAbbreviations(docText).Summary;
             CopyAndAnnounce(summary, summary);
         };
@@ -12204,7 +12134,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         auditTableCellWrappingConsistencyItem.Click += (_, _) =>
         {
-            var docText = EditorDocument();
+            var docText = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownTableCellWrapping(docText).Summary;
             CopyAndAnnounce(summary, summary);
         };
@@ -12216,7 +12146,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         auditFootnoteBidirectionalLinksItem.Click += (_, _) =>
         {
-            var docText = EditorDocument();
+            var docText = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownFootnoteBidirectionalLinks(docText).Summary;
             CopyAndAnnounce(summary, summary);
         };
@@ -12229,7 +12159,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         auditInlineHtmlSanitizationItem.Click += (_, _) =>
         {
-            var docText = EditorDocument();
+            var docText = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownInlineHtmlSanitization(docText).Summary;
             CopyAndAnnounce(summary, summary);
         };
@@ -12242,7 +12172,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         auditTaskListFormattingItem.Click += (_, _) =>
         {
-            var docText = EditorDocument();
+            var docText = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownTaskListFormatting(docText).Summary;
             CopyAndAnnounce(summary, summary);
         };
@@ -12255,7 +12185,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         };
         auditTablePipeAlignmentItem.Click += (_, _) =>
         {
-            var docText = EditorDocument();
+            var docText = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownTablePipeAlignment(docText).Summary;
             CopyAndAnnounce(summary, summary);
         };
@@ -12268,7 +12198,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         };
         auditFootnoteDefinitionParityItem.Click += (_, _) =>
         {
-            var docText = EditorDocument();
+            var docText = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownFootnoteDefinitionParity(docText).Summary;
             CopyAndAnnounce(summary, summary);
         };
@@ -12281,7 +12211,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         };
         auditHtmlSanitizationItem.Click += (_, _) =>
         {
-            var docText = EditorDocument();
+            var docText = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownHtmlSanitization(docText).Summary;
             CopyAndAnnounce(summary, summary);
         };
@@ -12294,7 +12224,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         };
         auditYamlFrontmatterSchemaItem.Click += (_, _) =>
         {
-            var docText = EditorDocument();
+            var docText = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownYamlFrontmatterSchema(docText).Summary;
             CopyAndAnnounce(summary, summary);
         };
@@ -12306,7 +12236,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         };
         auditTableColumnAlignmentStrictnessItem.Click += (_, _) =>
         {
-            var docText = EditorDocument();
+            var docText = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownTableColumnAlignmentStrictness(docText).Summary;
             CopyAndAnnounce(summary, summary);
         };
@@ -12318,7 +12248,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         };
         auditFootnoteSequentialNumberingItem.Click += (_, _) =>
         {
-            var docText = EditorDocument();
+            var docText = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownFootnoteSequentialNumbering(docText).Summary;
             CopyAndAnnounce(summary, summary);
         };
@@ -12330,7 +12260,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         };
         auditBlockquoteAlertCalloutsItem.Click += (_, _) =>
         {
-            var docText = EditorDocument();
+            var docText = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownBlockquoteAlertCallouts(docText).Summary;
             CopyAndAnnounce(summary, summary);
         };
@@ -12342,7 +12272,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         };
         auditTaskListPrioritiesItem.Click += (_, _) =>
         {
-            var docText = EditorDocument();
+            var docText = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownTaskListPriorities(docText).Summary;
             CopyAndAnnounce(summary, summary);
         };
@@ -12354,7 +12284,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         };
         auditFormFieldsItem.Click += (_, _) =>
         {
-            var docText = EditorDocument();
+            var docText = EditorDocumentLf();
             var summary = MarkSmith.Services.TextSearch.AuditMarkdownFormFields(docText).Summary;
             CopyAndAnnounce(summary, summary);
         };
@@ -12369,7 +12299,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
 
     private List<(string Language, string Code, int LineCount)> ExtractFencedCodeBlocks()
     {
-        var md = EditorDocument();
+        var md = EditorDocumentLf();
         var results = new List<(string Language, string Code, int LineCount)>();
         if (string.IsNullOrWhiteSpace(md)) return results;
 
@@ -12571,7 +12501,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
 
     private List<(List<string> Headers, List<List<string>> Rows, string RawTable)> ExtractMarkdownPipeTables()
     {
-        var md = EditorDocument();
+        var md = EditorDocumentLf();
         var tables = new List<(List<string> Headers, List<List<string>> Rows, string RawTable)>();
         if (string.IsNullOrWhiteSpace(md)) return tables;
 
@@ -12757,7 +12687,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
 
     private List<(bool IsCompleted, string TaskText, int LineNumber, string RawLine)> ExtractMarkdownTaskItems()
     {
-        var md = EditorDocument();
+        var md = EditorDocumentLf();
         var tasks = new List<(bool IsCompleted, string TaskText, int LineNumber, string RawLine)>();
         if (string.IsNullOrWhiteSpace(md)) return tasks;
 
@@ -12921,7 +12851,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
     private List<(bool IsDisplay, int LineNumber, string RawDelimited, string InnerExpression)> ExtractMarkdownMathExpressions()
     {
         var results = new List<(bool IsDisplay, int LineNumber, string RawDelimited, string InnerExpression)>();
-        var md = EditorDocument();
+        var md = EditorDocumentLf();
         if (string.IsNullOrWhiteSpace(md)) return results;
 
         var lines = md.Split('\n');
@@ -13193,7 +13123,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
     private List<(string CalloutType, bool IsAdmonition, int StartLine, int LineCount, string RawBlock, string SummaryText)> ExtractMarkdownCalloutBlocks()
     {
         var results = new List<(string CalloutType, bool IsAdmonition, int StartLine, int LineCount, string RawBlock, string SummaryText)>();
-        var md = EditorDocument();
+        var md = EditorDocumentLf();
         if (string.IsNullOrWhiteSpace(md)) return results;
 
         var lines = md.Split('\n');
@@ -13407,7 +13337,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
     private List<(string SyntaxType, string AltText, string SourceUrl, int LineNumber, string RawTag)> ExtractMarkdownImages()
     {
         var results = new List<(string SyntaxType, string AltText, string SourceUrl, int LineNumber, string RawTag)>();
-        var md = EditorDocument();
+        var md = EditorDocumentLf();
         if (string.IsNullOrWhiteSpace(md)) return results;
 
         var lines = md.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
@@ -13587,7 +13517,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
     private System.Collections.Generic.List<ExtractedFootnoteEntry> ExtractMarkdownFootnotes()
     {
         var results = new System.Collections.Generic.List<ExtractedFootnoteEntry>();
-        var md = EditorDocument();
+        var md = EditorDocumentLf();
         if (string.IsNullOrWhiteSpace(md))
             return results;
 
@@ -13804,7 +13734,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
     private List<MarkdownDiagramEntry> ExtractMarkdownDiagrams()
     {
         var results = new List<MarkdownDiagramEntry>();
-        var md = EditorDocument();
+        var md = EditorDocumentLf();
         if (string.IsNullOrWhiteSpace(md))
             return results;
 
@@ -14099,7 +14029,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
 
     private (string TocText, int HeadingCount) BuildMarkdownTocOutline(bool linkedLinks)
     {
-        var md = EditorDocument();
+        var md = EditorDocumentLf();
         if (string.IsNullOrWhiteSpace(md)) return (string.Empty, 0);
 
         var sb = new System.Text.StringBuilder();

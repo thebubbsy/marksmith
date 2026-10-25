@@ -1145,7 +1145,8 @@ public static class TextSearch
         var budgets = new List<MarkdownSectionBudget>();
         if (string.IsNullOrWhiteSpace(text)) return budgets;
 
-        var lines = text.Split('\n');
+        // Any line break: a WinUI TextBox stores a bare '\r', which used to make one section.
+        var lines = text.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
         bool inFence = false;
         string fenceMarker = string.Empty;
 
