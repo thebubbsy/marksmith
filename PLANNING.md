@@ -18022,3 +18022,7 @@ was clean in every window**, so the work came from PrintWindow screenshots at th
 
 **Total user-visible improvements: 9** (4 in SmartArt Studio, 2 in Document Galaxy, 1 each in Diagram Studio,
 OCR Studio and Version History).
+
+**Release (same run):** tagged **v3.70.0** on `7c593d4`; Release workflow run 40177271361 succeeded;
+user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.70.0). `MarksmithBaseVersion` is now 3.71.0.
