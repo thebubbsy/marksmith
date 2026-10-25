@@ -66,6 +66,8 @@ namespace MarkSmith.Views.SmartArtStudio
         public SmartArtDesignStudioWindow()
         {
             this.InitializeComponent();
+            // A long status line is cut off at the window edge; hovering it shows the whole message.
+            TrimmedTextToolTip.Attach(StatusBarText);
             var iconPath = System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "app.ico");
             if (System.IO.File.Exists(iconPath)) AppWindow.SetIcon(iconPath);
             SizeForDisplay();

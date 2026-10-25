@@ -107,6 +107,8 @@ public sealed partial class HistoryWindow : Window
         _ = _vm.LoadCommand.ExecuteAsync(null);
 
         _noticeTimer.Tick += (_, _) => { _noticeTimer.Stop(); NoticeBar.IsOpen = false; };
+        // Resting the pointer on a confirmation (or tabbing to its close button) keeps it open.
+        NoticeHold.Attach(NoticeBar, _noticeTimer, () => NoticeBar.IsOpen && !_vm.NoticeIsError);
         RootGrid.PreviewKeyDown += OnRootPreviewKeyDown;
         RootGrid.KeyDown += OnRootKeyDown;
         HoverPolish.Track(RootGrid);
@@ -367,8 +369,9 @@ public sealed partial class HistoryWindow : Window
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetLiveSetting(NoticeBar, Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Assertive);
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(NoticeBar, _vm.Notice);
         NoticeBar.IsOpen = true;
-        // Confirmations clear themselves; errors stay until dismissed.
-        if (!_vm.NoticeIsError) _noticeTimer.Start();
+        // Confirmations clear themselves, after long enough to read; errors stay until dismissed.
+        _noticeTimer.Interval = NoticeTiming.For(_vm.Notice, minimumSeconds: 6);
+        if (!_vm.NoticeIsError && !NoticeHold.IsHeld(NoticeBar)) _noticeTimer.Start();
     }
 
     private void OnNoticeClosed(InfoBar sender, InfoBarClosedEventArgs args)

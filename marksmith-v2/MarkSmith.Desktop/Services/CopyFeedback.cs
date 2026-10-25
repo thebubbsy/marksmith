@@ -144,10 +144,16 @@ public static class CopyFeedback
             Microsoft.UI.Xaml.Automation.Peers.AutomationNotificationProcessing.ImportantMostRecent,
             message, "MarkSmith.Copy");
 
+        // Long enough to read the sentence (a failure's reason can run to a dozen words), and held
+        // open while the pointer rests on the bubble.
         var timer = anchor.DispatcherQueue.CreateTimer();
-        timer.Interval = TimeSpan.FromMilliseconds(success ? 1600 : 4000);
+        timer.Interval = NoticeTiming.For(message, minimumSeconds: success ? 1.6 : 4);
         timer.IsRepeating = false;
         timer.Tick += (_, _) => flyout.Hide();
+        content.Background ??= new SolidColorBrush(Microsoft.UI.Colors.Transparent); // hit-testable for hover
+        content.PointerEntered += (_, _) => timer.Stop();
+        content.PointerExited += (_, _) => timer.Start();
+        flyout.Closed += (_, _) => timer.Stop();
         timer.Start();
     }
 

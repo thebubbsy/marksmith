@@ -197,6 +197,10 @@ public sealed partial class SuiteHubView : UserControl
 
         _notificationTimer.Tick += (_, _) => { _notificationTimer.Stop(); Notification.IsOpen = false; };
 
+        // Resting the pointer on a result line (or tabbing to its close button) keeps it open.
+
+        NoticeHold.Attach(Notification, _notificationTimer, () => Notification.IsOpen && Notification.Severity == InfoBarSeverity.Success);
+
         Unloaded += (_, _) => _notificationTimer.Stop();
 
         SizeChanged += (_, e) => ApplyResponsiveLayout(e.NewSize.Width);
@@ -1296,7 +1300,11 @@ public sealed partial class SuiteHubView : UserControl
 
         Notification.StartBringIntoView(new BringIntoViewOptions { AnimationDesired = HoverPolish.AnimationsEnabled });
 
-        if (success) _notificationTimer.Start();
+        // Long results ("Couldn't reach the API: …") get time to be read before they close.
+
+        _notificationTimer.Interval = NoticeTiming.For(Notification.Message, minimumSeconds: 6);
+
+        if (success && !NoticeHold.IsHeld(Notification)) _notificationTimer.Start();
 
     }
 

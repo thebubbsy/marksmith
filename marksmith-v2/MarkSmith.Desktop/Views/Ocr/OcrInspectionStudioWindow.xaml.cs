@@ -1277,7 +1277,8 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         SetFooterStatusText(note);
 
         var timer = DispatcherQueue.CreateTimer();
-        timer.Interval = TimeSpan.FromSeconds(3);
+        // A failure carries its reason, so it stays up long enough to read rather than a flat 3 s.
+        timer.Interval = NoticeTiming.For(note, minimumSeconds: error is null ? 3 : 5);
         timer.IsRepeating = false;
         timer.Tick += (_, _) =>
         {

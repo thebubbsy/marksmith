@@ -51,6 +51,8 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
     public MermaidDiagramStudioControl()
     {
         InitializeComponent();
+        // A long status line is cut off at the window edge; hovering it shows the whole message.
+        TrimmedTextToolTip.Attach(StatusBarText);
         // "Right-click for options" menus: open them from Shift+F10 / the Menu key too.
         KeyboardContextMenu.BridgeAll(
             (TemplatesButton, OnTemplatesButtonRightTapped),
