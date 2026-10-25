@@ -1136,6 +1136,18 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
         finally { IsRestoring = false; }
     }
 
+    /// <summary>A copy confirmation's notice line. Many diff copies say "Copied …: {the whole report}",
+    /// so a 20-line report filled the notice bar (and a CRLF report left a stray \r in it). Keeps the
+    /// first non-blank line and marks the cut with "…".</summary>
+    public static string NoticeLine(string? message)
+    {
+        var lines = MarkSmith.Services.TextNormalizer.Newlines(message ?? "").Split('\n');
+        var nonBlank = lines.Where(l => !string.IsNullOrWhiteSpace(l)).ToList();
+        if (nonBlank.Count == 0) return "";
+        var first = nonBlank[0].Trim();
+        return nonBlank.Count > 1 ? first + " …" : first;
+    }
+
     public void ShowNotice(string message, bool isError = false)
     {
         NoticeIsError = isError;

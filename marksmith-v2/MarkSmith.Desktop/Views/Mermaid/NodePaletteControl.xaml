@@ -20,13 +20,19 @@
 
         <!-- Header & Search -->
         <StackPanel Grid.Row="0" Spacing="6">
-            <TextBlock Text="Shape Palette" FontWeight="SemiBold" FontSize="14" Foreground="#EDF2F4" />
+            <!-- The count says how much a pill or search is hiding ("3 of 21 shapes"). -->
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                <TextBlock Text="Shape Palette" FontWeight="SemiBold" FontSize="14" Foreground="#EDF2F4" VerticalAlignment="Center" />
+                <TextBlock x:Name="PaletteCountText" Grid.Column="1" FontSize="11" Foreground="#8D99AE" VerticalAlignment="Center"
+                           AutomationProperties.LiveSetting="Polite" />
+            </Grid>
             <TextBox x:Name="SearchTextBox"
                      PlaceholderText="Search shapes… (Ctrl+F)"
                      AutomationProperties.Name="Search shapes"
+                     AutomationProperties.HelpText="Matches shape names, categories and the label a new shape starts with. Down moves to the list, Enter adds a single match."
                      TextChanged="OnSearchTextChanged"
                      KeyDown="OnSearchTextBoxKeyDown"
-                     ToolTipService.ToolTip="Search shapes (Ctrl+F) · Esc clears, Right-click or Shift+F10 for options"
+                     ToolTipService.ToolTip="Search shapes by name or label, e.g. “process” (Ctrl+F) · Esc clears, Right-click or Shift+F10 for options"
                      FontSize="12" />
         </StackPanel>
 

@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.UI.Composition.SystemBackdrops;
 using Microsoft.Windows.AppNotifications;
@@ -1062,6 +1062,33 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             HistoryList?.Focus(FocusState.Programmatic);
         }
+        MarkMissingExportFiles();
+    }
+
+    // Rows whose file was moved or deleted say so. The disk checks run off the UI thread (an export
+    // on an unplugged network drive can take seconds to answer); the rows aren't observable, so a
+    // change re-binds the list and puts focus back if it was in there.
+    private async void MarkMissingExportFiles()
+    {
+        var paths = ViewModel.History.Select(h => h.OutputPath)
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (paths.Count == 0) return;
+        HashSet<string> existing;
+        try
+        {
+            existing = await Task.Run(() => paths.Where(File.Exists).ToHashSet(StringComparer.OrdinalIgnoreCase));
+        }
+        catch { return; }
+        // A row exported while the check ran wasn't checked: leave it as it is.
+        if (!ViewModel.RefreshExportFileStates(p => !paths.Contains(p) || existing.Contains(p)) || HistoryList is null) return;
+        var hadFocus = HistoryList.FocusState != FocusState.Unfocused
+            || (HistoryList.XamlRoot is not null
+                && Microsoft.UI.Xaml.Input.FocusManager.GetFocusedElement(HistoryList.XamlRoot) is ListViewItem);
+        HistoryList.ItemsSource = null;
+        HistoryList.ItemsSource = ViewModel.History;
+        UpdateExportHistoryFlyoutState();
+        if (hadFocus && ViewModel.History.Count > 0) HistoryList.Focus(FocusState.Programmatic);
     }
 
     private void UpdateExportHistoryFlyoutState()
@@ -1086,8 +1113,10 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             // A tab stop only while there is a count; named after it so UIA reads "3 recent exports"
             // rather than the whole tooltip. Focus already moved to the ⋯ button above when emptied.
             HistoryCountButton.IsTabStop = !empty;
-            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(HistoryCountButton,
-                empty ? "Recent export count" : (count == 1 ? "1 recent export" : $"{count:N0} recent exports"));
+            var missing = ViewModel.MissingExportCount;
+            var countName = empty ? "Recent export count" : (count == 1 ? "1 recent export" : $"{count:N0} recent exports");
+            if (missing > 0) countName += missing == 1 ? ", 1 moved or deleted" : $", {missing:N0} moved or deleted";
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(HistoryCountButton, countName);
         }
     }
 
@@ -1758,7 +1787,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
         if (result != ContentDialogResult.Primary && !themeEnterSubmitted) return;
 
-        var name = (nameBox.Text ?? "").Trim();
+        var name = (nameBox.Text ?? "").Replace("\r\n", " ").Replace('\r', ' ').Replace('\n', ' ').Trim();
         if (name.Length == 0) name = "My theme";
         if (App.Themes.IsBuiltin(name)) name += " (custom)"; // never shadow a stock theme name
 
@@ -2153,25 +2182,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             Text = "Open export output folder",
             Icon = new FontIcon { Glyph = "\uE838" }
         };
-        openFolderItem.Click += (_, _) =>
-        {
-            var folder = ViewModel.OutputFolder;
-            if (string.IsNullOrWhiteSpace(folder))
-            {
-                folder = string.IsNullOrWhiteSpace(ViewModel.InputFilePath)
-                    ? Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)
-                    : Path.GetDirectoryName(ViewModel.InputFilePath) ?? Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-            }
-            try
-            {
-                if (Directory.Exists(folder))
-                {
-                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = folder, UseShellExecute = true });
-                    AnnounceStatus($"Opened folder: {folder}");
-                }
-            }
-            catch { }
-        };
+        openFolderItem.Click += (_, _) => OpenExportOutputFolder();
         menu.Items.Add(openFolderItem);
 
         menu.ShowAt(ExportPdfTitleButton, KeyboardContextMenu.PointIn(e, ExportPdfTitleButton));
@@ -2206,25 +2217,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             Text = "Open export output folder",
             Icon = new FontIcon { Glyph = "\uE838" }
         };
-        openFolderItem.Click += (_, _) =>
-        {
-            var folder = ViewModel.OutputFolder;
-            if (string.IsNullOrWhiteSpace(folder))
-            {
-                folder = string.IsNullOrWhiteSpace(ViewModel.InputFilePath)
-                    ? Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)
-                    : Path.GetDirectoryName(ViewModel.InputFilePath) ?? Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-            }
-            try
-            {
-                if (Directory.Exists(folder))
-                {
-                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = folder, UseShellExecute = true });
-                    AnnounceStatus($"Opened folder: {folder}");
-                }
-            }
-            catch { }
-        };
+        openFolderItem.Click += (_, _) => OpenExportOutputFolder();
         menu.Items.Add(openFolderItem);
 
         menu.ShowAt(ExportDocxTitleButton, KeyboardContextMenu.PointIn(e, ExportDocxTitleButton));
@@ -2655,11 +2648,15 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (anchor is null) return;
         var menu = new MenuFlyout();
 
+        // A moved or deleted file can't be opened or shown: say so on the items instead of
+        // offering them and answering "no longer there" after the click.
+        var missing = entry.OutputMissing;
         var openItem = new MenuFlyoutItem
         {
-            Text = "Open exported file",
+            Text = missing ? "Open exported file (moved or deleted)" : "Open exported file",
             KeyboardAcceleratorTextOverride = "Enter",
-            Icon = new FontIcon { Glyph = "\uE8E5" }
+            Icon = new FontIcon { Glyph = "\uE8E5" },
+            IsEnabled = !missing
         };
         openItem.Click += (_, _) =>
         {
@@ -2672,7 +2669,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             Text = "Show in File Explorer",
             KeyboardAcceleratorTextOverride = "Ctrl+O",
-            Icon = new FontIcon { Glyph = "\uEC50" }
+            Icon = new FontIcon { Glyph = "\uEC50" },
+            IsEnabled = !missing
         };
         showFolderItem.Click += (_, _) =>
         {
@@ -2707,6 +2705,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         removeItem.Click += (_, _) => RemoveHistoryEntryFromFlyout(entry);
         menu.Items.Add(removeItem);
+        AddRemoveMissingExportsItem(menu);
 
         var clearAllItem = new MenuFlyoutItem
         {
@@ -2737,9 +2736,16 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var paths = entries
             .Select(h => h.OutputPath)
             .Where(p => !string.IsNullOrWhiteSpace(p))
-            .Distinct();
-        var allPaths = string.Join(Environment.NewLine, paths);
-        CopyTextToStatusBar(allPaths, $"Copied {entries.Count} export file path(s).");
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (paths.Count == 0)
+        {
+            AnnounceStatus("No export paths to copy.");
+            return;
+        }
+        // The count is what was copied: re-exporting to the same file used to count twice.
+        CopyTextToStatusBar(string.Join(Environment.NewLine, paths),
+            paths.Count == 1 ? "Copied 1 export file path." : $"Copied {paths.Count} export file paths.");
     }
 
     private void OnHistoryCountTextRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
@@ -2751,17 +2757,14 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var copyCountItem = new MenuFlyoutItem
         {
-            Text = count > 0 ? $"Copy export count ({HistoryCountText.Text})" : "Copy export count",
+            Text = count > 0 ? $"Copy export count ({count:N0})" : "Copy export count",
             Icon = new FontIcon { Glyph = "\uE8C8" },
             IsEnabled = count > 0
         };
+        // Copies the number itself; it used to copy the label's brackets too ("(3)").
         copyCountItem.Click += (_, _) =>
         {
-            var txt = HistoryCountText.Text ?? string.Empty;
-            if (!string.IsNullOrEmpty(txt))
-            {
-                CopyTextToStatusBar(txt, $"Copied export count: {txt}");
-            }
+            if (count > 0) CopyTextToStatusBar(count.ToString(), $"Copied export count: {count:N0}");
         };
         menu.Items.Add(copyCountItem);
 
@@ -2800,25 +2803,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             Text = "Open export output folder",
             Icon = new FontIcon { Glyph = "\uE838" }
         };
-        openFolderItem.Click += (_, _) =>
-        {
-            var folder = ViewModel.OutputFolder;
-            if (string.IsNullOrWhiteSpace(folder))
-            {
-                folder = string.IsNullOrWhiteSpace(ViewModel.InputFilePath)
-                    ? Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)
-                    : Path.GetDirectoryName(ViewModel.InputFilePath) ?? Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-            }
-            try
-            {
-                if (Directory.Exists(folder))
-                {
-                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = folder, UseShellExecute = true });
-                    AnnounceStatus($"Opened folder: {folder}");
-                }
-            }
-            catch { }
-        };
+        openFolderItem.Click += (_, _) => OpenExportOutputFolder();
         menu.Items.Add(openFolderItem);
 
         var clearItem = new MenuFlyoutItem
@@ -2827,10 +2812,35 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             Icon = new FontIcon { Glyph = "\uE74D" },
             IsEnabled = count > 0
         };
+        AddRemoveMissingExportsItem(menu);
         clearItem.Click += (_, _) => OnClearExportHistoryClick(sender, new RoutedEventArgs());
         menu.Items.Add(clearItem);
 
         menu.ShowAt(HistoryCountButton, KeyboardContextMenu.PointIn(e, HistoryCountButton));
+    }
+
+    // Shown only while some rows point at files that were moved or deleted.
+    private void AddRemoveMissingExportsItem(MenuFlyout menu)
+    {
+        var missing = ViewModel.MissingExportCount;
+        if (missing == 0) return;
+        var item = new MenuFlyoutItem
+        {
+            Text = $"Remove moved or deleted files ({missing})",
+            Icon = new FontIcon { Glyph = "" }
+        };
+        item.Click += (_, _) =>
+        {
+            var removed = ViewModel.RemoveMissingHistoryEntries();
+            if (removed == 0) return;
+            UpdateExportHistoryFlyoutState();
+            if (ViewModel.History.Count > 0) HistoryList?.Focus(FocusState.Programmatic);
+            ViewModel.StatusText = removed == 1
+                ? "Removed 1 moved or deleted file from recent exports."
+                : $"Removed {removed} moved or deleted files from recent exports.";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
+        };
+        menu.Items.Add(item);
     }
 
     // Every format MarkSmith itself exports. Anything else in a history row is refused rather than
@@ -2863,6 +2873,35 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             // Typically "no app is associated with .epub" — say so instead of failing silently.
             ViewModel.StatusText = $"Couldn't open {Path.GetFileName(path)}: {ex.Message}";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
+        }
+    }
+
+    // "Open export output folder" (three menus share it). A folder that had been removed, or sat on
+    // an unplugged drive, used to make the item do nothing at all.
+    private void OpenExportOutputFolder()
+    {
+        var folder = ViewModel.OutputFolder;
+        if (string.IsNullOrWhiteSpace(folder))
+        {
+            folder = string.IsNullOrWhiteSpace(ViewModel.InputFilePath)
+                ? Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)
+                : Path.GetDirectoryName(ViewModel.InputFilePath) ?? Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+        }
+        if (!Directory.Exists(folder))
+        {
+            ViewModel.StatusText = $"The export folder isn't there any more: {folder}";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
+            return;
+        }
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = folder, UseShellExecute = true });
+            AnnounceStatus($"Opened folder: {folder}");
+        }
+        catch (Exception ex)
+        {
+            ViewModel.StatusText = $"Couldn't open the export folder: {ex.Message}";
             ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
         }
     }

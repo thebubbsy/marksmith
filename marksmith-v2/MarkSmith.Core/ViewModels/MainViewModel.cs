@@ -855,6 +855,33 @@ private readonly MarkdownExportService _mdExport = new();
         return removedFromVm || removedFromDisk;
     }
 
+    /// <summary>Re-checks which Recent exports files are still on disk (Recent exports calls it as it
+    /// opens). Returns true when any row changed, so the list knows to redraw.</summary>
+    public bool RefreshExportFileStates(Func<string, bool>? fileExists = null)
+    {
+        fileExists ??= File.Exists;
+        var changed = false;
+        foreach (var entry in History)
+        {
+            var missing = !string.IsNullOrWhiteSpace(entry.OutputPath) && !fileExists(entry.OutputPath);
+            if (entry.OutputMissing == missing) continue;
+            entry.OutputMissing = missing;
+            changed = true;
+        }
+        return changed;
+    }
+
+    /// <summary>How many Recent exports rows point at a file that was moved or deleted.</summary>
+    public int MissingExportCount => History.Count(h => h.OutputMissing);
+
+    /// <summary>Removes every Recent exports row whose file was moved or deleted; returns how many.</summary>
+    public int RemoveMissingHistoryEntries()
+    {
+        var missing = History.Where(h => h.OutputMissing).ToList();
+        foreach (var entry in missing) RemoveHistoryEntry(entry);
+        return missing.Count;
+    }
+
     /// <summary>Clears all recent export log entries from the observable list and persistent history.json.</summary>
     public void ClearExportHistory()
     {

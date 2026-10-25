@@ -1,4 +1,5 @@
 using System.Linq;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 
 namespace MarkSmith.Models;
@@ -24,8 +25,18 @@ public sealed class HistoryEntry
         ? (string.IsNullOrWhiteSpace(SourceLabel) ? "Untitled document" : SourceLabel)
         : DocumentTitle;
 
+    // Set when Recent exports opens and the output file is gone (moved, renamed or deleted after
+    // export). Never saved: it is re-checked every time the flyout opens.
+    [JsonIgnore]
+    public bool OutputMissing { get; set; }
+
+    // The row's path line. A missing file used to look like any other row until a click said
+    // "no longer there"; now the row says so up front.
+    [JsonIgnore]
+    public string PathLine => OutputMissing ? $"Moved or deleted · {OutputPath}" : OutputPath;
+
     // What a screen reader announces for the Recent exports row (it read "MarkSmith.Models.HistoryEntry").
-    public override string ToString() => $"{Title}, {Subtitle}";
+    public override string ToString() => OutputMissing ? $"{Title}, {Subtitle}, moved or deleted" : $"{Title}, {Subtitle}";
 
     // Human-readable output size ("512 B", "18.4 KB", "1.2 MB"); empty when unknown.
     public string OutputSizeText => OutputSizeBytes switch

@@ -18746,3 +18746,110 @@ user-facing notes prepended to the generated body
 2. Check Theme Builder and OCR Inspection Studio text boxes for bare-`\r` line-break handling in export and snippet generators.
 3. Live-check status bar responsiveness at 1220px launch width with various document lengths and heading hierarchies.
 
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #263 (2026-10-26, 02:01–02:30 AEDT)
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), Claude desktop app Code tab. The task template names an Antigravity / Google
+  DeepMind identity; that is not what ran this session.
+- Modes: Scheduled Hourly Automation Routine (scheduled task `commit-to-main-ship-improvement--r4efinement`)
+- Trigger: Scheduled hourly routine run
+- Agents Used: 1. One session did all roles (orchestrator, coding, skeptical review); no subagents.
+  Session ID `941bf993-eb2b-470a-aa24-408cdbcbffa8`.
+- Concurrency note: run #262 (another agent) committed `2aeb8d5` 20 s before this run started and pushed it, but did
+  not tag a release. While this run was in progress, another agent also began a "run #263" in the same working tree:
+  it added `Run263StudioPolishAndHistoryResilienceTests.cs` (tests written against this run's uncommitted APIs),
+  edited `ShapeDesignStudioWindow.xaml(.cs)` and rewrote `HistoryWindowViewModel.NoticeLine` (`TrimEnd` → `Trim`, kept;
+  an added BOM was removed). This commit stages only this run's files; that agent's Shape Studio edits and test file
+  are left uncommitted for it.
+
+**Picked up:** run #262's Next up list was studio-specific. This run rotated to the least recently touched surfaces in
+the matrix: Recent exports (`ExportHistoryFlyout`, last touched run #181) and the Diagram Studio `NodePaletteControl`
+(run #238), plus a Version History notice issue found while auditing bare-`\r` handling (run #262 Next up item 2).
+
+**Delivered (user-visible):**
+1. **Recent exports marks files that were moved or deleted.** The row's path line reads "Moved or deleted · C:\…",
+   and screen readers hear "…, moved or deleted". It used to look like any other row until a click said
+   "no longer there". The disk check runs off the UI thread each time the flyout opens.
+2. **A missing file's row menu says why it can't open.** "Open exported file (moved or deleted)" and
+   "Show in File Explorer" are disabled for that row, not offered and then refused.
+3. **"Remove moved or deleted files (N)"** appears in the row menu and the count menu only while some rows are
+   missing. Running it removes them, saves history.json and reports "Removed 1 moved or deleted file from recent exports."
+4. **The Recent exports count's name includes missing files:** "2 recent exports, 1 moved or deleted".
+5. **"Copy all output paths" reports what it copied.** It counts distinct paths (case-insensitive) with a proper plural
+   ("Copied 3 export file paths."). Re-exports to the same file used to be counted twice, and the message said
+   "path(s)".
+6. **"Copy export count" copies the number** ("3"), not the label's brackets ("(3)").
+7. **"Open export output folder" reports a missing folder** ("The export folder isn't there any more: …") or a launch
+   error. All three menus that offer it used their own copy of the code, and each did nothing when the folder had
+   been removed. The three copies are now one `OpenExportOutputFolder` helper.
+8. **Diagram Studio palette search matches the words on the shapes.** It now also searches the starting label and the
+   shape type, so "process", "terminal", "decision?" and "rhombus" find their shapes. Live: "terminal" → Stadium (Pill).
+9. **The palette header shows a count:** "21 shapes" when nothing is filtered, "8 of 21 shapes" when a category pill
+   or a search narrows the list. Screen readers announce it politely.
+10. **Palette pills have tooltips and help text** ("Show only Flowchart shapes · Right-click or Shift+F10 for
+    options"). The search box's tooltip and help text say what it matches and how Down and Enter work.
+11. **The palette search menu no longer offers items that do nothing.** "Select all search text" only appears when there
+    is text, and "Show all shapes" is disabled when nothing is filtered.
+12. **The palette keeps keyboard focus when a filter empties the list.** Focus moves to the search box instead of
+    dropping to the window.
+13. **Version History copy notices are one line.** About 15 diff "Copied …: {report}" copies put the whole multi-line
+    report (with stray `\r` from CRLF reports) into the notice bar. Now they show the first line and "…".
+14. **history.json is read with shared access** (`FileShare.ReadWrite | FileShare.Delete`), so another MarkSmith window
+    writing it no longer blanks the list on load.
+
+**Implementation summary.**
+- `MarkSmith.Core/Models/HistoryEntry.cs`: `[JsonIgnore] OutputMissing`, `[JsonIgnore] PathLine`, and `ToString`
+  includes the missing state.
+- `MarkSmith.Core/ViewModels/MainViewModel.cs`: `RefreshExportFileStates(Func<string,bool>?)` (returns whether any
+  row changed), `MissingExportCount`, `RemoveMissingHistoryEntries()`.
+- `MarkSmith.Core/Services/HistoryService.cs`: shared-read `FileStream` in `Load`.
+- `MarkSmith.Core/ViewModels/Mermaid/MermaidPaletteItem.cs`: `Matches(query)` and `CountLabel(shown, total)`.
+- `MarkSmith.Core/ViewModels/History/HistoryWindowViewModel.cs`: `NoticeLine(message)`.
+- `MarkSmith.Desktop/MainWindow.xaml`: the Recent exports row binds `PathLine`.
+- `MarkSmith.Desktop/MainWindow.xaml.cs`: `MarkMissingExportFiles` (async, called from `OnExportHistoryFlyoutOpened`:
+  takes a snapshot of the paths, runs `File.Exists` in `Task.Run`, leaves rows added mid-check alone, re-binds and
+  restores focus); missing-aware row menu; `AddRemoveMissingExportsItem`; `CopyAllExportPaths` distinct count;
+  copy count copies the number; `OpenExportOutputFolder` replaces three handlers; count name includes missing files.
+- `MarkSmith.Desktop/Views/Mermaid/NodePaletteControl.xaml(.cs)`: `PaletteCountText`; `FilterItems` uses `Matches`,
+  sets the count and moves focus before emptying; pill tooltips and help text; search menu guards.
+- `MarkSmith.Desktop/Views/History/HistoryWindow.xaml.cs`: both `CopyAndNotify` overloads use `NoticeLine`.
+- Tests: new `Run263PaletteAndRecentExportsTests` (40 cases: Core behaviour plus source contracts).
+
+**Skeptical review.**
+- Focus traps: the palette list empties only after focus moves to the search box. Removing missing rows re-focuses the
+  list, or `UpdateExportHistoryFlyoutState` moves focus to ⋯ when the list empties. The async re-bind restores focus
+  if a row had it.
+- Key swallowing: no key handlers added or changed.
+- Flyouts / dynamic controls: only new `MenuFlyoutItem`s inside existing dynamic menus; no new buttons that need
+  `HoverPolish`.
+- Theme: no brushes touched.
+- Files / async: `File.Exists` moved off the UI thread (found in review: a path on an unplugged network drive could
+  freeze the window for seconds). The async continuation only touches UI on the UI thread, and a row exported while the
+  check ran is treated as present. history.json is read with shared access.
+
+**Verified.**
+- Build: Desktop to `%TEMP%\ms_run263\b`, 0 errors (21 existing warnings), built twice (before and after the review fix).
+- Tests: Run263 + HistoryEntry + Run261/262 + NodePalette/ExportHistory/Mermaid filters 463/463, then 425/425 after the
+  review fix. A full `--no-build` run reported 3362 passed, 1 skipped, 0 failed, but exited with code 1 and fewer
+  tests than usual. The other agent was building in the same tree at the time; not investigated further.
+- Live (UIA + screen capture, fresh `MARKSMITH_CONFIG_DIR` with a seeded history.json of one existing and one missing
+  file, PID 33152 stopped by PID): items 1, 2, 3 (status text, list and history.json after removal), 4, 8 ("terminal" →
+  "1 of 21 shapes", Stadium (Pill)), 9 ("8 of 21 shapes" on the Flowchart pill), 10 (pill and search help text).
+  Items 5–7 and 11–14 are covered by tests only. The user's clipboard was left alone, and no folder was opened.
+
+**Noticed, not fixed:**
+- The full-suite exit code 1 needs a clean rerun with nothing else building in the tree.
+- The palette's "Connect to '…'" menu item gives no status message.
+- `OnHistoryListKeyDown` falls back to the first row (`History.FirstOrDefault()`) when it can't resolve a focused row.
+  With programmatic list focus, Delete could remove a row the user didn't pick.
+
+**Next up (Run #264):**
+1. Rerun the full suite on a quiet tree and explain the exit code / test count.
+2. History list keyboard: drop the `FirstOrDefault()` fallback for Delete / Ctrl+C / Ctrl+O.
+3. Palette "Connect to" status and undo-step check; run #262's Next up items 1–3 (Shape Studio distribute duplicates,
+   Theme Builder / OCR bare-`\r` snippets, status bar at 1220 px).
+
+**Total user-visible improvements: 14** (7 in Recent exports, 5 in the Diagram Studio palette, 1 in Version History,
+1 in history.json loading).

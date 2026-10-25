@@ -77,7 +77,11 @@ public sealed class HistoryService
         try
         {
             if (File.Exists(path))
-                return JsonSerializer.Deserialize<List<HistoryEntry>>(File.ReadAllText(path), JsonOpts) ?? new();
+            {
+                // Shared read: another MarkSmith window (or a sync client) may be writing history.json.
+                using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                return JsonSerializer.Deserialize<List<HistoryEntry>>(stream, JsonOpts) ?? new();
+            }
         }
         catch { }
         return new();

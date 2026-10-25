@@ -1502,7 +1502,7 @@
                                                                 ToolTipService.ToolTip="{Binding OutputPath}">
                                                         <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                                                         <TextBlock Text="{Binding Subtitle}" Opacity="0.6" FontSize="12" TextTrimming="CharacterEllipsis" />
-                                                        <TextBlock Text="{Binding OutputPath}" Opacity="0.4" FontSize="11" TextTrimming="CharacterEllipsis" />
+                                                        <TextBlock Text="{Binding PathLine}" Opacity="0.4" FontSize="11" TextTrimming="CharacterEllipsis" />
                                                     </StackPanel>
                                                 </DataTemplate>
                                             </ListView.ItemTemplate>

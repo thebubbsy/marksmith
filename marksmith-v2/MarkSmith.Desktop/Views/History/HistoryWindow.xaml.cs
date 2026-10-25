@@ -2983,7 +2983,7 @@ public sealed partial class HistoryWindow : Window
     private async void CopyAndNotify(string text, string message)
     {
         var error = await Services.ClipboardWriter.TrySetTextAsync(text);
-        if (error is null) _vm.ShowNotice(message);
+        if (error is null) _vm.ShowNotice(HistoryWindowViewModel.NoticeLine(message));
         else _vm.ShowNotice($"Couldn't copy: {error}", isError: true);
     }
 
@@ -2993,7 +2993,7 @@ public sealed partial class HistoryWindow : Window
     private async void CopyAndNotify(string text, string message, Button? tickButton, string tickLabel)
     {
         var error = await Services.ClipboardWriter.TrySetTextAsync(text);
-        if (error is null) _vm.ShowNotice(message);
+        if (error is null) _vm.ShowNotice(HistoryWindowViewModel.NoticeLine(message));
         else _vm.ShowNotice($"Couldn't copy: {error}", isError: true);
         if (tickButton is not null) CopyFeedback.ApplyButtonTick(tickButton, error, tickLabel);
     }

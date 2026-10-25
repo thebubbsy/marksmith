@@ -135,6 +135,14 @@ public sealed partial class NodePaletteControl : UserControl
             (CatGantt, OnCategoryPillRightTapped),
             (CatER, OnCategoryPillRightTapped),
             (CatMindmap, OnCategoryPillRightTapped));
+        // The pills had no tooltip, so nothing said they filter the list or have a menu.
+        foreach (var pill in new[] { CatAll, CatFlowchart, CatSequence, CatClass, CatState, CatGantt, CatER, CatMindmap })
+        {
+            var cat = pill.Content as string ?? "";
+            var what = cat == "All" ? "Show every shape" : $"Show only {cat} shapes";
+            ToolTipService.SetToolTip(pill, $"{what} · Right-click or Shift+F10 for options");
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(pill, what);
+        }
         TextBoxMenu.Attach(SearchTextBox, FillSearchTextBoxMenu);
         HoverPolish.Track(this);
         DataContextChanged += (_, _) => WatchDiagramType();
@@ -336,14 +344,21 @@ public sealed partial class NodePaletteControl : UserControl
         };
         menu.Items.Add(showAllItem);
 
-        var copySearchItem = new MenuFlyoutItem
+        // "Select all" on an empty box selected nothing, so it only shows when there is text.
+        if (!string.IsNullOrEmpty(SearchTextBox.Text))
         {
-            Text = "Select all search text",
-            KeyboardAcceleratorTextOverride = "Ctrl+A",
-            Icon = new FontIcon { Glyph = "\uE8D2" }
-        };
-        copySearchItem.Click += (_, _) => SearchTextBox.SelectAll();
-        menu.Items.Add(copySearchItem);
+            var selectAllItem = new MenuFlyoutItem
+            {
+                Text = "Select all search text",
+                KeyboardAcceleratorTextOverride = "Ctrl+A",
+                Icon = new FontIcon { Glyph = "\uE8D2" }
+            };
+            selectAllItem.Click += (_, _) => SearchTextBox.SelectAll();
+            menu.Items.Add(selectAllItem);
+        }
+
+        // "Show all shapes" was the only item on an unfiltered palette, and it did nothing there.
+        showAllItem.IsEnabled = !string.IsNullOrEmpty(SearchTextBox.Text) || _selectedCategory != "All";
     }
 
     private void SelectPill(ToggleButton btn)
@@ -374,18 +389,17 @@ public sealed partial class NodePaletteControl : UserControl
         if (DataContext is ViewModels.Mermaid.MermaidStudioViewModel vm)
         {
             string selectedCat = _selectedCategory;
-            string searchText = SearchTextBox.Text?.Trim().ToLowerInvariant() ?? string.Empty;
+            string searchText = SearchTextBox.Text?.Trim() ?? string.Empty;
 
             var filtered = vm.PaletteItems.Where(item =>
-            {
-                bool matchesCat = selectedCat == "All" || item.Category.Equals(selectedCat, StringComparison.OrdinalIgnoreCase);
-                bool matchesSearch = string.IsNullOrEmpty(searchText) ||
-                                      item.DisplayName.ToLowerInvariant().Contains(searchText) ||
-                                      item.Category.ToLowerInvariant().Contains(searchText);
-                return matchesCat && matchesSearch;
-            }).ToList();
+                (selectedCat == "All" || item.Category.Equals(selectedCat, StringComparison.OrdinalIgnoreCase))
+                && item.Matches(searchText)).ToList();
 
+            // Emptying the list while a row has keyboard focus would drop focus to the window.
+            if (filtered.Count == 0 && PaletteListView.FocusState != Microsoft.UI.Xaml.FocusState.Unfocused)
+                SearchTextBox.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
             PaletteListView.ItemsSource = filtered;
+            PaletteCountText.Text = ViewModels.Mermaid.MermaidPaletteItem.CountLabel(filtered.Count, vm.PaletteItems.Count);
 
             NoMatchesPanel.Visibility = filtered.Count == 0 ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
             if (filtered.Count == 0)
