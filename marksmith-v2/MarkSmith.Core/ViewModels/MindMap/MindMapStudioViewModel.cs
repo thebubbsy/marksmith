@@ -1106,7 +1106,11 @@ namespace MarkSmith.ViewModels.MindMap
         public void DuplicateSelectedNode()
         {
             var source = SelectedNode;
-            if (source == null) return;
+            if (source == null)
+            {
+                StatusMessage = "Nothing to duplicate: select a node on the map first.";
+                return;
+            }
 
             PushUndo("Duplicate node");
             source.SyncToModel();

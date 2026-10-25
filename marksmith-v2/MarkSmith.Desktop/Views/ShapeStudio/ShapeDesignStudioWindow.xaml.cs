@@ -798,6 +798,10 @@ namespace MarkSmith.Views.ShapeStudio
                     ExecuteDuplicateWithHudFeedback();
                     e.Handled = true;
                     return;
+                case VirtualKey.D when ctrl && !ViewModel.HasSelection:
+                    ViewModel.StatusMessage = "Nothing to duplicate: select a shape on the canvas first.";
+                    e.Handled = true;
+                    return;
                 case (VirtualKey)221 when ctrl && shift && ViewModel.HasSelection: // Ctrl+Shift+]
                     ViewModel.BringToFrontCommand.Execute(null);
                     e.Handled = true;
@@ -812,6 +816,10 @@ namespace MarkSmith.Views.ShapeStudio
                     return;
                 case (VirtualKey)219 when ctrl && ViewModel.HasSelection: // Ctrl+[
                     ViewModel.SendBackwardCommand.Execute(null);
+                    e.Handled = true;
+                    return;
+                case (VirtualKey)221 or (VirtualKey)219 when ctrl && !ViewModel.HasSelection:
+                    ViewModel.StatusMessage = "Nothing to reorder: select a shape on the canvas first.";
                     e.Handled = true;
                     return;
                 case VirtualKey.F2 when ViewModel.SelectedShape is { IsLine: false }:
@@ -1806,7 +1814,11 @@ namespace MarkSmith.Views.ShapeStudio
 
         private void ExecuteDuplicateWithHudFeedback()
         {
-            if (!ViewModel.HasSelection) return;
+            if (!ViewModel.HasSelection)
+            {
+                ViewModel.StatusMessage = "Nothing to duplicate: select a shape on the canvas first.";
+                return;
+            }
             ViewModel.DuplicateSelectedCommand.Execute(null);
             ShowDuplicateHudFeedback();
         }
@@ -4689,7 +4701,11 @@ namespace MarkSmith.Views.ShapeStudio
         /// to the Desktop with no choice of name or folder.</summary>
         private async System.Threading.Tasks.Task ExportAsync(bool template)
         {
-            if (!ViewModel.HasShapes) return;
+            if (!ViewModel.HasShapes)
+            {
+                ViewModel.StatusMessage = "No shapes on the canvas to export: add a shape or pick a preset first.";
+                return;
+            }
             try
             {
                 var path = await NativeFilePicker.PickSaveFileAsync(

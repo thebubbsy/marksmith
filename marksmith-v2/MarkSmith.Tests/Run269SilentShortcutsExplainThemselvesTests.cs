@@ -206,4 +206,72 @@ public class Run269SilentShortcutsExplainThemselvesTests : IDisposable
         Assert.DoesNotContain("if (string.IsNullOrEmpty(text)) return;", body);
         Assert.Contains("Nothing to copy: that item has no text.", body);
     }
+
+    // ---- Shape Studio: Export, Duplicate, Reorder ----
+
+    [Fact]
+    public void ShapeStudio_ExportDocxAndDotx_EmptyCanvas_ExplainsBeforePicker()
+    {
+        var body = Body(Read("Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs"), "private async System.Threading.Tasks.Task ExportAsync(bool template)");
+        int guard = body.IndexOf("No shapes on the canvas to export", StringComparison.Ordinal);
+        int picker = body.IndexOf("NativeFilePicker.PickSaveFileAsync", StringComparison.Ordinal);
+        Assert.True(guard > 0 && guard < picker, "the empty check must precede the file picker");
+    }
+
+    [Fact]
+    public void ShapeStudio_Duplicate_NoSelection_Explains()
+    {
+        var body = Body(Read("Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs"), "private void ExecuteDuplicateWithHudFeedback()");
+        Assert.Contains("Nothing to duplicate: select a shape on the canvas first.", body);
+    }
+
+    [Fact]
+    public void ShapeStudio_KeyboardReorderAndDuplicate_NoSelection_Explains()
+    {
+        var src = Read("Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs");
+        var body = Body(src, "private void OnRootPreviewKeyDown(");
+        Assert.Contains("case VirtualKey.D when ctrl && !ViewModel.HasSelection:", body);
+        Assert.Contains("case (VirtualKey)221 or (VirtualKey)219 when ctrl && !ViewModel.HasSelection:", body);
+        Assert.Contains("Nothing to reorder: select a shape on the canvas first.", body);
+    }
+
+    // ---- Mind Map: Copy Mermaid, Duplicate Node ----
+
+    [Fact]
+    public void MindMap_CopyMermaid_EmptyMap_ExplainsBeforeExport()
+    {
+        var body = Body(Read("Views/MindMap/MindMapGalaxyWindow.xaml.cs"), "private async void CopyMermaid(");
+        int guard = body.IndexOf("No nodes on the map to copy", StringComparison.Ordinal);
+        int export = body.IndexOf("ViewModel.ExportToMermaid(", StringComparison.Ordinal);
+        Assert.True(guard > 0 && guard < export, "the empty check must precede exporting");
+    }
+
+    [Fact]
+    public void MindMap_DuplicateSelectedNode_NoSelection_Explains()
+    {
+        var vm = new MindMapStudioViewModel();
+        vm.SelectedNode = null;
+        vm.DuplicateSelectedNode();
+        Assert.Equal("Nothing to duplicate: select a node on the map first.", vm.StatusMessage);
+    }
+
+    // ---- OCR: Reset Element ----
+
+    [Fact]
+    public void OcrStudio_ResetElement_NoSelectionOrNotReclassified_Explains()
+    {
+        var body = Body(Read("Views/Ocr/OcrInspectionStudioWindow.xaml.cs"), "private void ResetSelectedElement()");
+        Assert.Contains("Nothing to reset: select an element on the page first.", body);
+        Assert.Contains("already in its original classification", body);
+    }
+
+    // ---- Main window: Transform selection ----
+
+    [Fact]
+    public void TransformSelection_EmptyDocumentOrLine_Explains()
+    {
+        var body = Body(Read("MainWindow.xaml.cs"), "private void TransformSelection(");
+        Assert.Contains("The document is empty: nothing to transform.", body);
+        Assert.Contains("Nothing to transform: select text or place the caret on a line with text.", body);
+    }
 }

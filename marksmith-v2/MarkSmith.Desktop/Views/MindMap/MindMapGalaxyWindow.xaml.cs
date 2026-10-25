@@ -5026,6 +5026,11 @@ namespace MarkSmith.Views.MindMap
 
         private async void CopyMermaid(bool asFlowchart, string label)
         {
+            if (ViewModel.Nodes.Count == 0)
+            {
+                ViewModel.StatusMessage = "No nodes on the map to copy: add a node or open a document first.";
+                return;
+            }
             try
             {
                 var error = await MarkSmith.Services.ClipboardWriter.TrySetTextAsync(ViewModel.ExportToMermaid(asFlowchart));

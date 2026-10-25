@@ -14710,7 +14710,11 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
     {
         var tb = PasteTextBox;
         var text = EditorText();
-        if (text.Length == 0) return;
+        if (text.Length == 0)
+        {
+            AnnounceStatus("The document is empty: nothing to transform.");
+            return;
+        }
         var selStart = Math.Clamp(tb.SelectionStart, 0, text.Length);
         var selLen = Math.Clamp(tb.SelectionLength, 0, text.Length - selStart);
         if (selLen == 0)
@@ -14719,7 +14723,11 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             selStart = ls;
             selLen = le - ls;
         }
-        if (selLen <= 0) return;
+        if (selLen <= 0)
+        {
+            AnnounceStatus("Nothing to transform: select text or place the caret on a line with text.");
+            return;
+        }
         var segment = text.Substring(selStart, selLen);
         var transformed = transform(segment);
         if (transformed == segment)

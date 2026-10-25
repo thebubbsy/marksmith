@@ -2217,7 +2217,16 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
 
     private void ResetSelectedElement()
     {
-        if (_selectedElement is null || !_selectedElement.IsReclassified) return;
+        if (_selectedElement is null)
+        {
+            SetFooterStatusText("Nothing to reset: select an element on the page first.");
+            return;
+        }
+        if (!_selectedElement.IsReclassified)
+        {
+            SetFooterStatusText($"Element #{_selectedElement.Id} is already in its original classification ({_selectedElement.KindDisplayName}).");
+            return;
+        }
         ReclassifyElement(_selectedElement, _selectedElement.OriginalKind);
         SetFooterStatusText($"Reset Element #{_selectedElement.Id} to original {_selectedElement.KindDisplayName}.");
     }
