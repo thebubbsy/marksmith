@@ -18137,3 +18137,7 @@ selected" is the first tab stop (focused on open), and Enter / click copied the 
 3. If the PC is unlocked and idle: the OCR badge hover check and the long-standing live key checks (run #252 item 1).
 
 **Total user-visible improvements: 12** (10 in Suite Hub, 2 in Version History).
+
+**Release (same run):** tagged **v3.71.0** on `1a7f9d7`; Release workflow run 40180842201 succeeded;
+user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.71.0). `MarksmithBaseVersion` is now 3.72.0.
