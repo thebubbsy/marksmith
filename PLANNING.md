@@ -19044,3 +19044,6 @@ Mind Map, Diagram Studio and OCR had none left after runs #265–#266.
    command-palette actions that call handlers whose buttons are disabled.
 
 **Total user-visible improvements: 10** (4 SmartArt Studio, 4 main window, 1 Shape Studio, 1 Suite Hub).
+
+**Release (same run):** tagged **v3.79.0** on `c19deeb`; Release workflow run 40232034168 succeeded; user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.79.0). `MarksmithBaseVersion` is now 3.80.0.
