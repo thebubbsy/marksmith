@@ -17358,3 +17358,7 @@ inspector. That pass found item 1 below.
 3. Decide on the Tab-selects-all / options-menu discoverability item above.
 
 **Total user-visible improvements: 7.**
+
+**Release (same run):** tagged **v3.64.0** on `0b0db31`; Release workflow run 40155741845 succeeded;
+user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.64.0). `MarksmithBaseVersion` is now 3.65.0.
