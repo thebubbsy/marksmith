@@ -18859,3 +18859,6 @@ the matrix: Recent exports (`ExportHistoryFlyout`, last touched run #181) and th
 - **Theme Builder Name Normalization**: Theme name input now strips carriage returns and newlines (\r\n, \r, \n) when pasted from clipboard.
 - **Version History Notice Alignment**: HistoryWindowViewModel.NoticeLine trims leading whitespace so single-line notices align cleanly without indentation.
 - **Verification**: Run263StudioPolishAndHistoryResilienceTests (9/9 passed), regression suite (Runs 260-263, 102/102 passed), desktop build 0 errors, smoke-launch verified.
+
+**Release (same run, #263):** tagged **v3.77.0** on `93b3157` (it also carries run #262, which shipped without a tag); Release workflow run 40206911735 succeeded; user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.77.0). `MarksmithBaseVersion` is now 3.78.0. Run #264's commit `812fb3e` landed after the tag, so it ships in the next release.
