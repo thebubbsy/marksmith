@@ -185,6 +185,7 @@ namespace MarkSmith.Views.ShapeStudio
             // their RightTapped handlers replaced the text menu and were mouse only.
             TextBoxMenu.Attach(LabelTextBox, FillLabelTextBoxMenu);
             TextBoxMenu.Attach(FuseImagePathBox, FillFuseImagePathBoxMenu);
+            TextBoxEndScroll.Attach(FuseImagePathBox);
             TextBoxMenu.Attach(FillHexBox, FillFillHexBoxMenu);
             // The number boxes' menus go on the TextBox inside each one's template.
             TextBoxMenu.AttachInner(PositionXNumberBox, FillPositionNumberBoxMenu);
@@ -2057,7 +2058,7 @@ namespace MarkSmith.Views.ShapeStudio
             {
                 UpdateCrosshairs(cur);
                 string hud = ViewModel.SelectionCount > 1
-                    ? $"({(int)Math.Round(cur.X)}, {(int)Math.Round(cur.Y)}) · {ViewModel.SelectionCount} shapes"
+                    ? $"({(int)Math.Round(cur.X)}, {(int)Math.Round(cur.Y)}) · {CountText.Of(ViewModel.SelectionCount, "shape")}"
                     : $"X: {(int)Math.Round(_dragShape.X)}  Y: {(int)Math.Round(_dragShape.Y)}";
                 UpdateCursorHud(cur, hud);
             }
@@ -2619,7 +2620,7 @@ namespace MarkSmith.Views.ShapeStudio
                 Canvas.SetTop(MultiRotateHandle, cy - stemLength - hSize / 2.0);
             }
 
-            string badgeSummary = $"{selected.Count} shapes · {(int)Math.Round(totalW)} × {(int)Math.Round(totalH)} px";
+            string badgeSummary = $"{CountText.Of(selected.Count, "shape")} · {(int)Math.Round(totalW)} × {(int)Math.Round(totalH)} px";
             MultiSelectionBadgeText.Text = badgeSummary;
             string fullTip = $"Selection: {badgeSummary} · Double-click to auto-align & distribute, Right-click for options";
             // The name is the readout; the mouse instructions stay in the tooltip.
@@ -2828,7 +2829,7 @@ namespace MarkSmith.Views.ShapeStudio
                 }
             }
             UpdateMultiSelectionAdorner();
-            ViewModel.StatusMessage = $"Set {targetSpacing} px spacing across {selected.Count} shapes · Ctrl+Z to undo";
+            ViewModel.StatusMessage = $"Set {targetSpacing} px spacing across {CountText.Of(selected.Count, "shape")} · Ctrl+Z to undo";
         }
 
         private void OnMultiSelectionBadgeDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
@@ -2842,7 +2843,7 @@ namespace MarkSmith.Views.ShapeStudio
                     ViewModel.DistributeVerticalCommand.Execute(null);
                 }
                 UpdateMultiSelectionAdorner();
-                ViewModel.StatusMessage = $"Aligned & distributed {ViewModel.SelectionCount} shapes · Ctrl+Z to undo";
+                ViewModel.StatusMessage = $"Aligned & distributed {CountText.Of(ViewModel.SelectionCount, "shape")} · Ctrl+Z to undo";
             }
         }
 
@@ -3181,7 +3182,7 @@ namespace MarkSmith.Views.ShapeStudio
             UpdateMultiSelectionAdorner();
             if (MultiSelectionBadgeText != null)
             {
-                MultiSelectionBadgeText.Text = $"{_initialGroupTransforms.Count} shapes · {deltaAngle:+0;-0;0}° rotated{(snap ? " (15° snap)" : "")}";
+                MultiSelectionBadgeText.Text = $"{CountText.Of(_initialGroupTransforms.Count, "shape")} · {deltaAngle:+0;-0;0}° rotated{(snap ? " (15° snap)" : "")}";
             }
             e.Handled = true;
         }
@@ -3192,7 +3193,7 @@ namespace MarkSmith.Views.ShapeStudio
             if (sender is UIElement h) h.ReleasePointerCapture(e.Pointer);
             if (_multiRotated)
             {
-                ViewModel.StatusMessage = $"Rotated group of {_initialGroupTransforms.Count} shapes · Ctrl+Z to undo";
+                ViewModel.StatusMessage = $"Rotated group of {CountText.Of(_initialGroupTransforms.Count, "shape")} · Ctrl+Z to undo";
             }
             _multiRotating = false;
             _initialGroupTransforms.Clear();
@@ -3218,7 +3219,7 @@ namespace MarkSmith.Views.ShapeStudio
                 s.Rotation = 0;
             }
             UpdateMultiSelectionAdorner();
-            ViewModel.StatusMessage = $"Reset rotation on {selected.Count} shapes · Ctrl+Z to undo";
+            ViewModel.StatusMessage = $"Reset rotation on {CountText.Of(selected.Count, "shape")} · Ctrl+Z to undo";
         }
 
         private void OnMultiRotateHandlePointerWheelChanged(object sender, PointerRoutedEventArgs e)
@@ -3265,7 +3266,7 @@ namespace MarkSmith.Views.ShapeStudio
             }
 
             UpdateMultiSelectionAdorner();
-            ViewModel.StatusMessage = $"Nudged group rotation: {deltaAngle:+0;-0;0}° · {selected.Count} shapes";
+            ViewModel.StatusMessage = $"Nudged group rotation: {deltaAngle:+0;-0;0}° · {CountText.Of(selected.Count, "shape")}";
         }
 
         private void OnMultiRotateHandleRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -3314,7 +3315,7 @@ namespace MarkSmith.Views.ShapeStudio
                 ViewModel.RecordUndo();
                 foreach (var s in selected) s.Rotation = 0;
                 UpdateMultiSelectionAdorner();
-                ViewModel.StatusMessage = $"Reset rotation on {selected.Count} shapes";
+                ViewModel.StatusMessage = $"Reset rotation on {CountText.Of(selected.Count, "shape")}";
             }));
             flyout.Items.Add(new MenuFlyoutSeparator());
             flyout.Items.Add(ShapeMenuItem("Rotate 90° clockwise", "\uE7AD", () => applyGroupRotation(90)));
@@ -3331,7 +3332,7 @@ namespace MarkSmith.Views.ShapeStudio
                     s.Rotation = ShapeDesignStudioViewModel.WrapRotationAngle((int)Math.Round(360.0 - s.Rotation));
                 }
                 UpdateMultiSelectionAdorner();
-                ViewModel.StatusMessage = $"Flipped {selected.Count} shapes horizontally";
+                ViewModel.StatusMessage = $"Flipped {CountText.Of(selected.Count, "shape")} horizontally";
             }));
 
             if (MultiRotateHandle != null)

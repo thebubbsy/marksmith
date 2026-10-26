@@ -4813,7 +4813,7 @@ public sealed partial class SuiteHubView : UserControl
 
             var clipboardError = await Services.ClipboardWriter.TrySetTextAsync(result.Summary);
 
-            var copyMessage = $"Links & Assets: {result.ValidTargetsCount}/{result.TotalLinksAudited} resolved ({result.BrokenTargetsCount} broken, {result.WikiLinksCount} wikilinks, {result.AssetLinksCount} assets)";
+            var copyMessage = $"Links & Assets: {result.ValidTargetsCount}/{result.TotalLinksAudited} resolved ({result.BrokenTargetsCount} broken, {CountText.Of(result.WikiLinksCount, "wikilink")}, {CountText.Of(result.AssetLinksCount, "asset")})";
             SetNotification(clipboardError is null ? copyMessage : Services.CopyStatusText.Failed(copyMessage, clipboardError), success: clipboardError is null);
 
             if (RecentDocsActionBtn != null)

@@ -346,6 +346,10 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         TextBoxMenu.Attach(FindTextBox, FillFindTextBoxMenu);
         TextBoxMenu.Attach(ReplaceTextBox, FillReplaceTextBoxMenu);
         TextBoxMenu.Attach(TocFilterBox, FillTocFilterMenu);
+        TextBoxEndScroll.Attach(RunningDocPathTextBox);
+        TextBoxEndScroll.Attach(WatchFolderTextBox);
+        TextBoxEndScroll.Attach(BrandLogoPathTextBox);
+        TextBoxEndScroll.Attach(CustomFontPathTextBox);
 
         // Status-bar pieces that come and go (detected-source badge, export links, split sync,
         // section breadcrumb) change how much room the copy pills have, so re-fit the row.

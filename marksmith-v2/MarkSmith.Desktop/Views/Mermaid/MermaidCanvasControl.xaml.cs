@@ -1684,7 +1684,7 @@ public sealed partial class MermaidCanvasControl : UserControl
             }
 
             flyout.Items.Add(new Microsoft.UI.Xaml.Controls.MenuFlyoutSeparator());
-            flyout.Items.Add(MenuItem(many ? $"Delete {vm.SelectedNodes.Count} shapes" : "Delete", 0xE74D, (s, e) => vm.DeleteSelected(), "Del"));
+            flyout.Items.Add(MenuItem(many ? $"Delete {CountText.Of(vm.SelectedNodes.Count, "shape")}" : "Delete", 0xE74D, (s, e) => vm.DeleteSelected(), "Del"));
         }
         else if (_rightClickConnector is { } conn)
         {

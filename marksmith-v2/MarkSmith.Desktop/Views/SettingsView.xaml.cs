@@ -69,6 +69,7 @@ public sealed partial class SettingsView : UserControl
         HoverPolish.Track(this);
         TextBoxEndScroll.Attach(WebDavEndpointBox);
         TextBoxEndScroll.Attach(GoogleClientIdBox);
+        TextBoxEndScroll.Attach(CloudSubfolderBox);
     }
 
     private void OnSettingsKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)

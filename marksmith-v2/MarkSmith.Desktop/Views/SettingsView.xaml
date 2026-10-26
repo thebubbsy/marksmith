@@ -414,7 +414,7 @@
                                     </Grid>
                                     <TextBlock x:Name="CloudRescanStatusText" Style="{StaticResource SettingsHintStyle}"
                                                Visibility="Collapsed" AutomationProperties.LiveSetting="Polite" />
-                                    <TextBox Header="Subfolder" AutomationProperties.Name="Cloud subfolder"
+                                    <TextBox x:Name="CloudSubfolderBox" Header="Subfolder" AutomationProperties.Name="Cloud subfolder"
                                              Text="{Binding CloudSubfolder, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                              PlaceholderText="Marksmith" IsSpellCheckEnabled="False" />
                                     <!-- WebDAV fields (shown when the user picks the WebDAV provider) -->

@@ -977,7 +977,7 @@ namespace MarkSmith.Views.MindMap
             _multiSelectFrame.StrokeThickness = 1.25 / zoom;
             _multiSelectFrame.Visibility = Visibility.Visible;
 
-            string badgeSummary = $"{selected.Count} nodes · {(int)Math.Round(totalW)} × {(int)Math.Round(totalH)} pt";
+            string badgeSummary = $"{CountText.Of(selected.Count, "node")} · {(int)Math.Round(totalW)} × {(int)Math.Round(totalH)} pt";
             _multiSelectBadgeText.Text = badgeSummary;
             _multiSelectBadgeText.FontSize = Math.Max(9.0, 11.0 / Math.Sqrt(zoom));
             string fullTip = $"Selection: {badgeSummary} · Double-click to auto-align & space horizontally, Right-click for group options";
@@ -995,7 +995,7 @@ namespace MarkSmith.Views.MindMap
             var selected = ViewModel.Nodes.Where(n => n.IsSelected).OrderBy(n => n.X).ToList();
             if (selected.Count < 2) return;
 
-            ViewModel.PushUndo($"Align {selected.Count} nodes");
+            ViewModel.PushUndo($"Align {CountText.Of(selected.Count, "node")}");
             double targetCenterY = selected[0].Y + selected[0].Height / 2.0;
             double currentX = selected[0].X;
 
@@ -1013,7 +1013,7 @@ namespace MarkSmith.Views.MindMap
             }
 
             ViewModel.IsDirty = true;
-            ViewModel.StatusMessage = $"Aligned & spaced {selected.Count} nodes horizontally · Ctrl+Z to undo";
+            ViewModel.StatusMessage = $"Aligned & spaced {CountText.Of(selected.Count, "node")} horizontally · Ctrl+Z to undo";
             RequestRedraw(RedrawScope.All);
         }
 
@@ -1032,7 +1032,7 @@ namespace MarkSmith.Views.MindMap
             };
             alignHItem.Click += (_, _) =>
             {
-                ViewModel.PushUndo($"Align {selected.Count} nodes horizontally");
+                ViewModel.PushUndo($"Align {CountText.Of(selected.Count, "node")} horizontally");
                 double avgCenterY = selected.Average(n => n.Y + n.Height / 2.0);
                 foreach (var n in selected)
                 {
@@ -1040,7 +1040,7 @@ namespace MarkSmith.Views.MindMap
                     n.SyncToModel();
                 }
                 ViewModel.IsDirty = true;
-                ViewModel.StatusMessage = $"Aligned {selected.Count} nodes horizontally";
+                ViewModel.StatusMessage = $"Aligned {CountText.Of(selected.Count, "node")} horizontally";
                 RequestRedraw(RedrawScope.All);
             };
             flyout.Items.Add(alignHItem);
@@ -1052,7 +1052,7 @@ namespace MarkSmith.Views.MindMap
             };
             alignVItem.Click += (_, _) =>
             {
-                ViewModel.PushUndo($"Align {selected.Count} nodes vertically");
+                ViewModel.PushUndo($"Align {CountText.Of(selected.Count, "node")} vertically");
                 double avgCenterX = selected.Average(n => n.X + n.Width / 2.0);
                 foreach (var n in selected)
                 {
@@ -1060,7 +1060,7 @@ namespace MarkSmith.Views.MindMap
                     n.SyncToModel();
                 }
                 ViewModel.IsDirty = true;
-                ViewModel.StatusMessage = $"Aligned {selected.Count} nodes vertically";
+                ViewModel.StatusMessage = $"Aligned {CountText.Of(selected.Count, "node")} vertically";
                 RequestRedraw(RedrawScope.All);
             };
             flyout.Items.Add(alignVItem);
@@ -1075,7 +1075,7 @@ namespace MarkSmith.Views.MindMap
             distHItem.Click += (_, _) =>
             {
                 if (selected.Count < 3) return;
-                ViewModel.PushUndo($"Distribute {selected.Count} nodes horizontally");
+                ViewModel.PushUndo($"Distribute {CountText.Of(selected.Count, "node")} horizontally");
                 var ordered = selected.OrderBy(n => n.X).ToList();
                 double startX = ordered.First().X;
                 double endX = ordered.Last().X + ordered.Last().Width;
@@ -1089,7 +1089,7 @@ namespace MarkSmith.Views.MindMap
                     ordered[i].SyncToModel();
                 }
                 ViewModel.IsDirty = true;
-                ViewModel.StatusMessage = $"Distributed {selected.Count} nodes horizontally";
+                ViewModel.StatusMessage = $"Distributed {CountText.Of(selected.Count, "node")} horizontally";
                 RequestRedraw(RedrawScope.All);
             };
             distHItem.IsEnabled = selected.Count >= 3;
@@ -1103,7 +1103,7 @@ namespace MarkSmith.Views.MindMap
             distVItem.Click += (_, _) =>
             {
                 if (selected.Count < 3) return;
-                ViewModel.PushUndo($"Distribute {selected.Count} nodes vertically");
+                ViewModel.PushUndo($"Distribute {CountText.Of(selected.Count, "node")} vertically");
                 var ordered = selected.OrderBy(n => n.Y).ToList();
                 double startY = ordered.First().Y;
                 double endY = ordered.Last().Y + ordered.Last().Height;
@@ -1117,7 +1117,7 @@ namespace MarkSmith.Views.MindMap
                     ordered[i].SyncToModel();
                 }
                 ViewModel.IsDirty = true;
-                ViewModel.StatusMessage = $"Distributed {selected.Count} nodes vertically";
+                ViewModel.StatusMessage = $"Distributed {CountText.Of(selected.Count, "node")} vertically";
                 RequestRedraw(RedrawScope.All);
             };
             distVItem.IsEnabled = selected.Count >= 3;
@@ -1127,31 +1127,31 @@ namespace MarkSmith.Views.MindMap
 
             var copyTitlesItem = new MenuFlyoutItem
             {
-                Text = $"Copy {selected.Count} titles as Markdown bullets",
+                Text = $"Copy {CountText.Of(selected.Count, "title")} as Markdown bullets",
                 KeyboardAcceleratorTextOverride = "Ctrl+C",
                 Icon = new FontIcon { Glyph = "\uE8C8" }
             };
             copyTitlesItem.Click += (_, _) =>
             {
                 var md = string.Join(Environment.NewLine, selected.Select(n => $"- {n.Title}"));
-                CopyAndReport(md, $"Copied {selected.Count} node titles to clipboard");
+                CopyAndReport(md, $"Copied {CountText.Of(selected.Count, "node title")} to clipboard");
             };
             flyout.Items.Add(copyTitlesItem);
 
             var deleteItem = new MenuFlyoutItem
             {
-                Text = $"Delete {selected.Count} selected nodes",
+                Text = $"Delete {CountText.Of(selected.Count, "selected node")}",
                 KeyboardAcceleratorTextOverride = "Del",
                 Icon = new FontIcon { Glyph = "\uE74D" }
             };
             deleteItem.Click += (_, _) =>
             {
-                ViewModel.PushUndo($"Delete {selected.Count} nodes");
+                ViewModel.PushUndo($"Delete {CountText.Of(selected.Count, "node")}");
                 foreach (var n in selected)
                 {
                     ViewModel.DeleteNode(n);
                 }
-                ViewModel.StatusMessage = $"Deleted {selected.Count} nodes";
+                ViewModel.StatusMessage = $"Deleted {CountText.Of(selected.Count, "node")}";
                 RequestRedraw(RedrawScope.All);
             };
             flyout.Items.Add(deleteItem);
@@ -3535,7 +3535,7 @@ namespace MarkSmith.Views.MindMap
                 else if (sel.Count > 1)
                 {
                     ViewModel.SelectedNode = sel[0];
-                    ViewModel.StatusMessage = $"Lasso selected {sel.Count} nodes · Drag any to move group, Del to remove";
+                    ViewModel.StatusMessage = $"Lasso selected {CountText.Of(sel.Count, "node")} · Drag any to move group, Del to remove";
                 }
             }
 
@@ -3551,7 +3551,7 @@ namespace MarkSmith.Views.MindMap
                 else if (sel.Count > 1)
                 {
                     ViewModel.SelectedNode = sel[0];
-                    ViewModel.StatusMessage = $"Selected {sel.Count} nodes · Drag any to move group, Del to remove";
+                    ViewModel.StatusMessage = $"Selected {CountText.Of(sel.Count, "node")} · Drag any to move group, Del to remove";
                 }
             }
 

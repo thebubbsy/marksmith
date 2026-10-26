@@ -509,7 +509,7 @@
                                     </Grid.ColumnDefinitions>
                                     <TextBlock x:Name="DiffTitleText" Text="{Binding DiffTitle}" FontSize="13" FontWeight="SemiBold"
                                                Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextTrimming="CharacterEllipsis"
-                                               AutomationProperties.LiveSetting="Polite" />
+                                               />
                                     <!-- A real button so Tab reaches it: Enter copies the ID, Shift+F10 opens the summary menu. -->
                                     <Button x:Name="CommitShaCopyPill" Grid.Column="1" Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                                             BorderThickness="0" CornerRadius="4" Padding="6,1" MinHeight="0" VerticalAlignment="Center"

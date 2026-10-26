@@ -417,7 +417,7 @@
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
-                                            <TextBox Grid.Column="0" Text="{Binding RunningDocPath, Mode=TwoWay}"
+                                            <TextBox x:Name="RunningDocPathTextBox" Grid.Column="0" Text="{Binding RunningDocPath, Mode=TwoWay}"
                                                      AutomationProperties.Name="Running document file"
                                                      PlaceholderText="e.g. C:\Docs\AI-notebook.docx" IsSpellCheckEnabled="False" />
                                             <Button Grid.Column="1" VerticalAlignment="Stretch" Click="OnBrowseRunningDocClick"
@@ -448,7 +448,7 @@
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
-                                                <TextBox Grid.Column="0" Text="{Binding WatchFolder, Mode=TwoWay}"
+                                                <TextBox x:Name="WatchFolderTextBox" Grid.Column="0" Text="{Binding WatchFolder, Mode=TwoWay}"
                                                          AutomationProperties.Name="Watched folder"
                                                          PlaceholderText="e.g. your Downloads folder" IsSpellCheckEnabled="False" />
                                                 <Button Grid.Column="1" VerticalAlignment="Stretch" Click="OnBrowseWatchFolderClick"
@@ -2027,7 +2027,7 @@
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
-                                                <TextBox Text="{Binding BrandLogoPath, Mode=TwoWay}" AutomationProperties.Name="Company logo file"
+                                                <TextBox x:Name="BrandLogoPathTextBox" Text="{Binding BrandLogoPath, Mode=TwoWay}" AutomationProperties.Name="Company logo file"
                                                          PlaceholderText="No logo chosen" IsSpellCheckEnabled="False" />
                                                 <Button Grid.Column="1" VerticalAlignment="Stretch" Click="OnBrowseLogoClick"
                                                         ToolTipService.ToolTip="Choose a logo image (PNG/JPEG)"
@@ -2052,7 +2052,7 @@
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
-                                                <TextBox Text="{Binding CustomFontPath, Mode=TwoWay}" AutomationProperties.Name="Embedded font file"
+                                                <TextBox x:Name="CustomFontPathTextBox" Text="{Binding CustomFontPath, Mode=TwoWay}" AutomationProperties.Name="Embedded font file"
                                                          PlaceholderText="No font file chosen" IsSpellCheckEnabled="False" />
                                                 <Button Grid.Column="1" VerticalAlignment="Stretch" Click="OnBrowseFontClick"
                                                         ToolTipService.ToolTip="Choose a .ttf or .otf font file"

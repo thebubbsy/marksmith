@@ -6208,10 +6208,10 @@ public static class TextSearch
 
         string formulaLabel = totalSpans == 1 ? "1 formula" : $"{totalSpans} formulas";
         var alerts = new List<string>();
-        if (unbalancedDelims > 0) alerts.Add($"🚨 {unbalancedDelims} unclosed delimiter(s)");
-        if (unbalancedBraces > 0) alerts.Add($"⚠ {unbalancedBraces} unbalanced brace(s)");
+        if (unbalancedDelims > 0) alerts.Add($"🚨 {CountText.Of(unbalancedDelims, "unclosed delimiter")}");
+        if (unbalancedBraces > 0) alerts.Add($"⚠ {CountText.Of(unbalancedBraces, "unbalanced brace")}");
         if (invalidSpacing > 0) alerts.Add($"📐 {invalidSpacing} invalid spacing");
-        if (unknownMacros > 0) alerts.Add($"🔍 {unknownMacros} unknown macro(s)");
+        if (unknownMacros > 0) alerts.Add($"🔍 {CountText.Of(unknownMacros, "unknown macro")}");
 
         string alertSuffix = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · 100% KaTeX syntax parity";
 
@@ -8492,7 +8492,7 @@ public static class TextSearch
                         isClean,
                         unclosed,
                         false,
-                        isClean ? $"✓ Valid display block ({formula.Length} chars)" : $"⚠ {unclosed} unclosed brace(s)"));
+                        isClean ? $"✓ Valid display block ({formula.Length} chars)" : $"⚠ {CountText.Of(unclosed, "unclosed brace")}"));
                     displayCount++;
 
                     rawLine = rawLine.Substring(closeIndex + 2);
@@ -8524,7 +8524,7 @@ public static class TextSearch
                     isClean,
                     unclosed,
                     false,
-                    isClean ? $"✓ Valid display math ({formula.Length} chars)" : $"⚠ {unclosed} unclosed brace(s)"));
+                    isClean ? $"✓ Valid display math ({formula.Length} chars)" : $"⚠ {CountText.Of(unclosed, "unclosed brace")}"));
                 return " ";
             });
 
@@ -8546,7 +8546,7 @@ public static class TextSearch
                     isClean,
                     unclosed,
                     false,
-                    isClean ? $"✓ Valid display math ({formula.Length} chars)" : $"⚠ {unclosed} unclosed brace(s)"));
+                    isClean ? $"✓ Valid display math ({formula.Length} chars)" : $"⚠ {CountText.Of(unclosed, "unclosed brace")}"));
                 return " ";
             });
 
@@ -8579,7 +8579,7 @@ public static class TextSearch
                     isClean,
                     unclosed,
                     false,
-                    isClean ? $"✓ Valid inline math ({formula.Length} chars)" : $"⚠ {unclosed} unclosed brace(s)"));
+                    isClean ? $"✓ Valid inline math ({formula.Length} chars)" : $"⚠ {CountText.Of(unclosed, "unclosed brace")}"));
                 return " ";
             });
 
@@ -8609,7 +8609,7 @@ public static class TextSearch
                     isClean,
                     unclosed,
                     false,
-                    isClean ? $"✓ Valid inline math ({formula.Length} chars)" : $"⚠ {unclosed} unclosed brace(s)"));
+                    isClean ? $"✓ Valid inline math ({formula.Length} chars)" : $"⚠ {CountText.Of(unclosed, "unclosed brace")}"));
                 return " ";
             });
 

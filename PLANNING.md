@@ -20813,3 +20813,39 @@ double read with `FooterStatusText` (which is tracked separately and isn't set i
 
 **Total user-visible improvements: 6** (2 status bar focus, 1 license banner focus, 1 OCR announcement, 2 count
 wording in Mind map and Diagram Studio).
+
+
+### 2026-10-27 (scheduled routine run #288)
+
+- Trigger: Scheduled hourly MarkSmith WinUI 3 Desktop Polish Routine
+- Mandate: Picked up run #287's "Next up" and desktop path polish mandate:
+  1. Decided on silent live lines: dropped unused `AutomationProperties.LiveSetting="Polite"` from Mermaid `CanvasSummaryText` and History `DiffTitleText` (clean UIA tree truth without phantom announcements).
+  2. Extended `TextBoxEndScroll` to all remaining path text boxes across the main window, settings, and studios (`RunningDocPathTextBox`, `WatchFolderTextBox`, `BrandLogoPathTextBox`, `CustomFontPathTextBox`, `CloudSubfolderBox`, `FuseImagePathBox`).
+  3. Swept remaining raw string interpolation plurals and template `(s)` parentheses across MindMap Galaxy, Shape Studio, Mermaid Canvas, TextSearch math diagnostics, and SuiteHub link audits using canonical `CountText.Of`.
+
+**Delivered (user-visible):**
+1. **Running doc & watched folder paths reveal leaf document names while unfocused:** In MainWindow, long running document paths (`C:\...\RunningDoc.docx`) and watched folder paths (`C:\...\WatchedFolder`) previously clipped at the drive root when unfocused. They now smoothly scroll to the tail so the active file/folder name is immediately visible at a glance while retaining natural editing when focused.
+2. **Branding logo & custom font file inputs reveal file names while unfocused:** Long asset paths (`...\Corporate_Logo_Dark.png`, `...\Inter-VariableFont.ttf`) in Step 4 branding rows now automatically scroll to show the file name rather than clipping.
+3. **Settings cloud subfolder path end-scrolling:** In SettingsView, `CloudSubfolderBox` now automatically scrolls to display the deepest subfolder segment when unfocused.
+4. **Shape Design Studio image path end-scrolling:** `FuseImagePathBox` in Shape Studio now automatically scrolls to display the selected or pasted image filename (`...\diagram.png`) when unfocused.
+5. **Clean UIA live region truth (Mermaid & History):** Removed dead `AutomationProperties.LiveSetting="Polite"` from `CanvasSummaryText` and `DiffTitleText`. Neither block ever raised `LiveRegionChanged` (their state is already actively announced via `CanvasSummaryButton` status updates and History list item selection respectively), eliminating misleading UIA expectations.
+6. **MindMap Galaxy natural pluralization:** Multi-selection badge summaries, undo labels, status messages, context menus, and lasso/marquee selections now format numbers and nouns via `CountText.Of` (e.g. `1 node`, `2 nodes`, `1,204 nodes`, `Copy 1 title as Markdown bullets`) instead of raw `1 nodes` or `1 titles`.
+7. **Shape Studio natural pluralization:** Cursor HUD, multi-selection badge, rotation, distribution, and flip status messages now cleanly format units using `CountText.Of(count, "shape")` instead of `1 shapes`.
+8. **Mermaid Canvas and TextSearch diagnostics natural pluralization:** Menu items in Mermaid canvas use `CountText.Of(count, "shape")`, and LaTeX math syntax diagnostics in `TextSearch.cs` replace `unclosed brace(s)` and `unbalanced brace(s)` with natural English sentences (`1 unclosed brace`, `2 unclosed braces`).
+
+**Implementation Summary**
+- Core: `Services/TextSearch.cs` (`FormatMathDelimiterSummary` and `InlineMathItem` alerts updated to `CountText.Of`).
+- Desktop: `MainWindow.xaml` (named `RunningDocPathTextBox`, `WatchFolderTextBox`, `BrandLogoPathTextBox`, `CustomFontPathTextBox`), `MainWindow.xaml.cs` (wired `TextBoxEndScroll.Attach` to all four path inputs), `Views/SettingsView.xaml` (named `CloudSubfolderBox`), `Views/SettingsView.xaml.cs` (wired `TextBoxEndScroll.Attach(CloudSubfolderBox)`), `Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs` (wired `TextBoxEndScroll.Attach(FuseImagePathBox)` and updated 10 status/badge sites to `CountText.Of`), `Views/MindMap/MindMapGalaxyWindow.xaml.cs` (updated 13 status/badge/menu sites to `CountText.Of`), `Views/Mermaid/MermaidCanvasControl.xaml.cs` (updated delete menu item to `CountText.Of`), `Views/Mermaid/MermaidDiagramStudioControl.xaml` and `Views/History/HistoryWindow.xaml` (removed unused `LiveSetting="Polite"`), `Views/SuiteHubView.xaml.cs` (updated links audit summary to `CountText.Of`).
+- Tests: `Run288SilentLiveLinesAndPathEndScrollTests.cs` (live setting removal verification in XAML, path box naming and `TextBoxEndScroll` attachments in MainWindow, SettingsView, and ShapeStudio, `CountText.Of` grammar across counts 0, 1, 2, and >1000, and source contracts for MindMap Galaxy, Shape Studio, Mermaid Canvas, and TextSearch).
+
+**Verified:**
+- `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: 0 errors.
+- Unit tests: `Run288SilentLiveLinesAndPathEndScrollTests` (18/18 passed), test suite `Run288|Run287|Run286|Run285|Run281` (113/113 passed).
+- Smoke launch: Launched `Marksmith.exe` (PID 27440), confirmed running healthy after 5s without exit, closed cleanly.
+
+**Next up (Run #289):**
+1. Live-verify the status bar unfold handover on a wider display or with a smaller text scale.
+2. Live-verify a plugin Install/Remove focus round trip on a machine where a small plugin download is acceptable.
+3. Audit any remaining raw `(s)` or `s` plurals in older markdown exporters or preview inspectors.
+
+**Total user-visible improvements: 8** (4 path text box end-scrolls, 1 UIA live setting truth cleanup, 3 studio & diagnostic pluralization sweeps).
