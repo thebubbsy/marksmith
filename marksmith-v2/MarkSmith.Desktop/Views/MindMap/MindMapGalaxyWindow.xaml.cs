@@ -119,6 +119,7 @@ namespace MarkSmith.Views.MindMap
             this.InitializeComponent();
             // A long status line is cut off at the window edge; hovering it shows the whole message.
             TrimmedTextToolTip.Attach(StatusBarText);
+            LiveAnnounce.Track(StatusBarText);
             // RightTapped is mouse/pen/touch only: Shift+F10 and the Menu key open the same menus.
             KeyboardContextMenu.BridgeAll(
                 (TagFilterButton, OnTagFilterButtonRightTapped),

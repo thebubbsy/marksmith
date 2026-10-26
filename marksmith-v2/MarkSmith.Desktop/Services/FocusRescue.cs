@@ -63,6 +63,37 @@ public static class FocusRescue
         return null;
     }
 
+    /// <summary>
+    /// A button that disables itself while its work runs (Rescan, Check for updates, Remove
+    /// license, Activate) threw keyboard focus to the window's first tab stop for the whole wait,
+    /// which in Settings also scrolled the page back to the top. Call before disabling it: focus
+    /// waits on the first of <paramref name="parkOn"/> that takes it, and
+    /// <see cref="Parked.Return"/> brings it back once the button is enabled again, unless the
+    /// user has moved on in the meantime.
+    /// </summary>
+    public static Parked Park(Control button, params Control?[] parkOn)
+    {
+        var state = button.FocusState;
+        if (state == FocusState.Unfocused) return default;
+        var how = state == FocusState.Pointer ? FocusState.Programmatic : FocusState.Keyboard;
+        foreach (var spot in parkOn)
+            if (spot is not null && IsAvailable(spot) && spot.Focus(how)) return new Parked(button, spot, how);
+        return default;
+    }
+
+    public readonly record struct Parked(Control? Button, Control? Spot, FocusState How)
+    {
+        /// <summary>The button held focus when it was parked.</summary>
+        public bool HadFocus => Spot is not null;
+
+        public void Return()
+        {
+            if (Button is null || Spot is null || Button.XamlRoot is null || !IsAvailable(Button)) return;
+            var focused = FocusManager.GetFocusedElement(Button.XamlRoot);
+            if (ReferenceEquals(focused, Spot) || FocusWasLost(Button)) Button.Focus(How);
+        }
+    }
+
     // Enabled, a tab stop, and shown: neither it nor any ancestor is collapsed.
     private static bool IsAvailable(Control c)
     {

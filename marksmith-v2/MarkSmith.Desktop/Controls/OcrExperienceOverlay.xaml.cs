@@ -1545,7 +1545,7 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
         var error = await Services.ClipboardWriter.TrySetTextAsync(text);
         if (CopyFinalMarkdownButton is not null) Services.CopyFeedback.ApplyButtonTick(CopyFinalMarkdownButton, error);
         StageStatusText.Text = error is null
-            ? $"✓ Copied {text.Length:N0} characters of assembled Markdown to clipboard."
+            ? $"✓ Copied {MarkSmith.Services.CountText.Of(text.Length, "character")} of assembled Markdown to clipboard."
             : $"Couldn't copy: {error}";
     }
 

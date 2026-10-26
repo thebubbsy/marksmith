@@ -178,7 +178,7 @@ public class Run265ListKeysPaletteConnectAndOcrCopyTests
         var body = Method(Read(OcrCs), "private async void OnCopyMarkdownClick(");
         Assert.Contains("Nothing to copy yet: no pages have been scanned.", body);
         Assert.Contains("has no Markdown.", body);
-        Assert.Contains("characters) to clipboard.", body);
+        Assert.Contains("\"character\")}) to clipboard.", body); // run #279: CountText
         Assert.DoesNotContain("chars) to clipboard.", body);
     }
 

@@ -218,6 +218,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         });
 
         InitializeComponent();
+        // Screen readers hear the status message ("Exported to …") and the Find bar's match count.
+        Services.LiveAnnounce.Track(StatusMsgText);
+        Services.LiveAnnounce.Track(FindCountText, FindCountButton);
 
         Title = "MarkSmith";
         // Unpackaged app: the exe icon covers Explorer/taskbar, but the title bar needs an
@@ -5018,6 +5021,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // inline "Scanning…" hint and disables Rescan while it runs.
     private async Task LoadMarkdownFilesAsync()
     {
+        // Pressed from the keyboard, focus waits on the file list rather than jumping to the
+        // window's first tab stop, and comes back to Rescan when the scan ends.
+        var parked = Services.FocusRescue.Park(RescanButton, MarkdownFilesCombo);
         RescanButton.IsEnabled = false;
         ScanningLabel.Visibility = Visibility.Visible;
         try { await ViewModel.RefreshMarkdownFilesAsync(); }
@@ -5025,6 +5031,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             ScanningLabel.Visibility = Visibility.Collapsed;
             RescanButton.IsEnabled = true;
+            parked.Return();
         }
     }
 

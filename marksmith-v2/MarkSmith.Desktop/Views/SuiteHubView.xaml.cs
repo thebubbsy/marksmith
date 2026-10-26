@@ -96,6 +96,9 @@ public sealed partial class SuiteHubView : UserControl
 
         InitializeComponent();
 
+        // Template search results ("4 templates match …") are read out as the query changes.
+        LiveAnnounce.Track(TemplateSearchStatusText);
+
         // "Right-click for options" menus: open them from Shift+F10 / the Menu key too.
 
         KeyboardContextMenu.BridgeAll(
