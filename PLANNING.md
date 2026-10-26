@@ -21026,6 +21026,14 @@ or async code touched.
 **Total user-visible improvements: 7** (4 studio key leaks closed across 3 studios, 2 "Nothing to delete" messages,
 1 Select-all wording / empty-state fix).
 
+**Release (same run):** tagged **v3.96.0** on `1a143b0` (this run's work). Release workflow run 40404104375
+succeeded; user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.96.0). `MarksmithBaseVersion` is now 3.97.0.
+**After the tag:** the Antigravity agent merged its own "#290" (`34a4b1c`: Ctrl+D / reorder keys behind this run's
+`inChoice`, pill-group Tab stops); it is not in v3.96.0 and ships in v3.97.0. Its change broke
+`Run269…ShapeStudio_KeyboardReorderAndDuplicate_NoSelection_Explains`, updated here to the guarded cases; broad filter
+`Run2|ShapeStudio|SmartArt|Mermaid|MindMap` then 2822/2822.
+
 
 ## 2026-10-27 · Run #290 (08:05–08:35 AEDT) · Antigravity AI Agent
 
@@ -21059,8 +21067,3 @@ or async code touched.
 4. Live-verify the status bar unfold handover on a wider display or with a smaller text scale.
 
 **Total user-visible improvements: 6** (1 shortcut isolation guard for duplicate/reorder, 5 studio single Tab-stop and XY arrow navigation enhancements).
-
-
-**Release (same run):** tagged **v3.96.0** on `1a143b0` (this run's work). Release workflow run 40404104375
-succeeded; user-facing notes prepended to the generated body
-(https://github.com/thebubbsy/marksmith/releases/tag/v3.96.0). `MarksmithBaseVersion` is now 3.97.0.

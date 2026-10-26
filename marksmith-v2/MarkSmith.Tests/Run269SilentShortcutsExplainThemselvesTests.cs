@@ -231,8 +231,8 @@ public class Run269SilentShortcutsExplainThemselvesTests : IDisposable
     {
         var src = Read("Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs");
         var body = Body(src, "private void OnRootPreviewKeyDown(");
-        Assert.Contains("case VirtualKey.D when ctrl && !ViewModel.HasSelection:", body);
-        Assert.Contains("case (VirtualKey)221 or (VirtualKey)219 when ctrl && !ViewModel.HasSelection:", body);
+        Assert.Contains("case VirtualKey.D when ctrl && !inChoice && !ViewModel.HasSelection:", body);
+        Assert.Contains("case (VirtualKey)221 or (VirtualKey)219 when ctrl && !inChoice && !ViewModel.HasSelection:", body);
         Assert.Contains("Nothing to reorder: select a shape on the canvas first.", body);
     }
 
