@@ -19901,3 +19901,93 @@ kind badges, and a sweep of count messages that can read "1 …s".
 1 count wording across three surfaces).
 
 **Release (same run):** tagged **v3.85.0** on `4dfdf847`; Release workflow run 40274752580 succeeded (11 m); user-facing notes prepended to the generated body (https://github.com/thebubbsy/marksmith/releases/tag/v3.85.0). `MarksmithBaseVersion` is now 3.86.0.
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #278 (2026-10-26, 17:01–17:45 AEDT)
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running in the Claude desktop app. The task template asks for an Antigravity /
+  Gemini identity; this run was not executed by that agent, so it records the real one.
+- Modes: Scheduled hourly desktop polish routine, unattended (no live user input)
+- Trigger: Scheduled task `commit-to-main-ship-improvement--r4efinement` (17:00 firing)
+- Agents used: 1 (single orchestrator that also coded and did the skeptical review; no subagents). Session
+  `4d85f1c2-2334-4db5-94ef-7bb23893e2dd`. A separate Antigravity agent started its own "run #278" in the shared tree
+  at the same time (uncommitted edits to MainWindow, Galaxy, Shape Studio, Suite Hub and a
+  `Run278HandlesPalettesAndStatusBarTests.cs`). This run did not touch that tree: it built, tested, committed and
+  pushed from the clean clone `%TEMP%\ms249`, so the other agent's work will need to merge with `d70a394`.
+
+**Picked up:** run #277's Next up 3 (the fixed-white-on-data-colour audit). Shape Studio handles are white fills with an
+accent stroke, which is standard, so no change. That audit led to the Galaxy badge ink. Then a sweep of count
+messages, and the template's file-safety rule (user files opened with ReadWrite | Delete sharing) applied to every
+place an export, the preview or OCR reads a picture, logo, e-mail or PDF.
+
+**Delivered (user-visible):**
+1. **Exports keep pictures that are open in another app**: DOCX (images, brand logo), PPTX, EPUB (images, cover),
+   e-mail HTML, standalone HTML and the preview's inline images used `File.ReadAllBytes` / `File.OpenRead`. Those ask
+   for FileShare.Read and fail while any app holds the file open for writing, such as an image editor, a capture tool
+   or OneDrive syncing it. The image was then silently dropped. They now read with shared access.
+2. **Opening an .eml / .msg, OCR of an image or PDF, and batch export work on files open elsewhere**: same fix for
+   e-mail import, OCR's image and PDF loaders, batch export's Markdown read, and the editor's image / CSV / spreadsheet
+   reads (which already allowed writers but blocked a pending rename or delete).
+3. **Document Galaxy, node badges are readable on every branch colour**: the format badge and the collapsed-subtree
+   pill picked ink with a perceived-brightness cut-off that put white on blue, purple and rose (3.5:1 to 3.9:1 at
+   9 px) and on mid greens like #22C55E (2.3:1). They now use the same WCAG crossover as the OCR studio's kind badges
+   (`ReadableInk`), and a new node's badge starts with the right ink rather than white.
+4. **Document Galaxy, the collapsed pill's tooltip counts right**: "Subtree collapsed (1 hidden node)".
+5. **Suite Hub workspace audits read right at one**: word counts, code blocks, math formulas, table alignment,
+   frontmatter (both reports), tasks, cross-doc links, images, storage footprint, naming conventions, extension
+   diversity and the format matrix said "1 docs", "1 formulas", "1 missing keys", "1 formats". They use `CountText`.
+6. **Editor Tools and status-bar copies read right at one**: Link Index, Table / Image / Callout / Footnote / Diagram
+   inventories, Code Language breakdown and summary, Task Progress summary, TOC copies and inserts, tables as TSV
+   ("1 row"), fenced code / raw snippet copies ("1 line"), Copy MD ("1 word, 1 line") and the stats dialog's Copy
+   words button and tooltip.
+7. **OCR overlay finish banner**: "1 block (1 word) assembled…" / "pieced into 1 Markdown block".
+
+**Implementation Summary**
+- Core: `Services/SharedFile.cs` gains `OpenRead` and `ReadAllBytes` (ReadWrite | Delete). Callers moved to it:
+  `DocxExportService` (×2), `Generator/DocxPackageWriter`, `PptxExportService` (×2), `EpubExportService` (×2),
+  `Email/EmailHtmlRenderer`, `Email/EmailImporter`, `Email/MsgImporter`, `MarkdownHtmlService` (×2),
+  `StandaloneHtml`, `OcrEngineService` (×2), `BatchExportRunner` (`SharedFile.ReadAllTextAsync`).
+- Desktop: `MainWindow.xaml.cs` (three `FileStream`s to `SharedFile.OpenRead`; 25 count messages to `CountText`),
+  `Views/MindMap/MindMapGalaxyWindow.xaml.cs` (`ReadableOn` uses `ReadableInk.PrefersDarkInk`, initial `BadgeInk`,
+  pill tooltip), `Views/SuiteHubView.xaml.cs` (13 audit messages), `Controls/OcrExperienceOverlay.xaml.cs` (banner).
+- Tests: new `Run278SharedReadsBadgeInkAndCountsTests` (38 cases): `SharedFile` reads a file held open for writing
+  where `File.ReadAllBytes` throws, read-only stream, empty / missing file; `EmailImporter.Import` on a held .eml;
+  17 shared-read call sites and no exclusive reads left; Galaxy badge ink ≥ 4:1 and the higher of slate / white on
+  all 8 palette colours plus two mid greens; palette matches the view model; regex guards for raw plural counts in
+  Suite Hub and MainWindow messages. `Run241HonestCopiesEverywhereTests` updated for the Copy MD wording.
+- Skeptical review: no control is collapsed or disabled, no key handler, flyout or dynamic control was added, and no
+  resource lookups. File access only got more permissive for reads (`FileAccess.Read` throughout, nothing opened for
+  writing). `ReadAllBytes` sizes its buffer from `Length` only when the stream can seek. The two broadened guard
+  regexes caught 15 more raw plurals during the run (code blocks, rows, tasks, footnotes, format matrix, frontmatter),
+  which were then fixed.
+- Build: clean clone `%TEMP%\ms249`, `dotnet build … -p:OutDir=%TEMP%\ms_run278\b\` 0 errors (21 pre-existing
+  warnings).
+- Tests: `Run2|SharedFile|Email|Epub|Docx|Pptx|MarkdownHtml|StandaloneHtml|BatchExport|SuiteHub|Galaxy|MindMap|Ocr`
+  **2407 passed, 1 failed, 1 skipped**. The failure was this run's own guard regex matching "All {n} footnotes",
+  which sits behind a `count == 1` branch, so the regex was narrowed to parenthesised counts. Then `Run278|Run241`
+  **54/54** on the committed tree.
+- Live check (UIA patterns only, no SendKeys or SetFocus, window started minimized, fresh `MARKSMITH_CONFIG_DIR`):
+  PID 33596, stopped by PID. Tour skipped by `SkipButton`. `PasteTextBox` ValuePattern "Hello", Invoke
+  `StatusCopyMarkdownButton`: status "Copied Markdown (1 word, 1 line) to clipboard", clipboard "Hello". Then
+  "# Hi\r\rthere": "Copied Markdown (2 words, 3 lines) to clipboard" (`%TEMP%\ms_run278\copy_markdown_status.png`).
+  The script didn't skip when the clipboard held no text, so whatever non-text item was on the user's clipboard
+  was replaced by the test text. The shared-read and Galaxy ink changes rest on the unit and source tests.
+
+**Noticed, not fixed:**
+- History's diff word deltas ("+1 / -0 words") and the OCR studio's "(1 characters)" copies still use a fixed plural.
+  These are rare at one, and the delta form reads fine.
+- `FolderIngestService` (`FileShare.Read` probe), `AutomationExportService` / `MainViewModel.Email` attachment reads
+  and `FontManagerService` still read with default sharing. They read the app's own fresh outputs or installed fonts,
+  so they were left alone.
+
+**Next up (Run #279):**
+1. Live-verify an export with an image held open for writing (a DOCX export from a scratch doc, then check
+   `word/media` in the package).
+2. Live-verify the Galaxy multi-select badge on Clean White and the tag pill focus hand-off (carried over).
+3. Make clipboard-touching live checks skip when the clipboard holds non-text (`GetDataObject().GetFormats()`).
+
+**Total user-visible improvements: 7** (2 file-sharing across exports, preview, OCR and import; 2 Document Galaxy;
+3 count wording across Suite Hub, editor Tools / status bar and the OCR overlay).
+
+**Release (same run):** tagged **v3.86.0** on `d70a394`; Release workflow run 40279883810 succeeded (11 m 40 s); user-facing notes prepended to the generated body (https://github.com/thebubbsy/marksmith/releases/tag/v3.86.0). `MarksmithBaseVersion` is now 3.87.0.
