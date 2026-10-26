@@ -1299,6 +1299,7 @@ public sealed partial class SuiteHubView : UserControl
 
         Notification.IsOpen = true;
 
+        // "Template copied", "Couldn't reach the API": the result of the card just pressed.
         LiveAnnounce.Raise(Notification);
 
         // The hub scrolls in a short window; the result must land where it can be read.

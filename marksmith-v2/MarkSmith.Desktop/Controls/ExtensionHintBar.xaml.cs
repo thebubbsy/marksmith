@@ -33,6 +33,7 @@ namespace MarkSmith.Controls
             {
                 Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(control, "That paste looks like plain text. Use the MarkSmith Connector to keep full formatting.");
                 Microsoft.UI.Xaml.Automation.AutomationProperties.SetLiveSetting(control, Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Polite);
+                LiveAnnounce.Raise(control);
             }
         }
 

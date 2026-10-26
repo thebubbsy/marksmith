@@ -11,4 +11,9 @@ public static class CountText
     // Just the noun for a count, for sentences that place the number themselves.
     public static string Noun(int count, string singular, string? plural = null) =>
         count == 1 ? singular : plural ?? singular + "s";
+
+    // An added / removed pair, each with its own noun: "+1 word / -3 words". History's diff pill
+    // said "+1 / -0 words", one plural for two counts.
+    public static string Delta(int added, int removed, string singular, string? plural = null) =>
+        $"+{Of(added, singular, plural)} / -{Of(removed, singular, plural)}";
 }

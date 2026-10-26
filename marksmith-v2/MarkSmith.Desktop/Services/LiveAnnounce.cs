@@ -26,6 +26,8 @@ public static class LiveAnnounce
     /// <summary>
     /// Announces <paramref name="source"/>'s text whenever it changes. <paramref name="announcer"/>
     /// is the element screen readers know (a button wrapping the text); it defaults to the text.
+    /// Text filled in before the view has loaded (bindings, a dialog's first layout) is not a
+    /// change the user made, so it isn't read out: opening Settings used to queue a string of them.
     /// </summary>
     public static void Track(TextBlock source, UIElement? announcer = null)
     {
@@ -33,10 +35,28 @@ public static class LiveAnnounce
         AutomationProperties.SetLiveSetting(target, AutomationLiveSetting.Polite);
         source.RegisterPropertyChangedCallback(TextBlock.TextProperty, (s, _) =>
         {
+            if (!source.IsLoaded) return;
             if (s is TextBlock { Text: { Length: > 0 } text } && !string.IsNullOrWhiteSpace(text))
                 Schedule(target);
         });
     }
+
+    /// <summary>
+    /// <see cref="Raise"/> for a message that may be set again unchanged (a status re-rendered on
+    /// every state change): announces only when <paramref name="message"/> differs from the last
+    /// one announced on <paramref name="element"/>.
+    /// </summary>
+    public static void RaiseIfChanged(UIElement element, string? message)
+    {
+        if (string.IsNullOrWhiteSpace(message)) { LastSaid.Remove(element); return; }
+        if (LastSaid.TryGetValue(element, out var last) && last.Text == message) return;
+        LastSaid.AddOrUpdate(element, new Said(message));
+        Raise(element);
+    }
+
+    private sealed record Said(string Text);
+
+    private static readonly ConditionalWeakTable<UIElement, Said> LastSaid = new();
 
     private static void Schedule(UIElement target)
     {

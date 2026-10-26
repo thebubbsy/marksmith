@@ -86,11 +86,24 @@ public static class FocusRescue
         /// <summary>The button held focus when it was parked.</summary>
         public bool HadFocus => Spot is not null;
 
+        /// <summary>
+        /// Focus is still on the parking spot (or was lost): the user hasn't moved on, so the work
+        /// finishing may place it. False when the button never had focus.
+        /// </summary>
+        public bool Waiting
+        {
+            get
+            {
+                if (Button is null || Spot is null || Button.XamlRoot is null) return false;
+                var focused = FocusManager.GetFocusedElement(Button.XamlRoot);
+                return ReferenceEquals(focused, Spot) || FocusWasLost(Button);
+            }
+        }
+
         public void Return()
         {
-            if (Button is null || Spot is null || Button.XamlRoot is null || !IsAvailable(Button)) return;
-            var focused = FocusManager.GetFocusedElement(Button.XamlRoot);
-            if (ReferenceEquals(focused, Spot) || FocusWasLost(Button)) Button.Focus(How);
+            if (Button is null || !IsAvailable(Button)) return;
+            if (Waiting) Button.Focus(How);
         }
     }
 

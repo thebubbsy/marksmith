@@ -35,6 +35,7 @@ namespace MarkSmith.Controls
             {
                 Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(control, "Extension tip: Install the MarkSmith Connector browser extension to send AI replies straight here.");
                 Microsoft.UI.Xaml.Automation.AutomationProperties.SetLiveSetting(control, Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Polite);
+                LiveAnnounce.Raise(control);
             }
         }
 

@@ -344,7 +344,8 @@ public sealed partial class ExtensionSetupView : UserControl
         StatusText.Text = message;
         AutomationProperties.SetName(StatusText, message);
         AutomationProperties.SetLiveSetting(StatusText, AutomationLiveSetting.Polite);
-        LiveAnnounce.Raise(StatusText);
+        // "Waiting for the extension…" then "Connected": polled, so only a new answer is read out.
+        LiveAnnounce.RaiseIfChanged(StatusText, message);
         AutomationProperties.SetName(StatusCard, $"Extension status: {message}");
         if (phase != Phase.ApiOff && TurnOnButton.FocusState != FocusState.Unfocused)
         {

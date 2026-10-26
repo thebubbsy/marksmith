@@ -36,13 +36,13 @@ public class Run280LiveStatusAndPluralsTests
     [InlineData(Settings, "LiveAnnounce.Raise(LicenseStatusBar)")]
     [InlineData(Settings, "LiveAnnounce.Raise(CloudRescanStatusText)")]
     [InlineData(Settings, "LiveAnnounce.Raise(UpdateStatusBar)")]
-    [InlineData(Settings, "LiveAnnounce.Raise(GoogleStatusBar)")]
-    [InlineData(Settings, "LiveAnnounce.Raise(PluginWarningsBar)")]
+    [InlineData(Settings, "LiveAnnounce.RaiseIfChanged(GoogleStatusBar, vm.GoogleAuthStatus)")]
+    [InlineData(Settings, "LiveAnnounce.RaiseIfChanged(PluginWarningsBar, PluginWarningsBar.Message)")]
     [InlineData(SuiteHub, "LiveAnnounce.Raise(Notification)")]
     [InlineData(History, "LiveAnnounce.Raise(NoticeBar)")]
     [InlineData(OcrOverlay, "Services.LiveAnnounce.Track(StageStatusText)")]
     [InlineData(ExtensionSetup, "LiveAnnounce.Track(StatusText)")]
-    [InlineData(ExtensionSetup, "LiveAnnounce.Raise(StatusText)")]
+    [InlineData(ExtensionSetup, "LiveAnnounce.RaiseIfChanged(StatusText, message)")]
     public void StatusLinesAndInfoBars_AreAnnounced(string file, string expectedCall)
     {
         var content = Read(file);
@@ -52,36 +52,35 @@ public class Run280LiveStatusAndPluralsTests
     // ---- Deactivate License Focus Retention ----
 
     [Fact]
-    public void DeactivateLicense_OnlyRefocusesIfButtonHeldFocus()
+    public void DeactivateLicense_OnlyRefocusesIfButtonWaiting()
     {
         var src = Read(Settings);
         Assert.Contains("var parked = FocusRescue.Park(DeactivateButton, BuyButton, StartTrialButton);", src);
-        Assert.Contains("if (parked.HadFocus)", src);
+        Assert.Contains("if (parked.Waiting)", src);
         Assert.Contains("KeyBox.Focus(parked.How);", src);
-        Assert.Contains("DeactivateButton.Focus(parked.How);", src);
+        Assert.Contains("parked.Return();", src);
     }
 
     // ---- History Word Delta Grammar ----
 
     [Theory]
-    [InlineData(1, 0, "word")]
-    [InlineData(0, 1, "word")]
-    [InlineData(1, 1, "words")]
-    [InlineData(0, 0, "words")]
-    [InlineData(3, 0, "words")]
-    [InlineData(0, 5, "words")]
-    public void WordDelta_Grammar_IsSingularAtOneTotalWord(int added, int removed, string expectedNoun)
+    [InlineData(1, 0, "+1 word / -0 words")]
+    [InlineData(0, 1, "+0 words / -1 word")]
+    [InlineData(1, 1, "+1 word / -1 word")]
+    [InlineData(0, 0, "+0 words / -0 words")]
+    [InlineData(3, 0, "+3 words / -0 words")]
+    [InlineData(0, 5, "+0 words / -5 words")]
+    public void WordDelta_Grammar_FormatsEachSideRight(int added, int removed, string expected)
     {
-        var total = Math.Abs(added) + Math.Abs(removed);
-        var actualNoun = CountText.Noun(total, "word");
-        Assert.Equal(expectedNoun, actualNoun);
+        var delta = CountText.Delta(added, removed, "word");
+        Assert.Equal(expected, delta);
     }
 
     [Fact]
-    public void HistoryWindow_UsesCountTextNoun_ForWordDelta()
+    public void HistoryWindow_UsesCountTextDelta_ForWordDelta()
     {
         var src = Read(History);
-        Assert.Contains("CountText.Noun(Math.Abs(addedWords) + Math.Abs(removedWords), \"word\")", src);
-        Assert.Contains("CountText.Noun(Math.Abs(_lastAddedWords) + Math.Abs(_lastRemovedWords), \"word\")", src);
+        Assert.Contains("CountText.Delta(addedWords, removedWords, \"word\")", src);
+        Assert.Contains("CountText.Delta(_lastAddedWords, _lastRemovedWords, \"word\")", src);
     }
 }
