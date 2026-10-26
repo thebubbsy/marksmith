@@ -20897,3 +20897,7 @@ as the real gain.
 
 **Total user-visible improvements: 7** (3 arrow-navigated segment groups, 1 nudge guard, 2 OCR count wording /
 grouping, 1 pair of misleading live regions removed).
+
+**Release (same run):** tagged **v3.95.0** on `ec05eed` (this run's work). Release workflow run 40395095197
+succeeded; user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.95.0). `MarksmithBaseVersion` is now 3.96.0.
