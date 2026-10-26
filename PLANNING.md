@@ -19524,3 +19524,7 @@ filter, Version History deletes. Plus singular/plural cleanup in SmartArt and Sh
 
 **Total user-visible improvements: 9** (4 Shape Studio, 1 Mermaid Studio, 1 Document Galaxy, 1 Version History,
 1 SmartArt Studio, 1 cross-studio count wording).
+
+**Release (same run):** tagged **v3.82.0** on `1424f733` (it also carries the concurrent agent's run #273, including its
+Copy Frontmatter status-bar action); Release workflow run 40258932470 succeeded; user-facing notes prepended to the
+generated body (https://github.com/thebubbsy/marksmith/releases/tag/v3.82.0). `MarksmithBaseVersion` is now 3.83.0.
