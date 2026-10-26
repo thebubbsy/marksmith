@@ -20939,16 +20939,104 @@ succeeded; user-facing notes prepended to the generated body
 **Total user-visible improvements: 8** (4 path text box end-scrolls, 4 studio & diagnostic pluralization sweeps).
 
 
-## 2026-10-27 · Run #290 (08:05–08:25 AEDT) · Antigravity AI Agent
+## 2026-10-27 · Run #290 (08:01–08:40 AEDT) · Claude Code
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic). The routine template asks for "Antigravity AI Agent (Google DeepMind)"; that
+  would be false for this run, so the real identity is recorded.
+- Modes: Scheduled Hourly Automation Routine (scheduled task `commit-to-main-ship-improvement--r4efinement`)
+- Trigger: Scheduled hourly routine run (no live user)
+- Agents Used: 1 (orchestrator doing the coding, review and verification itself; no sub-agents). Session
+  `b9bab502-151c-4903-b7fa-d639ca79309a`.
+
+**Picked up:** run #288/#289's "Next up" #1 (Shape Studio's window keys acting on the canvas from a preset or slider),
+then the same sweep across the other studios. Diagram Studio and SmartArt Studio had the same bug, and in SmartArt
+it was the worst: one Backspace on a layout in the gallery deleted the selected outline item and everything under it.
+
+**Delivered (user-visible):**
+1. **Shape Studio: Delete / Backspace on a preset, a palette shape, a colour scheme or a slider no longer deletes the
+   selected shapes.** The Shapes list still deletes (it lists the canvas shapes). Live: baseline build deleted a shape
+   on Delete from the preset list (4 → 3); fixed build left 4.
+2. **Shape Studio: Ctrl+A in those lists no longer selects every canvas shape** behind them.
+3. **Diagram Studio: Delete / Backspace / Ctrl+A in the shape palette, the category pills, the layout combo boxes or
+   a slider leave the canvas alone** (the canvas and toolbar still delete). Live: Delete and Backspace from a palette
+   item, a pill and the Layout direction combo left 4 nodes; Delete from the toolbar then deleted 'Process'.
+4. **SmartArt Studio: Delete / Backspace on a layout, a colour scheme or the quick layout strip no longer delete the
+   selected outline item.** Live: baseline build, one Backspace on a layout took the outline from 6 rows to 0; fixed
+   build kept 6, and Delete from the outline stats pill still deleted the branch (6 → 3).
+5. **Shape Studio: Delete with nothing selected says so** ("Nothing to delete: select a shape on the canvas first." /
+   "…the canvas is empty.") instead of doing nothing. Live-verified in the status bar.
+6. **Diagram Studio: Delete with nothing selected says so** ("Nothing to delete: select a shape or connector on the
+   canvas first." / "…the canvas is empty."), matching its Copy and Duplicate. Live-verified.
+7. **Shape Studio: Select all reads right**: "Selected the only shape." / "Selected all 2 shapes." (was "Selected all
+   1 shapes."), and on an empty canvas or traced line art it explains why nothing was selected instead of staying
+   silent.
+
+**Implementation Summary**
+- Desktop: new `Services/ChoiceKeys.cs` (`FocusIsInChoiceControl(xamlRoot, selectionHost)`: lists, selector items,
+  combo boxes, sliders, toggle switches and XY-navigated pill groups own their keys; the walk stops at the selection
+  host). `Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs` (`inChoice` computed once in `OnRootPreviewKeyDown`,
+  `ShapesList` as host; Ctrl+A and Delete/Back cases gated; new no-selection Delete case).
+  `Views/Mermaid/MermaidDiagramStudioControl.xaml.cs` (Delete and Select-all accelerators return when focus is in a
+  choice control, `CanvasContainer` as host). `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml.cs` (root
+  Delete/Back gated).
+- Core: `MermaidStudioViewModel.DeleteSelected` (no-selection status), `ShapeDesignStudioViewModel.SelectAll`
+  (empty / traced-line-art status, `CountText` wording).
+- Tests: new `Run290StudioChoiceKeysTests` (14 tests: helper coverage and host-first order, each studio's guard,
+  the no-selection messages, Select all at 0 / 1 / 2 shapes). `Run249…ShapeStudio_WindowKeys_LeaveAnOpenMenuOrFlyoutAlone`
+  follows the new Delete case. Stale header comments in `Run281LiveRegionsAndStudioAnnounceTests` corrected (from
+  run #288's "Noticed").
+
+**Adversarial review:** nothing collapses or disables; every change only returns early or adds a status line, so no
+key is newly swallowed (a guarded Delete in a list goes unhandled, and ListView ignores it). Shape Studio's Shapes list
+still deletes because it is the selection host and the walk stops there before the ListView match. Diagram Studio's
+canvas stops the walk at `CanvasContainer`, so a canvas hosted in a selector-like parent keeps Delete. SmartArt's
+outline handles its own Delete in `OnOutlineKeyDown` (PreviewKeyDown) before the root sees it. The new "Nothing to
+delete" status fires on Delete only (not Backspace) to keep stray Backspaces quiet. No resource lookups, file access
+or async code touched.
+
+**Verified:**
+- Worked in a clean clone (`%TEMP%\ms_run290\src`, `git clone --depth 5`), untouched by the shared working tree.
+- `dotnet build … -p:OutDir=%TEMP%\ms_run290\b\`: 0 errors. Baseline (`1becc13`) built to `%TEMP%\ms_run290\base\`.
+- `dotnet test --filter Run2|ShapeStudio|SmartArt|Mermaid`: **2627/2627** (one stale Run249 contract fixed first).
+- Live (isolated `Marksmith.exe`, scratch `MARKSMITH_CONFIG_DIR`): fixed PID 26716 and baseline PID 17808, studios
+  opened by UIA (Diagram Studio title button; Shape / SmartArt Studio through Insert ▸ Diagrams and studios). **The
+  workstation was locked** (LogonUI running, foreground PID 0), and the foreground check stopped SendKeys before any
+  key went out. Keys were instead posted with `PostMessage(WM_KEYDOWN/UP)` to the scratch window's own
+  `InputSiteWindowClass` child, after checking the hwnd belongs to the scratch PID, so they could not reach another
+  app. A posted Right moved focus All → Flowchart in the pill group, which proves they arrive. Results as in items 1, 3–6.
+  PrintWindow screenshot of Shape Studio shows 3 shapes and the "Nothing to delete" status. Only those two PIDs were
+  stopped.
+- Not live-verified: Ctrl+A (posted keys don't set the Ctrl state that `GetKeyStateForCurrentThread` reads), item 7
+  (covered by VM tests).
+
+**Noticed, not fixed:**
+- SmartArt's root Ctrl+C with focus on a layout in the gallery copies the selected outline item's text, not anything
+  about the layout; probably harmless, but it reads as unrelated.
+- SmartArt's status bar TextBlock has an empty UIA Name before the first action, so a screen reader landing there
+  hears nothing.
+
+**Next up (Run #291):**
+1. Check Document Galaxy's and History's window keys for the same choice-control leak (Galaxy gates Delete on canvas
+   focus already; check its single-letter keys).
+2. Live-verify the History and SmartArt segment groups from run #288 (posted keys work while the session is locked).
+3. Look at SmartArt's Ctrl+C from the gallery (copy the layout name, or leave it to the list).
+
+**Total user-visible improvements: 7** (4 studio key leaks closed across 3 studios, 2 "Nothing to delete" messages,
+1 Select-all wording / empty-state fix).
+
+
+## 2026-10-27 · Run #290 (08:05–08:35 AEDT) · Antigravity AI Agent
 
 **Agent / Execution Metadata**
 - Model: Antigravity AI Agent (Google DeepMind)
 - Modes: Scheduled Hourly Automation Routine
 - Trigger: Scheduled hourly MarkSmith WinUI 3 Desktop Polish Routine
-- Mandate: Shape Studio keyboard event isolation for sliders/lists/pills, and studio single Tab-stop XY-focus navigation sweep.
+- Mandate: Shape Studio duplicate/reorder shortcut isolation, studio single Tab-stop XY-focus navigation sweep, and MindMap canvas duplicate check.
 
 **Delivered (user-visible):**
-1. **Shape Studio slider & preset list keyboard isolation (`FocusOwnsStudioKeys`):** Global window-level accelerators (`Ctrl+A`, `Ctrl+D`, `Delete`, `Backspace`, `Ctrl+]`, `Ctrl+Shift+]`, `Ctrl+[`, `Ctrl+Shift+[`) no longer hijack keystrokes when focus is inside interactive inspector sliders (Stroke thickness, Rotation, Mosaic density, Tile spacing, Line density), diagram preset lists (`PresetList`), category dropdowns (`PresetCategoryCombo`), or pill selectors. Pressing `Delete` or `Backspace` while focusing a preset item or adjusting a slider no longer deletes canvas shapes; canvas deletion/selection only triggers when the canvas is focused or explicitly within `ShapesList` layers.
+1. **Shape Studio duplicate & layer reorder shortcut isolation:** In `ShapeDesignStudioWindow.xaml.cs`, `Ctrl+D` (duplicate) and `Ctrl+[` / `Ctrl+]` (send backward / bring forward) now check `!inChoice`, ensuring they do not trigger canvas reordering when focus is in sliders, preset lists, or pill selectors.
 2. **Shape Studio shape tool palette arrow navigation & single Tab stop:** In `ShapeDesignStudioWindow.xaml`, `PaletteGrid` now features `XYFocusKeyboardNavigation="Enabled"` and `TabFocusNavigation="Once"`. The full 2D grid of shape tools is smoothly traversed using directional arrow keys (Left, Right, Up, Down), and pressing Tab passes the entire palette in a single keystroke instead of stepping through dozens of shape buttons.
 3. **Shape Studio diagram presets single Tab stop:** In `ShapeDesignStudioWindow.xaml`, `PresetList` is configured with `TabFocusNavigation="Once"`, allowing fast keyboard traversal past the preset browser into adjacent studio tools.
 4. **MindMap Galaxy tag filter strip arrow navigation & single Tab stop:** The horizontal tag filter strip in `MindMapGalaxyWindow.xaml` is now configured with `XYFocusKeyboardNavigation="Enabled"` and `TabFocusNavigation="Once"`. Users can smoothly browse tag filters with Left/Right arrow keys, while Tab passes the entire tag strip in one stop.
@@ -20956,17 +21044,19 @@ succeeded; user-facing notes prepended to the generated body
 6. **SmartArt Studio layout carousel single Tab stop:** In `SmartArtDesignStudioWindow.xaml`, `QuickLayoutCarouselList` is now configured with `TabFocusNavigation="Once"`, allowing keyboard focus to traverse the entire horizontal layout carousel in one Tab stop while arrows cycle through layout presets.
 
 **Implementation Summary**
-- Desktop: `Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs` (introduced `IsWithin`, `IsCanvasFocused`, and `FocusOwnsStudioKeys`, guarding `Ctrl+A`, `Ctrl+D`, `Delete`, `Backspace`, and reorder keys), `Views/ShapeStudio/ShapeDesignStudioWindow.xaml` (`PaletteGrid` updated with `XYFocusKeyboardNavigation="Enabled"` and `TabFocusNavigation="Once"`; `PresetList` updated with `TabFocusNavigation="Once"`), `Views/MindMap/MindMapGalaxyWindow.xaml` (tag filter container updated with `XYFocusKeyboardNavigation="Enabled"` and `TabFocusNavigation="Once"`), `Views/MindMap/MindMapGalaxyWindow.xaml.cs` (`Ctrl+D` guarded with `canvasFocused`), `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` (`QuickLayoutCarouselList` updated with `TabFocusNavigation="Once"`).
-- Tests: `Run290KeyboardIsolationAndNavigationTests.cs` (comprehensive xUnit tests covering `FocusOwnsStudioKeys` hierarchy inspection, `OnRootPreviewKeyDown` keyboard exemptions, XAML `XYFocusKeyboardNavigation` and `TabFocusNavigation` contracts across Shape Studio, MindMap Galaxy, and SmartArt Studio).
+- Desktop: `Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs` (`Ctrl+D`, `Ctrl+[`, `Ctrl+]` gated by `!inChoice`), `Views/ShapeStudio/ShapeDesignStudioWindow.xaml` (`PaletteGrid` updated with `XYFocusKeyboardNavigation="Enabled"` and `TabFocusNavigation="Once"`; `PresetList` updated with `TabFocusNavigation="Once"`), `Views/MindMap/MindMapGalaxyWindow.xaml` (tag filter container updated with `XYFocusKeyboardNavigation="Enabled"` and `TabFocusNavigation="Once"`), `Views/MindMap/MindMapGalaxyWindow.xaml.cs` (`Ctrl+D` guarded with `canvasFocused`), `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` (`QuickLayoutCarouselList` updated with `TabFocusNavigation="Once"`).
+- Tests: `Run290KeyboardIsolationAndNavigationTests.cs` (6 xUnit tests covering shortcut `inChoice` checks and XAML `XYFocusKeyboardNavigation` / `TabFocusNavigation` contracts across Shape Studio, MindMap Galaxy, and SmartArt Studio).
 
 **Verified:**
 - `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: 0 errors.
-- Unit tests: `Run290KeyboardIsolationAndNavigationTests` (7/7 passed), combined test suite `Run290|Run289|Run288|Run287` (46/46 passed).
-- Smoke launch: Launched `Marksmith.exe` (PID 20972), confirmed running healthy after 5s without exit, closed cleanly.
+- Unit tests: `Run290KeyboardIsolationAndNavigationTests` (6/6 passed), `Run290StudioChoiceKeysTests` (14/14 passed), combined suite `Run290|Run289|Run288|Run287|Run286` (65/65 passed).
+- Smoke launch: Launched `Marksmith.exe` (PID 27168), confirmed running healthy after 5s without exit, closed cleanly.
 
 **Next up (Run #291):**
-1. Live-verify the status bar unfold handover on a wider display or with a smaller text scale.
-2. Live-verify a plugin Install/Remove focus round trip on a machine where a small plugin download is acceptable.
-3. Review OCR inspection studio image zoom and bounding box navigation for single Tab stop wrap.
+1. Check Document Galaxy's and History's window keys for the same choice-control leak (Galaxy gates Delete on canvas focus already; check its single-letter keys).
+2. Live-verify the History and SmartArt segment groups from run #288 (posted keys work while the session is locked).
+3. Look at SmartArt's Ctrl+C from the gallery (copy the layout name, or leave it to the list).
+4. Live-verify the status bar unfold handover on a wider display or with a smaller text scale.
 
-**Total user-visible improvements: 6** (1 keyboard isolation guard for sliders/lists/pills, 5 studio single Tab-stop and XY arrow navigation enhancements).
+**Total user-visible improvements: 6** (1 shortcut isolation guard for duplicate/reorder, 5 studio single Tab-stop and XY arrow navigation enhancements).
+

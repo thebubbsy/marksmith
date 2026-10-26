@@ -864,7 +864,9 @@ namespace MarkSmith.Views.ShapeStudio
                     e.Handled = true;
                     return;
                 case VirtualKey.Delete when !inChoice && !ViewModel.HasSelection:
-                    ViewModel.StatusMessage = "Nothing to delete: select a shape on the canvas first.";
+                    ViewModel.StatusMessage = ViewModel.IsEmpty
+                        ? "Nothing to delete: the canvas is empty."
+                        : "Nothing to delete: select a shape on the canvas first.";
                     e.Handled = true;
                     return;
                 case VirtualKey.Escape when ViewModel.IsPlacing:
