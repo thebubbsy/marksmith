@@ -12,8 +12,8 @@ namespace MarkSmith.Tests;
 // 2. History Window: DiffChangeStepperControls has XYFocusKeyboardNavigation="Enabled" and TabFocusNavigation="Once",
 //    allowing arrow traversal across hunk stepping controls in a single Tab stop.
 // 3. SmartArt Studio: Ctrl+C in LayoutList or QuickLayoutCarouselList copies the selected/focused layout's name
-//    (and reports "Copied layout \"...\" to clipboard.") instead of copying outline markdown.
-// 4. SmartArt Studio: Ctrl+D (duplicate node) and F2 (rename node) check !ChoiceKeys.FocusIsInChoiceControl(RootGrid.XamlRoot),
+//    (and reports "Copied layout name \"...\" to clipboard.") instead of copying outline markdown.
+// 4. SmartArt Studio: Ctrl+D (duplicate node) and F2 (rename node) check !inChoice (ChoiceKeys.FocusIsInChoiceControl(RootGrid.XamlRoot)),
 //    protecting outline items from mutating while browsing layouts or color schemes.
 // 5. MindMap Galaxy: canvasFocused incorporates !inChoice (ChoiceKeys.FocusIsInChoiceControl), ensuring single-letter
 //    commands (N, F, Space, Enter) and canvas keys never trigger when focus is in choice controls.
@@ -81,11 +81,9 @@ public class Run291HistorySmartArtAndGalaxyPolishTests
         var rootKeyDown = Between(cs, "private void OnRootGridKeyDown(object sender, KeyRoutedEventArgs e)", "private void OnMarkdownTextBoxDoubleTapped");
         var listKeyDown = Between(cs, "private void OnLayoutListKeyDown(object sender, KeyRoutedEventArgs e)", "private void OnLayoutTilePointerEntered");
 
-        Assert.Contains("IsDescendantOf(focused, LayoutList) || IsDescendantOf(focused, QuickLayoutCarouselList)", rootKeyDown);
-        Assert.Contains("Copied layout \\\"{layoutName}\\\" to clipboard.", rootKeyDown);
-
+        Assert.Contains("Copied layout name \\\"{layout.DisplayName}\\\" to clipboard.", rootKeyDown);
         Assert.Contains("if (ctrlDown && !shiftDown && e.Key == VirtualKey.C)", listKeyDown);
-        Assert.Contains("Copied layout \\\"{layoutName}\\\" to clipboard.", listKeyDown);
+        Assert.Contains("Copied layout name \\\"{layoutName}\\\" to clipboard.", listKeyDown);
     }
 
     [Fact]
@@ -94,8 +92,8 @@ public class Run291HistorySmartArtAndGalaxyPolishTests
         var cs = Read(SmartArtCs);
         var body = Between(cs, "private void OnRootGridKeyDown(object sender, KeyRoutedEventArgs e)", "private void OnMarkdownTextBoxDoubleTapped");
 
-        Assert.Contains("else if (ctrl && e.Key == VirtualKey.D && !ChoiceKeys.FocusIsInChoiceControl(RootGrid.XamlRoot))", body);
-        Assert.Contains("else if (e.Key == VirtualKey.F2 && !ChoiceKeys.FocusIsInChoiceControl(RootGrid.XamlRoot))", body);
+        Assert.Contains("else if (ctrl && e.Key == VirtualKey.D && !inChoice)", body);
+        Assert.Contains("else if (e.Key == VirtualKey.F2 && !inChoice)", body);
     }
 
     [Fact]

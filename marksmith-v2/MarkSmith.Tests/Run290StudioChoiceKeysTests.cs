@@ -176,7 +176,9 @@ public class Run290StudioChoiceKeysTests
     {
         var src = Read(SmartArt);
         var root = Between(src, "private void OnRootGridKeyDown", "private void OnMarkdownTextBoxDoubleTapped");
-        Assert.Contains("else if ((e.Key is VirtualKey.Delete or VirtualKey.Back) && !ChoiceKeys.FocusIsInChoiceControl(RootGrid.XamlRoot))", root);
+        // Run #291 computes the check once as inChoice (Ctrl+C / Ctrl+D use it too).
+        Assert.Contains("bool inChoice = ChoiceKeys.FocusIsInChoiceControl(RootGrid.XamlRoot);", root);
+        Assert.Contains("else if ((e.Key is VirtualKey.Delete or VirtualKey.Back) && !inChoice)", root);
         Assert.DoesNotContain("else if (e.Key is VirtualKey.Delete or VirtualKey.Back) { ViewModel.DeleteSelectedCommand", root);
     }
 }

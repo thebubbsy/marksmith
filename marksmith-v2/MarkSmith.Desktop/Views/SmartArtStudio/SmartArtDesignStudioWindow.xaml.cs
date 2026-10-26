@@ -637,7 +637,7 @@ namespace MarkSmith.Views.SmartArtStudio
                 if (ViewModel.SelectedLayout is { } item)
                 {
                     string layoutName = item.DisplayName ?? item.Name;
-                    CopyAndReport(layoutName, $"Copied layout \"{layoutName}\" to clipboard.");
+                    CopyAndReport(layoutName, $"Copied layout name \"{layoutName}\" to clipboard.");
                     e.Handled = true;
                     return;
                 }
@@ -659,9 +659,14 @@ namespace MarkSmith.Views.SmartArtStudio
             }
             else if (e.Key == VirtualKey.Application || (e.Key == VirtualKey.F10 && shiftDown))
             {
-                if (ViewModel.SelectedLayout is { } item)
+                // The menu opened at the top of the list whatever row had focus (and, after the list
+                // scrolled, away from it): it opens on the focused layout's row now.
+                if ((FocusedLayoutItem() ?? ViewModel.SelectedLayout) is { } item)
                 {
-                    ShowLayoutContextMenu(item, LayoutList, new Windows.Foundation.Point(48, 36));
+                    if (LayoutList.ContainerFromItem(item) is ListViewItem row && row.ActualHeight > 0)
+                        ShowLayoutContextMenu(item, row, new Windows.Foundation.Point(48, row.ActualHeight / 2));
+                    else
+                        ShowLayoutContextMenu(item, LayoutList, new Windows.Foundation.Point(48, 36));
                     e.Handled = true;
                 }
             }
@@ -2760,7 +2765,9 @@ namespace MarkSmith.Views.SmartArtStudio
             var useItem = new MenuFlyoutItem
             {
                 Text = $"Use \"{item.DisplayName}\"",
-                Icon = new FontIcon { Glyph = "\uE73E" }
+                Icon = new FontIcon { Glyph = "\uE73E" },
+                // Enter in the gallery does the same (OnLayoutListKeyDown).
+                KeyboardAcceleratorTextOverride = "Enter"
             };
             useItem.Click += (_, _) =>
             {
@@ -2792,10 +2799,22 @@ namespace MarkSmith.Views.SmartArtStudio
 
             menu.Items.Add(new MenuFlyoutSeparator());
 
+            // The gallery's Ctrl+C copies the focused layout's name; the menu offers the same.
+            var copyNameItem = new MenuFlyoutItem
+            {
+                Text = "Copy layout name",
+                Icon = new FontIcon { Glyph = "\uE8C8" },
+                KeyboardAcceleratorTextOverride = "Ctrl+C"
+            };
+            copyNameItem.Click += (_, _) => CopyAndReport(item.DisplayName, $"Copied layout name \"{item.DisplayName}\" to clipboard.");
+            menu.Items.Add(copyNameItem);
+
+            // Ctrl+Shift+C copies the block from anywhere in the studio; the menu didn't say so.
             var copyBlockItem = new MenuFlyoutItem
             {
                 Text = "Copy SmartArt Markdown block",
                 Icon = new FontIcon { Glyph = "\uE8C8" },
+                KeyboardAcceleratorTextOverride = "Ctrl+Shift+C",
                 IsEnabled = !ViewModel.IsOutlineEmpty
             };
             copyBlockItem.Click += (_, _) => CopySmartArtBlock();
@@ -3134,17 +3153,7 @@ namespace MarkSmith.Views.SmartArtStudio
         // Ctrl+Z/Y = undo/redo, Ctrl+F = focus layout search, Ctrl+Enter = insert into document,
         // Ctrl+Shift+C = copy SmartArt block, Ctrl+C = copy outline bullets, Ctrl+1/2 = switch tabs.
         // TextBoxes (rename box, Markdown Data) keep their native keys — focus guard.
-                private static bool IsDescendantOf(DependencyObject? element, DependencyObject? ancestor)
-        {
-            if (element is null || ancestor is null) return false;
-            for (var cur = element; cur is not null; cur = cur is UIElement ? VisualTreeHelper.GetParent(cur) : null)
-            {
-                if (ReferenceEquals(cur, ancestor)) return true;
-            }
-            return false;
-        }
-
-private void OnRootGridKeyDown(object sender, KeyRoutedEventArgs e)
+        private void OnRootGridKeyDown(object sender, KeyRoutedEventArgs e)
         {
             // Keys pressed inside an open menu bubble here too. Delete / Backspace in a node's menu deleted
             // the selected node behind it, and F2 / Ctrl+Z / Ctrl+D acted behind it as well.
@@ -3216,24 +3225,22 @@ private void OnRootGridKeyDown(object sender, KeyRoutedEventArgs e)
             }
 
             if ((sender as UIElement)?.XamlRoot is { } root && FocusManager.GetFocusedElement(root) is TextBox) return;
+            bool inChoice = ChoiceKeys.FocusIsInChoiceControl(RootGrid.XamlRoot);
 
+            // Ctrl+C on a layout in the gallery or the quick layout strip copied the selected outline
+            // item's text, which had nothing to do with the layout under focus: it copies the layout's
+            // name now. The other choice lists (colour schemes, category combo) keep the key.
+            if (ctrl && e.Key == VirtualKey.C && inChoice)
+            {
+                if (FocusedLayoutItem() is { } layout)
+                {
+                    CopyAndReport(layout.DisplayName, $"Copied layout name \"{layout.DisplayName}\" to clipboard.");
+                    e.Handled = true;
+                }
+                return;
+            }
             if (ctrl && e.Key == VirtualKey.C)
             {
-                if ((sender as UIElement)?.XamlRoot is { } xr && FocusManager.GetFocusedElement(xr) is DependencyObject focused)
-                {
-                    if (IsDescendantOf(focused, LayoutList) || IsDescendantOf(focused, QuickLayoutCarouselList))
-                    {
-                        var targetLayout = (focused as FrameworkElement)?.DataContext as StudioLayoutItem ?? ViewModel.SelectedLayout;
-                        if (targetLayout is not null)
-                        {
-                            string layoutName = targetLayout.DisplayName ?? targetLayout.Name;
-                            CopyAndReport(layoutName, $"Copied layout \"{layoutName}\" to clipboard.");
-                            e.Handled = true;
-                            return;
-                        }
-                    }
-                }
-
                 if (ViewModel.SelectedNode is { } selected && !string.IsNullOrWhiteSpace(selected.Text))
                 {
                     CopyAndReport(selected.Text, $"Copied \"{selected.Text}\" to clipboard.");
@@ -3245,12 +3252,28 @@ private void OnRootGridKeyDown(object sender, KeyRoutedEventArgs e)
             }
             else if (ctrl && e.Key == VirtualKey.Z) { ViewModel.UndoCommand.Execute(null); e.Handled = true; }
             else if (ctrl && e.Key == VirtualKey.Y) { ViewModel.RedoCommand.Execute(null); e.Handled = true; }
-            else if (ctrl && e.Key == VirtualKey.D && !ChoiceKeys.FocusIsInChoiceControl(RootGrid.XamlRoot)) { ViewModel.DuplicateSelectedCommand.Execute(null); e.Handled = true; }
+            // Ctrl+D on a layout or a colour scheme duplicated the selected outline item behind it.
+            else if (ctrl && e.Key == VirtualKey.D && !inChoice) { ViewModel.DuplicateSelectedCommand.Execute(null); e.Handled = true; }
             // Backspace on a layout in the gallery, a colour scheme or the quick layout strip deleted the
             // selected outline item; those lists leave it alone now (the outline handles its own keys).
-            else if ((e.Key is VirtualKey.Delete or VirtualKey.Back) && !ChoiceKeys.FocusIsInChoiceControl(RootGrid.XamlRoot))
+            else if ((e.Key is VirtualKey.Delete or VirtualKey.Back) && !inChoice)
             { ViewModel.DeleteSelectedCommand.Execute(null); e.Handled = true; }
-            else if (e.Key == VirtualKey.F2 && !ChoiceKeys.FocusIsInChoiceControl(RootGrid.XamlRoot)) { BeginRenameAndFocus(); e.Handled = true; }
+            else if (e.Key == VirtualKey.F2 && !inChoice) { BeginRenameAndFocus(); e.Handled = true; }
+        }
+
+        // The layout under keyboard focus in the gallery or the quick layout strip, if any.
+        private StudioLayoutItem? FocusedLayoutItem()
+        {
+            if (RootGrid.XamlRoot is null) return null;
+            for (var cur = FocusManager.GetFocusedElement(RootGrid.XamlRoot) as DependencyObject;
+                 cur is not null;
+                 cur = cur is UIElement ? VisualTreeHelper.GetParent(cur) : null)
+            {
+                if (cur is ListViewItem { Content: StudioLayoutItem item }) return item;
+                if (cur is FrameworkElement { DataContext: StudioLayoutItem dc }) return dc;
+                if (ReferenceEquals(cur, RootGrid)) break;
+            }
+            return null;
         }
 
         private void OnMarkdownTextBoxDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)

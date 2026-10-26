@@ -1701,6 +1701,9 @@ public sealed partial class HistoryWindow : Window
         bool inFileList = e.OriginalSource is FrameworkElement { DataContext: FileSummaryViewModel };
         bool inChoice = ChoiceKeys.FocusIsInChoiceControl(RootGrid.XamlRoot);
         var focusedVersion = (e.OriginalSource as FrameworkElement)?.DataContext as VersionItemViewModel;
+        // S, F2 and Delete on the Unified / Side by side / Preview switch starred, renamed or deleted the
+        // selected version behind it; that switch is a set of choices, so those keys are its own.
+        bool inChoice = ChoiceKeys.FocusIsInChoiceControl(RootGrid.XamlRoot);
 
         // Ctrl+Shift+F must not match here: this branch used to take it, so the find-in-diff
         // branch below never ran.
