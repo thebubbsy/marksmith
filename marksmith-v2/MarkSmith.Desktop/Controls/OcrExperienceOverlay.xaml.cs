@@ -78,6 +78,7 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
     public OcrExperienceOverlay()
     {
         InitializeComponent();
+        Services.LiveAnnounce.Track(StageStatusText);
         // "Right-click for options" menus: open them from Shift+F10 / the Menu key too.
         MarkSmith.Services.KeyboardContextMenu.BridgeAll(
             (SkipButton, OnSkipButtonRightTapped),

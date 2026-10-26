@@ -20151,3 +20151,29 @@ Document Galaxy, OCR, Suite Hub, Settings and the command palette; 3 busy-button
 - **Natural Pluralization Sweep (`CountText.Of`)**: Converted singular/plural counts at 1 across `MindMapStudioViewModel`, `MindMapNodeViewModel`, `MindMapGalaxyWindow` tag details, `SuiteHubView` template matches, and `ShapeDesignStudioWindow` status actions.
 - **Tests**: Added `Run279SnapRingKeyboardAndCountsTests` (13 cases) and `Run279CopyHtmlPillTests` (2 cases), bringing total Run #279 suite to 48/48 tests passing.
 
+
+### 2026-10-26 (scheduled routine run #280)
+
+Reviewed: the Run #279 entry above and its "Next up (Run #280)" backlog items.
+
+**Shipped** (commit follows this entry):
+1. **Universal InfoBar & Status Line LiveAnnounce Sweep**:
+   - `SettingsView`: Screen readers now immediately hear license activation/deactivation results (`LiveAnnounce.Raise(LicenseStatusBar)`), version detail copies (`LiveAnnounce.Raise(UpdateStatusBar)`), Google Docs connection updates (`LiveAnnounce.Raise(GoogleStatusBar)`), plugin load diagnostics (`LiveAnnounce.Raise(PluginWarningsBar)`), and cloud storage sync rescans (`LiveAnnounce.Raise(CloudRescanStatusText)` + `LiveAnnounce.Track(CloudRescanStatusText)` in constructor).
+   - `SuiteHubView`: Action results ("Cleared recent documents history", "Optimized process memory", "starter document created", etc.) are now announced via `LiveAnnounce.Raise(Notification)` as soon as `Notification.IsOpen = true`.
+   - `HistoryWindow`: Status and conflict notices now announce via `LiveAnnounce.Raise(NoticeBar)`.
+   - `OcrExperienceOverlay`: Dynamic optical character recognition stage progress ("Recognising words on page...", "Assembling Markdown...") is now continuously announced via `Services.LiveAnnounce.Track(StageStatusText)`.
+   - `ExtensionSetupView`: Real-time browser extension connection and diagnostic messages are now announced via `LiveAnnounce.Track(StatusText)` and `LiveAnnounce.Raise(StatusText)`.
+2. **Settings › Remove License Focus Retention**:
+   - `OnDeactivateLicense` now captures `var parked = FocusRescue.Park(DeactivateButton, ...)` and its `finally` block guards focus restoration with `if (parked.HadFocus)`. Mouse clicks no longer hijack keyboard focus onto `KeyBox` or `DeactivateButton` if the user never had keyboard focus on the button.
+3. **History Word Delta Natural Pluralization**:
+   - In `HistoryWindow`, replaced the hardcoded `"words"` suffix with `CountText.Noun(Math.Abs(added) + Math.Abs(removed), "word")` across `UpdateWordDeltaStats`, `OnDiffWordDeltaPillClick`, and `OnDiffWordDeltaPillRightTapped`. A single touched word now cleanly announces as `+1 / -0 word` or `+0 / -1 word` instead of plural.
+
+**Verified:**
+- `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: 0 errors.
+- Tests: Added `Run280LiveStatusAndPluralsTests` (20 test cases); regression suite `Run279|Run280` **68/68 passed**.
+- Smoke-launched `Marksmith.exe`: started cleanly (PID 31692), ran healthy for 6 seconds, exited without crash.
+
+**Next up (Run #281):**
+1. Live-verify the Rescan focus round trip (needs an empty editor so Step 1 shows, and an idle user).
+2. Live-verify an export with an image held open for writing (carried over from #278).
+3. Investigate if any additional tooltip descriptions or keyboard shortcuts can be enriched in HistoryWindow and Mermaid Canvas.

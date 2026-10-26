@@ -1299,6 +1299,8 @@ public sealed partial class SuiteHubView : UserControl
 
         Notification.IsOpen = true;
 
+        LiveAnnounce.Raise(Notification);
+
         // The hub scrolls in a short window; the result must land where it can be read.
 
         Notification.StartBringIntoView(new BringIntoViewOptions { AnimationDesired = HoverPolish.AnimationsEnabled });

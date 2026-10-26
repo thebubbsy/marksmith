@@ -25,6 +25,8 @@ public sealed partial class SettingsView : UserControl
         InitializeComponent();
         // The house-style round trip reports progress here while the user waits.
         LiveAnnounce.Track(HouseStyleStatusText);
+        if (CloudRescanStatusText is not null)
+            LiveAnnounce.Track(CloudRescanStatusText);
         // "Right-click for options" menus: open them from Shift+F10 / the Menu key too.
         KeyboardContextMenu.BridgeAll(
             (RescanCloudButton, OnRescanCloudButtonRightTapped),
@@ -274,6 +276,7 @@ public sealed partial class SettingsView : UserControl
             AutomationProperties.SetName(LicenseStatusBar, message);
             AutomationProperties.SetLiveSetting(LicenseStatusBar, AutomationLiveSetting.Polite);
             LicenseStatusBar.IsOpen = true;
+            LiveAnnounce.Raise(LicenseStatusBar);
         }
         else
         {
@@ -393,7 +396,7 @@ public sealed partial class SettingsView : UserControl
         // DeactivateAsync (not Deactivate) so the Lemon Squeezy activation seat is handed back.
         // Forgetting the key locally while the seat stays claimed is how a customer with a
         // 3-machine key runs out of machines they never used.
-        FocusRescue.Park(DeactivateButton, BuyButton, StartTrialButton);
+        var parked = FocusRescue.Park(DeactivateButton, BuyButton, StartTrialButton);
         DeactivateButton.IsEnabled = false;
         DeactivateRing.Visibility = Visibility.Visible;
         DeactivateRing.IsActive = true;
@@ -408,10 +411,13 @@ public sealed partial class SettingsView : UserControl
             DeactivateRing.IsActive = false;
             DeactivateRing.Visibility = Visibility.Collapsed;
             DeactivateButton.IsEnabled = true;
-            if (KeyEntryRow.Visibility == Visibility.Visible)
-                KeyBox.Focus(FocusState.Programmatic);
-            else if (DeactivateButton.Visibility == Visibility.Visible)
-                DeactivateButton.Focus(FocusState.Programmatic);
+            if (parked.HadFocus)
+            {
+                if (KeyEntryRow.Visibility == Visibility.Visible)
+                    KeyBox.Focus(parked.How);
+                else if (DeactivateButton.Visibility == Visibility.Visible)
+                    DeactivateButton.Focus(parked.How);
+            }
         }
     }
 
@@ -443,6 +449,7 @@ public sealed partial class SettingsView : UserControl
             CloudRescanStatusText.Visibility = Visibility.Visible;
             AutomationProperties.SetName(CloudRescanStatusText, summary);
             AutomationProperties.SetLiveSetting(CloudRescanStatusText, AutomationLiveSetting.Polite);
+            LiveAnnounce.Raise(CloudRescanStatusText);
         }
     }
 
@@ -516,6 +523,7 @@ public sealed partial class SettingsView : UserControl
         UpdateStatusBar.Title = error is null ? "Copied to clipboard" : "Couldn't copy";
         UpdateStatusBar.Message = error ?? text;
         UpdateStatusBar.IsOpen = true;
+        LiveAnnounce.Raise(UpdateStatusBar);
     }
 
     private void OnAboutHeaderRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -1103,6 +1111,7 @@ public sealed partial class SettingsView : UserControl
         };
         AutomationProperties.SetName(GoogleStatusBar, vm.GoogleAuthStatus ?? "");
         AutomationProperties.SetLiveSetting(GoogleStatusBar, AutomationLiveSetting.Polite);
+        LiveAnnounce.Raise(GoogleStatusBar);
         var hasCode = !string.IsNullOrEmpty(vm.GoogleDeviceCode);
         GoogleCodeText.Text = vm.GoogleDeviceCode;
         AutomationProperties.SetName(GoogleCodeText,
@@ -1171,6 +1180,7 @@ public sealed partial class SettingsView : UserControl
             AutomationProperties.SetName(PluginWarningsBar, $"{PluginWarningsBar.Title}: {PluginWarningsBar.Message}");
             AutomationProperties.SetLiveSetting(PluginWarningsBar, AutomationLiveSetting.Polite);
             PluginWarningsBar.IsOpen = true;
+            LiveAnnounce.Raise(PluginWarningsBar);
         }
     }
 
