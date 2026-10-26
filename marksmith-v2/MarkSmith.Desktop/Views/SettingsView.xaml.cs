@@ -452,14 +452,8 @@ public sealed partial class SettingsView : UserControl
         App.ViewModel.RefreshCloudProviders();
         if (CloudRescanStatusText is not null)
         {
-            var count = App.ViewModel.CloudProviders.Count;
-            var localCount = Math.Max(0, count - 1); // WebDAV is always present alongside local sync folders
-            var summary = localCount switch
-            {
-                0 => "No local cloud sync folders found on this PC (WebDAV is available).",
-                1 => "Found 1 local cloud sync folder on this PC.",
-                _ => $"Found {localCount} local cloud sync folders on this PC.",
-            };
+            // Also says when the drive the user picked is no longer found.
+            var summary = CloudRescanText.Summary(App.ViewModel.CloudProviders, App.ViewModel.CloudProviderId);
             CloudRescanStatusText.Text = summary;
             CloudRescanStatusText.Visibility = Visibility.Visible;
             AutomationProperties.SetName(CloudRescanStatusText, summary);

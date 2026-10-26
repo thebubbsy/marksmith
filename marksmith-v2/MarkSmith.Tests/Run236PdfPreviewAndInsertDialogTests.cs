@@ -104,7 +104,8 @@ public class Run236PdfPreviewAndInsertDialogTests
     public void Insert_dialog_problem_hint_is_announced()
     {
         var refresh = Method(InsertCode, "Refresh");
-        Assert.Contains("RaiseAutomationEvent(AutomationEvents.LiveRegionChanged)", refresh);
+        // Run #284: through LiveAnnounce, which creates the peer the raw FromElement call lacked.
+        Assert.Contains("LiveAnnounce.RaiseIfChanged(_problem, problem)", refresh);
     }
 
     [Fact]

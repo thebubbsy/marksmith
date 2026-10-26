@@ -259,13 +259,16 @@ public abstract class InsertDialogBody : UserControl
             {
                 AutomationProperties.SetName(_problem, $"Problem: {problem}");
                 AutomationProperties.SetLiveSetting(_problem, AutomationLiveSetting.Polite);
-                // Setting the name alone is silent: a live region speaks only when it is told it changed.
-                FrameworkElementAutomationPeer.FromElement(_problem)
-                    ?.RaiseAutomationEvent(AutomationEvents.LiveRegionChanged);
+                // Setting the name alone is silent: a live region speaks only when it is told it
+                // changed. FromElement returned null until a screen reader had asked for the
+                // line's peer, so the first problem in a dialog was never read; LiveAnnounce
+                // creates the peer when needed.
+                LiveAnnounce.RaiseIfChanged(_problem, problem);
             }
             else
             {
                 AutomationProperties.SetName(_problem, "");
+                LiveAnnounce.RaiseIfChanged(_problem, null); // so the same problem coming back is read again
             }
         }
 
