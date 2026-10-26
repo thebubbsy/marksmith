@@ -760,7 +760,7 @@
                                         <DataTemplate>
                                             <Button services:HoverPolish.ApplyOnLoad="True" Click="OnTagPillClick" Tag="{Binding}" Content="{Binding}"
                                                     Padding="10,3" CornerRadius="12" FontSize="11"
-                                                    ToolTipService.ToolTip="Filter nodes by tag · Right-click for options"
+                                                    ToolTipService.ToolTip="Filter nodes by tag · Right-click or Shift+F10 for options"
                                                     Loaded="OnTagPillLoaded" Unloaded="OnTagPillUnloaded" RightTapped="OnDynamicTagPillRightTapped" />
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
@@ -768,6 +768,7 @@
                                 <Button x:Name="TagFilterClearButton" Click="OnTagFilterClearClick" Padding="6,3" CornerRadius="12" FontSize="11"
                                         Style="{StaticResource DefaultButtonStyle}" Background="Transparent" BorderThickness="0"
                                         Visibility="Collapsed"
+                                        AutomationProperties.Name="Clear tag filter"
                                         ToolTipService.ToolTip="Clear tag filter (Esc)">
                                     <StackPanel Orientation="Horizontal" Spacing="3">
                                         <FontIcon Glyph="&#xE711;" FontSize="9" />

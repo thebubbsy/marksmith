@@ -4204,7 +4204,7 @@ namespace MarkSmith.Views.SmartArtStudio
             {
                 string layoutName = ViewModel.SelectedLayout?.DisplayName ?? "SmartArt";
                 Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(OutlineStatsPill, $"Outline stats: {text}");
-                ToolTipService.SetToolTip(OutlineStatsPill, $"Outline hierarchy: {count} nodes, max depth {maxDepth} ({layoutName}) · Click for navigation and outline tools");
+                ToolTipService.SetToolTip(OutlineStatsPill, $"Outline hierarchy: {CountText.Of(count, "node")}, max depth {maxDepth} ({layoutName}) · Click for navigation and outline tools, Right-click or Shift+F10 too");
             }
 
             int totalWords = 0;
@@ -4250,15 +4250,21 @@ namespace MarkSmith.Views.SmartArtStudio
                     totalWords += words.Length;
                 }
             }
-            string summary = $"{totalWords} words, {totalChars} characters, {ViewModel.OutlineRows.Count} nodes";
+            string summary = $"{CountText.Of(totalWords, "word")}, {CountText.Of(totalChars, "character")}, {CountText.Of(ViewModel.OutlineRows.Count, "node")}";
             CopyAndReport(summary, $"Copied outline metrics: {summary}");
         }
 
         private void OnCopyPlainOutlineTextClick(object sender, RoutedEventArgs e)
         {
+            // An empty outline used to put an empty string on the clipboard and report "0 lines".
+            if (ViewModel.OutlineRows.Count == 0)
+            {
+                ViewModel.StatusMessage = "The outline is empty: nothing to copy. Add a node, or type bullet points on the Markdown tab.";
+                return;
+            }
             var plainLines = ViewModel.OutlineRows.Select(r => new string(' ', r.Depth * 2) + (r.Text ?? "")).ToList();
             string plainText = string.Join(Environment.NewLine, plainLines);
-            CopyAndReport(plainText, $"Copied plain text outline ({plainLines.Count} lines).");
+            CopyAndReport(plainText, $"Copied plain text outline ({CountText.Of(plainLines.Count, "line")}).");
         }
 
         private void OnOutlineStatsPillRightTapped(object sender, RightTappedRoutedEventArgs e)

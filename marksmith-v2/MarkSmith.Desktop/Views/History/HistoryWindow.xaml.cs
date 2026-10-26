@@ -1431,7 +1431,26 @@ public sealed partial class HistoryWindow : Window
         };
         if (await ShowDialogAsync(dialog) == ContentDialogResult.Primary)
             await _vm.DeleteVersionCommand.ExecuteAsync(item);
-        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, FocusSelectedVersionButton);
+        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, FocusAfterDelete);
+    }
+
+    // Deleting a document's last version leaves no version to select, and the dialog handed focus
+    // back to the deleted row: land on the document in the Files list (its "no versions" state),
+    // else the search box, instead of the window's first tab stop.
+    private void FocusAfterDelete()
+    {
+        if (_vm.Selected is not null)
+        {
+            FocusSelectedVersionButton();
+            return;
+        }
+        if (_vm.SelectedFile is { } file && FindVersionButton(FilesScroll, file) is { } fileButton)
+        {
+            fileButton.Focus(FocusState.Programmatic);
+            fileButton.StartBringIntoView(new BringIntoViewOptions { VerticalAlignmentRatio = 0.35 });
+            return;
+        }
+        SearchBox.Focus(FocusState.Programmatic);
     }
 
     private async void OnRestoreClick(object sender, RoutedEventArgs e) => await ConfirmAndRestoreAsync();

@@ -73,6 +73,10 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
         PaletteContainer.Child = _palette;
         _canvas = new MermaidCanvasControl();
         CanvasContainer.Child = _canvas;
+        // Deleting the selection from the keyboard disables the Delete button that holds focus,
+        // and WinUI throws focus to the window's first tab stop: keep it on the canvas instead,
+        // where Ctrl+Z (undo the delete) and the arrow keys work.
+        FocusRescue.Attach(() => _canvas.FocusTarget, DeleteSelectedButton);
         // The palette rows said "Add shape to canvas" but only dragging did anything.
         _palette.ShapeRequested += (_, item) => _canvas.AddInView(item);
         _palette.ReturnFocusToCanvasRequested += (_, _) => _canvas.FocusCanvas();

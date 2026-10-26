@@ -1431,6 +1431,9 @@ public sealed partial class MermaidCanvasControl : UserControl
         CanvasScrollViewer.Focus(FocusState.Programmatic);
     }
 
+    /// <summary>The element <see cref="FocusCanvas"/> focuses, for focus hand-offs that pick the focus state.</summary>
+    internal UIElement FocusTarget => CanvasScrollViewer;
+
     private void StartNodeInPlaceEdit(DiagramNodeViewModel node)
     {
         _editingNode = node;

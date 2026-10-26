@@ -3334,7 +3334,7 @@ namespace MarkSmith.Views.ShapeStudio
             if (ViewModel.SelectionCount == 0)
             {
                 ViewModel.SelectAll();
-                ViewModel.StatusMessage = $"Selected all {ViewModel.Shapes.Count} shapes · Double-click canvas to clear";
+                ViewModel.StatusMessage = $"Selected all {CountText.Of(ViewModel.Shapes.Count, "shape")} · Double-click canvas to clear";
             }
             else
             {
@@ -4175,9 +4175,10 @@ namespace MarkSmith.Views.ShapeStudio
                     btn.BorderBrush = new SolidColorBrush(AccentColor(0xFF));
                 else
                     ThemeBrush.Set(btn, Control.BorderBrushProperty, "ControlStrokeColorDefaultBrush");
-                ToolTipService.SetToolTip(btn, $"#{hex} (Recent · Right-click for options)");
+                ToolTipService.SetToolTip(btn, $"#{hex} (Recent · Right-click or Shift+F10 for options)");
                 Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(btn, $"Apply recent colour #{hex}");
                 string capturedHex = hex;
+                int capturedIndex = RecentColorsSwatches.Children.Count;
                 btn.Click += (_, _) =>
                 {
                     if (ViewModel.SelectedShape is { } s)
@@ -4189,9 +4190,11 @@ namespace MarkSmith.Views.ShapeStudio
                         FillFlyout.Hide();
                     }
                 };
-                btn.RightTapped += (s, e) =>
+                RightTappedEventHandler openMenu = (s, e) =>
                 {
                     e.Handled = true;
+                    // Keyboard users get a focus rectangle on the swatch that takes its place.
+                    var how = KeyboardContextMenu.IsKeyboardInvocation ? FocusState.Keyboard : FocusState.Programmatic;
                     var menu = new MenuFlyout();
                     var copy = new MenuFlyoutItem { Text = $"Copy #{capturedHex}", Icon = new FontIcon { Glyph = "\uE8C8" } };
                     copy.Click += (_, _) =>
@@ -4204,16 +4207,39 @@ namespace MarkSmith.Views.ShapeStudio
                     {
                         _recentColors.Remove(capturedHex);
                         RebuildRecentColorsSwatches(activeHex);
+                        ViewModel.StatusMessage = $"Removed #{capturedHex} from recent colours.";
+                        // The menu hands focus back to the swatch it came from, which the rebuild
+                        // removed: land on the swatch now in its place, else the colour picker.
+                        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
+                            () => FocusRecentSwatchOrPicker(capturedIndex, how));
                     };
                     menu.Items.Add(remove);
-                    menu.ShowAt(btn, e.GetPosition(btn));
+                    KeyboardContextMenu.ShowAt(menu, btn, e);
                 };
+                btn.RightTapped += openMenu;
+                // Shift+F10 / the Menu key open the same menu (RightTapped is pointer-only).
+                KeyboardContextMenu.Bridge(btn, openMenu);
                 RecentColorsSwatches.Children.Add(btn);
             }
+            // The swatches live in the fill flyout's popup, outside the window's tracked tree.
+            HoverPolish.Apply(RecentColorsSwatches);
+        }
+
+        private void FocusRecentSwatchOrPicker(int index, FocusState how)
+        {
+            if (RecentColorsSwatches is null || !FillFlyout.IsOpen) return;
+            var swatches = RecentColorsSwatches.Children;
+            if (swatches.Count > 0 && swatches[Math.Clamp(index, 0, swatches.Count - 1)] is Control swatch
+                && swatch.Focus(how)) return;
+            FillPicker.Focus(how);
         }
 
         private void OnClearRecentColorsClick(object sender, RoutedEventArgs e)
         {
+            // Clearing collapses the "Recent colours" row, Clear link included: a keyboard press
+            // would leave focus on nothing inside the flyout, so hand it to the colour picker.
+            if (ClearRecentColorsBtn.FocusState != FocusState.Unfocused)
+                FillPicker.Focus(ClearRecentColorsBtn.FocusState == FocusState.Pointer ? FocusState.Programmatic : FocusState.Keyboard);
             _recentColors.Clear();
             RebuildRecentColorsSwatches("");
             ViewModel.StatusMessage = "Cleared recent colours cache.";
@@ -4256,6 +4282,7 @@ namespace MarkSmith.Views.ShapeStudio
                 };
                 FillFlyoutSwatches.Children.Add(btn);
             }
+            HoverPolish.Apply(FillFlyoutSwatches);
         }
 
         private void OnFillPickerApply(object sender, RoutedEventArgs e)
@@ -4843,7 +4870,7 @@ namespace MarkSmith.Views.ShapeStudio
             int idx = IndexOfCategory(categories, ViewModel.SelectedPresetCategory);
             int next = (idx + 1) % categories.Count;
             ViewModel.SelectedPresetCategory = categories[next];
-            ViewModel.StatusMessage = $"Preset category: {categories[next]} ({ViewModel.FilteredPresets.Count} presets)";
+            ViewModel.StatusMessage = $"Preset category: {categories[next]} ({CountText.Of(ViewModel.FilteredPresets.Count, "preset")})";
         }
 
         private void OnPresetCategoryComboRightTapped(object sender, RightTappedRoutedEventArgs e)

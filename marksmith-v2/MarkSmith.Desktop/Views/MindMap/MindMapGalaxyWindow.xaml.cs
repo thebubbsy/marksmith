@@ -6897,8 +6897,14 @@ namespace MarkSmith.Views.MindMap
 
         private void OnTagFilterClearClick(object sender, RoutedEventArgs e)
         {
+            // Clear hides itself once no filter is active. From the keyboard that left focus on a
+            // collapsed button (WinUI then jumps to the window's first tab stop); land on
+            // "All tags", the pill that is now lit, as Esc already does.
+            var state = TagFilterClearButton.FocusState;
             ViewModel.SelectedTagFilter = null;
             UpdateTagPills();
+            if (state != FocusState.Unfocused)
+                AllTagsPill?.Focus(state == FocusState.Pointer ? FocusState.Programmatic : FocusState.Keyboard);
         }
 
         private void OnAllTagsPillRightTapped(object sender, RightTappedRoutedEventArgs e)
