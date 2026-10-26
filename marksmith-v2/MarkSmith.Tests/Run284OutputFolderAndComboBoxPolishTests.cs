@@ -114,7 +114,7 @@ public class Run284OutputFolderAndComboBoxPolishTests
     public void InsertDialogBody_LiveAnnounce_SourceContracts()
     {
         var src = Read("MarkSmith.Desktop/Views/InsertDialogControls.cs");
-        Assert.Contains("Services.LiveAnnounce.RaiseIfChanged(_problem, message);", src);
+        Assert.Contains("LiveAnnounce.RaiseIfChanged(_problem, problem);", src);
         Assert.DoesNotContain("_lastAnnouncedProblem", src);
         Assert.DoesNotContain("RaiseAutomationEvent(AutomationEvents.LiveRegionChanged)", src);
     }

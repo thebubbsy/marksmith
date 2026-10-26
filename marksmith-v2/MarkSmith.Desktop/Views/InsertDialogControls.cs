@@ -253,7 +253,6 @@ public abstract class InsertDialogBody : UserControl
         
         if (_opened)
         {
-            _lastAnnouncedProblem = problem;
             if (!string.IsNullOrWhiteSpace(problem))
             {
                 AutomationProperties.SetName(_problem, $"Problem: {problem}");
