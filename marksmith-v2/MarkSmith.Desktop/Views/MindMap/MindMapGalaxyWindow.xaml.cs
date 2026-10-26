@@ -3764,11 +3764,12 @@ namespace MarkSmith.Views.MindMap
             bool ctrl = IsCtrlDown();
             bool shift = IsShiftDown();
             bool alt = IsAltDown();
+            bool inChoice = ChoiceKeys.FocusIsInChoiceControl(this.Content.XamlRoot);
 
             // Tab / Enter / Delete / Backspace / Arrows edit or navigate the galaxy only while the
             // canvas itself has focus (clicking a node or the canvas focuses it). Anywhere else they
             // keep their normal meaning — Tab moves between toolbar buttons instead of spawning a child node.
-            bool canvasFocused = focused is null || ReferenceEquals(focused, GalaxyCanvas);
+            bool canvasFocused = (focused is null || ReferenceEquals(focused, GalaxyCanvas)) && !inChoice;
 
             switch (e.Key)
             {

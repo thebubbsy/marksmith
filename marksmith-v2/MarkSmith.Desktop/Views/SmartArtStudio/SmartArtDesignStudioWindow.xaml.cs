@@ -629,6 +629,19 @@ namespace MarkSmith.Views.SmartArtStudio
         {
             bool shiftDown = (Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift)
                               & Windows.UI.Core.CoreVirtualKeyStates.Down) == Windows.UI.Core.CoreVirtualKeyStates.Down;
+            bool ctrlDown = (Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control)
+                              & Windows.UI.Core.CoreVirtualKeyStates.Down) == Windows.UI.Core.CoreVirtualKeyStates.Down;
+
+            if (ctrlDown && !shiftDown && e.Key == VirtualKey.C)
+            {
+                if (ViewModel.SelectedLayout is { } item)
+                {
+                    string layoutName = item.DisplayName ?? item.Name;
+                    CopyAndReport(layoutName, $"Copied layout \"{layoutName}\" to clipboard.");
+                    e.Handled = true;
+                    return;
+                }
+            }
 
             if (e.Key == VirtualKey.Enter)
             {
@@ -3121,7 +3134,17 @@ namespace MarkSmith.Views.SmartArtStudio
         // Ctrl+Z/Y = undo/redo, Ctrl+F = focus layout search, Ctrl+Enter = insert into document,
         // Ctrl+Shift+C = copy SmartArt block, Ctrl+C = copy outline bullets, Ctrl+1/2 = switch tabs.
         // TextBoxes (rename box, Markdown Data) keep their native keys — focus guard.
-        private void OnRootGridKeyDown(object sender, KeyRoutedEventArgs e)
+                private static bool IsDescendantOf(DependencyObject? element, DependencyObject? ancestor)
+        {
+            if (element is null || ancestor is null) return false;
+            for (var cur = element; cur is not null; cur = cur is UIElement ? VisualTreeHelper.GetParent(cur) : null)
+            {
+                if (ReferenceEquals(cur, ancestor)) return true;
+            }
+            return false;
+        }
+
+private void OnRootGridKeyDown(object sender, KeyRoutedEventArgs e)
         {
             // Keys pressed inside an open menu bubble here too. Delete / Backspace in a node's menu deleted
             // the selected node behind it, and F2 / Ctrl+Z / Ctrl+D acted behind it as well.
@@ -3196,6 +3219,21 @@ namespace MarkSmith.Views.SmartArtStudio
 
             if (ctrl && e.Key == VirtualKey.C)
             {
+                if ((sender as UIElement)?.XamlRoot is { } xr && FocusManager.GetFocusedElement(xr) is DependencyObject focused)
+                {
+                    if (IsDescendantOf(focused, LayoutList) || IsDescendantOf(focused, QuickLayoutCarouselList))
+                    {
+                        var targetLayout = (focused as FrameworkElement)?.DataContext as StudioLayoutItem ?? ViewModel.SelectedLayout;
+                        if (targetLayout is not null)
+                        {
+                            string layoutName = targetLayout.DisplayName ?? targetLayout.Name;
+                            CopyAndReport(layoutName, $"Copied layout \"{layoutName}\" to clipboard.");
+                            e.Handled = true;
+                            return;
+                        }
+                    }
+                }
+
                 if (ViewModel.SelectedNode is { } selected && !string.IsNullOrWhiteSpace(selected.Text))
                 {
                     CopyAndReport(selected.Text, $"Copied \"{selected.Text}\" to clipboard.");
@@ -3207,12 +3245,12 @@ namespace MarkSmith.Views.SmartArtStudio
             }
             else if (ctrl && e.Key == VirtualKey.Z) { ViewModel.UndoCommand.Execute(null); e.Handled = true; }
             else if (ctrl && e.Key == VirtualKey.Y) { ViewModel.RedoCommand.Execute(null); e.Handled = true; }
-            else if (ctrl && e.Key == VirtualKey.D) { ViewModel.DuplicateSelectedCommand.Execute(null); e.Handled = true; }
+            else if (ctrl && e.Key == VirtualKey.D && !ChoiceKeys.FocusIsInChoiceControl(RootGrid.XamlRoot)) { ViewModel.DuplicateSelectedCommand.Execute(null); e.Handled = true; }
             // Backspace on a layout in the gallery, a colour scheme or the quick layout strip deleted the
             // selected outline item; those lists leave it alone now (the outline handles its own keys).
             else if ((e.Key is VirtualKey.Delete or VirtualKey.Back) && !ChoiceKeys.FocusIsInChoiceControl(RootGrid.XamlRoot))
             { ViewModel.DeleteSelectedCommand.Execute(null); e.Handled = true; }
-            else if (e.Key == VirtualKey.F2) { BeginRenameAndFocus(); e.Handled = true; }
+            else if (e.Key == VirtualKey.F2 && !ChoiceKeys.FocusIsInChoiceControl(RootGrid.XamlRoot)) { BeginRenameAndFocus(); e.Handled = true; }
         }
 
         private void OnMarkdownTextBoxDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)

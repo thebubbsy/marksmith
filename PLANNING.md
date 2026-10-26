@@ -21067,3 +21067,36 @@ succeeded; user-facing notes prepended to the generated body
 4. Live-verify the status bar unfold handover on a wider display or with a smaller text scale.
 
 **Total user-visible improvements: 6** (1 shortcut isolation guard for duplicate/reorder, 5 studio single Tab-stop and XY arrow navigation enhancements).
+
+
+## 2026-10-27 · Run #291 (09:05–09:35 AEDT) · Antigravity AI Agent
+
+**Agent / Execution Metadata**
+- Model: Antigravity AI Agent (Google DeepMind)
+- Modes: Scheduled Hourly Automation Routine
+- Trigger: Scheduled hourly MarkSmith WinUI 3 Desktop Polish Routine
+- Mandate: History window key leak check, SmartArt Studio gallery Ctrl+C layout copy & mutation isolation, Document Galaxy canvas focus hardening, and stepper/zoom XY-focus navigation.
+
+**Delivered (user-visible):**
+1. **History Window mutation & destructive shortcut isolation:** In `HistoryWindow.xaml.cs`, `Delete` (delete version), `S` (star/unstar version), and `F2` (rename version) now check `!inChoice` (`ChoiceKeys.FocusIsInChoiceControl(RootGrid.XamlRoot)`), ensuring that keys pressed while navigating `DiffModeSegment`, change stepper controls, or other choice controls never accidentally modify the selected timeline version.
+2. **History Window change stepper arrow navigation & single Tab stop:** In `HistoryWindow.xaml`, the inner StackPanel of `DiffChangeStepperPill` (`DiffChangeStepperControls`) now features `XYFocusKeyboardNavigation="Enabled"` and `TabFocusNavigation="Once"`. Users can smoothly cycle between Previous Hunk, Hunk Index/Menu, and Next Hunk using Left/Right arrow keys, while Tab passes all three controls in a single keystroke.
+3. **SmartArt Studio layout contextual copy (Ctrl+C):** In `SmartArtDesignStudioWindow.xaml.cs`, pressing `Ctrl+C` while focused on a layout in `LayoutList` or `QuickLayoutCarouselList` now copies the layout's display name to the clipboard with a polite announcement (`"Copied layout "{layoutName}" to clipboard."`), rather than falling back to copying outline markdown.
+4. **SmartArt Studio node mutation shortcut isolation:** In `SmartArtDesignStudioWindow.xaml.cs`, `Ctrl+D` (duplicate node) and `F2` (rename node) are now gated by `!ChoiceKeys.FocusIsInChoiceControl(RootGrid.XamlRoot)`, protecting outline nodes from being accidentally duplicated or renamed while browsing layout galleries, quick layout carousels, or color schemes.
+5. **MindMap Galaxy choice control shortcut isolation:** In `MindMapGalaxyWindow.xaml.cs`, `canvasFocused` now incorporates `!ChoiceKeys.FocusIsInChoiceControl(this.Content.XamlRoot)`. Single-letter canvas commands (`N` add child, `F` toggle focus mode, `Space` toggle subtree, `Enter` add sibling) and canvas manipulation keys are completely insulated from theme combos, node type selectors, progress sliders, and tag filter pills.
+6. **MindMap Galaxy zoom & viewport cluster single Tab stop:** In `MindMapGalaxyWindow.xaml`, `ZoomOutButton`, `ZoomResetButton`, `ZoomInButton`, `FitToWindowButton`, and `CenterOnRootButton` are grouped into `ZoomControlCluster` with `XYFocusKeyboardNavigation="Enabled"` and `TabFocusNavigation="Once"`. The cluster allows rapid Left/Right arrow cycling across zoom tools while bypassing the entire 5-button toolgroup in 1 Tab stop.
+
+**Implementation Summary**
+- Desktop: `Views/History/HistoryWindow.xaml.cs` (`OnRootKeyDown` computes `inChoice` via `ChoiceKeys`; `S`, `F2`, `Delete` guarded by `!inChoice`), `Views/History/HistoryWindow.xaml` (`DiffChangeStepperControls` updated with `XYFocusKeyboardNavigation="Enabled"` and `TabFocusNavigation="Once"`), `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml.cs` (added `IsDescendantOf` helper; `OnRootGridKeyDown` copies layout name when focused in `LayoutList` or `QuickLayoutCarouselList`; `Ctrl+D` and `F2` guarded by `!ChoiceKeys.FocusIsInChoiceControl`), `Views/MindMap/MindMapGalaxyWindow.xaml.cs` (`canvasFocused` incorporates `!ChoiceKeys.FocusIsInChoiceControl`), `Views/MindMap/MindMapGalaxyWindow.xaml` (wrapped zoom buttons in `ZoomControlCluster` with `XYFocusKeyboardNavigation="Enabled"` and `TabFocusNavigation="Once"`).
+- Tests: `Run291HistorySmartArtAndGalaxyPolishTests.cs` (6 xUnit tests covering shortcut `inChoice` checks and XAML `XYFocusKeyboardNavigation` / `TabFocusNavigation` contracts across History Window, SmartArt Studio, and MindMap Galaxy).
+
+**Verified:**
+- `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: 0 errors.
+- Unit tests: `Run291HistorySmartArtAndGalaxyPolishTests` (6/6 passed), combined suite `Run291|Run290|Run289|Run288|Run287|Run286` (71/71 passed).
+- Smoke launch: Launched `Marksmith.exe` (PID 7488), confirmed running healthy after 5s without exit, closed cleanly.
+
+**Next up (Run #292):**
+1. Audit remaining flyouts and context menus in Document Galaxy and Diagram Studio for arrow navigation and single Tab stops.
+2. Live-verify the status bar unfold handover on a wider display or with a smaller text scale.
+3. Carry forward Block 3's 2 refined ideas as first refinement targets.
+
+**Total user-visible improvements: 6** (2 shortcut isolation guards across History and SmartArt, 1 contextual layout copy action, 2 studio single Tab-stop XY-navigation clusters, 1 canvas focus hardening guard).

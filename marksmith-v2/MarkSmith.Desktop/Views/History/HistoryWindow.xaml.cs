@@ -1699,6 +1699,7 @@ public sealed partial class HistoryWindow : Window
         var isAlt = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Menu).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
         bool inTextBox = e.OriginalSource is TextBox;
         bool inFileList = e.OriginalSource is FrameworkElement { DataContext: FileSummaryViewModel };
+        bool inChoice = ChoiceKeys.FocusIsInChoiceControl(RootGrid.XamlRoot);
         var focusedVersion = (e.OriginalSource as FrameworkElement)?.DataContext as VersionItemViewModel;
 
         // Ctrl+Shift+F must not match here: this branch used to take it, so the find-in-diff
@@ -1809,7 +1810,7 @@ public sealed partial class HistoryWindow : Window
                 e.Handled = true;
             }
         }
-        else if (!inTextBox && !inFileList && !isCtrl && e.Key == VirtualKey.S && (focusedVersion ?? _vm.Selected) is { } toStar)
+        else if (!inTextBox && !inFileList && !inChoice && !isCtrl && e.Key == VirtualKey.S && (focusedVersion ?? _vm.Selected) is { } toStar)
         {
             e.Handled = true;
             _ = _vm.ToggleStarCommand.ExecuteAsync(toStar);
@@ -1828,12 +1829,12 @@ public sealed partial class HistoryWindow : Window
                 BuildVersionMenu(menuTarget).ShowAt(anchor, new FlyoutShowOptions { Placement = FlyoutPlacementMode.BottomEdgeAlignedRight });
             }
         }
-        else if (!inTextBox && !inFileList && e.Key == VirtualKey.F2 && (focusedVersion ?? _vm.Selected) is { } toRename)
+        else if (!inTextBox && !inFileList && !inChoice && e.Key == VirtualKey.F2 && (focusedVersion ?? _vm.Selected) is { } toRename)
         {
             e.Handled = true;
             _ = RenameAsync(toRename);
         }
-        else if (!inTextBox && !inFileList && e.Key == VirtualKey.Delete && (focusedVersion ?? _vm.Selected) is { } toDelete)
+        else if (!inTextBox && !inFileList && !inChoice && e.Key == VirtualKey.Delete && (focusedVersion ?? _vm.Selected) is { } toDelete)
         {
             e.Handled = true;
             _ = DeleteAsync(toDelete);

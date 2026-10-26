@@ -628,7 +628,8 @@
                                         </MenuFlyoutItem>
                                     </MenuFlyout>
                                 </Border.ContextFlyout>
-                                <StackPanel Orientation="Horizontal" Spacing="2">
+                                <StackPanel x:Name="DiffChangeStepperControls" Orientation="Horizontal" Spacing="2"
+                                            XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once">
                                     <Button x:Name="PrevChangeButton" Click="OnPrevChangeButtonClick" Style="{StaticResource SubtleButtonStyle}"
                                             Width="24" Height="24" Padding="0"
                                             ToolTipService.ToolTip="Previous change hunk (Shift+F7)" AutomationProperties.Name="Previous change">
