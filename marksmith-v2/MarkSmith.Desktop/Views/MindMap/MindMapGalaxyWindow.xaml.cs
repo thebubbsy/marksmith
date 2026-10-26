@@ -2478,7 +2478,7 @@ namespace MarkSmith.Views.MindMap
                 }
 
                 StartBranchAnimationTimer();
-                ViewModel.StatusMessage = $"Collapsed branch '{node.Title}' ({descendants.Count} nodes hidden) · Ctrl+Z to undo";
+                ViewModel.StatusMessage = $"Collapsed branch '{node.Title}' ({CountText.Of(descendants.Count, "node")} hidden) · Ctrl+Z to undo";
             }
             else
             {
@@ -2520,7 +2520,7 @@ namespace MarkSmith.Views.MindMap
 
                 StartBranchAnimationTimer();
                 UpdateGeometry();
-                ViewModel.StatusMessage = $"Expanded branch '{node.Title}' ({descendants.Count} nodes revealed) · Ctrl+Z to undo";
+                ViewModel.StatusMessage = $"Expanded branch '{node.Title}' ({CountText.Of(descendants.Count, "node")} revealed) · Ctrl+Z to undo";
             }
         }
 
@@ -3631,7 +3631,7 @@ namespace MarkSmith.Views.MindMap
                         {
                             ViewModel.ReverseLink(link);
                         }
-                        ViewModel.StatusMessage = $"Reversed {nodeLinks.Count} links for \"{node.Title}\".";
+                        ViewModel.StatusMessage = $"Reversed {CountText.Of(nodeLinks.Count, "link")} for \"{node.Title}\".";
                     }
                 };
                 flyout.Items.Add(reverseItem);
@@ -7482,12 +7482,12 @@ namespace MarkSmith.Views.MindMap
 
             var copyStatsItem = new MenuFlyoutItem
             {
-                Text = $"Copy map summary ({ViewModel.Nodes.Count} nodes, {ViewModel.Links.Count} links)",
+                Text = $"Copy map summary ({CountText.Of(ViewModel.Nodes.Count, "node")}, {CountText.Of(ViewModel.Links.Count, "link")})",
                 Icon = new FontIcon { Glyph = "\uE8C8" }
             };
             copyStatsItem.Click += (_, _) =>
             {
-                string summary = $"MarkSmith MindMap Galaxy: {ViewModel.Nodes.Count} nodes, {ViewModel.Links.Count} links";
+                string summary = $"MarkSmith MindMap Galaxy: {CountText.Of(ViewModel.Nodes.Count, "node")}, {CountText.Of(ViewModel.Links.Count, "link")}";
                 CopyAndReport(summary, $"Copied: {summary}");
             };
             menu.Items.Add(copyStatsItem);

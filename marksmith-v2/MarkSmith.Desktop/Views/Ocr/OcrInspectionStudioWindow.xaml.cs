@@ -436,7 +436,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
                 ElementCardsPanel.Children.Add(card);
 
                 LaserTransform.Y = Math.Clamp(elem.Box.Bottom * ch, 0, Math.Max(0, ch - 4));
-                WordStreamText.Text = $"Located #{elem.Id} ({elem.KindDisplayName}) with {elem.WordCount} words…";
+                WordStreamText.Text = $"Located #{elem.Id} ({elem.KindDisplayName}) with {CountText.Of(elem.WordCount, "word")}…";
                 HeaderElementsCountText.Text = _session.TotalElements.ToString();
 
                 if (elemCount <= 12)
@@ -453,13 +453,13 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             {
                 string wordsSample = string.Join(" ", page.Words.Take(8).Select(w => w.Text));
                 WordStreamText.Text = $"Streaming words: {wordsSample}…";
-                WordCountBadgeText.Text = $"{page.Words.Count} words";
+                WordCountBadgeText.Text = CountText.Of(page.Words.Count, "word");
                 try { await Task.Delay(40, token); } catch (OperationCanceledException) { return; }
             }
 
             UpdateLiveMarkdownPreview();
             UpdateSessionTelemetry();
-            WordStreamText.Text = $"Assembled {page.Words.Count} words into {page.Elements.Count} blocks.";
+            WordStreamText.Text = $"Assembled {CountText.Of(page.Words.Count, "word")} into {CountText.Of(page.Elements.Count, "block")}.";
             StageProgressBar.Value = 100;
         }
         catch (OperationCanceledException) { }
@@ -691,11 +691,11 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
     }
 
     private static string DescribeElementForAccessibility(OcrInspectionElement elem) =>
-        $"Element {elem.Id}, {elem.KindDisplayName}, {elem.WordCount} words" +
+        $"Element {elem.Id}, {elem.KindDisplayName}, {CountText.Of(elem.WordCount, "word")}" +
         (elem.IsReclassified ? $" (reclassified from {elem.OriginalKind})" : string.Empty);
 
     private static string DescribeElementToolTip(OcrInspectionElement elem) =>
-        $"#{elem.Id} · {elem.KindDisplayName} ({elem.WordCount} words)" +
+        $"#{elem.Id} · {elem.KindDisplayName} ({CountText.Of(elem.WordCount, "word")})" +
         (elem.IsReclassified ? $" — Reclassified from {elem.OriginalKind}" : string.Empty) +
         "\nClick to select · Right-click or Shift+F10 for actions · Keys 1–8 to reclassify · R to reset";
 
@@ -824,7 +824,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
 
         var metricsText = new TextBlock
         {
-            Text = $"{elem.WordCount} words",
+            Text = CountText.Of(elem.WordCount, "word"),
             FontSize = 10.5,
             FontFamily = MonoFont,
             Foreground = ThemeBrush.Get("TextFillColorSecondaryBrush", RootGrid.ActualTheme),
@@ -1980,7 +1980,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         if (HeaderReclassifiedCountText is not null)
             HeaderReclassifiedCountText.Text = _session.TotalReclassifications.ToString();
         if (WordCountBadgeText is not null)
-            WordCountBadgeText.Text = $"{_session.CurrentPage?.Words.Count ?? 0} words";
+            WordCountBadgeText.Text = CountText.Of(_session.CurrentPage?.Words.Count ?? 0, "word");
 
         if (SessionMetricsText is not null)
         {

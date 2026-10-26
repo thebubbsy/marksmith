@@ -273,6 +273,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             (StatusCopyImagesButton, OnStatusCopyImagesButtonRightTapped),
             (StatusCopyFootnotesButton, OnStatusCopyFootnotesButtonRightTapped),
             (StatusCopyDiagramsButton, OnStatusCopyDiagramsButtonRightTapped),
+            (StatusCopyFrontmatterButton, OnStatusCopyFrontmatterButtonRightTapped),
             (StatusShortcutsButton, OnStatusShortcutsButtonRightTapped),
             (CommandPaletteButton, OnCommandPaletteButtonRightTapped),
             (ExportPdfTitleButton, OnExportPdfTitleButtonRightTapped),
@@ -1091,6 +1092,13 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (hadFocus && ViewModel.History.Count > 0) HistoryList.Focus(FocusState.Programmatic);
     }
 
+    // A ListView's own FocusState stays Unfocused while one of its rows holds focus, so emptying a
+    // list from a row (Delete on the last export) used to skip the focus hand-off and strand focus.
+    private static bool FocusIsWithin(UIElement root) =>
+        root.XamlRoot is { } xamlRoot
+        && FocusManager.GetFocusedElement(xamlRoot) is DependencyObject
+        && !PopupKeys.FocusIsOutside(root);
+
     private void UpdateExportHistoryFlyoutState()
     {
         if (HistoryEmptyText is null || HistoryList is null) return;
@@ -1098,7 +1106,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var empty = count == 0;
         if (empty && ((ClearHistoryButton is not null && ClearHistoryButton.FocusState != FocusState.Unfocused)
                       || (HistoryCountButton is not null && HistoryCountButton.FocusState != FocusState.Unfocused)
-                      || HistoryList.FocusState != FocusState.Unfocused))
+                      || FocusIsWithin(HistoryList)))
         {
             MoreMenuButton?.Focus(FocusState.Programmatic);
         }
@@ -3152,6 +3160,16 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
     }
 
+    // Indentation shows a heading's level only on screen: the UIA level gives a screen reader the
+    // same outline shape ("level 2"), and the help text names the row's keys.
+    private void OnTocListContainerContentChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
+    {
+        if (args.InRecycleQueue || args.Item is not Services.TocEntry entry) return;
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetLevel(args.ItemContainer, Math.Clamp(entry.Level, 1, 6));
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(args.ItemContainer,
+            "Enter jumps to the heading. Ctrl+C copies its text, Ctrl+Shift+C a Markdown link, Shift+F10 for options.");
+    }
+
     private void OnTocFilterTextChanged(object sender, TextChangedEventArgs e)
     {
         UpdateOutlineEmptyState();
@@ -3374,7 +3392,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 sb.AppendLine($"{indentStr}- {entry.Text}");
         }
 
-        CopyTextToStatusBar(sb.ToString().TrimEnd(), $"Copied {entries.Count} headings as Markdown TOC.");
+        CopyTextToStatusBar(sb.ToString().TrimEnd(), $"Copied {CountText.Of(entries.Count, "heading")} as Markdown TOC.");
     }
 
     private void OnTocCountButtonClick(object sender, RoutedEventArgs e) => CopyAllHeadingsAsToc();
@@ -3442,7 +3460,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 int indent = Math.Max(0, entry.Level - 1);
                 sb.AppendLine($"{new string(' ', indent * 2)}{entry.Text}");
             }
-            CopyTextToStatusBar(sb.ToString().TrimEnd(), $"Copied {entries.Count} headings as plain text.");
+            CopyTextToStatusBar(sb.ToString().TrimEnd(), $"Copied {CountText.Of(entries.Count, "heading")} as plain text.");
         };
         menu.Items.Add(copyPlainTextItem);
 
@@ -3498,7 +3516,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var count = ViewModel?.TocEntries?.Count ?? 0;
         var copyTocItem = new MenuFlyoutItem
         {
-            Text = count > 0 ? $"Copy Table of Contents ({count} headings)" : "Copy Table of Contents",
+            Text = count > 0 ? $"Copy Table of Contents ({CountText.Of(count, "heading")})" : "Copy Table of Contents",
             Icon = new FontIcon { Glyph = "\uE8C8" },
             IsEnabled = count > 0
         };
@@ -6824,7 +6842,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var count = ViewModel?.TocEntries?.Count ?? 0;
         var copyOutlineItem = new MenuFlyoutItem
         {
-            Text = count > 0 ? $"Copy Table of Contents ({count} headings)" : "Copy Table of Contents",
+            Text = count > 0 ? $"Copy Table of Contents ({CountText.Of(count, "heading")})" : "Copy Table of Contents",
             Icon = new FontIcon { Glyph = "\uE8A4" },
             IsEnabled = count > 0
         };
@@ -9983,7 +10001,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             if (noMatch)
             {
                 TocEmptyText.Text = "No headings match that filter.";
-                if (TocFilterBox is not null && TocList.FocusState != FocusState.Unfocused)
+                if (TocFilterBox is not null && FocusIsWithin(TocList))
                 {
                     TocFilterBox.Focus(FocusState.Programmatic);
                 }
@@ -12255,6 +12273,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         Add("Copy images", "", OnStatusCopyImagesButtonClick);
         Add("Copy footnotes", "", OnStatusCopyFootnotesButtonClick);
         Add("Copy diagrams", "", OnStatusCopyDiagramsButtonClick);
+        Add("Copy YAML frontmatter", "\uE82D", OnStatusCopyFrontmatterButtonClick);
         if (StatusShortcutsButton?.Visibility == Visibility.Collapsed)
         {
             menu.Items.Add(new MenuFlyoutSeparator());
@@ -13831,6 +13850,168 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             sb.AppendLine();
             InsertMarkdown(sb.ToString());
             AnnounceStatus($"Inserted Diagram Inventory Table ({diagrams.Count:N0} blocks) at cursor");
+        };
+        menu.Items.Add(insertTableItem);
+
+        menu.ShowAt(anchor);
+    }
+
+    private (string RawBlock, MarkSmith.Services.FrontmatterSchemaAudit Audit)? GetDocumentFrontmatter()
+    {
+        var text = EditorDocument();
+        if (string.IsNullOrWhiteSpace(text)) return null;
+
+        var audit = MarkSmith.Services.TextSearch.AuditFrontmatterYamlSchema(text);
+        if (!audit.HasFrontmatter) return null;
+
+        string cleanText = text;
+        if (cleanText.Length > 0 && cleanText[0] == '\uFEFF') cleanText = cleanText[1..];
+        var lines = cleanText.Replace("\r", "").Split('\n');
+        int start = 0;
+        while (start < lines.Length && string.IsNullOrWhiteSpace(lines[start])) start++;
+        if (start >= lines.Length || !lines[start].Trim().StartsWith("---")) return null;
+
+        int end = -1;
+        for (int i = start + 1; i < lines.Length; i++)
+        {
+            var trimmed = lines[i].Trim();
+            if (trimmed == "---" || trimmed == "...")
+            {
+                end = i;
+                break;
+            }
+        }
+        if (end == -1) return null;
+
+        var rawBlock = string.Join(Environment.NewLine, lines.Skip(start).Take(end - start + 1));
+        return (rawBlock, audit);
+    }
+
+    private void OnStatusCopyFrontmatterButtonClick(object sender, RoutedEventArgs e)
+    {
+        var frontmatter = GetDocumentFrontmatter();
+        if (frontmatter is null)
+        {
+            AnnounceStatus("No YAML frontmatter header found in document");
+            return;
+        }
+
+        var propCount = frontmatter.Value.Audit.Properties.Count;
+        CopyAndAnnounce(frontmatter.Value.RawBlock, $"Copied YAML frontmatter ({CountText.Of(propCount, "property")}) to clipboard");
+    }
+
+    private void OnStatusCopyFrontmatterButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (sender is not FrameworkElement anchor)
+            return;
+
+        var menu = new MenuFlyout();
+
+        var copyRawItem = new MenuFlyoutItem
+        {
+            Text = "Copy YAML frontmatter block (--- ... ---)",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copyRawItem.Click += (_, _) => OnStatusCopyFrontmatterButtonClick(anchor, new RoutedEventArgs());
+        menu.Items.Add(copyRawItem);
+
+        var copyPropsItem = new MenuFlyoutItem
+        {
+            Text = "Copy properties as key-value pairs (key: value)",
+            Icon = new FontIcon { Glyph = "\uE8FD" }
+        };
+        copyPropsItem.Click += (_, _) =>
+        {
+            var fm = GetDocumentFrontmatter();
+            if (fm is null || fm.Value.Audit.Properties.Count == 0)
+            {
+                AnnounceStatus("No YAML frontmatter properties found in document");
+                return;
+            }
+            var lines = fm.Value.Audit.Properties.Select(p => $"{p.Key}: {p.RawValue}");
+            var text = string.Join(Environment.NewLine, lines);
+            CopyAndAnnounce(text, $"Copied {CountText.Of(fm.Value.Audit.Properties.Count, "property")} as key-value pairs to clipboard");
+        };
+        menu.Items.Add(copyPropsItem);
+
+        var copyAuditItem = new MenuFlyoutItem
+        {
+            Text = "Copy YAML frontmatter schema audit",
+            Icon = new FontIcon { Glyph = "\uE9D2" }
+        };
+        copyAuditItem.Click += (_, _) =>
+        {
+            var fm = GetDocumentFrontmatter();
+            if (fm is null)
+            {
+                AnnounceStatus("No YAML frontmatter found to audit");
+                return;
+            }
+            var summary = MarkSmith.Services.TextSearch.FormatFrontmatterSchemaSummary(EditorDocument());
+            CopyAndAnnounce(summary, "Copied YAML frontmatter schema audit to clipboard");
+        };
+        menu.Items.Add(copyAuditItem);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var copyTableItem = new MenuFlyoutItem
+        {
+            Text = "Copy as Frontmatter Properties Table",
+            Icon = new FontIcon { Glyph = "\uE8A1" }
+        };
+        copyTableItem.Click += (_, _) =>
+        {
+            var fm = GetDocumentFrontmatter();
+            if (fm is null || fm.Value.Audit.Properties.Count == 0)
+            {
+                AnnounceStatus("No frontmatter properties found in document");
+                return;
+            }
+            var props = fm.Value.Audit.Properties;
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine($"**Frontmatter Properties**: {CountText.Of(props.Count, "property")}");
+            sb.AppendLine();
+            sb.AppendLine("| # | Property | Inferred Type | Value | Line |");
+            sb.AppendLine("| ---: | :--- | :--- | :--- | ---: |");
+            for (int idx = 0; idx < props.Count; idx++)
+            {
+                var p = props[idx];
+                var cleanVal = p.RawValue.Replace("|", "\\|");
+                sb.AppendLine($"| {idx + 1} | `{p.Key}` | `{p.InferredType}` | `{cleanVal}` | Ln {p.LineNumber} |");
+            }
+            CopyAndAnnounce(sb.ToString().TrimEnd(), $"Copied Frontmatter Properties Table ({props.Count:N0} properties) to clipboard");
+        };
+        menu.Items.Add(copyTableItem);
+
+        var insertTableItem = new MenuFlyoutItem
+        {
+            Text = "Insert Frontmatter Properties Table at cursor",
+            Icon = new FontIcon { Glyph = "\uE70F" }
+        };
+        insertTableItem.Click += (_, _) =>
+        {
+            var fm = GetDocumentFrontmatter();
+            if (fm is null || fm.Value.Audit.Properties.Count == 0)
+            {
+                AnnounceStatus("No frontmatter properties found in document");
+                return;
+            }
+            var props = fm.Value.Audit.Properties;
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine($"## Document Metadata & Frontmatter ({props.Count:N0} Properties)");
+            sb.AppendLine();
+            sb.AppendLine("| # | Property | Inferred Type | Value | Line |");
+            sb.AppendLine("| ---: | :--- | :--- | :--- | ---: |");
+            for (int idx = 0; idx < props.Count; idx++)
+            {
+                var p = props[idx];
+                var cleanVal = p.RawValue.Replace("|", "\\|");
+                sb.AppendLine($"| {idx + 1} | `{p.Key}` | `{p.InferredType}` | `{cleanVal}` | Ln {p.LineNumber} |");
+            }
+            sb.AppendLine();
+            InsertMarkdown(sb.ToString());
+            AnnounceStatus($"Inserted Frontmatter Properties Table ({props.Count:N0} properties) at cursor");
         };
         menu.Items.Add(insertTableItem);
 

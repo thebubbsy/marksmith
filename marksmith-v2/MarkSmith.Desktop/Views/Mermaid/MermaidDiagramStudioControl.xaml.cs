@@ -880,7 +880,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
         _lastPushedCode = CodePaneText();
         RefreshPreview();
         ShowCodeStatus(ok
-            ? $"{doneText} \u00b7 {ViewModel.Nodes.Count} nodes, {ViewModel.Connectors.Count} edges"
+            ? $"{doneText} \u00b7 {CountText.Of(ViewModel.Nodes.Count, "node")}, {CountText.Of(ViewModel.Connectors.Count, "edge")}"
             : "\u26a0 Mermaid syntax error \u2014 fix the highlighted code", assertive: !ok);
     }
 

@@ -1422,12 +1422,13 @@
                                                   ItemClick="OnTocItemClick"
                                                   RightTapped="OnTocListRightTapped"
                                                   KeyDown="OnTocListKeyDown"
+                                                  ContainerContentChanging="OnTocListContainerContentChanging"
                                                   AutomationProperties.Name="Document outline headings">
                                             <ListView.ItemTemplate>
                                                 <DataTemplate>
                                                     <TextBlock Text="{Binding Text}" TextTrimming="CharacterEllipsis"
                                                                 Margin="{Binding Level, Converter={StaticResource LevelToIndentConverter}}"
-                                                                ToolTipService.ToolTip="Click to jump to heading · Right-click to copy heading or link" />
+                                                                ToolTipService.ToolTip="Click or Enter to jump to heading · Ctrl+C copies it · Right-click or Shift+F10 for options" />
                                                 </DataTemplate>
                                             </ListView.ItemTemplate>
                                         </ListView>
@@ -2431,11 +2432,23 @@
                                 <TextBlock x:Name="StatusCopyDiagramsText" Text="Copy Diagrams" />
                             </StackPanel>
                         </HyperlinkButton>
+                        <Border Width="1" Height="12" Background="{ThemeResource CardStrokeColorDefaultBrush}" VerticalAlignment="Center" />
+                        <HyperlinkButton x:Name="StatusCopyFrontmatterButton"
+                                         Click="OnStatusCopyFrontmatterButtonClick"
+                                         RightTapped="OnStatusCopyFrontmatterButtonRightTapped"
+                                         Padding="5,1" FontSize="11.5" Opacity="0.85"
+                                         ToolTipService.ToolTip="Copy YAML frontmatter block (--- ... ---) to clipboard · Right-click or Shift+F10 for property key-values, schema audit, or properties table"
+                                         AutomationProperties.Name="Copy YAML frontmatter">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <FontIcon Glyph="&#xE82D;" FontSize="11" />
+                                <TextBlock x:Name="StatusCopyFrontmatterText" Text="Copy Frontmatter" />
+                            </StackPanel>
+                        </HyperlinkButton>
                     </StackPanel>
                     <HyperlinkButton x:Name="StatusMoreCopyButton" Visibility="Collapsed"
                                      Click="OnStatusMoreCopyButtonClick"
                                      Padding="5,1" FontSize="11.5" Opacity="0.85"
-                                     ToolTipService.ToolTip="More copy actions: code, tables, tasks, math, callouts, images, footnotes and diagrams (widen the window to show them as buttons)"
+                                     ToolTipService.ToolTip="More copy actions: code, tables, tasks, math, callouts, images, footnotes, diagrams and frontmatter (widen the window to show them as buttons)"
                                      AutomationProperties.Name="More copy actions">
                         <StackPanel Orientation="Horizontal" Spacing="4">
                             <FontIcon Glyph="&#xE8C8;" FontSize="11" />

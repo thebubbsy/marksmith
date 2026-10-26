@@ -323,7 +323,7 @@ public sealed class MermaidMinimapControl : UserControl
                 if (TargetScrollViewer is { } svTarget)
                 {
                     var v = VisibleWorld(svTarget);
-                    string stats = $"Mermaid diagram: {vm.Nodes.Count} nodes, {vm.Connectors.Count} connectors · Zoom {(svTarget.ZoomFactor * 100):0}% · Viewport {v.W:0}x{v.H:0} at ({v.X:0}, {v.Y:0})";
+                    string stats = $"Mermaid diagram: {MarkSmith.Services.CountText.Of(vm.Nodes.Count, "node")}, {MarkSmith.Services.CountText.Of(vm.Connectors.Count, "connector")} · Zoom {(svTarget.ZoomFactor * 100):0}% · Viewport {v.W:0}x{v.H:0} at ({v.X:0}, {v.Y:0})";
                     MarkSmith.Services.CopyFeedback.CopyWithBubble(this, stats, "Copied diagram statistics");
                 }
             };

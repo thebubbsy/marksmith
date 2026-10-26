@@ -1458,8 +1458,14 @@ namespace MarkSmith.Views.SmartArtStudio
 
         private void OnRowDeleteClick(object sender, RoutedEventArgs e)
         {
-            if ((sender as FrameworkElement)?.DataContext is StudioNodeViewModel node)
-                ViewModel.DeleteSelectedCommand.Execute(node);
+            if ((sender as FrameworkElement)?.DataContext is not StudioNodeViewModel node) return;
+            // The row and this button go with the item, so a keyboard press would leave focus on
+            // nothing (WinUI then throws it to the window's first tab stop). The outline keeps
+            // the new selection's Up / Down / Delete keys working.
+            var state = (sender as Control)?.FocusState ?? FocusState.Unfocused;
+            ViewModel.DeleteSelectedCommand.Execute(node);
+            if (state != FocusState.Unfocused)
+                OutlineScroll.Focus(state == FocusState.Pointer ? FocusState.Programmatic : FocusState.Keyboard);
         }
 
         private void OnMoveUpButtonDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
