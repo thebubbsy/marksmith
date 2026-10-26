@@ -130,7 +130,7 @@ public class Run278HandlesPalettesAndStatusBarTests
         var xaml = Read(MainWindowXaml);
         Assert.Contains("x:Name=\"StatusMoreCopyButton\"", xaml);
         Assert.Contains("RightTapped=\"OnStatusMoreCopyButtonRightTapped\"", xaml);
-        Assert.Contains("ToolTipService.ToolTip=\"More copy actions: code, tables, tasks, math, callouts, images, footnotes, diagrams and frontmatter · Click, Right-click or Shift+F10 for menu\"", xaml);
+        Assert.Contains("ToolTipService.ToolTip=\"More copy actions: text, code, tables, tasks, math, callouts, images, footnotes, diagrams, frontmatter and HTML · Click, Right-click or Shift+F10 for menu\"", xaml);
     }
 
     [Fact]

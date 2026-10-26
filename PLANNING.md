@@ -20736,3 +20736,80 @@ here too would only conflict).
 3. Sweep the remaining `$"…{x}s …"` display-name pluralisations in the studios (Mermaid palette categories, Galaxy).
 
 **Total user-visible improvements: 6** (1 Input file box end-scroll, 1 rich input tooltip, 1 Image dialog source tail display, 1 Link/Media URL tail display, 1 Settings WebDAV/OAuth tail display, 1 StatusMoreCopyButton tooltip parity).
+
+## Run #287 — executing agent's record (Claude Code, 2026-10-27, 06:24–07:10 AEDT)
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running in the Claude desktop app. Not the Antigravity agent: the task template's
+  "Antigravity AI Agent (Google DeepMind)" line doesn't describe this executor.
+- Modes: Scheduled hourly automation routine (non-interactive, no user present)
+- Trigger: Scheduled task `commit-to-main-ship-improvement--r4efinement` (06:24 firing)
+- Agents Used: 1 (single orchestrator doing the coding, skeptical review and verification inline; no sub-agents).
+  Worked in `%TEMP%\ms_run286` (from `3371174`), then replayed the commit onto a fresh shallow clone of origin
+  (`%TEMP%\ms_run286_push`, `beb45ee`) because the first clone inherited the damaged object store and couldn't fetch.
+
+**State found:** run #285 (Claude) was still waiting on its v3.93.0 release; the Antigravity agent was live in the
+shared tree mid-merge (`UU PLANNING.md`). Neither was touched. While this run worked, Antigravity pushed its own
+"run #286" (`2cfe0d5`, merge `beb45ee`) and run #285's bump to 3.94.0 (`3a76763`) landed, so this run is #287.
+
+**Picked up:** run #285's Next up #3 (raw display-name plurals in the studios) and run #280's still-open "XAML-declared
+live lines that never raise" (OCR studio's stream line), plus a sweep of `*Button.Visibility = Collapsed` in the
+main window for focus traps.
+
+**Delivered (user-visible):**
+1. **Status bar "More" keeps keyboard focus when the window is resized.** `UpdateStatusBarOverflow` collapses "More" for
+   its re-measure on every width change, which dropped focus to the next pill. Reproduced live on the baseline build:
+   focus on More, widen the window, focus lands on "Ln 1, Col 1". Fixed build: focus stays on More through three resizes.
+2. **…and when the pills unfold, focus lands on the first pill "More" stood in for** (Copy Code), not wherever WinUI
+   pushed it. (Not reachable live on this 1920 px screen: the pills stay folded even maximised.)
+3. **License banner: starting the trial or activating Pro no longer throws focus to the top of the window.** The action
+   button was collapsed (or the InfoBar closed) while still focused; it now hands focus to the editor first.
+4. **OCR studio reads out the finished page breakdown once** ("Assembled 120 words into 8 blocks."). The stream line was
+   marked live but never raised; only the result is raised, not each located element.
+5. **Mind map: the open-time repair note uses real plurals** ("Repaired 1 broken link, 2 duplicate ids.", was
+   "1 broken link(s), 2 duplicate id(s)") with grouped numbers.
+6. **Diagram Studio's canvas summary groups large counts** ("1,204 nodes · 2 connectors") through `CountText`, like the
+   rest of the app.
+
+**Implementation Summary**
+- Core: `Services/MindMap/MindMapGraph.cs` (`MindMapRepairReport.Summarize` via `CountText.Of`).
+- Desktop: `MainWindow.xaml.cs` (`moreFocus` captured before the re-measure collapse and restored on fold / handed to
+  `StatusCopyCodeButton` on unfold; new `ReleaseLicenseActionFocus()` before `LicenseBanner.IsOpen = false` and before
+  collapsing `LicenseActionButton`); `Views/Ocr/OcrInspectionStudioWindow.xaml.cs` (`LiveAnnounce.Raise(WordStreamText)`
+  after the "Assembled …" line); `Views/Mermaid/MermaidDiagramStudioControl.xaml.cs` (local `Count` → `CountText.Of`).
+- Tests: new `Run287StatusFocusAndCountWordingTests` (repair summary singular/plural/empty and no "(s)" in source;
+  source contracts for the focus capture order, both license release points, the single OCR raise and the Mermaid
+  counts). `Run262…StatusBar_FoldsShortcutsPill…` now bounds the method by its end instead of a fixed 3000-char window.
+  `Run278…StatusMoreCopyButton_HasRightTappedAndUpdatedTooltip` updated to Antigravity's new (accurate: the menu has
+  text and HTML items) More tooltip; it was failing on `origin/main` after `2cfe0d5`.
+
+**Adversarial review:** no control collapses while focused without a fallback (More restores itself or hands to Copy
+Code; the license button hands to `PasteTextBox`, and if the editor isn't focusable the behaviour is the old one); no
+key handlers touched; no resource lookups or file access added. The OCR raise is once per page breakdown, so no
+double read with `FooterStatusText` (which is tracked separately and isn't set in that method).
+
+**Verified:**
+- `dotnet build … -p:OutDir=%TEMP%\ms_run286_b\` and, after the replay onto origin, `%TEMP%\ms_run287_b\`: 0 errors.
+- `dotnet test --filter Run2|MindMap|StatusBar|License|Ocr|Mermaid` on the first clone: **2114/2114**; on origin
+  + this commit: 2104/2105 with the one failure being the stale Run278 tooltip contract, then
+  `Run278|Run287|Run286|Run262`: **85/85** after updating it.
+- Live (isolated `Marksmith.exe`, scratch `MARKSMITH_CONFIG_DIR`, key-free UIA `SetFocus` + `TransformPattern.Resize`,
+  PrintWindow): baseline PID 8124 lost focus to `CursorPosButton` on widening; fixed PIDs 26228 and 26640 (merged
+  build) kept it on `StatusMoreCopyButton`. Screenshot shows the focus ring on More at 1100 px. Only those three PIDs
+  were stopped.
+- Not live-verified: the unfold handover (screen too narrow), license actions (they hit the license server), the OCR
+  announcement (needs an OCR session); all covered by source contracts.
+
+**Noticed, not fixed:**
+- Mermaid's `CanvasSummaryText` and History's `DiffTitleText` are still marked live without ever raising; announcing
+  them would double up with the status bar / list selection, so the setting may be better removed.
+- OCR's session metrics read "1 Page · 3 Elements · 120 Words" (title-case nouns mid-line).
+
+**Next up (Run #288):**
+1. Decide on the two silent live lines above (raise or drop the setting).
+2. Live-verify the status bar unfold handover on a wider display or with a smaller text scale.
+3. Live-verify a plugin Install/Remove focus round trip (carried over).
+
+**Total user-visible improvements: 6** (2 status bar focus, 1 license banner focus, 1 OCR announcement, 2 count
+wording in Mind map and Diagram Studio).
