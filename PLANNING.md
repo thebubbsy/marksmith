@@ -20702,7 +20702,7 @@ here too would only conflict).
 
 **Total user-visible improvements: 8** (4 Step 1 picker, 2 Settings ▸ Plugins, 2 OCR studio).
 
-
+**Release (same run):** tagged **v3.93.0** on `3371174` (this run's work; v3.92.0 had already shipped from `2e9ea35`). Release workflow run 40386069365 succeeded; user-facing notes prepended to the generated body (https://github.com/thebubbsy/marksmith/releases/tag/v3.93.0). `MarksmithBaseVersion` is now 3.94.0.
 
 ### 2026-10-27 (scheduled routine run #286)
 
