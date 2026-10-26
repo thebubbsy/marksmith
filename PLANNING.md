@@ -20049,3 +20049,97 @@ Run #278 (2026-10-26, 16:55–17:35 AEDT).
 
 **Total user-visible improvements: 4** (1 Shape Studio theme handles, 1 Document Galaxy WCAG badge ink, 1 Status bar keyboard/mouse copy menu parity, 1 Suite Hub audit count wording).
 
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #279 (2026-10-26, 18:01–18:40 AEDT)
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running in the Claude desktop app. The task template asks for an Antigravity /
+  Gemini identity; this run was not executed by that agent, so it records the real one.
+- Modes: Scheduled hourly desktop polish routine, unattended (no live user input)
+- Trigger: Scheduled task `commit-to-main-ship-improvement--r4efinement` (18:00 firing)
+- Agents used: 1 (single orchestrator that also coded and did the skeptical review; no subagents). Session
+  `067a1f3a-5c45-4e06-bb77-38b2506259c1`. Built, tested, committed and pushed from the clean clone `%TEMP%\ms249`;
+  the shared working tree was not touched (only the untracked EverythingHttpPlugin/ and tools/m365-canary-tui there).
+
+**Picked up:** run #278's "Noticed, not fixed" (the OCR studio's "(1 characters)" copies). Then two audits across
+every surface in the rotation matrix: (a) which status lines are marked `AutomationProperties.LiveSetting` but never
+raise `LiveRegionChanged` (WinUI announces nothing without the raise), and (b) the template's focus-trap rule
+applied to every `*Button.IsEnabled = false` in Desktop code. Most toggles were already guarded (Find bar, preview
+zoom, OCR page / reset / copy); the gaps were buttons that disable themselves for the length of an async operation.
+
+**Delivered (user-visible):**
+1. **Main window, the status message is read out**: "Exported to …", "Document is already clean", "Copied …" and
+   every other status-bar message is now a polite live region. It had no LiveSetting at all.
+2. **Find bar, the match count is read out as you type**: "3 of 12" / "No results" on the Find count button. A burst
+   of keystrokes is coalesced (250 ms) into one announcement of the final count.
+3. **Shape Studio and Document Galaxy, status bars are read out** ("Moved 2 shapes", "Aligned 3 nodes …"). Galaxy set
+   LiveSetting and a name but never raised the event; Shape Studio only set the name.
+4. **OCR Studio, the scan banner and the footer status are read out** (marked live in XAML, never raised).
+5. **Suite Hub template search, Settings house-style status, the command palette's result count, and the About
+   page's update-check answer** ("You're up to date") are read out.
+6. **Step 1, Rescan keeps keyboard focus**: pressing Rescan from the keyboard disabled it while it held focus, and
+   WinUI threw focus to the window's first tab stop. Focus now waits on the file list and comes back to Rescan.
+7. **Settings › About, Check for updates keeps focus where it belongs**: from the keyboard, focus waits on the
+   version button and returns; after a mouse click it no longer pulls focus onto the button from wherever the user
+   went meanwhile.
+8. **Settings › License, Activate and Remove license keep keyboard focus**: the key box goes read-only instead of
+   disabled while the key is checked (Enter there starts activation, so focus used to be thrown out of the page),
+   and Remove license parks focus on Buy Pro / Start free trial.
+9. **OCR Studio and the OCR overlay, copies count right at one**: "(1 character)" / "Copied 1 character of …".
+
+**Implementation Summary**
+- New `MarkSmith.Desktop/Services/LiveAnnounce.cs`: `Track(TextBlock source, UIElement? announcer)` sets Polite and
+  raises `LiveRegionChanged` on text change via a per-element one-shot `DispatcherQueueTimer` (250 ms, restarted on
+  each change), skipped when `AutomationPeer.ListenerExists` is false, blank text, or the element is hidden;
+  `Raise(element)` for one-off answers.
+- `Services/FocusRescue.cs`: `Park(button, params parkOn)` returns a `Parked` record struct; `Return()` refocuses the
+  button only if focus is still on the parking spot or was lost (first tab stop / nothing), and keeps pointer users
+  free of focus rectangles (Programmatic vs Keyboard).
+- Call sites: `MainWindow.xaml.cs` (Track ×2, Rescan park/return), `Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs`,
+  `Views/MindMap/MindMapGalaxyWindow.xaml.cs`, `Views/Ocr/OcrInspectionStudioWindow.xaml.cs` (Track ×2, 5 copy
+  messages to `CountText.Of`), `Controls/OcrExperienceOverlay.xaml.cs`, `Views/SuiteHubView.xaml.cs`,
+  `Views/SettingsView.xaml.cs` (Track, `Raise(UpdateStatusBar)`, three parks, KeyBox `IsReadOnly`),
+  `Controls/CommandPalette.xaml.cs`.
+- Tests: new `Run279LiveStatusAndBusyFocusTests` (33 cases: the raise and coalescing contract, every tracked status
+  line, Track placed right after InitializeComponent, Park/Return guards, park-before-disable ordering for Rescan /
+  Check / Remove license / Activate, no unconditional `CheckButton.Focus`, read-only key box with the Enter guard,
+  OCR character counts). Updated stale contracts in `Run265…`, `Run266…` (OCR copy wording) and `SettingsPolishTests`
+  (Check for updates focus).
+- Skeptical review: no control is collapsed; the three disabled buttons now park focus first, and the key box is no
+  longer disabled at all. No key handlers added. No flyouts or dynamic controls added. No resource lookups. No file
+  access. `KeyBox` read-only can't start a second activation: `OnKeyBoxKeyDown` already returns while Activate is
+  disabled. The timer table is a `ConditionalWeakTable`, so a closed window's timers go with it.
+- Build: `%TEMP%\ms249`, `dotnet build … -p:OutDir=%TEMP%\ms_run279\b\` 0 errors.
+- Tests: `Run2|FocusRescue|Ocr|Settings` 1407 run, 4 failed (the three stale contracts above, all on wording this
+  run changed on purpose); after updating them `Run279|Run266|Run265|SettingsPolish|Run272|Run278` **168/168**.
+- Live check (scratch PID 31136, fresh `MARKSMITH_CONFIG_DIR`, stopped by PID; tour skipped by Invoke). A managed UIA
+  client subscribed to `LiveRegionChanged` on the window subtree (via a small C# handler; the managed
+  `AutomationElement.LiveRegionChangedEvent` field is null, use `AutomationElementIdentifiers`):
+  - Opened Find via `EditorFindButton`, then set `FindTextBox` to "L", "Li", "Live", "zzz" 60 ms apart: **one**
+    event, `FindCountButton` "No results"; then "Live": event `FindCountButton` "1 of 1".
+  - Tools ▸ "Clean up document" by ExpandCollapse + Invoke: event `StatusMsgText` "Document is already clean —
+    nothing to fix."
+  - The Rescan focus round trip was **not** run live: the user became active (1.6 s idle) before the SetFocus step,
+    so the script skipped it, and the Step 1 card was collapsed afterwards. It rests on the source tests.
+  - **Slip:** one CopyFromScreen capture taken while the user was active caught their own Notepad window over the
+    test window. It was deleted right away and nothing else was captured. Don't use CopyFromScreen unless the scratch
+    PID is the foreground window.
+
+**Noticed, not fixed:**
+- Settings' other InfoBars (`LicenseStatusBar`, `GoogleStatusBar`, `PluginWarningsBar`) and `CloudRescanStatusText` set
+  LiveSetting without a raise, like the update bar did. `LiveAnnounce.Raise` after each `IsOpen = true` would fix them.
+- `Remove license`'s finally block still focuses the key box or the button even after a mouse click (pre-existing).
+- History's "+1 / -0 words" delta still uses a fixed plural.
+
+**Next up (Run #280):**
+1. Raise the remaining Settings InfoBars and `CloudRescanStatusText` through `LiveAnnounce.Raise`, and sweep the
+   studios (SmartArt, Mermaid, History already raise) for any other LiveSetting without a raise.
+2. Live-verify the Rescan focus round trip (needs an empty editor so Step 1 shows, and an idle user).
+3. Live-verify an export with an image held open for writing (carried over from #278).
+
+**Total user-visible improvements: 9** (5 screen-reader announcements across the main window, Find bar, Shape Studio,
+Document Galaxy, OCR, Suite Hub, Settings and the command palette; 3 busy-button focus fixes in Step 1 and Settings;
+1 OCR count wording).
+
+**Release (same run):** tagged **v3.87.0** on `4fb35ca` (carries Antigravity's run #278 `59d773a` too); Release workflow run 40285398900 succeeded; user-facing notes prepended to the generated body (https://github.com/thebubbsy/marksmith/releases/tag/v3.87.0). `MarksmithBaseVersion` is now 3.88.0.
