@@ -68,7 +68,8 @@ public class Run222HistoryHubKeyboardMenuTests : IDisposable
         await vm.LoadCommand.ExecuteAsync(null);
         await vm.TakeSnapshotCommand.ExecuteAsync(null);
         Assert.Equal(HistoryWindowViewModel.NoDocumentCheckpointNotice, vm.Notice);
-        Assert.True(vm.NoticeIsError);
+        // Guidance, not a failure (run #282).
+        Assert.True(vm.NoticeIsInfo);
         // It must not echo the placeholder file name ("Open No document selected in the editor…").
         Assert.DoesNotContain("No document selected", vm.Notice);
     }

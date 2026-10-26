@@ -1184,11 +1184,11 @@ public sealed partial class SuiteHubView : UserControl
 
         if (_turnOnApi is null) return;
 
-        var hadFocus = XamlRoot is not null &&
+        // Disabling the focused button threw focus to the window's first tab stop for the whole
 
-                       FocusManager.GetFocusedElement(XamlRoot) is DependencyObject f &&
+        // wait; it waits on Get extension instead and comes back only if the user hasn't moved on.
 
-                       IsInside(f, Card3Border);
+        var parked = FocusRescue.Park(TurnOnApiButton, GetExtensionButton);
 
         TurnOnApiButton.IsEnabled = false;
 
@@ -1214,13 +1214,13 @@ public sealed partial class SuiteHubView : UserControl
 
             TurnOnApiButton.IsEnabled = true;
 
-            if (hadFocus)
+            if (parked.Waiting)
 
             {
 
                 var nextTarget = TurnOnApiButton.Visibility == Visibility.Visible ? TurnOnApiButton : CopyApiUrlButton;
 
-                FocusAndBringIntoView(nextTarget, FocusState.Programmatic);
+                FocusAndBringIntoView(nextTarget, parked.How);
 
                 RefreshCardVisual(Card3Border);
 

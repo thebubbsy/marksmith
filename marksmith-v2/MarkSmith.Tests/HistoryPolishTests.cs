@@ -177,7 +177,9 @@ public class HistoryPolishTests : IDisposable
         await vm.TakeSnapshotCommand.ExecuteAsync("x");
 
         Assert.Single(await service.GetVersionsAsync(file));
-        Assert.True(vm.NoticeIsError);
+        // Guidance, not a failure (run #282).
+        Assert.True(vm.NoticeIsInfo);
+        Assert.False(vm.NoticeIsError);
     }
 
     // ---- Filters keep the selection; empty states ----

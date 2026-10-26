@@ -107,6 +107,12 @@ public static class FocusRescue
         }
     }
 
+    /// <summary>
+    /// Focus is still on <paramref name="control"/>, or was lost (nothing holds it, or WinUI threw
+    /// it to the window's first tab stop): the user hasn't moved on since.
+    /// </summary>
+    public static bool StillOn(Control control) => control.XamlRoot is not null && FocusWasLost(control);
+
     // Enabled, a tab stop, and shown: neither it nor any ancestor is collapsed.
     private static bool IsAvailable(Control c)
     {

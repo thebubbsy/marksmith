@@ -346,6 +346,11 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
     [ObservableProperty]
     private bool _noticeIsError;
 
+    /// <summary>The notice is guidance (open the document first, nothing to copy), not a failure:
+    /// it shows as information, not as a red error that stays until dismissed.</summary>
+    [ObservableProperty]
+    private bool _noticeIsInfo;
+
     public bool HasNotice => !string.IsNullOrEmpty(Notice);
 
     public ObservableCollection<DiffRowViewModel> DiffRows { get; } = new();
@@ -972,18 +977,18 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
         if (string.IsNullOrEmpty(_currentFile))
         {
             // Used to return silently, so the button looked broken on an empty history.
-            ShowNotice(NoDocumentCheckpointNotice, isError: true);
+            ShowInfo(NoDocumentCheckpointNotice);
             return;
         }
         var text = _editorTextFor?.Invoke(_currentFile);
         if (text is null)
         {
-            ShowNotice($"Open {FileName} in the editor first. A checkpoint saves the editor's current text.", isError: true);
+            ShowInfo($"Open {FileName} in the editor first. A checkpoint saves the editor's current text.");
             return;
         }
         if (string.IsNullOrWhiteSpace(text))
         {
-            ShowNotice("The editor is empty, so there's nothing to save as a checkpoint.", isError: true);
+            ShowInfo("The editor is empty, so there's nothing to save as a checkpoint.");
             return;
         }
 
@@ -1162,6 +1167,15 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
     public void ShowNotice(string message, bool isError = false)
     {
         NoticeIsError = isError;
+        NoticeIsInfo = false;
+        Notice = message;
+    }
+
+    /// <summary>Shows guidance: why an action can't run yet, or that there's nothing to do.</summary>
+    public void ShowInfo(string message)
+    {
+        NoticeIsError = false;
+        NoticeIsInfo = true;
         Notice = message;
     }
 

@@ -357,12 +357,9 @@ public sealed partial class ExtensionSetupView : UserControl
 
     private async void OnTurnOnClick(object sender, RoutedEventArgs e)
     {
-        var hadFocus = TurnOnButton.FocusState != FocusState.Unfocused;
+        // Focus waits on Check now (with its keyboard rectangle) rather than the window's first tab stop.
+        var parked = FocusRescue.Park(TurnOnButton, CheckNowButton);
         TurnOnButton.IsEnabled = false;
-        if (hadFocus)
-        {
-            CheckNowButton.Focus(FocusState.Programmatic);
-        }
         string? error;
         try { (_, _, error) = await _turnOnApi(); }
         catch (Exception ex) { error = $"Couldn't turn on the connection: {ex.Message}"; }
@@ -374,7 +371,7 @@ public sealed partial class ExtensionSetupView : UserControl
         else
         {
             ShowError(error);
-            if (hadFocus) TurnOnButton.Focus(FocusState.Programmatic);
+            parked.Return();
         }
     }
 
