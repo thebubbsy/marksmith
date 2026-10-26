@@ -7654,7 +7654,7 @@ Renders raw Markdown into an OpenXML or PDF binary document bundle.
 
         UptimeStorageText.Text = $"Uptime: {uptimeStr} · Cache: {cacheStr}";
 
-        ToolTipService.SetToolTip(UptimeStoragePill, $"Desktop engine uptime: {uptimeStr} · Temp cache: {cacheFileCount} files ({cacheMb:F2} MB) · Click to prune stale MarkSmith temp files · Right-click or Shift+F10 to copy diagnostics");
+        ToolTipService.SetToolTip(UptimeStoragePill, $"Desktop engine uptime: {uptimeStr} · Temp cache: {CountText.Of(cacheFileCount, "file")} ({cacheMb:F2} MB) · Click to prune stale MarkSmith temp files · Right-click or Shift+F10 to copy diagnostics");
 
     }
 
@@ -7774,7 +7774,7 @@ Renders raw Markdown into an OpenXML or PDF binary document bundle.
 
                       $"- Uptime: {uptimeStr}{Environment.NewLine}" +
 
-                      $"- Temp Cache Footprint: {cacheFileCount} files ({cacheMb:F2} MB){Environment.NewLine}" +
+                      $"- Temp Cache Footprint: {CountText.Of(cacheFileCount, "file")} ({cacheMb:F2} MB){Environment.NewLine}" +
 
                       $"- Temp Directory: {Path.GetTempPath()}{Environment.NewLine}" +
 

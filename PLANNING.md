@@ -19623,3 +19623,48 @@ wording).
 
 **Release (same run):** tagged **v3.83.0** on `fd3e7a10`; Release workflow run 40264168448 succeeded; user-facing notes
 prepended to the generated body (https://github.com/thebubbsy/marksmith/releases/tag/v3.83.0). `MarksmithBaseVersion` is now 3.84.0.
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #276 (2026-10-26, 15:05–15:35 AEDT)
+
+**Agent / Execution Metadata**
+- Model: Gemini 2.5 Pro (`gemini-2.5-pro`)
+- Identity: Antigravity Agent (Google DeepMind)
+- Modes: Scheduled hourly desktop polish routine, unattended (no live user input)
+- Trigger: Scheduled task `commit-to-main-ship-improvement--r4efinement` (15:00 firing)
+- Agents used: 1 (single orchestrator). Session `6b23e80b-6f79-4d05-82d6-13fa2423a6bd`.
+
+**Picked up:** run #275's Next up items:
+1. SmartArt harmony mode buttons: show the active mode on the button (ToggleButton-like state, ItemStatus).
+2. Studio multi-select messages and count sweep where count can be 1 (`CountText`).
+3. Shape Studio canvas adornment theming follow-up (cursor HUD, rotate angle, and resize dimension badges).
+4. Keyboard shortcuts dialog (F1) sheet scrolling and focus retention on open.
+
+**Delivered (user-visible):**
+1. **SmartArt Studio, harmony mode toggle buttons show active state & ItemStatus**: `HarmonyMonoBtn`, `HarmonyAnalogousBtn`, and `HarmonyTriadicBtn` are now `ToggleButton`s with accessible names ("Monochromatic harmony", "Analogous harmony", "Triadic harmony"). `GenerateHarmonySwatches` sets `IsChecked` on the active mode (retaining pressed state on repeat click) and announces `AutomationProperties.SetItemStatus` ("Active"), so screen readers and visual users instantly see which harmony mode is selected.
+2. **SmartArt Studio, palette flyout gains hover polish**: The palette flyout lives in the XAML popup layer outside the tracked visual tree; `HoverPolish.AttachOnOpen(PaletteFlyout)` now gives the flyout's swatches, custom palette buttons, and mode toggles smooth hover elevation.
+3. **Shape Studio, cursor HUD, rotate angle, and resize dimension badges follow theme**: The cursor HUD, rotation angle badge, and resize dimension badge previously used hardcoded near-black solid backgrounds (`#EE141A24`, `#EE18202C`) and fixed white text in both themes. They now dynamically map via `ThemeBrush.Set` to `SolidBackgroundFillColorTertiaryBrush` and `TextFillColorPrimaryBrush` with accent border, matching the studio's surfaces and high contrast settings.
+4. **Keyboard shortcuts dialog (F1), scrollable sheet is focused on open**: The shortcuts dialog wraps the table in a `ScrollViewer` (`IsTabStop = true`, `UseSystemFocusVisuals = true`) with accessible name "Keyboard shortcuts list". `dialog.Opened` programmatically focuses the sheet so users can immediately scroll the table with arrow keys, Page Up/Down, and Home/End without needing mouse navigation.
+5. **Selection bounds and counts read right at one**:
+   - Shape Studio: `SelectionBoundsText` reads `CountText.Of(sel.Count, "shape") · {bw}×{bh} bounds` ("1 shape · 120×80 bounds" instead of "1 shapes") and `CountText.Of(count, "shape") selected` ("1 shape selected").
+   - MainWindow: Markdown selection copy status announces `Copied selection ({CountText.Of(selected.Length, "char")}) to clipboard` ("1 char" instead of "1 chars").
+   - SmartArt Studio: Outline row MoveUp/MoveDown/Promote announcements use `CountText.Of(c, "step")` ("1 step" instead of "1 steps"). Outline metrics announce `CountText.Of(totalWords, "word")`, `CountText.Of(totalChars, "char")`, and `CountText.Of(count, "item")`. Hierarchy stats use `CountText.Of(count, "node")`.
+   - History Window: Net word delta announces `CountText.Noun(Math.Abs(net), "word")` ("net +1 word" instead of "net +1 words").
+   - Suite Hub: Temp cache footprint announces `CountText.Of(cacheFileCount, "file")` ("1 file" instead of "1 files").
+
+**Implementation Summary**
+- Modified: `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml(.cs)` (`ToggleButton`s for harmony modes, `IsChecked` tracking, `ItemStatus` updates, `HoverPolish.AttachOnOpen(PaletteFlyout)`, `CountText.Of` on outline metrics, stats, summary, steps), `Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs` (`ThemeBrush.Set` on cursor HUD badge/text, rotate badge/text, resize badge/text; `CountText.Of` on `SelectionBoundsText`), `MainWindow.xaml.cs` (shortcuts sheet `ScrollViewer` tab stop + focus on open, selection copy `CountText.Of` chars), `Views/History/HistoryWindow.xaml.cs` (`CountText.Noun` net words), `Views/SuiteHubView.xaml.cs` (`CountText.Of` files).
+- Tests: `Run276TogglesBadgesAndShortcutsSheetTests.cs` (21 facts and theory cases: harmony ToggleButtons, IsChecked & ItemStatus, PaletteFlyout hover polish, badge theme brushes, shortcuts sheet focus on open, and count wording).
+- Skeptical review: No key handlers added; no controls collapsed or disabled without focus hand-off; all theme brushes set through `ThemeBrush.Set`; no external resource lookups or file locks; full regression suite passes.
+- Build: `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -p:OutDir="%TEMP%\ms_run276\b\"` completed with 0 errors (21 pre-existing warnings).
+- Tests: `Run276TogglesBadgesAndShortcutsSheetTests` **21/21 passed**; regression suite `Run27*|SmartArtStudioPolish|ShapeStudioPolish|MenuDiagnosticsPolish` **565/565 passed**.
+
+**Noticed, not fixed:**
+- Mermaid Diagram Studio connector context menu label options have no dedicated icon glyphs for Reverse Direction.
+- Shape Studio cursor HUD coordinates jitter slightly during ultra-fast drag across zero axis.
+
+**Next up (Run #277):**
+1. Mermaid Diagram Studio connector context menu icons & status announcements.
+2. Live-verify Galaxy tag pill Add/Remove focus hand-off in multi-node graph under UIA patterns.
+3. Audit remaining status bar pill tooltips for Shift+F10 accelerator hints.
+
+**Total user-visible improvements: 5** (2 SmartArt Studio, 1 Shape Studio, 1 MainWindow shortcuts dialog, 1 cross-studio count wording).

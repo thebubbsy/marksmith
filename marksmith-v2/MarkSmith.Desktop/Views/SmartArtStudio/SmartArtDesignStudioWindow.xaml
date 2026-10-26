@@ -828,19 +828,23 @@
                                                 <TextBlock Text="Harmony palette generator" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center" />
                                                 <TextBlock x:Name="HarmonyModeLabel" Grid.Column="1" Text="Monochromatic" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
                                             </Grid>
+                                            <!-- Toggles, so the active mode stays pressed (and reads "checked") on the button itself. -->
                                             <StackPanel Orientation="Horizontal" Spacing="4">
-                                                <Button x:Name="HarmonyMonoBtn" Style="{StaticResource SubtleButtonStyle}" Padding="8,3" Height="26"
+                                                <ToggleButton x:Name="HarmonyMonoBtn" Padding="8,3" Height="26" MinWidth="0" IsChecked="True"
+                                                        AutomationProperties.Name="Monochromatic harmony"
                                                         Click="OnHarmonyMonoClick" ToolTipService.ToolTip="Monochromatic harmony (stepped lightness)">
                                                     <TextBlock Text="Mono" FontSize="11" />
-                                                </Button>
-                                                <Button x:Name="HarmonyAnalogousBtn" Style="{StaticResource SubtleButtonStyle}" Padding="8,3" Height="26"
+                                                </ToggleButton>
+                                                <ToggleButton x:Name="HarmonyAnalogousBtn" Padding="8,3" Height="26" MinWidth="0"
+                                                        AutomationProperties.Name="Analogous harmony"
                                                         Click="OnHarmonyAnalogousClick" ToolTipService.ToolTip="Analogous harmony (adjacent ±30° hues)">
                                                     <TextBlock Text="Analogous" FontSize="11" />
-                                                </Button>
-                                                <Button x:Name="HarmonyTriadicBtn" Style="{StaticResource SubtleButtonStyle}" Padding="8,3" Height="26"
+                                                </ToggleButton>
+                                                <ToggleButton x:Name="HarmonyTriadicBtn" Padding="8,3" Height="26" MinWidth="0"
+                                                        AutomationProperties.Name="Triadic harmony"
                                                         Click="OnHarmonyTriadicClick" ToolTipService.ToolTip="Triadic harmony (balanced 120° split hues)">
                                                     <TextBlock Text="Triadic" FontSize="11" />
-                                                </Button>
+                                                </ToggleButton>
                                             </StackPanel>
                                             <StackPanel x:Name="HarmonySwatchesPanel" Orientation="Horizontal" Spacing="4" Margin="0,2" />
                                         </StackPanel>

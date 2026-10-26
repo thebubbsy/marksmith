@@ -567,7 +567,7 @@ public sealed partial class HistoryWindow : Window
         string netSign = net >= 0 ? $"+{net:N0}" : $"{net:N0}";
         DiffWordDeltaText.Text = $"+{addedWords:N0} / -{removedWords:N0} words";
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(DiffWordDeltaPill, $"Word delta {DiffWordDeltaText.Text}");
-        ToolTipService.SetToolTip(DiffWordDeltaPill, $"Word delta: +{addedWords:N0} added, -{removedWords:N0} removed (net {netSign} words) · Click to copy, Right-click or Shift+F10 for options");
+        ToolTipService.SetToolTip(DiffWordDeltaPill, $"Word delta: +{addedWords:N0} added, -{removedWords:N0} removed (net {netSign} {CountText.Noun(Math.Abs(net), "word")}) · Click to copy, Right-click or Shift+F10 for options");
     }
 
     private static int CountWordsInLine(string? text)
@@ -2175,7 +2175,7 @@ public sealed partial class HistoryWindow : Window
         string netSign = net >= 0 ? $"+{net:N0}" : $"{net:N0}";
         var target = _vm.Selected;
         string label = target is not null ? $" for version {target.TimestampLabel}" : "";
-        string detailed = $"Diff word delta{label}: +{_lastAddedWords:N0} added, -{_lastRemovedWords:N0} removed, net {netSign} words.";
+        string detailed = $"Diff word delta{label}: +{_lastAddedWords:N0} added, -{_lastRemovedWords:N0} removed, net {netSign} {CountText.Noun(Math.Abs(net), "word")}.";
         CopyAndNotify(detailed, $"Copied detailed word delta: {detailed}");
     }
 

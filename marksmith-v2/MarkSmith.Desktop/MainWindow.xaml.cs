@@ -1,4 +1,4 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.UI.Composition.SystemBackdrops;
 using Microsoft.Windows.AppNotifications;
@@ -6303,16 +6303,29 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         rows.Children.Add(footer);
 
+        // Scrolls rather than growing past the window on smaller screens. A tab stop, and focused
+        // on open, so the arrow keys, Page Up/Down and Home/End scroll the sheet: focus sat on
+        // Close and keyboard users could not reach the rows below the fold. Esc / Enter still close.
+        var sheet = new ScrollViewer
+        {
+            Content = rows,
+            Padding = new Thickness(0, 0, 14, 0),
+            MaxHeight = 540,
+            Width = 500,
+            IsTabStop = true,
+            UseSystemFocusVisuals = true,
+        };
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(sheet, "Keyboard shortcuts list");
         var dialog = new ContentDialog
         {
             Title = "Keyboard shortcuts",
-            // Scrolls rather than growing past the window on smaller screens.
-            Content = new ScrollViewer { Content = rows, Padding = new Thickness(0, 0, 14, 0), MaxHeight = 540, Width = 500 },
+            Content = sheet,
             CloseButtonText = "Close",
             DefaultButton = ContentDialogButton.Close,
             XamlRoot = Content.XamlRoot,
             RequestedTheme = theme,
         };
+        dialog.Opened += (_, _) => sheet.Focus(FocusState.Programmatic);
         await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog);
     }
 
@@ -14023,7 +14036,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         var selected = PasteTextBox?.SelectedText;
         if (!string.IsNullOrEmpty(selected))
         {
-            CopyAndAnnounce(selected, $"Copied selection ({selected.Length:N0} chars) to clipboard");
+            CopyAndAnnounce(selected, $"Copied selection ({CountText.Of(selected.Length, "char")}) to clipboard");
             return;
         }
 

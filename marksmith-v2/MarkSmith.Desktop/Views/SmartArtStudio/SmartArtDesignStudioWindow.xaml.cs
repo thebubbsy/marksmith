@@ -183,6 +183,9 @@ namespace MarkSmith.Views.SmartArtStudio
                 }
             };
             HoverPolish.Track(this.RootGrid);
+            // The palette flyout lives in the popup layer, outside the tracked tree: its Apply /
+            // Reset / harmony buttons had no hover lift.
+            HoverPolish.AttachOnOpen(PaletteFlyout);
             this.RootGrid.ActualThemeChanged += (_, _) => RefreshWebView();
             // Open in the layout search (typing filters at once), not on the first title-bar button.
             this.RootGrid.Loaded += (_, _) =>
@@ -1478,7 +1481,7 @@ namespace MarkSmith.Views.SmartArtStudio
                 ViewModel.MoveUpCommand.Execute(null);
                 count++;
             }
-            ViewModel.StatusMessage = $"Moved item to top of outline ({count} steps) · Alt+Up to adjust";
+            ViewModel.StatusMessage = $"Moved item to top of outline ({CountText.Of(count, "step")}) · Alt+Up to adjust";
         }
 
         private void OnMoveUpButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -1496,7 +1499,7 @@ namespace MarkSmith.Views.SmartArtStudio
             {
                 int c = 0;
                 while (ViewModel.CanMoveUp) { ViewModel.MoveUpCommand.Execute(null); c++; }
-                ViewModel.StatusMessage = $"Moved item to top of outline ({c} steps)";
+                ViewModel.StatusMessage = $"Moved item to top of outline ({CountText.Of(c, "step")})";
             };
             menu.Items.Add(moveToTopItem);
 
@@ -1524,7 +1527,7 @@ namespace MarkSmith.Views.SmartArtStudio
                 ViewModel.MoveDownCommand.Execute(null);
                 count++;
             }
-            ViewModel.StatusMessage = $"Moved item to bottom of outline ({count} steps) · Alt+Down to adjust";
+            ViewModel.StatusMessage = $"Moved item to bottom of outline ({CountText.Of(count, "step")}) · Alt+Down to adjust";
         }
 
         private void OnMoveDownButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
@@ -1542,7 +1545,7 @@ namespace MarkSmith.Views.SmartArtStudio
             {
                 int c = 0;
                 while (ViewModel.CanMoveDown) { ViewModel.MoveDownCommand.Execute(null); c++; }
-                ViewModel.StatusMessage = $"Moved item to bottom of outline ({c} steps)";
+                ViewModel.StatusMessage = $"Moved item to bottom of outline ({CountText.Of(c, "step")})";
             };
             menu.Items.Add(moveToBottomItem);
 
@@ -2297,7 +2300,7 @@ namespace MarkSmith.Views.SmartArtStudio
             {
                 int c = 0;
                 while (ViewModel.CanMoveUp) { ViewModel.MoveUpCommand.Execute(null); c++; }
-                ViewModel.StatusMessage = $"Moved item to top of outline ({c} steps)";
+                ViewModel.StatusMessage = $"Moved item to top of outline ({CountText.Of(c, "step")})";
             };
             menu.Items.Add(moveToTopItem);
 
@@ -2332,7 +2335,7 @@ namespace MarkSmith.Views.SmartArtStudio
             {
                 int c = 0;
                 while (ViewModel.CanMoveDown) { ViewModel.MoveDownCommand.Execute(null); c++; }
-                ViewModel.StatusMessage = $"Moved item to bottom of outline ({c} steps)";
+                ViewModel.StatusMessage = $"Moved item to bottom of outline ({CountText.Of(c, "step")})";
             };
             menu.Items.Add(moveToBottomItem);
 
@@ -2567,7 +2570,7 @@ namespace MarkSmith.Views.SmartArtStudio
             {
                 int c = 0;
                 while (ViewModel.CanMoveUp) { ViewModel.MoveUp(); c++; }
-                ViewModel.StatusMessage = $"Moved \"{node.Text}\" to top of outline ({c} steps)";
+                ViewModel.StatusMessage = $"Moved \"{node.Text}\" to top of outline ({CountText.Of(c, "step")})";
             };
             menu.Items.Add(moveToTopItem);
 
@@ -2602,7 +2605,7 @@ namespace MarkSmith.Views.SmartArtStudio
             {
                 int c = 0;
                 while (ViewModel.CanMoveDown) { ViewModel.MoveDown(); c++; }
-                ViewModel.StatusMessage = $"Moved \"{node.Text}\" to bottom of outline ({c} steps)";
+                ViewModel.StatusMessage = $"Moved \"{node.Text}\" to bottom of outline ({CountText.Of(c, "step")})";
             };
             menu.Items.Add(moveToBottomItem);
 
@@ -2616,7 +2619,7 @@ namespace MarkSmith.Views.SmartArtStudio
             {
                 int c = 0;
                 while (ViewModel.CanPromote) { ViewModel.Promote(); c++; }
-                ViewModel.StatusMessage = $"Promoted \"{node.Text}\" to root level ({c} steps)";
+                ViewModel.StatusMessage = $"Promoted \"{node.Text}\" to root level ({CountText.Of(c, "step")})";
             };
             menu.Items.Add(promoteToRootItem);
 
@@ -3855,6 +3858,23 @@ namespace MarkSmith.Views.SmartArtStudio
                     _ => "Monochromatic"
                 };
             }
+            // Only the label said which mode was on. Re-checking here also keeps the active toggle
+            // pressed when it is clicked again (a ToggleButton unchecks itself before Click).
+            if (HarmonyMonoBtn != null)
+            {
+                HarmonyMonoBtn.IsChecked = mode is not ("analogous" or "triadic");
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetItemStatus(HarmonyMonoBtn, HarmonyMonoBtn.IsChecked == true ? "Active" : "");
+            }
+            if (HarmonyAnalogousBtn != null)
+            {
+                HarmonyAnalogousBtn.IsChecked = mode == "analogous";
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetItemStatus(HarmonyAnalogousBtn, HarmonyAnalogousBtn.IsChecked == true ? "Active" : "");
+            }
+            if (HarmonyTriadicBtn != null)
+            {
+                HarmonyTriadicBtn.IsChecked = mode == "triadic";
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetItemStatus(HarmonyTriadicBtn, HarmonyTriadicBtn.IsChecked == true ? "Active" : "");
+            }
 
             string baseHex = _customHexOverride ?? "0078D4";
             var textHex = CustomPaletteHexBox?.Text?.Trim() ?? "";
@@ -4216,9 +4236,7 @@ namespace MarkSmith.Views.SmartArtStudio
             if (OutlineStatsText == null) return;
             int count = ViewModel.OutlineRows.Count;
             int maxDepth = count > 0 ? ViewModel.OutlineRows.Max(r => r.Depth) : 0;
-            string text = count == 1
-                ? $"1 node · Depth {maxDepth}"
-                : $"{count} nodes · Depth {maxDepth}";
+            string text = $"{CountText.Of(count, "node")} · Depth {maxDepth}";
             OutlineStatsText.Text = text;
             if (OutlineStatsPill != null)
             {
@@ -4241,12 +4259,12 @@ namespace MarkSmith.Views.SmartArtStudio
             }
             if (OutlineMetricsText != null)
             {
-                OutlineMetricsText.Text = $"{totalWords} words · {totalChars} chars";
+                OutlineMetricsText.Text = $"{CountText.Of(totalWords, "word")} · {CountText.Of(totalChars, "char")}";
             }
             if (OutlineMetricsPill != null)
             {
-                Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(OutlineMetricsPill, $"Outline text volume: {totalWords} words, {totalChars} characters");
-                ToolTipService.SetToolTip(OutlineMetricsPill, $"Outline metrics: {totalWords} words, {totalChars} characters across {count} items · Click to copy the counts or the plain text");
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(OutlineMetricsPill, $"Outline text volume: {CountText.Of(totalWords, "word")}, {CountText.Of(totalChars, "character")}");
+                ToolTipService.SetToolTip(OutlineMetricsPill, $"Outline metrics: {CountText.Of(totalWords, "word")}, {CountText.Of(totalChars, "character")} across {CountText.Of(count, "item")} · Click to copy the counts or the plain text");
             }
         }
 
@@ -4324,7 +4342,7 @@ namespace MarkSmith.Views.SmartArtStudio
             int count = ViewModel.OutlineRows.Count;
             int maxDepth = count > 0 ? ViewModel.OutlineRows.Max(r => r.Depth) : 0;
             string layoutName = ViewModel.SelectedLayout?.DisplayName ?? "SmartArt";
-            string summary = $"{count} nodes (max depth {maxDepth}) · {layoutName}";
+            string summary = $"{CountText.Of(count, "node")} (max depth {maxDepth}) · {layoutName}";
             CopyAndReport(summary, $"Copied outline summary: {summary}");
         }
 

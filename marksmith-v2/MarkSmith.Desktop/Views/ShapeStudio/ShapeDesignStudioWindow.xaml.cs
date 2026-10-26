@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.UI.Xaml;
@@ -1601,13 +1601,14 @@ namespace MarkSmith.Views.ShapeStudio
                     FontSize = 10.5,
                     FontFamily = new FontFamily("Cascadia Mono, Consolas, monospace"),
                     FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-                    Foreground = new SolidColorBrush(Microsoft.UI.Colors.White),
                     HorizontalAlignment = HorizontalAlignment.Center,
                     VerticalAlignment = VerticalAlignment.Center
                 };
+                // Was a fixed near-black badge with white text in both themes; it now matches the
+                // studio's surfaces (and high contrast) like the guides around it.
+                ThemeBrush.Set(_cursorHudText, TextBlock.ForegroundProperty, "TextFillColorPrimaryBrush");
                 _cursorHudBadge = new Border
                 {
-                    Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0xEE, 0x14, 0x1A, 0x24)),
                     BorderThickness = new Thickness(1),
                     CornerRadius = new CornerRadius(6),
                     Padding = new Thickness(6, 2, 6, 2),
@@ -1616,6 +1617,7 @@ namespace MarkSmith.Views.ShapeStudio
                     Child = _cursorHudText
                 };
                 ThemeBrush.Set(_cursorHudBadge, Border.BorderBrushProperty, "AccentFillColorDefaultBrush");
+                ThemeBrush.Set(_cursorHudBadge, Border.BackgroundProperty, "SolidBackgroundFillColorTertiaryBrush");
                 MainCanvas.Children.Add(_cursorHudBadge);
             }
         }
@@ -2409,13 +2411,11 @@ namespace MarkSmith.Views.ShapeStudio
             {
                 FontSize = 10.5,
                 FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-                Foreground = new SolidColorBrush(Microsoft.UI.Colors.White),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center
             };
             _rotateAngleBadge = new Border
             {
-                Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0xEE, 0x18, 0x20, 0x2C)),
                 BorderBrush = new SolidColorBrush(AccentColor(0xCC)),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(10),
@@ -2424,6 +2424,9 @@ namespace MarkSmith.Views.ShapeStudio
                 Visibility = Visibility.Collapsed,
                 Child = _rotateAngleBadgeText
             };
+            // The angle and size badges match the cursor HUD: themed surface, accent border.
+            ThemeBrush.Set(_rotateAngleBadgeText, TextBlock.ForegroundProperty, "TextFillColorPrimaryBrush");
+            ThemeBrush.Set(_rotateAngleBadge, Border.BackgroundProperty, "SolidBackgroundFillColorTertiaryBrush");
             SelectionAdorner.Children.Add(_rotateAngleBadge);
 
             _resizeAspectGuide = new Microsoft.UI.Xaml.Shapes.Line
@@ -2440,13 +2443,11 @@ namespace MarkSmith.Views.ShapeStudio
             {
                 FontSize = 10.5,
                 FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-                Foreground = new SolidColorBrush(Microsoft.UI.Colors.White),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center
             };
             _resizeDimensionBadge = new Border
             {
-                Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0xEE, 0x18, 0x20, 0x2C)),
                 BorderBrush = new SolidColorBrush(AccentColor(0xCC)),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(10),
@@ -2455,6 +2456,8 @@ namespace MarkSmith.Views.ShapeStudio
                 Visibility = Visibility.Collapsed,
                 Child = _resizeDimensionBadgeText
             };
+            ThemeBrush.Set(_resizeDimensionBadgeText, TextBlock.ForegroundProperty, "TextFillColorPrimaryBrush");
+            ThemeBrush.Set(_resizeDimensionBadge, Border.BackgroundProperty, "SolidBackgroundFillColorTertiaryBrush");
             SelectionAdorner.Children.Add(_resizeDimensionBadge);
         }
 
@@ -5666,11 +5669,11 @@ namespace MarkSmith.Views.ShapeStudio
                     double maxY = sel.Max(sh => sh.Y + sh.Height);
                     int bw = (int)Math.Round(maxX - minX);
                     int bh = (int)Math.Round(maxY - minY);
-                    SelectionBoundsText.Text = $"{sel.Count} shapes · {bw}×{bh} bounds";
+                    SelectionBoundsText.Text = $"{CountText.Of(sel.Count, "shape")} · {bw}×{bh} bounds";
                 }
                 else
                 {
-                    SelectionBoundsText.Text = $"{count} shapes selected";
+                    SelectionBoundsText.Text = $"{CountText.Of(count, "shape")} selected";
                 }
             }
             // The pill is a button now: screen readers hear the readout, not a fixed label.
