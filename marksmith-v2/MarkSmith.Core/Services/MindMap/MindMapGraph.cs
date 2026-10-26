@@ -498,13 +498,13 @@ namespace MarkSmith.Services.MindMap
         {
             if (!HasRepairs) return "";
             var parts = new List<string>();
-            if (DroppedDanglingLinks > 0) parts.Add($"{DroppedDanglingLinks} broken link(s)");
-            if (DroppedSelfLinks > 0) parts.Add($"{DroppedSelfLinks} self-link(s)");
-            if (MergedDuplicateLinks > 0) parts.Add($"{MergedDuplicateLinks} duplicate link(s)");
-            if (ClearedDanglingParents > 0) parts.Add($"{ClearedDanglingParents} orphaned parent ref(s)");
-            if (BrokenCycles > 0) parts.Add($"{BrokenCycles} parent cycle(s)");
-            if (RepairedChildLists > 0) parts.Add($"{RepairedChildLists} child list(s)");
-            if (RepairedNodeIds > 0) parts.Add($"{RepairedNodeIds} duplicate id(s)");
+            if (DroppedDanglingLinks > 0) parts.Add(CountText.Of(DroppedDanglingLinks, "broken link"));
+            if (DroppedSelfLinks > 0) parts.Add(CountText.Of(DroppedSelfLinks, "self-link"));
+            if (MergedDuplicateLinks > 0) parts.Add(CountText.Of(MergedDuplicateLinks, "duplicate link"));
+            if (ClearedDanglingParents > 0) parts.Add(CountText.Of(ClearedDanglingParents, "orphaned parent ref"));
+            if (BrokenCycles > 0) parts.Add(CountText.Of(BrokenCycles, "parent cycle"));
+            if (RepairedChildLists > 0) parts.Add(CountText.Of(RepairedChildLists, "child list"));
+            if (RepairedNodeIds > 0) parts.Add(CountText.Of(RepairedNodeIds, "duplicate id"));
             if (ReassignedRoot) parts.Add("a missing root");
             return "Repaired " + string.Join(", ", parts) + ".";
         }

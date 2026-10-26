@@ -55,7 +55,8 @@ public class Run262StudioPolishAndStatusBarTests
         var cs = Read(MainWindowCs);
         var overflowIdx = cs.IndexOf("private void UpdateStatusBarOverflow()", StringComparison.Ordinal);
         Assert.True(overflowIdx >= 0);
-        var overflowBody = cs.Substring(overflowIdx, 3000);
+        var overflowEnd = cs.IndexOf("private static bool IsDescendantOf(", overflowIdx, StringComparison.Ordinal);
+        var overflowBody = cs.Substring(overflowIdx, overflowEnd - overflowIdx);
 
         Assert.Contains("StatusShortcutsButton.Visibility = Visibility.Collapsed;", overflowBody);
         Assert.Contains("StatusShortcutsDivider.Visibility = Visibility.Collapsed;", overflowBody);

@@ -465,6 +465,9 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             UpdateSessionTelemetry();
             WordStreamText.Text = $"Assembled {CountText.Of(page.Words.Count, "word")} into {CountText.Of(page.Elements.Count, "block")}.";
             StageProgressBar.Value = 100;
+            // The stream line is marked live but only its result is worth hearing: one read-out
+            // per page, not one per located element.
+            LiveAnnounce.Raise(WordStreamText);
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)

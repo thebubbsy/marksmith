@@ -1226,8 +1226,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
             Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(CanvasSummaryButton, "Copy diagram summary");
             return;
         }
-        static string Count(int n, string one) => n == 1 ? $"1 {one}" : $"{n} {one}s";
-        var parts = new List<string> { Count(vm.Nodes.Count, "node"), Count(vm.Connectors.Count, "connector") };
+        var parts = new List<string> { CountText.Of(vm.Nodes.Count, "node"), CountText.Of(vm.Connectors.Count, "connector") };
         if (selectedNodes > 1) parts.Add($"{selectedNodes} selected");
         parts.Add(vm.IsGridSnapEnabled ? "Snap to 10 px grid" : "Snap off");
         CanvasSummaryText.Text = string.Join("  ·  ", parts);

@@ -1510,7 +1510,12 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         var st = App.License.State;
         UpdateExportButtonForLicense(st);
-        if (st.Edition == Models.Edition.Pro) { LicenseBanner.IsOpen = false; return; }
+        if (st.Edition == Models.Edition.Pro)
+        {
+            ReleaseLicenseActionFocus();
+            LicenseBanner.IsOpen = false;
+            return;
+        }
 
         var (title, message, action) = Models.ProGate.Banner(st);
         // Informational, not Warning: being on the free plan isn't something that went wrong, and
@@ -1524,6 +1529,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             LicenseActionButton.Click -= OnUpgradeClick;
             if (action is null)
             {
+                ReleaseLicenseActionFocus();
                 LicenseActionButton.Visibility = Visibility.Collapsed;
             }
             else
@@ -1538,6 +1544,15 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             }
         }
         LicenseBanner.IsOpen = true;
+    }
+
+    // Starting the trial (or activating Pro) can hide the banner's action button while it still
+    // holds keyboard focus, which threw focus back to the window's first tab stop. Hand it to the
+    // editor first, where the user was working before they reached for the banner.
+    private void ReleaseLicenseActionFocus()
+    {
+        if (LicenseActionButton is null || LicenseActionButton.FocusState == FocusState.Unfocused) return;
+        PasteTextBox.Focus(FocusState.Programmatic);
     }
 
     // The main export button runs what the current license can actually do: Word for Pro and the
@@ -12376,6 +12391,9 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
 
         var infinite = new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity);
         bool wasFolded = StatusSecondaryCopyPills.Visibility == Visibility.Collapsed;
+        // The re-measure below briefly collapses "More"; remember whether it held focus so a
+        // resize doesn't silently drop the user's place in the status bar.
+        var moreFocus = StatusMoreCopyButton.FocusState;
         StatusSecondaryCopyPills.Visibility = Visibility.Visible;
         StatusMoreCopyButton.Visibility = Visibility.Collapsed;
         if (StatusShortcutsButton is not null) StatusShortcutsButton.Visibility = Visibility.Visible;
@@ -12405,6 +12423,12 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 if (StatusShortcutsDivider is not null) StatusShortcutsDivider.Visibility = Visibility.Collapsed;
                 if (shortcutsHadFocus) StatusMoreCopyButton.Focus(FocusState.Keyboard);
             }
+            if (moreFocus != FocusState.Unfocused) StatusMoreCopyButton.Focus(moreFocus);
+        }
+        else if (moreFocus != FocusState.Unfocused)
+        {
+            // Unfolded: "More" is gone for good, so land on the first pill it was standing in for.
+            StatusCopyCodeButton.Focus(moreFocus);
         }
 
         StatusRightPanel.Measure(infinite);
