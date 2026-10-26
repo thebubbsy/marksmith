@@ -104,7 +104,7 @@ public class Run236PdfPreviewAndInsertDialogTests
     public void Insert_dialog_problem_hint_is_announced()
     {
         var refresh = Method(InsertCode, "Refresh");
-        Assert.Contains("RaiseAutomationEvent(AutomationEvents.LiveRegionChanged)", refresh);
+        Assert.Contains("LiveAnnounce.RaiseIfChanged", refresh);
     }
 
     [Fact]

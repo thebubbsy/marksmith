@@ -1151,11 +1151,26 @@ private readonly MarkdownExportService _mdExport = new();
         });
     }
 
+    // null back when its items are cleared, and that null must not reach settings.
+    private bool _refreshingCloudProviders;
+
     // Re-scans the machine for cloud-drive sync folders (Task 9) and refreshes the picker list.
     public void RefreshCloudProviders()
     {
-        CloudProviders.Clear();
-        foreach (var p in AppServices.CloudStorage.DetectProviders()) CloudProviders.Add(p);
+        var keep = CloudProviderId;
+        _refreshingCloudProviders = true;
+        try
+        {
+            CloudProviders.Clear();
+            foreach (var p in AppServices.CloudStorage.DetectProviders()) CloudProviders.Add(p);
+        }
+        finally { _refreshingCloudProviders = false; }
+
+        if (!string.IsNullOrWhiteSpace(keep))
+        {
+            if (CloudProviderId != keep) CloudProviderId = keep;
+            else OnPropertyChanged(nameof(CloudProviderId));
+        }
     }
 
     partial void OnOutputFolderChanged(string value) { _settingsService.Current.OutputFolder = value; SaveSettingsDebounced(); }
@@ -1278,7 +1293,12 @@ private readonly MarkdownExportService _mdExport = new();
     partial void OnSkipLaunchVideoChanged(bool value) { _settingsService.Current.SkipLaunchVideo = value; SaveSettingsDebounced(); }
     partial void OnAllowedExtensionIdChanged(string value) { _settingsService.Current.AllowedExtensionId = value; SaveSettingsDebounced(); }
     partial void OnCloudAutoPublishChanged(bool value) { _settingsService.Current.CloudAutoPublish = value; SaveSettingsDebounced(); }
-    partial void OnCloudProviderIdChanged(string value) { _settingsService.Current.CloudProviderId = value; OnPropertyChanged(nameof(IsWebDavProvider)); SaveSettingsDebounced(); }
+    partial void OnCloudProviderIdChanged(string value) {
+        if (_refreshingCloudProviders || string.IsNullOrWhiteSpace(value)) return;
+        _settingsService.Current.CloudProviderId = value;
+        OnPropertyChanged(nameof(IsWebDavProvider));
+        SaveSettingsDebounced();
+    }
     partial void OnCloudSubfolderChanged(string value) { _settingsService.Current.CloudSubfolder = value; SaveSettingsDebounced(); }
     partial void OnWebDavEndpointChanged(string value) { _settingsService.Current.WebDavEndpoint = value; SaveSettingsDebounced(); }
     partial void OnWebDavUserChanged(string value) { _settingsService.Current.WebDavUser = value; SaveSettingsDebounced(); }
@@ -1395,10 +1415,24 @@ private readonly MarkdownExportService _mdExport = new();
 
     public void LoadPresets()
     {
-        Presets.Clear();
-        foreach (var p in _presetsService.Load()) Presets.Add(p);
+        var keepName = ActivePreset?.Name;
+        _presetSync = true;
+        try
+        {
+            Presets.Clear();
+            foreach (var p in _presetsService.Load()) Presets.Add(p);
+        }
+        finally { _presetSync = false; }
         RaisePresetListChanged();
-        SyncActivePreset();
+
+        if (!string.IsNullOrWhiteSpace(keepName) && FindPreset(keepName) is { } matched)
+        {
+            SetActivePresetQuietly(matched);
+        }
+        else
+        {
+            SyncActivePreset();
+        }
     }
 
     /// <summary>
@@ -1452,9 +1486,14 @@ private readonly MarkdownExportService _mdExport = new();
         name = name.Trim();
         if (name.Length == 0) return;
         var preset = ExportPreset.Capture(name, _settingsService.Current);
-        for (int i = Presets.Count - 1; i >= 0; i--)
-            if (string.Equals(Presets[i].Name, name, StringComparison.OrdinalIgnoreCase)) Presets.RemoveAt(i);
-        Presets.Insert(0, preset);
+        _presetSync = true;
+        try
+        {
+            for (int i = Presets.Count - 1; i >= 0; i--)
+                if (string.Equals(Presets[i].Name, name, StringComparison.OrdinalIgnoreCase)) Presets.RemoveAt(i);
+            Presets.Insert(0, preset);
+        }
+        finally { _presetSync = false; }
         _presetsService.Save(Presets);
         RaisePresetListChanged();
         SetActivePresetQuietly(preset);

@@ -20584,3 +20584,32 @@ in WinUI, and `EditorStepTitle.Parent` was null at constructor time, so the host
 dialog fixes).
 
 **Release (same run):** tagged **v3.91.0** on `d3fc9fe` (this run's work plus Antigravity's `2236929` and `f7766a9`). Release workflow run 40316738552 succeeded; user-facing notes prepended to the generated body (https://github.com/thebubbsy/marksmith/releases/tag/v3.91.0). `MarksmithBaseVersion` is now 3.92.0.
+### 2026-10-26 (scheduled routine run #284)
+
+- Trigger: Scheduled task `commit-to-main-ship-improvement--r4efinement` (23:00 firing)
+- Mandate: Picked up run #283's "Next up":
+  1. Output folder box shows the end of the path while unfocused (`ScrollOutputFolderToEnd`).
+  2. Moved `InsertDialogBody`'s problem announcement to `LiveAnnounce.RaiseIfChanged`.
+  3. Audited `ObservableCollection.Clear()` + refill sites bound to ComboBox selections (`CloudProviders` and `Presets`) and added TwoWay selection retention guards.
+
+**Delivered (user-visible):**
+1. **Output folder box shows destination folder while unfocused:** In Style & Export (Step 3), the 200 px `OutputFolderTextBox` cuts off long paths like `C:\Users\Username\OneDrive\Documents\MarkSmith\Exports`, previously showing only `C:\Users\Username\...`. When unfocused (on Loaded, SizeChanged, LostFocus, and OutputFolder property update), it now scrolls horizontally to the end (`ScrollableWidth`) so the actual destination folder name is immediately visible. Focusing the box returns caret and scrolling to natural edit control.
+2. **OutputFolderText service utilities (`LeafFolder` & `DisplaySummary`):** Added robust, cross-platform path parsing in `MarkSmith.Core` to cleanly extract leaf folder names across Windows and Unix paths, ignoring trailing slashes and handling drive roots (`C:\`) and relative paths gracefully.
+3. **Polite, coalesced Insert problem announcements (`LiveAnnounce`):** Replaced manual, ad-hoc `FrameworkElementAutomationPeer.FromElement(_problem)?.RaiseAutomationEvent(AutomationEvents.LiveRegionChanged)` with `LiveAnnounce.RaiseIfChanged(_problem, message)`. Screen readers hear validation hints reliably without event churn, respecting control lifecycle, visibility, and XamlRoot availability.
+4. **Cloud storage provider selection is preserved across rescans:** `MainViewModel.RefreshCloudProviders()` previously called `CloudProviders.Clear()`, which fired a `Reset` event to the TwoWay-bound `ComboBox` in `SettingsView.xaml`, causing WinUI to write `SelectedValue = null` back to `CloudProviderId` and wiping the user's configured cloud drive from settings. Guarded `RefreshCloudProviders()` with `_refreshingCloudProviders`, preventing settings corruption and restoring the user's selected provider upon refill.
+5. **Export Presets selection is preserved across reloads:** `MainViewModel.LoadPresets()` previously called `Presets.Clear()`, causing `PresetsCombo`'s TwoWay `SelectedItem` binding to wipe `ActivePreset`. Wrapped `LoadPresets()` and `SavePreset()` in `_presetSync = true`, shielding `ActivePreset` from blanking during collection resets and restoring the matching preset cleanly.
+
+**Implementation Summary**
+- Core: `Services/OutputFolderText.cs` (`LeafFolder`, `DisplaySummary`), `ViewModels/MainViewModel.cs` (`_refreshingCloudProviders` guard, `RefreshCloudProviders()` selection retention, `LoadPresets()` and `SavePreset()` `_presetSync` shielding).
+- Desktop: `MainWindow.xaml.cs` (`ScrollOutputFolderToEnd()`, hooked to `Loaded`, `SizeChanged`, `LostFocus`, and `UpdateOutputFolderToolTip`), `Views/InsertDialogControls.cs` (`LiveAnnounce.RaiseIfChanged(_problem, message)` integration).
+- Tests: `Run284OutputFolderAndComboBoxPolishTests.cs` (leaf folder extraction, display summaries, Presets TwoWay clear resilience, CloudProviders TwoWay clear resilience, source contracts for MainWindow and InsertDialogControls), updated `Run236PdfPreviewAndInsertDialogTests.cs` assertion for `LiveAnnounce.RaiseIfChanged`.
+
+**Verified:**
+- `dotnet build MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: 0 errors.
+- Unit test suite: `Run284OutputFolderAndComboBoxPolishTests` (6/6 passed), `Run236PdfPreviewAndInsertDialogTests` (7/7 passed), broad test suite passed.
+- Smoke launch: `Marksmith.exe` launched and ran smoothly (PID 7776, 0 crashes on startup).
+
+**Next up (Run #285):**
+1. Audit remaining dialogs/studios for any unfocused single-line text inputs containing long paths or URLs (e.g. Image URL, WebDAV endpoint, Watch Folder) that would benefit from end-scrolling when unfocused.
+2. Review `SettingsView` toggle card descriptions and layout spacing for high-DPI scaling consistency.
+3. Check and polish status bar copy pill tooltips across all document formats.

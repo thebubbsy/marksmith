@@ -37,7 +37,6 @@ public abstract class InsertDialogBody : UserControl
     private readonly Button _copySnippetButton;
     private bool _valid = true;
     private bool _opened;
-    private string? _lastAnnouncedProblem;
 
     /// <summary>Raised when the user presses Enter on a valid single-line input to commit the dialog.</summary>
     public event Action? CommitRequested;
@@ -252,21 +251,11 @@ public abstract class InsertDialogBody : UserControl
         _problem.Visibility = problem is null ? Visibility.Collapsed : Visibility.Visible;
         _problem.Foreground = ThemeBrush.For(_problem, _opened ? "SystemFillColorCriticalBrush" : "TextFillColorSecondaryBrush");
         
-        if (_opened && problem != _lastAnnouncedProblem)
+        if (_opened)
         {
-            _lastAnnouncedProblem = problem;
-            if (!string.IsNullOrWhiteSpace(problem))
-            {
-                AutomationProperties.SetName(_problem, $"Problem: {problem}");
-                AutomationProperties.SetLiveSetting(_problem, AutomationLiveSetting.Polite);
-                // Setting the name alone is silent: a live region speaks only when it is told it changed.
-                FrameworkElementAutomationPeer.FromElement(_problem)
-                    ?.RaiseAutomationEvent(AutomationEvents.LiveRegionChanged);
-            }
-            else
-            {
-                AutomationProperties.SetName(_problem, "");
-            }
+            var message = string.IsNullOrWhiteSpace(problem) ? null : $"Problem: {problem}";
+            AutomationProperties.SetName(_problem, message ?? "");
+            Services.LiveAnnounce.RaiseIfChanged(_problem, message);
         }
 
         // An empty card read as broken; say plainly that nothing has been chosen yet.

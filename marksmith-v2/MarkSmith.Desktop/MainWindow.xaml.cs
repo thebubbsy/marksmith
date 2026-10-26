@@ -336,6 +336,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // A double-click is left to the boxes (it selects a word); the path actions are in the menu.
         TextBoxMenu.Attach(InputFileTextBox, FillInputFileMenu);
         TextBoxMenu.Attach(OutputFolderTextBox, FillOutputFolderMenu);
+        OutputFolderTextBox.Loaded += (_, _) => ScrollOutputFolderToEnd();
+        OutputFolderTextBox.SizeChanged += (_, _) => ScrollOutputFolderToEnd();
+        OutputFolderTextBox.LostFocus += (_, _) => ScrollOutputFolderToEnd();
         TextBoxMenu.Attach(FindTextBox, FillFindTextBoxMenu);
         TextBoxMenu.Attach(ReplaceTextBox, FillReplaceTextBoxMenu);
         TextBoxMenu.Attach(TocFilterBox, FillTocFilterMenu);
@@ -3987,6 +3990,18 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (OutputFolderTextBox is null) return;
         var folder = ViewModel.OutputFolder;
         ToolTipService.SetToolTip(OutputFolderTextBox, Services.OutputFolderText.ToolTip(folder));
+        DispatcherQueue?.TryEnqueue(ScrollOutputFolderToEnd);
+    }
+
+    // When unfocused, scrolls the output folder text box to the end so the leaf directory name
+    // (e.g. "...MarkSmith\Exports") is visible instead of the start ("C:\Users\Username...").
+    private void ScrollOutputFolderToEnd()
+    {
+        if (OutputFolderTextBox is null) return;
+        if (OutputFolderTextBox.FocusState != FocusState.Unfocused) return;
+        var sv = FindDescendant<ScrollViewer>(OutputFolderTextBox);
+        if (sv is null || sv.ScrollableWidth <= 0) return;
+        sv.ChangeView(sv.ScrollableWidth, null, null, disableAnimation: true);
     }
 
     private void UpdateDropZoneVisual()
