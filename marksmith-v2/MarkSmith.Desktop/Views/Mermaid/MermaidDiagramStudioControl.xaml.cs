@@ -421,6 +421,23 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
     private bool IsEditingTextOutsideCode() =>
         IsEditingText() && CodeEditorTextBox.FocusState == FocusState.Unfocused;
 
+    // The nudge accelerators claim every arrow key nothing else has taken, so the palette's
+    // arrow-navigated category pills never moved (and a combo box or slider that leaves an arrow
+    // unhandled would nudge the shape instead). Those controls keep their arrows; the canvas still
+    // nudges.
+    private bool FocusOwnsArrowKeys()
+    {
+        if (XamlRoot is not { } root) return false;
+        if (FocusManager.GetFocusedElement(root) is not DependencyObject focused) return false;
+        for (var cur = focused; cur is not null; cur = cur is UIElement ? VisualTreeHelper.GetParent(cur) : null)
+        {
+            if (ReferenceEquals(cur, CanvasContainer)) return false;
+            if (cur is ListViewBase or ListViewItem or ComboBox or Slider) return true;
+            if (cur is UIElement { XYFocusKeyboardNavigation: XYFocusKeyboardNavigationMode.Enabled }) return true;
+        }
+        return false;
+    }
+
     private bool IsFocusWithinCanvas()
     {
         if (XamlRoot is not { } root) return false;
@@ -732,7 +749,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
     private void OnNudgeAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
         if (MenuOwnsKeys()) return;
-        if (IsEditingText() || ViewModel is null) return;
+        if (IsEditingText() || FocusOwnsArrowKeys() || ViewModel is null) return;
         bool coarse = sender.Modifiers.HasFlag(Windows.System.VirtualKeyModifiers.Shift);
         var (dx, dy) = sender.Key switch
         {

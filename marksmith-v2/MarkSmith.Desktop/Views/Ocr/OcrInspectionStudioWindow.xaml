@@ -402,7 +402,7 @@
                         ToolTipService.ToolTip="Copy session metrics and status · Right-click or Shift+F10 for options"
                         AutomationProperties.HelpText="Copies the page, element and word counts with the status line. Shift+F10 for more options.">
                     <TextBlock x:Name="SessionMetricsText"
-                               Text="1 Page · 0 Elements · 0 Words"
+                               Text="1 page · 0 elements · 0 words"
                                FontSize="11" FontFamily="Consolas" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                AutomationProperties.LiveSetting="Polite" />
                 </Button>

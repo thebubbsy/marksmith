@@ -38,8 +38,10 @@
 
         <!-- Category pills. These were one horizontal strip in a 256 px column, so State, Gantt, ER
              and Mindmap sat past the edge where a mouse wheel can't scroll; they wrap three to a
-             row now and every category is visible. -->
-        <VariableSizedWrapGrid Grid.Row="1" Orientation="Horizontal" ItemWidth="78" ItemHeight="32">
+             row now and every category is visible. Arrow keys move between them and Tab passes the
+             group in one stop, like any other set of choices. -->
+        <VariableSizedWrapGrid Grid.Row="1" Orientation="Horizontal" ItemWidth="78" ItemHeight="32"
+                               XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once">
             <ToggleButton x:Name="CatAll" Content="All" IsChecked="True" Click="OnCategoryPillClick" RightTapped="OnCategoryPillRightTapped" Padding="6,4" Margin="0,0,6,6"
                           HorizontalAlignment="Stretch" CornerRadius="12" FontSize="11" />
             <ToggleButton x:Name="CatFlowchart" Content="Flowchart" Click="OnCategoryPillClick" RightTapped="OnCategoryPillRightTapped" Padding="6,4" Margin="0,0,6,6"
