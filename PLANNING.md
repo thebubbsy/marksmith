@@ -20151,3 +20151,99 @@ Document Galaxy, OCR, Suite Hub, Settings and the command palette; 3 busy-button
 - **Natural Pluralization Sweep (`CountText.Of`)**: Converted singular/plural counts at 1 across `MindMapStudioViewModel`, `MindMapNodeViewModel`, `MindMapGalaxyWindow` tag details, `SuiteHubView` template matches, and `ShapeDesignStudioWindow` status actions.
 - **Tests**: Added `Run279SnapRingKeyboardAndCountsTests` (13 cases) and `Run279CopyHtmlPillTests` (2 cases), bringing total Run #279 suite to 48/48 tests passing.
 
+## Scheduled WinUI 3 Desktop Polish Routine — Run #280 (2026-10-26, 19:01–19:35 AEDT)
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running in the Claude desktop app. The task template asks for an Antigravity /
+  Gemini identity; this run was not executed by that agent, so it records the real one.
+- Modes: Scheduled hourly desktop polish routine, unattended (no live user input)
+- Trigger: Scheduled task `commit-to-main-ship-improvement--r4efinement` (19:00 firing)
+- Agents used: 1 (single orchestrator that also coded and did the skeptical review; no subagents). Session
+  `91e1680c-e099-4f51-8e00-7317ef615199`. Built, tested, committed and pushed from the clean clone `%TEMP%\ms249`;
+  the shared working tree was not touched (only the untracked EverythingHttpPlugin/ and tools/m365-canary-tui there).
+
+**Picked up:** run #279's "Next up" #1 and both "Noticed, not fixed" items. Swept every `SetLiveSetting` /
+`AutomationProperties.LiveSetting` in Desktop for the ones that never raise `LiveRegionChanged`. History, Mermaid,
+NodePalette, SmartArt Studio, the Go to line preview and the image/insert dialogs already raise; the gaps were all in
+Settings, the Extension setup page, the Welcome tour, Suite Hub, the SmartArt insert dialog and the extension hint
+bar / tip.
+
+**Delivered (user-visible):**
+1. **Settings › License, the result is read out**: "License activated" / "That key isn't valid" after Activate,
+   Start free trial or Remove license. The InfoBar was marked live but never raised.
+2. **Settings › Automation, Rescan reads out what it found** ("Found 2 local cloud sync folders on this PC."), every
+   press, even when the answer is the same as last time.
+3. **Settings › Google Docs, the sign-in status is read out as it changes** ("Waiting for you to approve…" →
+   "Connected as …"), once per new message.
+4. **Settings › Plugins, install progress and results are read out** (coalesced, so a download is announced as it
+   settles, not once per percent), and so are plugin load warnings.
+5. **Settings, the lines that answer a choice are read out**: the file-name preview as a pattern is typed, the OCR
+   engine description after picking an engine, and the local API's status after toggling it.
+6. **Opening a view no longer reads out every line it fills in**: `LiveAnnounce.Track` ignores text set before the
+   view has loaded, so opening Settings (now with six tracked lines) stays quiet. Verified live: zero events on open.
+7. **Welcome tour, Next / Back read out the step** ("Step 2 of 7: Source").
+8. **Extension setup, the connection status is read out when it changes** ("Waiting for the extension…" →
+   "Connected"); the poll re-renders the same text without repeating it.
+9. **Suite Hub, notifications are read out** ("Template copied", "Couldn't reach the API: …").
+10. **Insert SmartArt dialog, picking a layout reads out its name and purpose**, and the outline advice ("reads best
+    with 3 to 7 items") is read out once typing settles.
+11. **Paste hint bar and extension tip are read out when they appear.**
+12. **Settings › License, Remove license no longer pulls focus after a mouse click**: the key box only takes focus if
+    focus is still where it was parked (or was lost); otherwise it stays wherever the user went.
+13. **Version History, the diff word pill counts each side right**: "+1 word / -3 words" instead of "+1 / -3 words"
+    (pill, Copy word delta, and the click copy).
+14. **Shape Studio, the group rotate handle and selection badge tooltips mention Shift+F10**: run #279 (Antigravity)
+    bridged both to the keyboard context menu, but their tooltips still said only "Right-click"; this had left
+    `Run247…BridgedControls_TooltipsMentionShiftF10…` failing on main.
+
+**Implementation Summary**
+- `Services/LiveAnnounce.cs`: `Track` returns early while `source.IsLoaded` is false; new
+  `RaiseIfChanged(element, message)` keeps the last message per element in a `ConditionalWeakTable` (cleared on blank)
+  and raises only on a new one.
+- `Services/FocusRescue.cs`: new `Parked.Waiting` (focus still on the spot, or lost); `Return()` now uses it.
+- `Views/SettingsView.xaml.cs`: 4 new `Track`s in the constructor, `Raise(LicenseStatusBar)`,
+  `Raise(CloudRescanStatusText)`, `RaiseIfChanged` for `GoogleStatusBar` and `PluginWarningsBar`, `Track(status)` on
+  each plugin card, and `OnDeactivateLicense` keeps the `Parked` and focuses only while `parked.Waiting`.
+- `Views/ExtensionSetupView.xaml.cs`, `Views/WelcomeTour.xaml.cs` (`RaiseIfChanged`), `Views/SuiteHubView.xaml.cs`,
+  `Controls/ExtensionHintBar.xaml.cs`, `Controls/ExtensionTip.xaml.cs` (`Raise`), `Views/SmartArtInsertControl.cs`
+  (`Track` ×2 replacing bare `SetLiveSetting`).
+- `Views/ShapeStudio/ShapeDesignStudioWindow.xaml`: two tooltips gain "or Shift+F10".
+- Core `Services/CountText.cs`: `Delta(added, removed, singular, plural?)`; `Views/History/HistoryWindow.xaml.cs` uses it
+  at all three call sites.
+- Tests: new `Run280AnnouncedAnswersAndQuietOpensTests` (29 cases: `CountText.Delta` values incl. 1/1 and 1,204, custom
+  plural, History call sites, Track's IsLoaded guard ordering, RaiseIfChanged repeat/blank handling, each raise placed
+  right after its status is shown, every new Track, Settings trackers after InitializeComponent, Parked.Waiting and the
+  Remove license finally block). Updated `Run279…Return_LeavesFocusAloneIfTheUserMovedOn` (the check moved into
+  `Waiting`).
+- Skeptical review: nothing collapsed or disabled (Remove license now moves focus *less*). No key handlers, flyouts,
+  dynamic buttons, resource lookups or file access added. `RaiseIfChanged` before load records the message but
+  `Raise` no-ops without a XamlRoot, so the tour's first page isn't read twice. A collapsed Find bar's count text loads
+  when the bar is shown, so its announcements still work.
+- Build: `%TEMP%\ms249`, `dotnet build … -p:OutDir=%TEMP%\ms_run280\b\` 0 errors.
+- Tests: `Run280|Run279|Run272|SettingsPolish|CountText|History|FocusRescue|WelcomeTour|SmartArtInsert|ExtensionSetup|SuiteHub`
+  **742/742**; broad sweep `Run2|Ocr|Settings|Extension|Live` 1503/1504, the one failure the stale Shape Studio tooltip contract
+  (item 14); after fixing it `Run2|ShapeStudio|ShapeDesign` **1648/1648**.
+- Live check (scratch PID 31984, fresh `MARKSMITH_CONFIG_DIR`, key-free UIA only, stopped by PID). A managed UIA
+  client subscribed to `LiveRegionChanged` on the window subtree:
+  - Welcome tour: Invoke `NextButton` ×2 → events `PagesHost` "Step 2 of 7: Source", "Step 3 of 7: Style". Then Skip.
+  - Invoke `SettingsTitleButton`: **no** events while Settings opened and filled in its lines.
+  - Settings ▸ Automation (SelectionItem), Toggle "Cloud storage sync" on, Invoke `RescanCloudButton` ×2 → two events
+    `CloudRescanStatusText` "Found 2 local cloud sync folders on this PC."
+  - PrintWindow screenshot of the Automation page (`%TEMP%\ms_run280\settings_automation.png`); no CopyFromScreen.
+  - License actions were not exercised live (Activate calls the license server; Start trial may mark the machine).
+
+**Noticed, not fixed:**
+- The XAML-declared live lines in OCR Studio (`OcrInspectionStudioWindow.xaml` lines 70/122/226/249/396/407), History
+  (76/370/512/641/670), Mermaid (597/609) and `OcrExperienceOverlay.xaml:345` weren't all traced to a raise this run;
+  some may be covered by the window's own announcers.
+- The scratch instance's local API listened on 47821, the same default port as a user instance would use.
+
+**Next up (Run #281):**
+1. Trace the XAML-declared live lines above to a raise (or `LiveAnnounce.Track`).
+2. Live-verify the Rescan (Step 1) focus round trip and an export with an image held open (carried over).
+3. Live-verify History's word pill with two snapshots.
+
+**Total user-visible improvements: 14** (11 screen-reader announcements across Settings, Extension setup, the Welcome
+tour, Suite Hub, Insert SmartArt and the paste hints, plus quiet opens; 1 focus fix in Settings › License; 1 count
+wording fix in Version History; 1 Shape Studio tooltip fix).
