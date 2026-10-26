@@ -20983,7 +20983,7 @@ it was the worst: one Backspace on a layout in the gallery deleted the selected 
   Delete/Back gated).
 - Core: `MermaidStudioViewModel.DeleteSelected` (no-selection status), `ShapeDesignStudioViewModel.SelectAll`
   (empty / traced-line-art status, `CountText` wording).
-- Tests: new `Run290StudioChoiceKeysTests` (14 tests: helper coverage and host-first order, each studio's guard,
+- Tests: new `Run290StudioChoiceKeysTests` (13 cases: helper coverage and host-first order, each studio's guard,
   the no-selection messages, Select all at 0 / 1 / 2 shapes). `Run249…ShapeStudio_WindowKeys_LeaveAnOpenMenuOrFlyoutAlone`
   follows the new Delete case. Stale header comments in `Run281LiveRegionsAndStudioAnnounceTests` corrected (from
   run #288's "Noticed").
@@ -21060,3 +21060,7 @@ or async code touched.
 
 **Total user-visible improvements: 6** (1 shortcut isolation guard for duplicate/reorder, 5 studio single Tab-stop and XY arrow navigation enhancements).
 
+
+**Release (same run):** tagged **v3.96.0** on `1a143b0` (this run's work). Release workflow run 40404104375
+succeeded; user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.96.0). `MarksmithBaseVersion` is now 3.97.0.
