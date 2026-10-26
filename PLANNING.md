@@ -20702,3 +20702,37 @@ here too would only conflict).
 
 **Total user-visible improvements: 8** (4 Step 1 picker, 2 Settings ▸ Plugins, 2 OCR studio).
 
+
+
+### 2026-10-27 (scheduled routine run #286)
+
+- Trigger: Scheduled hourly MarkSmith WinUI 3 Desktop Polish Routine
+- Mandate: Picked up run #285's "Next up" and desktop path polish mandate:
+  1. Single-line text box unfocused end-scroll service (`TextBoxEndScroll`) applied across dialogs, studios, settings, and main window.
+  2. Input file path formatting and rich multi-line tooltip service (`InputFilePathText`).
+  3. Canonical status bar copy pill tooltips (`StatusCopyPillTooltipText`) and tooltip polish on `StatusMoreCopyButton` adding text and HTML.
+  4. Registered and wired `WebDavEndpointBox` and `GoogleClientIdBox` in SettingsView with `TextBoxEndScroll`.
+
+**Delivered (user-visible):**
+1. **Input file box reveals document file name while unfocused:** In Step 1, long paths like `C:\Users\Username\OneDrive\Documents\Notes\quarterly-plan.md` previously clipped at the left edge showing only `C:\Users\Username\...`. When unfocused (on Loaded, SizeChanged, LostFocus, TextChanged, and InputFilePath updates), it now automatically scrolls horizontally to the end so the active Markdown file name is immediately visible at a glance. Focusing the box returns caret and scrolling to natural edit control.
+2. **InputFilePathText service utilities (`FileName`, `Directory`, `DisplaySummary`, `ToolTip`):** Added robust, cross-platform path parsing in `MarkSmith.Core` to cleanly extract leaf file names, parent directories, and concise display summaries across Windows and Unix paths, ignoring trailing slashes and handling root files, relative paths, and whitespace gracefully.
+3. **Rich, informative input file tooltip:** Hovering `InputFileTextBox` displays a multi-line guide detailing the selected file path, leaf file name, parent folder, and keyboard/mouse affordances (`Right-click or Shift+F10 for file actions · History button for revisions`), or friendly guidance when empty (`No file selected — open a Markdown file (Ctrl+O) or drop one here`).
+4. **Unfocused end-scrolling across Insert dialogs:** Wired `TextBoxEndScroll` into `ImageInsertControl._source` (revealing the selected image file name e.g. `...\screenshot.png` instead of drive root), `InsertLinkDialogBody._url` (revealing deep-link anchors and URL query paths), and `InsertMediaDialogBody._url` (revealing video IDs and query endpoints).
+5. **SettingsView WebDAV and OAuth Client ID end-scrolling:** Wired `TextBoxEndScroll` to `WebDavEndpointBox` and `GoogleClientIdBox` in `SettingsView.xaml.cs` so long remote endpoint URLs and `.apps.googleusercontent.com` OAuth client IDs remain readable at their tail.
+6. **Canonical status bar copy pill tooltips & StatusMoreCopyButton polish:** Added `StatusCopyPillTooltipText` in `MarkSmith.Core` providing standardized descriptions across all 14 status bar copy pills documenting primary click and context menu actions, and updated `StatusMoreCopyButton`'s tooltip in `MainWindow.xaml` to explicitly include plain text and rendered HTML in the list of folded actions.
+
+**Implementation Summary**
+- Core: `Services/InputFilePathText.cs` (`FileName`, `Directory`, `DisplaySummary`, `ToolTip`), `Services/StatusCopyPillTooltipText.cs` (canonical descriptions for all 14 copy actions).
+- Desktop: `Services/TextBoxEndScroll.cs` (`Attach`, `ScrollToEndIfUnfocused`), `MainWindow.xaml` (`StatusMoreCopyButton` tooltip updated to include text and HTML), `MainWindow.xaml.cs` (`UpdateInputFileToolTip()`, `TextBoxEndScroll.Attach` on `InputFileTextBox` and `OutputFolderTextBox`, hooked to `Loaded`, `TextChanged`, and `InputFilePath` property changes), `Views/ImageInsertControl.cs` (`TextBoxEndScroll.Attach(_source)`), `Views/InsertDialogControls.cs` (`TextBoxEndScroll.Attach(_url)` on Link and Media bodies), `Views/SettingsView.xaml` (`x:Name="WebDavEndpointBox"`), `Views/SettingsView.xaml.cs` (`TextBoxEndScroll.Attach` on WebDAV and Google Client ID boxes).
+- Tests: `Run286InputFileAndTextBoxEndScrollPolishTests.cs` (leaf file name extraction, directory parsing, display summary fallbacks, multi-line tooltip formatting, canonical tooltip dictionary, and source contracts for MainWindow, ImageInsertControl, InsertDialogControls, and SettingsView).
+
+**Verified:**
+- `dotnet build MarkSmith.Desktop.csproj -c Debug`: 0 errors.
+- Unit test suite: `Run286InputFileAndTextBoxEndScrollPolishTests` (7/7 passed, 27 assertions), `Run284OutputFolderAndComboBoxPolishTests` (15/15 passed).
+
+**Next up (Run #287):**
+1. Audit remaining dialogs/studios for single-line text inputs (e.g. Watch Folder in Settings, Custom CSS path, Pandoc path).
+2. Live-verify plugin Install/Remove focus round trip on a machine where a small plugin download is acceptable.
+3. Sweep the remaining `$"…{x}s …"` display-name pluralisations in the studios (Mermaid palette categories, Galaxy).
+
+**Total user-visible improvements: 6** (1 Input file box end-scroll, 1 rich input tooltip, 1 Image dialog source tail display, 1 Link/Media URL tail display, 1 Settings WebDAV/OAuth tail display, 1 StatusMoreCopyButton tooltip parity).

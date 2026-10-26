@@ -419,7 +419,7 @@
                                              PlaceholderText="Marksmith" IsSpellCheckEnabled="False" />
                                     <!-- WebDAV fields (shown when the user picks the WebDAV provider) -->
                                     <StackPanel Spacing="10" Visibility="{Binding IsWebDavProvider, Converter={StaticResource SettingsBoolToVisibilityConverter}}">
-                                        <TextBox Header="WebDAV endpoint" AutomationProperties.Name="WebDAV endpoint"
+                                        <TextBox x:Name="WebDavEndpointBox" Header="WebDAV endpoint" AutomationProperties.Name="WebDAV endpoint"
                                                  Text="{Binding WebDavEndpoint, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                  PlaceholderText="https://dav.example.com/remote.php/dav/files/user/" IsSpellCheckEnabled="False" />
                                         <Grid ColumnDefinitions="*,*" ColumnSpacing="12">

@@ -589,6 +589,7 @@ public sealed class LinkInsertControl : InsertDialogBody
         _text = new TextBox { Header = "Link text", PlaceholderText = "Read the docs", Text = initialText };
         ToolTipService.SetToolTip(_text, "The text displayed in the document (optional)");
         _url = new TextBox { Header = "URL", PlaceholderText = "https://example.com", IsSpellCheckEnabled = false, InputScope = UrlScope() };
+        TextBoxEndScroll.Attach(_url);
         ToolTipService.SetToolTip(_url, "Target URL or heading reference (e.g. https://example.com or #heading)");
         _text.TextChanged += (_, _) => Refresh();
         _url.TextChanged += (_, _) => Refresh();
@@ -715,6 +716,7 @@ public sealed class EmbedInsertControl : InsertDialogBody
         };
         AddField(_url);
         AddField(_provider);
+        TextBoxEndScroll.Attach(_url);
     }
 
     public string Provider => Providers[Math.Max(0, _provider.SelectedIndex)];

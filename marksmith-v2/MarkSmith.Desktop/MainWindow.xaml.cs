@@ -648,11 +648,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         UpdatePinFileButton();
         UpdateThemeButtons();
         UpdateOutputFolderToolTip();
-        }
-
-
-        {
-            UpdateInputFileToolTip();
+        UpdateInputFileToolTip();
         UpdateStatusMsgHost();
         ApplyAutomationSettings();
         UpdateLicenseBanner();
@@ -1401,7 +1397,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             UpdateOutputFolderToolTip();
         }
 
-
+        if (e.PropertyName == nameof(ViewModels.MainViewModel.InputFilePath))
         {
             UpdateInputFileToolTip();
         }
@@ -4007,6 +4003,14 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     // At the default width the box shows "C:\Users\…\OneDrive\Doc" and hides the folder that
     // matters; the tooltip carries the whole path (the menu hint stays on its own line).
+    private void UpdateInputFileToolTip()
+    {
+        if (InputFileTextBox is null) return;
+        var file = ViewModel.InputFilePath;
+        ToolTipService.SetToolTip(InputFileTextBox, Services.InputFilePathText.ToolTip(file));
+        DispatcherQueue?.TryEnqueue(() => TextBoxEndScroll.ScrollToEndIfUnfocused(InputFileTextBox));
+    }
+
     private void UpdateOutputFolderToolTip()
     {
         if (OutputFolderTextBox is null) return;
@@ -4024,6 +4028,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var sv = FindDescendant<ScrollViewer>(OutputFolderTextBox);
         if (sv is null || sv.ScrollableWidth <= 0) return;
         sv.ChangeView(sv.ScrollableWidth, null, null, disableAnimation: true);
+        TextBoxEndScroll.ScrollToEndIfUnfocused(OutputFolderTextBox);
     }
 
     private void UpdateDropZoneVisual()
@@ -4063,6 +4068,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         try
         {
+            UpdateInputFileToolTip();
             if (InputFileTextBox is null || _suppressInputFileTextBoxChanged) return;
             var candidate = (InputFileTextBox.Text ?? string.Empty).Trim().Trim('"');
             if (string.IsNullOrEmpty(candidate))
@@ -16446,7 +16452,11 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             new KeyEventHandler((_, _) => _editorCaretPlaced = true), handledEventsToo: true);
         ViewModel.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName == nameof(ViewModel.InputFilePath)) _editorCaretPlaced = false;
+            if (e.PropertyName == nameof(ViewModel.InputFilePath))
+            {
+                _editorCaretPlaced = false;
+                UpdateInputFileToolTip();
+            }
         };
     }
 

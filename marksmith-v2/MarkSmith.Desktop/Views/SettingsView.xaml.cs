@@ -67,6 +67,8 @@ public sealed partial class SettingsView : UserControl
         ApplyResponsiveLayout(Root.Width);
         AddHandler(KeyDownEvent, new KeyEventHandler(OnSettingsKeyDown), true);
         HoverPolish.Track(this);
+        TextBoxEndScroll.Attach(WebDavEndpointBox);
+        TextBoxEndScroll.Attach(GoogleClientIdBox);
     }
 
     private void OnSettingsKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)

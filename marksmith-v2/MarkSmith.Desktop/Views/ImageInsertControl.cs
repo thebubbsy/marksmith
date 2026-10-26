@@ -140,6 +140,7 @@ public sealed class ImageInsertControl : InsertDialogBody
         // Each box keeps its own Cut / Copy / Paste menu for a selection; with nothing selected,
         // right-click or Shift+F10 opens the image actions.
         TextBoxMenu.Attach(_source, FillSourceMenu);
+        TextBoxEndScroll.Attach(_source);
         TextBoxMenu.Attach(_alt, FillAltMenu);
 
         AddHandler(KeyDownEvent, new KeyEventHandler(OnImageControlKeyDown), true);
@@ -256,6 +257,7 @@ public sealed class ImageInsertControl : InsertDialogBody
                  && ImageExtensions.Contains(Path.GetExtension(local).ToLowerInvariant())) thumb = local;
         ShowThumb(thumb);
         Refresh();
+        DispatcherQueue?.TryEnqueue(() => TextBoxEndScroll.ScrollToEndIfUnfocused(_source));
     }
 
     private void ShowThumb(string? source)
