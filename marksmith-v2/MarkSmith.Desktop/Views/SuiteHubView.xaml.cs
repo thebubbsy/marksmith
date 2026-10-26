@@ -4846,7 +4846,7 @@ public sealed partial class SuiteHubView : UserControl
 
             var clipboardError = await Services.ClipboardWriter.TrySetTextAsync(result.Summary);
 
-            var copyMessage = $"Tag Taxonomy: {result.UniqueTagsCount} unique tags ({result.CasingInconsistenciesCount} casing variants, {result.PluralDuplicatesCount} plural dupes, {result.SingletonTagsCount} singletons)";
+            var copyMessage = $"Tag Taxonomy: {CountText.Of(result.UniqueTagsCount, "unique tag")} ({CountText.Of(result.CasingInconsistenciesCount, "casing variant")}, {CountText.Of(result.PluralDuplicatesCount, "plural duplicate")}, {CountText.Of(result.SingletonTagsCount, "singleton")})";
             SetNotification(clipboardError is null ? copyMessage : Services.CopyStatusText.Failed(copyMessage, clipboardError), success: clipboardError is null);
 
             if (RecentDocsActionBtn != null)

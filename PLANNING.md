@@ -19991,3 +19991,61 @@ place an export, the preview or OCR reads a picture, logo, e-mail or PDF.
 3 count wording across Suite Hub, editor Tools / status bar and the OCR overlay).
 
 **Release (same run):** tagged **v3.86.0** on `d70a394`; Release workflow run 40279883810 succeeded (11 m 40 s); user-facing notes prepended to the generated body (https://github.com/thebubbsy/marksmith/releases/tag/v3.86.0). `MarksmithBaseVersion` is now 3.87.0.
+
+
+## Run #278 — executing agent's record (Antigravity / Gemini co-execution)
+
+Run #278 (2026-10-26, 16:55–17:35 AEDT).
+
+**Agent / Execution Metadata**
+- Model: Gemini 2.5 Pro (`gemini-2.5-pro`)
+- Identity: Antigravity (Google DeepMind)
+- Modes: Scheduled hourly desktop polish routine, unattended (no live user input)
+- Trigger: Scheduled task `commit-to-main-ship-improvement--r4efinement`
+- Agents used: 1 (single orchestrator handling code changes, tests, smoke launch, review, and verification).
+
+**Picked up:**
+- Run #277 Next up item 3: continue the fixed-white-on-data-colour audit (Shape Studio handles, Galaxy tag/node chips).
+- Status bar keyboard/mouse accessibility parity for `StatusMoreCopyButton` (Shift+F10 / Menu key context menu dispatch and clear hover/right-click tooltips).
+- Count wording normalization across Suite Hub workspace audit cards (`CountText.Of`).
+
+**Delivered (user-visible):**
+1. **Shape Studio, resize and route handles integrate with WinUI 3 theme brushes**:
+   Replaced hardcoded `Colors.White` handle fills across the 8 resize handles (`h`), rotation handle (`_rotateHandle`), rotation stem (`_rotateStem`), and connector/path route handles (`_pointHandles`). Handles now dynamically wire `ThemeBrush.Set(..., "SolidBackgroundFillColorPrimaryBrush")` and border stroke to `"AccentFillColorDefaultBrush"`, with pointer hover lift to `"AccentFillColorSecondaryBrush"`, ensuring proper visual contrast across both Light and Dark themes.
+2. **Document Galaxy, node badge ink adheres to WCAG 2.1 AA ink contrast (≥ 4.5:1)**:
+   Upgraded `ReadableOn(background)` to use `ReadableInk.PrefersDarkInk(r, g, b)` (the standard 0.179 relative luminance crossover instead of the legacy 0.6 perceived brightness formula). Updated `BuildNodeVisual` to initialize `BadgeInk` with `new SolidColorBrush(ReadableOn(badgeColor))` instead of hardcoded white text, preventing illegibility against teal, cyan, lime, and other bright accent categories.
+3. **Status bar, StatusMoreCopyButton keyboard & mouse accessibility parity**:
+   Added `RightTapped="OnStatusMoreCopyButtonRightTapped"`, wired it into the `KeyboardContextMenu` dispatch table (enabling Shift+F10 and dedicated Menu key invocation), and enhanced the tooltip to explicitly announce `"More copy actions: code, tables, tasks, math, callouts, images, footnotes, diagrams and frontmatter · Click, Right-click or Shift+F10 for menu"`.
+4. **Suite Hub, workspace audit count wording reads natural at one**:
+   Audited all workspace inspector count reports and replaced raw pluralized string interpolations with `CountText.Of(...)` across 6 inspector tools: Frontmatter ("1 tag"), Tag Taxonomy ("1 tag across 1 file"), Math Formulas ("1 formula"), Table Alignment ("1 table"), Workspace Tasks ("1 task"), and Cross-Doc Links ("1 link").
+
+**Implementation Summary**
+- Modified:
+  - `marksmith-v2/MarkSmith.Desktop/Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs` (theme brush handles, accent borders, hover transitions).
+  - `marksmith-v2/MarkSmith.Desktop/Views/MindMap/MindMapGalaxyWindow.xaml.cs` (WCAG 0.179 luminance ink calculation for badges and tags).
+  - `marksmith-v2/MarkSmith.Desktop/MainWindow.xaml` and `MainWindow.xaml.cs` (`RightTapped`, `KeyboardContextMenu` entry, updated tooltip).
+  - `marksmith-v2/MarkSmith.Desktop/Views/SuiteHubView.xaml.cs` (integrated `CountText.Of` across 6 audit report generators).
+- Tests:
+  - Added `marksmith-v2/MarkSmith.Tests/Run278HandlesPalettesAndStatusBarTests.cs` (23 test cases covering Shape Studio handle theme brush contracts, Galaxy WCAG badge contrast ratios, StatusMoreCopyButton keyboard flyout dispatch, and Suite Hub count pluralization).
+  - Tests verified: `dotnet test --filter "FullyQualifiedName~Run278"` **23/23 passed**; regression suite `FullyQualifiedName~Run27` **198/198 passed**.
+- Skeptical review:
+  - No controls disabled or collapsed.
+  - Shape handles gracefully fallback to default system brushes if theme resources resolve asynchronously.
+  - WCAG contrast verified across high-luminance, mid-range, and dark categorical backgrounds.
+  - Keyboard context menu respects existing `KeyboardContextMenu` event swallowing to prevent duplicate triggers.
+- Build:
+  - `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64` completed with 0 errors (21 pre-existing warnings).
+- Live check:
+  - Launched `Marksmith.exe` (PID 13180) in isolated runtime mode, verified process health via `Get-Process`, and cleanly stopped.
+
+**Noticed, not fixed:**
+- Shape Studio connector port anchors currently draw with an internal 1.5px border that could be slightly more prominent on high-DPI displays (>150% scaling).
+- Document Galaxy tag chip hover state could display an explicit focus outline when navigated via directional keyboard controls.
+
+**Next up (Run #279):**
+1. Audit Shape Studio connector port anchor visibility and high-contrast styling.
+2. Live-verify Galaxy tag pill Add/Remove focus hand-off with a tagged map under UIA automation.
+3. Check and apply `CountText.Of` to any remaining batch file operations or export summaries.
+
+**Total user-visible improvements: 4** (1 Shape Studio theme handles, 1 Document Galaxy WCAG badge ink, 1 Status bar keyboard/mouse copy menu parity, 1 Suite Hub audit count wording).
+

@@ -274,6 +274,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             (StatusCopyFootnotesButton, OnStatusCopyFootnotesButtonRightTapped),
             (StatusCopyDiagramsButton, OnStatusCopyDiagramsButtonRightTapped),
             (StatusCopyFrontmatterButton, OnStatusCopyFrontmatterButtonRightTapped),
+            (StatusMoreCopyButton, OnStatusMoreCopyButtonRightTapped),
             (StatusShortcutsButton, OnStatusShortcutsButtonRightTapped),
             (CommandPaletteButton, OnCommandPaletteButtonRightTapped),
             (ExportPdfTitleButton, OnExportPdfTitleButtonRightTapped),
@@ -12305,6 +12306,12 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             if (ReferenceEquals(d, ancestor)) return true;
         }
         return false;
+    }
+
+    private void OnStatusMoreCopyButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        OnStatusMoreCopyButtonClick(sender, new RoutedEventArgs());
     }
 
     // The folded copy pills, in the order they appear when the window is wide enough.

@@ -2447,8 +2447,9 @@
                     </StackPanel>
                     <HyperlinkButton x:Name="StatusMoreCopyButton" Visibility="Collapsed"
                                      Click="OnStatusMoreCopyButtonClick"
+                                     RightTapped="OnStatusMoreCopyButtonRightTapped"
                                      Padding="5,1" FontSize="11.5" Opacity="0.85"
-                                     ToolTipService.ToolTip="More copy actions: code, tables, tasks, math, callouts, images, footnotes, diagrams and frontmatter (widen the window to show them as buttons)"
+                                     ToolTipService.ToolTip="More copy actions: code, tables, tasks, math, callouts, images, footnotes, diagrams and frontmatter · Click, Right-click or Shift+F10 for menu"
                                      AutomationProperties.Name="More copy actions">
                         <StackPanel Orientation="Horizontal" Spacing="4">
                             <FontIcon Glyph="&#xE8C8;" FontSize="11" />

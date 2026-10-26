@@ -2317,10 +2317,10 @@ namespace MarkSmith.Views.ShapeStudio
         {
             _rotateStem = new Microsoft.UI.Xaml.Shapes.Line
             {
-                Stroke = new SolidColorBrush(AccentColor(0xFF)),
                 StrokeThickness = 1.25,
                 IsHitTestVisible = false,
             };
+            ThemeBrush.Set(_rotateStem, Microsoft.UI.Xaml.Shapes.Shape.StrokeProperty, "AccentFillColorDefaultBrush");
             SelectionAdorner.Children.Add(_rotateStem);
 
             var E = ShapeDesignStudioViewModel.ResizeEdges.None;
@@ -2344,16 +2344,16 @@ namespace MarkSmith.Views.ShapeStudio
                 var h = new Microsoft.UI.Xaml.Shapes.Rectangle
                 {
                     Width = HandleSize, Height = HandleSize, RadiusX = 1.5, RadiusY = 1.5,
-                    Fill = new SolidColorBrush(Microsoft.UI.Colors.White),
-                    Stroke = new SolidColorBrush(AccentColor(0xFF)),
                     StrokeThickness = 1.25,
                 };
+                ThemeBrush.Set(h, Microsoft.UI.Xaml.Shapes.Shape.FillProperty, "SolidBackgroundFillColorPrimaryBrush");
+                ThemeBrush.Set(h, Microsoft.UI.Xaml.Shapes.Shape.StrokeProperty, "AccentFillColorDefaultBrush");
                 string label = ShapeDesignStudioViewModel.DescribeResizeHandle(edges, 0);
                 Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(h, label);
                 ToolTipService.SetToolTip(h, label);
                 SetCursor(h, cursor);
-                h.PointerEntered += (_, _) => h.Fill = new SolidColorBrush(AccentColor(0x38));
-                h.PointerExited += (_, _) => h.Fill = new SolidColorBrush(Microsoft.UI.Colors.White);
+                h.PointerEntered += (_, _) => ThemeBrush.Set(h, Microsoft.UI.Xaml.Shapes.Shape.FillProperty, "AccentFillColorSecondaryBrush");
+                h.PointerExited += (_, _) => ThemeBrush.Set(h, Microsoft.UI.Xaml.Shapes.Shape.FillProperty, "SolidBackgroundFillColorPrimaryBrush");
                 h.PointerPressed += OnHandlePointerPressed;
                 h.PointerMoved += OnHandlePointerMoved;
                 h.PointerReleased += OnHandlePointerReleased;
@@ -2368,15 +2368,15 @@ namespace MarkSmith.Views.ShapeStudio
             {
                 Width = HandleSize + 2,
                 Height = HandleSize + 2,
-                Fill = new SolidColorBrush(Microsoft.UI.Colors.White),
-                Stroke = new SolidColorBrush(AccentColor(0xFF)),
                 StrokeThickness = 1.5,
             };
+            ThemeBrush.Set(_rotateHandle, Microsoft.UI.Xaml.Shapes.Shape.FillProperty, "SolidBackgroundFillColorPrimaryBrush");
+            ThemeBrush.Set(_rotateHandle, Microsoft.UI.Xaml.Shapes.Shape.StrokeProperty, "AccentFillColorDefaultBrush");
             Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(_rotateHandle, "Rotate shape · Drag to turn, Shift snaps to 15°, scroll wheel turns, double-click resets to 0°, right-click for angle presets");
             ToolTipService.SetToolTip(_rotateHandle, "Drag to rotate · Shift snaps to 15° · Scroll wheel to turn · Double-click resets to 0° · Right-click for presets");
             SetCursor(_rotateHandle, Microsoft.UI.Input.InputSystemCursorShape.Hand);
-            _rotateHandle.PointerEntered += (_, _) => _rotateHandle.Fill = new SolidColorBrush(AccentColor(0x38));
-            _rotateHandle.PointerExited += (_, _) => _rotateHandle.Fill = new SolidColorBrush(Microsoft.UI.Colors.White);
+            _rotateHandle.PointerEntered += (_, _) => ThemeBrush.Set(_rotateHandle, Microsoft.UI.Xaml.Shapes.Shape.FillProperty, "AccentFillColorSecondaryBrush");
+            _rotateHandle.PointerExited += (_, _) => ThemeBrush.Set(_rotateHandle, Microsoft.UI.Xaml.Shapes.Shape.FillProperty, "SolidBackgroundFillColorPrimaryBrush");
             _rotateHandle.PointerPressed += OnRotateHandlePointerPressed;
             _rotateHandle.PointerMoved += OnRotateHandlePointerMoved;
             _rotateHandle.PointerReleased += OnRotateHandlePointerReleased;
@@ -3770,13 +3770,14 @@ namespace MarkSmith.Views.ShapeStudio
             {
                 var h = new Microsoft.UI.Xaml.Shapes.Ellipse
                 {
-                    Fill = new SolidColorBrush(Microsoft.UI.Colors.White),
-                    Stroke = new SolidColorBrush(AccentColor(0xFF)),
+                    StrokeThickness = 1.25,
                 };
+                ThemeBrush.Set(h, Microsoft.UI.Xaml.Shapes.Shape.FillProperty, "SolidBackgroundFillColorPrimaryBrush");
+                ThemeBrush.Set(h, Microsoft.UI.Xaml.Shapes.Shape.StrokeProperty, "AccentFillColorDefaultBrush");
                 ToolTipService.SetToolTip(h, "Drag to re-route · it snaps to a shape's side or centre (Alt: no snap) · Double-click to reset/reverse · Right-click for options");
                 SetCursor(h, Microsoft.UI.Input.InputSystemCursorShape.SizeAll);
-                h.PointerEntered += (_, _) => h.Fill = new SolidColorBrush(AccentColor(0x38));
-                h.PointerExited += (_, _) => h.Fill = new SolidColorBrush(Microsoft.UI.Colors.White);
+                h.PointerEntered += (_, _) => ThemeBrush.Set(h, Microsoft.UI.Xaml.Shapes.Shape.FillProperty, "AccentFillColorSecondaryBrush");
+                h.PointerExited += (_, _) => ThemeBrush.Set(h, Microsoft.UI.Xaml.Shapes.Shape.FillProperty, "SolidBackgroundFillColorPrimaryBrush");
                 h.PointerPressed += OnPointHandlePressed;
                 h.PointerMoved += OnPointHandleMoved;
                 h.PointerReleased += OnPointHandleReleased;
