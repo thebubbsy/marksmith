@@ -20328,3 +20328,38 @@ Its raise swap had left `Run267…SmartArt_OutlineFind_IsNamedAndAnnounced` fail
 the follow-up `5d4760b`; Antigravity's `ef90b4f` and the follow-up above land in the next release). Release workflow
 run 40298986648 succeeded; user-facing notes prepended to the generated body
 (https://github.com/thebubbsy/marksmith/releases/tag/v3.89.0). `MarksmithBaseVersion` is now 3.90.0.
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #282 (2026-10-26, 21:05–21:25 AEDT)
+
+**Agent / Execution Metadata**
+- Models: Gemini 2.5 (`antigravity`)
+- Modes: Scheduled hourly desktop polish routine, autonomous continuous integration
+- Trigger: Scheduled MarkSmith WinUI 3 Desktop Polish Routine
+- Summary: Version History empty editor checkpoint notice severity refinement (non-error informational status) with portable `StatusSeverity` synchronisation across VM and view.
+
+**Picked up:** run #281's "Next up" #1: History: give the empty-editor checkpoint notice a non-error severity.
+
+**Delivered (user-visible):**
+1. **Version History empty-editor checkpoint notice is informational, not an error**: Taking a checkpoint when the editor text is blank or whitespace now shows an Informational notice (`InfoBarSeverity.Informational`) rather than an intimidating red Error banner ("The editor is empty, so there's nothing to save as a checkpoint.").
+2. **Version History NoticeSeverity architecture**: `HistoryWindowViewModel` gains a portable `StatusSeverity NoticeSeverity` property mapped 1:1 to native WinUI 3 `InfoBarSeverity` and automatically synchronized with `NoticeIsError`.
+3. **Auto-dismiss timing for informational notices**: Informational notices clear themselves after reading time (`NoticeTiming.For`) while respecting `NoticeHold` pointer/focus pauses, whereas true errors remain pinned until explicitly dismissed.
+
+**Implementation Summary**
+- `MarkSmith.Core/ViewModels/History/HistoryWindowViewModel.cs`:
+  - Added `using MarkSmith.Models;`
+  - Added `[ObservableProperty] private StatusSeverity _noticeSeverity = StatusSeverity.Success;`
+  - Extended `ShowNotice(string message, StatusSeverity severity)` and redirected `ShowNotice(string message, bool isError = false)`
+  - In `TakeSnapshotAsync`, changed the empty/whitespace text notice to `ShowNotice("The editor is empty, so there's nothing to save as a checkpoint.", StatusSeverity.Informational);`
+- `MarkSmith.Desktop/Views/History/HistoryWindow.xaml.cs`:
+  - Updated `NoticeBar.Severity = (InfoBarSeverity)(int)_vm.NoticeSeverity;`
+  - Maintained `NoticeHold.Attach` and timer start on `!_vm.NoticeIsError && !NoticeHold.IsHeld(NoticeBar)`.
+- Tests: Added `Run282EmptyEditorCheckpointNoticeTests.cs` (7 test cases covering empty editor, whitespace editor, unselected document, file not open, valid checkpoint, overload synchronization, and source structure).
+- Verified:
+  - `dotnet test`: 260/260 tests passed (100%) across Run282, Run281, Run280, Run270, and History Polish suites.
+  - `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: 0 errors.
+  - Smoke-launched `Marksmith.exe` (PID 31488) in isolated scratch environment: running healthy, no startup crash.
+
+**Next up (Run #283):**
+1. Drive OCR Studio live (import a 2-page PDF) to hear the page and selection read-outs.
+2. Live-verify the Rescan (Step 1) focus round trip and an export with an image held open (carried over).
+

@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using MarkSmith.Models;
 using MarkSmith.Services;
 
 namespace MarkSmith.ViewModels.History;
@@ -345,6 +346,9 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
 
     [ObservableProperty]
     private bool _noticeIsError;
+
+    [ObservableProperty]
+    private StatusSeverity _noticeSeverity = StatusSeverity.Success;
 
     public bool HasNotice => !string.IsNullOrEmpty(Notice);
 
@@ -983,7 +987,7 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
         }
         if (string.IsNullOrWhiteSpace(text))
         {
-            ShowNotice("The editor is empty, so there's nothing to save as a checkpoint.", isError: true);
+            ShowNotice("The editor is empty, so there's nothing to save as a checkpoint.", StatusSeverity.Informational);
             return;
         }
 
@@ -1159,9 +1163,13 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
         return nonBlank.Count > 1 ? first + " …" : first;
     }
 
-    public void ShowNotice(string message, bool isError = false)
+    public void ShowNotice(string message, bool isError = false) =>
+        ShowNotice(message, isError ? StatusSeverity.Error : StatusSeverity.Success);
+
+    public void ShowNotice(string message, StatusSeverity severity)
     {
-        NoticeIsError = isError;
+        NoticeSeverity = severity;
+        NoticeIsError = severity == StatusSeverity.Error;
         Notice = message;
     }
 

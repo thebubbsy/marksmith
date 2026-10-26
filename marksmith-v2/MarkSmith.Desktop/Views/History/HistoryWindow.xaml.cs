@@ -378,7 +378,7 @@ public sealed partial class HistoryWindow : Window
             NoticeBar.IsOpen = false;
             return;
         }
-        NoticeBar.Severity = _vm.NoticeIsError ? InfoBarSeverity.Error : InfoBarSeverity.Success;
+        NoticeBar.Severity = (InfoBarSeverity)(int)_vm.NoticeSeverity;
         NoticeBar.Message = _vm.Notice;
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetLiveSetting(NoticeBar, Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Assertive);
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(NoticeBar, _vm.Notice);
