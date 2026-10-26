@@ -19528,3 +19528,95 @@ filter, Version History deletes. Plus singular/plural cleanup in SmartArt and Sh
 **Release (same run):** tagged **v3.82.0** on `1424f733` (it also carries the concurrent agent's run #273, including its
 Copy Frontmatter status-bar action); Release workflow run 40258932470 succeeded; user-facing notes prepended to the
 generated body (https://github.com/thebubbsy/marksmith/releases/tag/v3.82.0). `MarksmithBaseVersion` is now 3.83.0.
+
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #275 (2026-10-26, 14:01–14:45 AEDT)
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running in the Claude desktop app. The task template asks for an Antigravity /
+  Gemini identity; this run was not executed by that agent, so it records the real one.
+- Modes: Scheduled hourly desktop polish routine, unattended (no live user input)
+- Trigger: Scheduled task `commit-to-main-ship-improvement--r4efinement` (14:00 firing)
+- Agents used: 1 (single orchestrator that also coded and did the skeptical review; no subagents). Session
+  `e5d2d66a-0746-4395-8a7f-c15e26921d60`.
+
+**Picked up:** run #274's Next up items 1 ("propertys") and 2 (Galaxy tag pill "Remove tag" focus). Item 2 turned
+out to be a bigger bug: the pill menu's Add/Remove edited the node's `Tags` collection directly, which nothing
+listens to for the pills, the filter or undo. Then a theme-safety sweep for `Application.Current.Resources[...]`
+brush lookups (14 left, all in Shape Studio and SmartArt Studio) and a count-wording sweep.
+
+**Delivered (user-visible):**
+1. **Document Galaxy, tag pill "Add/Remove '<tag>' … selected node" actually updates the map**: it wrote straight
+   to the node's tag list, so the pill counts, the tag filter, the inspector's tags box and undo never saw the
+   change (and Remove was case-sensitive while the menu's check was not). It now goes through `TagsText`, like
+   the inspector box: pills and counts refresh, the filter reapplies, Ctrl+Z undoes it, and the status says so.
+2. **Document Galaxy, the tag menu keeps focus**: any tag change rebuilds every pill, so the pill the menu came
+   from vanished and focus fell to the window's first tab stop. Focus now lands on the rebuilt pill for that tag,
+   else "All tags" (keyboard rectangle only when the menu was opened from the keyboard). Removing a tag from the
+   last node that carries it also clears a filter on that tag, which otherwise hid every node with no pill left
+   to click; the status line says "(no nodes carry it now)".
+3. **Document Galaxy, tag pill tooltips keep their Shift+F10 hint**: `UpdateTagPills` replaced the XAML tooltip
+   with "Filter nodes by this tag", dropping the hint run #274 added; the active pill now also names Esc.
+4. **SmartArt Studio, harmony swatches work from the keyboard**: the five generated swatches were tapped
+   `Border`s, unreachable by Tab and unnamed for screen readers. They are buttons now ("Apply harmony colour
+   #0073CC"), with the hover lift (the palette flyout is a popup outside the tracked tree).
+5. **SmartArt Studio, custom accent feedback**: the status line's colours came from `Application.Current.Resources`
+   (stuck in the start-up theme); they follow the theme now and the line is announced (LiveSetting Polite).
+   Apply with an empty box says "Type a hex color first" and puts focus back in the box; a bad value says what a
+   good one looks like; Reset says what it did; picking a swatch keeps "Applied #…" instead of being overwritten
+   by the box's "Valid hex color" (found in the live check). Apply, Reset and the hex box have accessible names;
+   the outline's drag-insert line uses the theme accent too.
+6. **Shape Studio, canvas adornments follow the theme**: snap guides, the crosshair, the cursor HUD's border and
+   the snap grid were coloured from start-up-theme resources; the guides/HUD now track the theme and the grid is
+   redrawn when the theme changes.
+7. **Counts read right at one**: "Copied YAML frontmatter (2 properties)" (was "propertys") in all three
+   frontmatter actions; spreadsheet imports ("Imported 1 row × 1 column"); the section breadcrumb tooltip
+   ("1 word"); "Copied 1 character of Markdown source"; the OCR overlay ("Recognising 1 word on page 1", "1 block
+   pieced"); the Suite Hub path audit ("across 1 file").
+8. **Shape Studio, the Diagnostics submenu is alphabetical again**: "Audit diagram shape 2D bounding-box occlusion"
+   sat at the bottom of the shape audits instead of first (the full test run caught it:
+   `MenuDiagnosticsPolishTests` was already failing on `main` before this run).
+
+**Implementation Summary**
+- Modified: `Views/MindMap/MindMapGalaxyWindow.xaml.cs` (pill menu via `TagsText`, `RefocusTagPill`, dead-filter
+  clear, tooltips), `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml(.cs)` (harmony swatch buttons +
+  `HoverPolish.Apply`, `SetCustomPaletteStatus` with `ThemeBrush.Set`, invalid/empty/reset messages, names, live
+  region, drag line `ThemeBrush.For`), `Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs` (`ThemeBrush.Set` on
+  guides/HUD, `ThemeBrush.For` grid, grid redraw on `ActualThemeChanged`), `MainWindow.xaml.cs`,
+  `Controls/OcrExperienceOverlay.xaml.cs`, `Views/SuiteHubView.xaml.cs` (`CountText`), `Views/ShapeStudio/ShapeDesignStudioWindow.xaml` (submenu order).
+- Tests: new `Run275TagPillsPalettesAndCountsTests` (12 facts + 5-case theory: source contracts, a ViewModel test
+  that `TagsText` edits refresh `DistinctTags` and are undoable, `CountText` cases).
+- Skeptical review: nothing new collapses or disables a focused control (the Galaxy pill rebuild was the one
+  focus loss, now handed off; Reset collapses only a TextBlock); no key handlers added; dynamically created
+  flyout swatches get `HoverPolish.Apply`; every brush set from new code uses `ThemeBrush` (no
+  `Application.Current.Resources` brush lookups remain in Desktop code); no file access or async callbacks added.
+- Build: `dotnet build … -p:OutDir=%TEMP%\ms_run275\b\` 0 errors (21 pre-existing warnings), twice (after the
+  live-check fix).
+- Tests: `Run27*|Run245|MindMapGalaxyPolish|SmartArtStudioPolish|ShapeStudioPolish|SuiteHubAndTour` **915/915
+  passed**; full suite (`--no-build`) **6461 passed, 1 failed, 1 skipped**: the failure was the pre-existing Diagnostics submenu
+  order (item 8, a file this run had not touched); after fixing it and the live-check fix,
+  `MenuDiagnosticsPolish|Run27*|ShapeStudioPolish` **392/392 passed**.
+- Live check (UIA patterns only, no SendKeys; window started minimized; isolated `MARKSMITH_CONFIG_DIR`): PID
+  12888, then PID 31448 after the rebuild, each stopped by PID. Command palette opened by Invoke, query set by
+  ValuePattern, "Open SmartArt Studio" invoked; Color palette flyout opened by Invoke. Found 5 buttons "Apply
+  harmony colour #004880 … #B2DEFF", all keyboard-focusable; "Apply custom accent", "Reset custom accent",
+  "Custom accent hex color" present. Invoking a swatch: first build showed "Valid hex color · Enter applies it"
+  (bug, fixed), second build "Applied #0073CC"; "#12" → "Enter 6 hex characters (#RRGGBB)"; empty + Apply →
+  "Type a hex color first, e.g. #0078D4". PrintWindow screenshot (`%TEMP%\ms_run275\smartart.png`) shows the
+  swatch buttons in their colours and the red empty-apply message. The Galaxy tag pill and Shape Studio theme
+  changes are covered by source/VM tests only. Final build smoke-launched (PID 31172, window "MarkSmith"), stopped by PID.
+
+**Noticed, not fixed:**
+- SmartArt harmony mode buttons (Mono / Analogous / Triadic) show the active mode only in the label to their
+  right; no pressed/checked state on the buttons.
+- The Shape Studio cursor HUD badge's background is a fixed dark colour (#EE141A24) with white text, in both
+  themes (readable, but not themed).
+
+**Next up (Run #276):**
+1. SmartArt harmony mode buttons: show the active mode on the button (ToggleButton-like state, ItemStatus).
+2. Live-verify the Galaxy tag pill Add/Remove focus hand-off with a tagged map (UIA patterns only).
+3. Continue the count sweep in the studios' multi-select messages where the count can be 1 (`SelectionCount`).
+
+**Total user-visible improvements: 8** (3 Document Galaxy, 2 SmartArt Studio, 2 Shape Studio, 1 cross-app count
+wording).

@@ -1203,7 +1203,7 @@ namespace MarkSmith.Views.SmartArtStudio
                 bool topHalf = pos.Y < (fe.ActualHeight / 2.0);
                 if (fe is Border border)
                 {
-                    border.BorderBrush = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"];
+                    border.BorderBrush = ThemeBrush.For(border, "AccentFillColorDefaultBrush");
                     border.BorderThickness = topHalf ? new Thickness(0, 2.5, 0, 0) : new Thickness(0, 0, 0, 2.5);
                 }
             }
@@ -3807,7 +3807,11 @@ namespace MarkSmith.Views.SmartArtStudio
             if (CustomPaletteHexBox != null && !string.IsNullOrEmpty(_customHexOverride))
             {
                 CustomPaletteHexBox.Text = "#" + _customHexOverride;
-                if (CustomPaletteSwatch != null) CustomPaletteSwatch.Background = BrushFromHex(_customHexOverride);
+                if (CustomPaletteSwatch != null)
+                {
+                    ThemeBrush.Clear(CustomPaletteSwatch, Border.BackgroundProperty);
+                    CustomPaletteSwatch.Background = BrushFromHex(_customHexOverride);
+                }
             }
         }
 
@@ -3895,34 +3899,48 @@ namespace MarkSmith.Views.SmartArtStudio
             foreach (var hex in hexColors)
             {
                 var brush = BrushFromHex(hex);
-                var swatch = new Border
+                // A button (the colour drawn inside it, so hover keeps the colour) rather than a
+                // tapped Border: the swatches were unreachable from the keyboard and unnamed for
+                // screen readers.
+                var swatch = new Button
                 {
                     Width = 38,
                     Height = 22,
+                    MinWidth = 0,
+                    MinHeight = 0,
+                    Padding = new Thickness(0),
                     CornerRadius = new CornerRadius(4),
-                    Background = brush,
-                    BorderThickness = new Thickness(1),
-                    BorderBrush = (Brush)Application.Current.Resources["ControlStrokeColorDefaultBrush"],
-                    IsHitTestVisible = true
+                    BorderThickness = new Thickness(0),
+                    Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
+                    HorizontalContentAlignment = HorizontalAlignment.Stretch,
+                    VerticalContentAlignment = VerticalAlignment.Stretch,
+                    Content = new Border
+                    {
+                        CornerRadius = new CornerRadius(4),
+                        Background = brush,
+                        BorderThickness = new Thickness(1),
+                    }.Themed(Border.BorderBrushProperty, "ControlStrokeColorDefaultBrush"),
                 };
-                ToolTipService.SetToolTip(swatch, $"Click to apply #{hex} to preview");
-                swatch.Tapped += (s, args) =>
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(swatch, $"Apply harmony colour #{hex.ToUpperInvariant()}");
+                ToolTipService.SetToolTip(swatch, $"Apply #{hex.ToUpperInvariant()} to the preview");
+                swatch.Click += (s, args) =>
                 {
                     _customHexOverride = hex.ToUpperInvariant();
                     if (CustomPaletteHexBox != null) CustomPaletteHexBox.Text = "#" + _customHexOverride;
-                    if (CustomPaletteSwatch != null) CustomPaletteSwatch.Background = brush;
-                    RefreshWebView();
-                    if (CustomPaletteStatusText != null)
+                    if (CustomPaletteSwatch != null)
                     {
-                        CustomPaletteStatusText.Text = $"Applied #{_customHexOverride}";
-                        CustomPaletteStatusText.Foreground = (Brush)Application.Current.Resources["SystemFillColorSuccessBrush"];
-                        CustomPaletteStatusText.Visibility = Visibility.Visible;
+                        ThemeBrush.Clear(CustomPaletteSwatch, Border.BackgroundProperty);
+                        CustomPaletteSwatch.Background = brush;
                     }
+                    RefreshWebView();
+                    SetCustomPaletteStatus($"Applied #{_customHexOverride}", "SystemFillColorSuccessBrush");
                     ViewModel.StatusMessage = $"Applied harmony color: #{_customHexOverride}";
                     if (PaletteButton is not null) MarkSmith.Services.CopyFeedback.ApplyButtonTick(PaletteButton, null);
                 };
                 HarmonySwatchesPanel.Children.Add(swatch);
             }
+            // The panel lives in the palette flyout's popup, outside the window's tracked tree.
+            HoverPolish.Apply(HarmonySwatchesPanel);
         }
 
         private static (double H, double S, double L) RgbToHsl(byte r, byte g, byte b)
@@ -4001,13 +4019,13 @@ namespace MarkSmith.Views.SmartArtStudio
             bool isValid = hex.Length == 6 && System.Text.RegularExpressions.Regex.IsMatch(hex, "^[0-9a-fA-F]{6}$");
             if (isValid && CustomPaletteSwatch != null)
             {
+                ThemeBrush.Clear(CustomPaletteSwatch, Border.BackgroundProperty);
                 CustomPaletteSwatch.Background = BrushFromHex(hex);
-                if (CustomPaletteStatusText != null)
-                {
-                    CustomPaletteStatusText.Text = "Valid hex color";
-                    CustomPaletteStatusText.Foreground = (Brush)Application.Current.Resources["SystemFillColorSuccessBrush"];
-                    CustomPaletteStatusText.Visibility = Visibility.Visible;
-                }
+                // A harmony swatch fills the box after applying its colour, and this runs after
+                // that: keep its "Applied" rather than asking for an Enter that would do nothing.
+                SetCustomPaletteStatus(string.Equals(hex, _customHexOverride, StringComparison.OrdinalIgnoreCase)
+                    ? $"Applied #{_customHexOverride}"
+                    : "Valid hex color · Enter applies it", "SystemFillColorSuccessBrush");
             }
             else if (CustomPaletteStatusText != null)
             {
@@ -4017,11 +4035,19 @@ namespace MarkSmith.Views.SmartArtStudio
                 }
                 else
                 {
-                    CustomPaletteStatusText.Text = "Enter 6 hex characters (#RRGGBB)";
-                    CustomPaletteStatusText.Foreground = (Brush)Application.Current.Resources["SystemFillColorCautionBrush"];
-                    CustomPaletteStatusText.Visibility = Visibility.Visible;
+                    SetCustomPaletteStatus("Enter 6 hex characters (#RRGGBB)", "SystemFillColorCautionBrush");
                 }
             }
+        }
+
+        /// <summary>The custom accent's one-line verdict, in a status colour that follows the theme
+        /// (an Application resource keeps the colour of the theme the app started in).</summary>
+        private void SetCustomPaletteStatus(string text, string brushKey)
+        {
+            if (CustomPaletteStatusText == null) return;
+            CustomPaletteStatusText.Text = text;
+            ThemeBrush.Set(CustomPaletteStatusText, TextBlock.ForegroundProperty, brushKey);
+            CustomPaletteStatusText.Visibility = Visibility.Visible;
         }
 
         private void OnCustomPaletteHexBoxKeyDown(object sender, KeyRoutedEventArgs e)
@@ -4039,23 +4065,16 @@ namespace MarkSmith.Views.SmartArtStudio
             if (hex.StartsWith('#')) hex = hex.Substring(1);
             if (hex.Length != 6 || !System.Text.RegularExpressions.Regex.IsMatch(hex, "^[0-9a-fA-F]{6}$"))
             {
-                if (CustomPaletteStatusText != null)
-                {
-                    CustomPaletteStatusText.Text = "Invalid hex color";
-                    CustomPaletteStatusText.Foreground = (Brush)Application.Current.Resources["SystemFillColorCriticalBrush"];
-                    CustomPaletteStatusText.Visibility = Visibility.Visible;
-                }
+                SetCustomPaletteStatus(hex.Length == 0
+                    ? "Type a hex color first, e.g. #0078D4"
+                    : "Invalid hex color: use 6 hex characters (#RRGGBB)", "SystemFillColorCriticalBrush");
+                CustomPaletteHexBox?.Focus(FocusState.Programmatic);
                 return;
             }
 
             _customHexOverride = hex.ToUpperInvariant();
             RefreshWebView();
-            if (CustomPaletteStatusText != null)
-            {
-                CustomPaletteStatusText.Text = $"Applied #{_customHexOverride}";
-                CustomPaletteStatusText.Foreground = (Brush)Application.Current.Resources["SystemFillColorSuccessBrush"];
-                CustomPaletteStatusText.Visibility = Visibility.Visible;
-            }
+            SetCustomPaletteStatus($"Applied #{_customHexOverride}", "SystemFillColorSuccessBrush");
             ViewModel.StatusMessage = $"Applied custom accent color: #{_customHexOverride}";
             if (PaletteButton is not null) MarkSmith.Services.CopyFeedback.ApplyButtonTick(PaletteButton, null);
             PaletteFlyout?.Hide();
@@ -4065,8 +4084,9 @@ namespace MarkSmith.Views.SmartArtStudio
         {
             _customHexOverride = null;
             if (CustomPaletteHexBox != null) CustomPaletteHexBox.Text = "";
-            if (CustomPaletteSwatch != null) CustomPaletteSwatch.Background = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"];
+            if (CustomPaletteSwatch != null) ThemeBrush.Set(CustomPaletteSwatch, Border.BackgroundProperty, "AccentFillColorDefaultBrush");
             if (CustomPaletteStatusText != null) CustomPaletteStatusText.Visibility = Visibility.Collapsed;
+            ViewModel.StatusMessage = "Custom accent cleared: the preview uses the palette's own colours";
             RefreshWebView();
             ViewModel.StatusMessage = $"Reset to default palette: {ViewModel.SelectedPalette}";
             if (PaletteButton is not null) MarkSmith.Services.CopyFeedback.ApplyButtonTick(PaletteButton, null);

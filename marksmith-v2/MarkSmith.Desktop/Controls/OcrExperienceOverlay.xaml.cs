@@ -749,7 +749,7 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
         string pagePrefix = totalPageCount > 1 ? $"Page {preview.PageIndex + 1} of {totalPageCount} · " : "";
         SetStatus(wordCount == 0
             ? $"{pagePrefix}Analysing glyph stream…"
-            : $"{pagePrefix}Recognising all {wordCount} words across page {preview.PageNumber}…", 48);
+            : $"{pagePrefix}Recognising {(wordCount == 1 ? "1 word" : $"all {MarkSmith.Services.CountText.Of(wordCount, "word")}")} on page {preview.PageNumber}…", 48);
 
         // Cap rendered word-box overlays at 56 lightweight Rectangles so the Canvas never lags.
         const int maxWordRectangles = 56;
@@ -892,7 +892,7 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
             MarkdownScrollViewer.ChangeView(null, 99999.0, null, disableAnimation: true);
 
             BlocksCountText.Text = _totalBlocks.ToString();
-            BlocksProgressText.Text = $"{pagePrefix}{endIdx} / {blockCount} blocks pieced";
+            BlocksProgressText.Text = $"{pagePrefix}{endIdx} / {MarkSmith.Services.CountText.Of(blockCount, "block")} pieced";
             StageProgressBar.Value = 68 + (26.0 * (step + 1) / steps);
             prevEndIdx = endIdx;
 

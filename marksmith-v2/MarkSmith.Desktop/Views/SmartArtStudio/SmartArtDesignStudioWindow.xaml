@@ -803,21 +803,25 @@
                                                 </Grid.ColumnDefinitions>
                                                 <TextBox x:Name="CustomPaletteHexBox" PlaceholderText="#0078D4" FontSize="12" MaxLength="7"
                                                          TextChanged="OnCustomPaletteHexBoxTextChanged" KeyDown="OnCustomPaletteHexBoxKeyDown"
-                                                         ToolTipService.ToolTip="Enter 6-digit hex color code (#RRGGBB)" />
+                                                         ToolTipService.ToolTip="Enter 6-digit hex color code (#RRGGBB) · Enter applies it"
+                                                         AutomationProperties.Name="Custom accent hex color" />
                                                 <Border Grid.Column="1" x:Name="CustomPaletteSwatch" Width="26" Height="26" CornerRadius="4"
                                                         Background="{ThemeResource AccentFillColorDefaultBrush}"
                                                         BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1"
                                                         VerticalAlignment="Center" ToolTipService.ToolTip="Color preview swatch" />
                                                 <Button Grid.Column="2" x:Name="ApplyCustomPaletteButton" Style="{StaticResource DefaultButtonStyle}"
-                                                        Width="28" Height="28" Padding="0" Click="OnApplyCustomPaletteClick" ToolTipService.ToolTip="Apply custom accent to preview">
+                                                        Width="28" Height="28" Padding="0" Click="OnApplyCustomPaletteClick" ToolTipService.ToolTip="Apply custom accent to preview (Enter)"
+                                                        AutomationProperties.Name="Apply custom accent">
                                                     <FontIcon Glyph="&#xE73E;" FontSize="11" />
                                                 </Button>
                                                 <Button Grid.Column="3" x:Name="ResetCustomPaletteButton" Style="{StaticResource DefaultButtonStyle}"
-                                                        Width="28" Height="28" Padding="0" Click="OnResetCustomPaletteClick" ToolTipService.ToolTip="Reset to default theme palette">
+                                                        Width="28" Height="28" Padding="0" Click="OnResetCustomPaletteClick" ToolTipService.ToolTip="Reset to default theme palette"
+                                                        AutomationProperties.Name="Reset custom accent">
                                                     <FontIcon Glyph="&#xE777;" FontSize="11" />
                                                 </Button>
                                             </Grid>
                                             <TextBlock x:Name="CustomPaletteStatusText" Text="" FontSize="11" Foreground="{ThemeResource SystemFillColorSuccessBrush}"
+                                                       TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"
                                                        Visibility="Collapsed" />
                                             <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" Margin="0,4" />
                                             <Grid ColumnDefinitions="*,Auto">

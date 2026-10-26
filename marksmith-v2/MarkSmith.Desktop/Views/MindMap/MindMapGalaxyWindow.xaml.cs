@@ -6949,6 +6949,7 @@ namespace MarkSmith.Views.MindMap
         private void OnDynamicTagPillRightTapped(object sender, RightTappedRoutedEventArgs e)
         {
             if (sender is not Button btn || btn.Tag is not string tag) return;
+            var pillFocus = btn.FocusState;
             var menu = new MenuFlyout();
 
             var filterItem = new MenuFlyoutItem
@@ -6996,8 +6997,11 @@ namespace MarkSmith.Views.MindMap
                     };
                     addTagItem.Click += (_, _) =>
                     {
-                        selNode.Tags.Add(tag);
-                        ViewModel.StatusMessage = $"Added tag '{tag}' to '{selNode.Title}'";
+                        // Through TagsText, like the inspector's tags box: that is what refreshes
+                        // the pills and the filter and makes the change undoable.
+                        selNode.TagsText = string.Join(" ", selNode.Tags.Append(tag));
+                        ViewModel.StatusMessage = $"Added tag '{tag}' to '{selNode.Title}' · Ctrl+Z to undo";
+                        RefocusTagPill(btn, tag, pillFocus);
                     };
                     menu.Items.Add(addTagItem);
                 }
@@ -7010,8 +7014,16 @@ namespace MarkSmith.Views.MindMap
                     };
                     removeTagItem.Click += (_, _) =>
                     {
-                        selNode.Tags.Remove(tag);
-                        ViewModel.StatusMessage = $"Removed tag '{tag}' from '{selNode.Title}'";
+                        selNode.TagsText = string.Join(" ", selNode.Tags.Where(t => !MindMapGraph.TagEquals(t, tag)));
+                        // The last node carrying the tag: its pill is gone, so a filter on it
+                        // would hide every node with nothing left to click to clear it.
+                        bool gone = !ViewModel.DistinctTags.Any(t => MindMapGraph.TagEquals(t, tag));
+                        if (gone && ViewModel.SelectedTagFilter is { } f && MindMapGraph.TagEquals(f, tag))
+                            ViewModel.SelectedTagFilter = null;
+                        ViewModel.StatusMessage = gone
+                            ? $"Removed tag '{tag}' from '{selNode.Title}' (no nodes carry it now) · Ctrl+Z to undo"
+                            : $"Removed tag '{tag}' from '{selNode.Title}' · Ctrl+Z to undo";
+                        RefocusTagPill(btn, tag, pillFocus);
                     };
                     menu.Items.Add(removeTagItem);
                 }
@@ -7019,6 +7031,23 @@ namespace MarkSmith.Views.MindMap
 
             menu.ShowAt(btn, KeyboardContextMenu.PointIn(e, btn));
             e.Handled = true;
+        }
+
+        /// <summary>Changing a node's tags rebuilds every tag pill, so the pill the menu was opened
+        /// from (which got focus back when the menu closed) no longer exists and focus fell to the
+        /// window's first tab stop. Land on the new pill for the same tag, else "All tags".</summary>
+        private void RefocusTagPill(Button oldPill, string tag, FocusState pillFocus)
+        {
+            // Opened by right-click on an unfocused pill: focus goes back elsewhere, which survives.
+            if (pillFocus == FocusState.Unfocused) return;
+            var how = pillFocus == FocusState.Pointer ? FocusState.Programmatic : FocusState.Keyboard;
+            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+            {
+                var target = _tagPills.FirstOrDefault(b => b != oldPill && b != AllTagsPill && b.XamlRoot is not null
+                                 && b.Tag is string t && MindMapGraph.TagEquals(t, tag))
+                             ?? AllTagsPill;
+                target?.Focus(how);
+            });
         }
 
         private void OnTagPillsPreviewKeyDown(object sender, KeyRoutedEventArgs e)
@@ -7088,7 +7117,10 @@ namespace MarkSmith.Views.MindMap
                 }
                 if (b != AllTagsPill)
                 {
-                    ToolTipService.SetToolTip(b, on ? "Active filter · Click to clear" : "Filter nodes by this tag");
+                    // Keeps the Shift+F10 hint the XAML tooltip had before this replaced it.
+                    ToolTipService.SetToolTip(b, on
+                        ? "Active filter · Click or Esc to clear · Right-click or Shift+F10 for options"
+                        : "Filter nodes by this tag · Right-click or Shift+F10 for options");
                 }
                 AutomationProperties.SetItemStatus(b, on ? "Active filter" : "");
             }

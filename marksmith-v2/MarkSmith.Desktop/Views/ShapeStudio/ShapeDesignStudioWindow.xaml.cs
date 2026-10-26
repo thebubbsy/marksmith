@@ -216,6 +216,8 @@ namespace MarkSmith.Views.ShapeStudio
             {
                 foreach (var (s, p) in _shapePaths)
                     ApplyShapeVisual(p, s, ReferenceEquals(s, _hoverShape));
+                // The snap grid's lines take their stroke when drawn; redraw them in the new theme.
+                UpdateVisualGridOverlay();
             };
             if (CompAdaptive is not null)
             {
@@ -1542,50 +1544,54 @@ namespace MarkSmith.Views.ShapeStudio
             {
                 _snapGuideX = new Microsoft.UI.Xaml.Shapes.Line
                 {
-                    Stroke = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"],
                     StrokeThickness = 1,
                     StrokeDashArray = new DoubleCollection { 3, 2 },
                     IsHitTestVisible = false,
                     Visibility = Visibility.Collapsed
                 };
+                // The accent follows the studio's theme; an Application resource keeps the start-up theme's.
+                ThemeBrush.Set(_snapGuideX, Microsoft.UI.Xaml.Shapes.Shape.StrokeProperty, "AccentFillColorDefaultBrush");
                 MainCanvas.Children.Add(_snapGuideX);
             }
             if (_snapGuideY == null)
             {
                 _snapGuideY = new Microsoft.UI.Xaml.Shapes.Line
                 {
-                    Stroke = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"],
                     StrokeThickness = 1,
                     StrokeDashArray = new DoubleCollection { 3, 2 },
                     IsHitTestVisible = false,
                     Visibility = Visibility.Collapsed
                 };
+                // The accent follows the studio's theme; an Application resource keeps the start-up theme's.
+                ThemeBrush.Set(_snapGuideY, Microsoft.UI.Xaml.Shapes.Shape.StrokeProperty, "AccentFillColorDefaultBrush");
                 MainCanvas.Children.Add(_snapGuideY);
             }
             if (_crosshairLineX == null)
             {
                 _crosshairLineX = new Microsoft.UI.Xaml.Shapes.Line
                 {
-                    Stroke = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"],
                     StrokeThickness = 1,
                     StrokeDashArray = new DoubleCollection { 4, 3 },
                     Opacity = 0.5,
                     IsHitTestVisible = false,
                     Visibility = Visibility.Collapsed
                 };
+                // The accent follows the studio's theme; an Application resource keeps the start-up theme's.
+                ThemeBrush.Set(_crosshairLineX, Microsoft.UI.Xaml.Shapes.Shape.StrokeProperty, "AccentFillColorDefaultBrush");
                 MainCanvas.Children.Add(_crosshairLineX);
             }
             if (_crosshairLineY == null)
             {
                 _crosshairLineY = new Microsoft.UI.Xaml.Shapes.Line
                 {
-                    Stroke = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"],
                     StrokeThickness = 1,
                     StrokeDashArray = new DoubleCollection { 4, 3 },
                     Opacity = 0.5,
                     IsHitTestVisible = false,
                     Visibility = Visibility.Collapsed
                 };
+                // The accent follows the studio's theme; an Application resource keeps the start-up theme's.
+                ThemeBrush.Set(_crosshairLineY, Microsoft.UI.Xaml.Shapes.Shape.StrokeProperty, "AccentFillColorDefaultBrush");
                 MainCanvas.Children.Add(_crosshairLineY);
             }
             if (_cursorHudBadge == null)
@@ -1602,7 +1608,6 @@ namespace MarkSmith.Views.ShapeStudio
                 _cursorHudBadge = new Border
                 {
                     Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0xEE, 0x14, 0x1A, 0x24)),
-                    BorderBrush = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"],
                     BorderThickness = new Thickness(1),
                     CornerRadius = new CornerRadius(6),
                     Padding = new Thickness(6, 2, 6, 2),
@@ -1610,6 +1615,7 @@ namespace MarkSmith.Views.ShapeStudio
                     Visibility = Visibility.Collapsed,
                     Child = _cursorHudText
                 };
+                ThemeBrush.Set(_cursorHudBadge, Border.BorderBrushProperty, "AccentFillColorDefaultBrush");
                 MainCanvas.Children.Add(_cursorHudBadge);
             }
         }
@@ -1779,7 +1785,7 @@ namespace MarkSmith.Views.ShapeStudio
             GridOverlayCanvas.Children.Clear();
 
             int step = Math.Max(20, _gridSnapInterval * 2);
-            var strokeBrush = (Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"];
+            var strokeBrush = ThemeBrush.For(GridOverlayCanvas, "CardStrokeColorDefaultBrush");
 
             for (int y = step; y < 1800; y += step)
             {

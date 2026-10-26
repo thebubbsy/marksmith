@@ -6833,7 +6833,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         copyMarkdownItem.Click += (_, _) =>
         {
             var text = ViewModel.CurrentMarkdown ?? "";
-            CopyTextToStatusBar(text, $"Copied {text.Length} characters of Markdown source.");
+            CopyTextToStatusBar(text, $"Copied {CountText.Of(text.Length, "character")} of Markdown source.");
         };
         menu.Items.Add(copyMarkdownItem);
 
@@ -7920,7 +7920,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         string display = activeSection.Level > 0 ? $"§ {activeSection.Title}" : "§ Intro";
         StatusSectionBreadcrumbText.Text = display;
-        ToolTipService.SetToolTip(StatusSectionBreadcrumbButton, $"Section '{activeSection.Title}' · {activeSection.WordCount} words ({activeSection.WordPercentage:0.#}%) · ~{activeSection.ReadingTimeMinutes:0.#}m read · Click to jump to line {activeSection.LineNumber}, right-click or Shift+F10 for options");
+        ToolTipService.SetToolTip(StatusSectionBreadcrumbButton, $"Section '{activeSection.Title}' · {CountText.Of(activeSection.WordCount, "word")} ({activeSection.WordPercentage:0.#}%) · ~{activeSection.ReadingTimeMinutes:0.#}m read · Click to jump to line {activeSection.LineNumber}, right-click or Shift+F10 for options");
         StatusSectionBreadcrumbButton.Visibility = Visibility.Visible;
         StatusSectionBreadcrumbDivider.Visibility = Visibility.Visible;
     }
@@ -13897,7 +13897,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         }
 
         var propCount = frontmatter.Value.Audit.Properties.Count;
-        CopyAndAnnounce(frontmatter.Value.RawBlock, $"Copied YAML frontmatter ({CountText.Of(propCount, "property")}) to clipboard");
+        CopyAndAnnounce(frontmatter.Value.RawBlock, $"Copied YAML frontmatter ({CountText.Of(propCount, "property", "properties")}) to clipboard");
     }
 
     private void OnStatusCopyFrontmatterButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
@@ -13931,7 +13931,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             }
             var lines = fm.Value.Audit.Properties.Select(p => $"{p.Key}: {p.RawValue}");
             var text = string.Join(Environment.NewLine, lines);
-            CopyAndAnnounce(text, $"Copied {CountText.Of(fm.Value.Audit.Properties.Count, "property")} as key-value pairs to clipboard");
+            CopyAndAnnounce(text, $"Copied {CountText.Of(fm.Value.Audit.Properties.Count, "property", "properties")} as key-value pairs to clipboard");
         };
         menu.Items.Add(copyPropsItem);
 
@@ -13970,7 +13970,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             }
             var props = fm.Value.Audit.Properties;
             var sb = new System.Text.StringBuilder();
-            sb.AppendLine($"**Frontmatter Properties**: {CountText.Of(props.Count, "property")}");
+            sb.AppendLine($"**Frontmatter Properties**: {CountText.Of(props.Count, "property", "properties")}");
             sb.AppendLine();
             sb.AppendLine("| # | Property | Inferred Type | Value | Line |");
             sb.AppendLine("| ---: | :--- | :--- | :--- | ---: |");
@@ -16670,7 +16670,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                     ViewModel.PastedMarkdown = decision.Markdown;
                     ViewModel.UsePasteSource = true;
                     SyncEditorFromDocument();
-                    ViewModel.StatusText = $"Imported {tableModel.Rows.Count + 1} rows × {tableModel.ColumnCount} columns from {name}.";
+                    ViewModel.StatusText = $"Imported {CountText.Of(tableModel.Rows.Count + 1, "row")} × {CountText.Of(tableModel.ColumnCount, "column")} from {name}.";
                     ViewModel.StatusSeverity = Models.StatusSeverity.Success;
                     return;
                 }
@@ -16682,7 +16682,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                     ViewModel.PastedMarkdown = tableMd;
                     ViewModel.UsePasteSource = true;
                     SyncEditorFromDocument();
-                    ViewModel.StatusText = $"Imported {tableModel.Rows.Count + 1} rows × {tableModel.ColumnCount} columns from {name}.";
+                    ViewModel.StatusText = $"Imported {CountText.Of(tableModel.Rows.Count + 1, "row")} × {CountText.Of(tableModel.ColumnCount, "column")} from {name}.";
                     ViewModel.StatusSeverity = Models.StatusSeverity.Success;
                     return;
                 }
@@ -16939,7 +16939,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                     var truncated = model.Rows.Count >= Services.SpreadsheetService.MaxImportRows;
                     ViewModel.StatusText = truncated
                         ? $"Imported {model.Rows.Count} rows (truncated at {Services.SpreadsheetService.MaxImportRows})."
-                        : $"Imported {model.Rows.Count + 1} rows × {model.ColumnCount} columns from {Path.GetFileName(filePath)}.";
+                        : $"Imported {CountText.Of(model.Rows.Count + 1, "row")} × {CountText.Of(model.ColumnCount, "column")} from {Path.GetFileName(filePath)}.";
                     ViewModel.StatusSeverity = Models.StatusSeverity.Success;
                 }
                 else

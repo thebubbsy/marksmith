@@ -3736,7 +3736,7 @@ public sealed partial class SuiteHubView : UserControl
 
             var clipboardError = await Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
 
-            var copyMessage = $"Copied path length audit: {audit.SafetyCategory} · Max: {audit.MaxPathLength} chars across {audit.TotalFiles} files";
+            var copyMessage = $"Copied path length audit: {audit.SafetyCategory} · Max: {audit.MaxPathLength} chars across {CountText.Of(audit.TotalFiles, "file")}";
             SetNotification(clipboardError is null ? copyMessage : Services.CopyStatusText.Failed(copyMessage, clipboardError), success: clipboardError is null);
 
             if (RecentDocsActionBtn != null)
