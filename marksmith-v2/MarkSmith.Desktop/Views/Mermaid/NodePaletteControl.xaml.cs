@@ -137,6 +137,9 @@ public sealed partial class NodePaletteControl : UserControl
     public NodePaletteControl()
     {
         InitializeComponent();
+        // "12 of 40 shapes" reads out once typing settles; with nothing left, the "No shapes
+        // match" line is read instead (see FilterItems).
+        LiveAnnounce.Track(PaletteCountText);
         // "Right-click for options" menus: open them from Shift+F10 / the Menu key too.
         KeyboardContextMenu.BridgeAll(
             (CatAll, OnCategoryPillRightTapped),
@@ -416,6 +419,7 @@ public sealed partial class NodePaletteControl : UserControl
             NoMatchesPanel.Visibility = filtered.Count == 0 ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
             if (filtered.Count == 0)
             {
+                LiveAnnounce.Cancel(PaletteCountText);
                 string rawQuery = SearchTextBox.Text?.Trim() ?? string.Empty;
                 NoMatchesText.Text = string.IsNullOrEmpty(searchText)
                     ? $"No {selectedCat} shapes."

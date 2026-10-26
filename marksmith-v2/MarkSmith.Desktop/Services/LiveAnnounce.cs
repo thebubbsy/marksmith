@@ -54,6 +54,15 @@ public static class LiveAnnounce
         Raise(element);
     }
 
+    /// <summary>
+    /// Drops a tracked announcement that hasn't been read yet, for when a better message replaced
+    /// it (a "No shapes match" line says more than the "0 of 40 shapes" count behind it).
+    /// </summary>
+    public static void Cancel(UIElement target)
+    {
+        if (Timers.TryGetValue(target, out var timer)) timer.Stop();
+    }
+
     private sealed record Said(string Text);
 
     private static readonly ConditionalWeakTable<UIElement, Said> LastSaid = new();

@@ -101,6 +101,8 @@ public sealed partial class HistoryWindow : Window
             editorTextFor: EditorTextFor);
         RootGrid.DataContext = _vm;
         _vm.PropertyChanged += OnVmPropertyChanged;
+        // "3 matches" was marked live in XAML but never raised while typing a search.
+        LiveAnnounce.Track(TimelineSearchMatchText);
 
         _preview = PreviewWeb;
         _ = InitializeWebViewAsync();
@@ -324,6 +326,18 @@ public sealed partial class HistoryWindow : Window
             var focused = FocusedElement();
             if (ReferenceEquals(focused, SelectedHeaderButton))
                 TimelineFilterStatusPill.Focus(FocusState.Programmatic);
+        }
+        else if (e.PropertyName == nameof(HistoryWindowViewModel.ShowNoMatches) && _vm.ShowNoMatches)
+        {
+            // A search or the Starred filter hid every version: read out why ("No starred versions
+            // of this document yet…") instead of the pill's bare "0 matches". Queued so the refilter
+            // has set both texts (the count is tracked after this property changes).
+            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+            {
+                if (!_vm.ShowNoMatches) return;
+                LiveAnnounce.Cancel(TimelineSearchMatchText);
+                LiveAnnounce.Raise(NoMatchesTextBlock);
+            });
         }
         else if (e.PropertyName == nameof(HistoryWindowViewModel.ShowTimeline) && !_vm.ShowTimeline)
         {

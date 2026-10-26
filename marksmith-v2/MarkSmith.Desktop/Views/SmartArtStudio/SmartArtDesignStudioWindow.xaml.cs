@@ -68,6 +68,9 @@ namespace MarkSmith.Views.SmartArtStudio
             this.InitializeComponent();
             // A long status line is cut off at the window edge; hovering it shows the whole message.
             TrimmedTextToolTip.Attach(StatusBarText);
+            // The custom accent's verdict ("Valid hex color · Enter applies it", "Applied #…") was
+            // marked live but never raised; it now reads out once typing settles.
+            LiveAnnounce.Track(CustomPaletteStatusText);
             var iconPath = System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "app.ico");
             if (System.IO.File.Exists(iconPath)) AppWindow.SetIcon(iconPath);
             SizeForDisplay();
