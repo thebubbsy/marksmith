@@ -23,6 +23,8 @@ public sealed partial class SettingsView : UserControl
     public SettingsView()
     {
         InitializeComponent();
+        // The house-style round trip reports progress here while the user waits.
+        LiveAnnounce.Track(HouseStyleStatusText);
         // "Right-click for options" menus: open them from Shift+F10 / the Menu key too.
         KeyboardContextMenu.BridgeAll(
             (RescanCloudButton, OnRescanCloudButtonRightTapped),
@@ -347,8 +349,11 @@ public sealed partial class SettingsView : UserControl
 
     private async void OnActivateLicense(object sender, RoutedEventArgs e)
     {
+        // Read-only, not disabled: a disabled key box (where Enter starts this) threw focus to the
+        // window's first tab stop for the whole check.
+        FocusRescue.Park(ActivateButton, KeyBox);
         ActivateButton.IsEnabled = false;
-        KeyBox.IsEnabled = false;
+        KeyBox.IsReadOnly = true;
         LicenseActionRing.Visibility = Visibility.Visible;
         LicenseActionRing.IsActive = true;
         var ok = false;
@@ -363,7 +368,7 @@ public sealed partial class SettingsView : UserControl
         {
             LicenseActionRing.IsActive = false;
             LicenseActionRing.Visibility = Visibility.Collapsed;
-            KeyBox.IsEnabled = true;
+            KeyBox.IsReadOnly = false;
             ActivateButton.IsEnabled = !string.IsNullOrWhiteSpace(KeyBox.Text);
             if (ok && DeactivateButton.Visibility == Visibility.Visible)
                 DeactivateButton.Focus(FocusState.Programmatic);
@@ -388,6 +393,7 @@ public sealed partial class SettingsView : UserControl
         // DeactivateAsync (not Deactivate) so the Lemon Squeezy activation seat is handed back.
         // Forgetting the key locally while the seat stays claimed is how a customer with a
         // 3-machine key runs out of machines they never used.
+        FocusRescue.Park(DeactivateButton, BuyButton, StartTrialButton);
         DeactivateButton.IsEnabled = false;
         DeactivateRing.Visibility = Visibility.Visible;
         DeactivateRing.IsActive = true;
@@ -459,6 +465,7 @@ public sealed partial class SettingsView : UserControl
 
     private async void OnCheckForUpdates(object sender, RoutedEventArgs e)
     {
+        var parked = FocusRescue.Park(CheckButton, VersionButton);
         CheckButton.IsEnabled = false;
         CheckRing.Visibility = Visibility.Visible;
         CheckRing.IsActive = true;
@@ -469,7 +476,9 @@ public sealed partial class SettingsView : UserControl
         CheckRing.IsActive = false;
         CheckRing.Visibility = Visibility.Collapsed;
         CheckButton.IsEnabled = true;
-        CheckButton.Focus(FocusState.Programmatic);
+        // Back to Check for updates only if it had focus: a mouse click no longer pulls focus
+        // here from wherever the user went while the check ran.
+        parked.Return();
         // Something to install (or already on its way): the update state says it all.
         if (App.ViewModel.UpdatePhase != ViewModels.UpdatePhase.None && result.UpdateAvailable)
         {
@@ -490,6 +499,8 @@ public sealed partial class SettingsView : UserControl
         DownloadLink.Content = "Open the releases page";
         DownloadLink.NavigateUri = new Uri(UpdateService.ReleasesUrl);
         UpdateStatusBar.IsOpen = true;
+        // Marked live above, but the answer was only read out if the user went looking for it.
+        LiveAnnounce.Raise(UpdateStatusBar);
     }
 
     private void OnVersionButtonClick(object sender, RoutedEventArgs e) => CopyVersionDetails();

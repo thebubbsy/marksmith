@@ -86,6 +86,9 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
     public OcrInspectionStudioWindow()
     {
         this.InitializeComponent();
+        // The scan banner and footer were marked live in XAML but never raised the event.
+        LiveAnnounce.Track(StatusBannerText);
+        LiveAnnounce.Track(FooterStatusText);
         // "Right-click for options" menus: open them from Shift+F10 / the Menu key too.
         KeyboardContextMenu.BridgeAll(
             (PrevPageButton, OnPrevPageButtonRightTapped),
@@ -1106,7 +1109,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
                     : "Nothing to copy yet: the current page has no Markdown.");
                 return;
             }
-            CopyAndReport(pageMd, $"Copied current page Markdown ({pageMd.Length:N0} characters) to clipboard.");
+            CopyAndReport(pageMd, $"Copied current page Markdown ({CountText.Of(pageMd.Length, "character")}) to clipboard.");
         };
         menu.Items.Add(copyPageItem);
 
@@ -1127,7 +1130,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
                     : "Nothing to copy yet: the document has no Markdown.");
                 return;
             }
-            CopyAndReport(allMd, $"Copied full document Markdown ({allMd.Length:N0} characters) to clipboard.");
+            CopyAndReport(allMd, $"Copied full document Markdown ({CountText.Of(allMd.Length, "character")}) to clipboard.");
         };
         menu.Items.Add(copyAllItem);
 
@@ -1664,7 +1667,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
                     : "Nothing to copy yet: the current page has no Markdown.");
                 return;
             }
-            CopyAndReport(md, $"Copied current page Markdown ({md.Length:N0} characters) to clipboard.");
+            CopyAndReport(md, $"Copied current page Markdown ({CountText.Of(md.Length, "character")}) to clipboard.");
         };
         menu.Items.Add(copyPageItem);
 
@@ -1685,7 +1688,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
                     : "Nothing to copy yet: the document has no Markdown.");
                 return;
             }
-            CopyAndReport(docMd, $"Copied full document Markdown ({docMd.Length:N0} characters) to clipboard.");
+            CopyAndReport(docMd, $"Copied full document Markdown ({CountText.Of(docMd.Length, "character")}) to clipboard.");
         };
         menu.Items.Add(copyDocItem);
 
@@ -2206,7 +2209,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         var error = await ClipboardWriter.TrySetTextAsync(md);
         if (CopyMarkdownIcon is not null) CopyFeedback.ApplyIconTick(CopyMarkdownIcon, CopyMarkdownButton, error);
         SetFooterStatusText(error is null
-            ? $"Copied {scopeLabel} Markdown ({md.Length:N0} characters) to clipboard."
+            ? $"Copied {scopeLabel} Markdown ({CountText.Of(md.Length, "character")}) to clipboard."
             : $"Couldn't copy: {error}");
     }
 

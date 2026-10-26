@@ -79,6 +79,8 @@ public sealed partial class CommandPalette : UserControl
         _commands = commands;
         _recents = recents;
         InitializeComponent();
+        // The result count ("12 commands") was marked live in XAML but never announced.
+        Services.LiveAnnounce.Track(CountText);
         // "Right-click for options" menus: open them from Shift+F10 / the Menu key too.
         KeyboardContextMenu.BridgeAll(
             (ClearSearchButton, OnClearSearchButtonRightTapped),

@@ -91,7 +91,7 @@ public class Run266ListKeysEnterCopyParityAndStudioPolishTests
     {
         var body = Method(Read(OcrCs), signature);
         Assert.Contains("IsEnabled = hasPageMd", body);
-        Assert.Contains("characters) to clipboard.", body);
+        Assert.Contains("\"character\")}) to clipboard.", body); // run #279: CountText
         Assert.DoesNotContain("chars) to clipboard.", body);
     }
 

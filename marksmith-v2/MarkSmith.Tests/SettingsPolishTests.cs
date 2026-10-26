@@ -275,7 +275,7 @@ public sealed class SettingsPolishTests
         Assert.Contains("if (!HoverPolish.AnimationsEnabled)", code);
         Assert.Contains("CheckRing.Visibility = Visibility.Visible;", code);
         Assert.Contains("CheckRing.Visibility = Visibility.Collapsed;", code);
-        Assert.Contains("CheckButton.Focus(FocusState.Programmatic);", code);
+        Assert.Contains("parked.Return();", code); // run #279: focus returns only if Check had it
     }
 
     private static string CardOpeningTag(string header)
