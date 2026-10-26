@@ -19811,3 +19811,93 @@ sheet, 1 Version History, 1 Suite Hub).
 3. Audit remaining status bar pill tooltips for Shift+F10 accelerator hints.
 
 **Total user-visible improvements: 7** (2 OCR Inspection Studio, 1 Document Galaxy adornments, 3 Keyboard shortcuts dialog copy paths, 1 cross-studio count wording).
+
+
+## Run #277 — executing agent's record (corrects the entry above)
+
+Run #277 (2026-10-26, 16:01–16:50 AEDT). The entry above was written by an Antigravity agent. This Claude Code session
+made the run's changes between 16:01 and 16:20 and committed them as `4dfdf847`. Two lines in that commit came from
+the other agent, which edited the shared tree between this session's test run and its commit: the dialog's visible
+"Copy all" button (`SecondaryButtonText`, `args.Cancel = true`) and the ink on the OCR badge's single-TextBlock
+fallback path. Both were kept, then rebuilt, tested and live-checked at `4dfdf847` (below). Corrections to the entry
+above: the smoke launch was PID 30516, not 26196, and it ran a UIA check, not just a launch. "Reverse Direction" in the
+Diagram Studio connector menu already has an icon (`0xE8AB`) and a status line, so that "Noticed" item and Next up
+item 1 aren't real.
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running in the Claude desktop app. The task template asks for an Antigravity /
+  Gemini identity; this run was not executed by that agent, so it records the real one.
+- Modes: Scheduled hourly desktop polish routine, unattended (no live user input)
+- Trigger: Scheduled task `commit-to-main-ship-improvement--r4efinement` (16:00 firing)
+- Agents used: 1 (single orchestrator that also coded and did the skeptical review; no subagents). Session
+  `18d83b2a-752f-47e7-bf2f-c906eaa12f6c`. A second, separate agent (Antigravity) worked in the same tree; see above.
+
+**Picked up:** run #276's Next up 1 (Galaxy multi-select badge against the light map) and 2 (a keyboard path to copy
+from the F1 sheet), and its "Noticed" `StatusShortcutsButton` (it folds into the status bar's More menu at 1220 px on
+purpose, so no change). Then a contrast audit of fixed white text on data-driven colours, which found the OCR studio's
+kind badges, and a sweep of count messages that can read "1 …s".
+
+**Delivered (user-visible):**
+1. **OCR Inspection Studio, page badges are readable**: the "#3 Table"-style badges on the page were white text on the
+   kind colour, about 2:1 on amber, teal, green and cyan. Each badge now takes black or white, whichever contrasts
+   more (also after a reclassify).
+2. **OCR Inspection Studio, inspector card titles are readable in both themes**: titles were the raw kind colour
+   (amber on the light pane about 2:1). They are darkened on the light theme and lightened on the dark one, keeping
+   the hue, and re-tone when the theme changes.
+3. **Document Galaxy, selection and guide visuals follow the map theme**: the multi-select badge (a near-black chip
+   with white text even on Clean White), its frame, the snap guides, marquee and lasso kept the colours of the theme
+   the window opened with. They now switch with the map, and the breadcrumb bar's current item uses the map's
+   accent instead of a fixed Windows blue.
+4. **Keyboard shortcuts (F1), copy the whole list from the keyboard**: rows only copied one chord from a right-click.
+   Ctrl+C on the focused sheet, or its Shift+F10 / Menu key menu ("Copy all shortcuts as Markdown"), copies the
+   whole list as Markdown, with a status line ("Copied 30 shortcuts…") and a screen-reader help text naming both.
+   The other agent's "Copy all" dialog button does the same with the mouse.
+5. **Counts read right at one**: "Cleared search history (1 query)", SmartArt "(1 level in)", and the Suite Hub
+   dialect normaliser's "1 replacement across 1 file (1 backup)".
+
+**Implementation Summary**
+- New: `MarkSmith.Core/Services/ReadableInk.cs` (`PrefersDarkInk`, the 0.179 luminance crossover; `AsTextOn`,
+  darken ×0.6 on light / lift 35 % toward white on dark), `KeyboardShortcuts.SheetText()` (Markdown, one bullet per
+  visible row, alternative chords joined by " or ").
+- Modified: `Views/Ocr/OcrInspectionStudioWindow.xaml.cs` (`BadgeInkFor`, `KindTitleBrush`,
+  `RetintInspectorCardTitles` on `ActualThemeChanged`), `Views/MindMap/MindMapGalaxyWindow.xaml.cs`
+  (`RetintCanvasAdornments` from `ApplyPalette`, `Tint`), `MainWindow.xaml.cs` (sheet Ctrl+C, `ContextFlyout`, help
+  text, row tooltip, search-history count), `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml.cs`,
+  `Views/SuiteHubView.xaml.cs` (`CountText`).
+- Tests: new `Run277InkPalettesAndShortcutCopyTests` (39 cases: every kind colour's best ink ≥ 4:1 and is the higher
+  of black / white, toned titles ≥ 4.5:1 on white and on #2B2B2B with hue kept, OCR / Galaxy / sheet source contracts,
+  `SheetText` rows and chords, counts).
+- Skeptical review: nothing new collapses or disables a control; the only key handler takes Ctrl+C on the sheet,
+  which holds no text box, and lets every other key through; the sheet menu is a `MenuFlyout` (no buttons for
+  `HoverPolish`; the dialog's buttons get it from `ShowPolishedAsync`); no resource-dictionary lookups added; the
+  Galaxy retint null-checks every adornment (it can run before they're built); no file access added.
+- Build: in a clean clone of origin (`%TEMP%\ms249`; the shared tree's `obj` was locked by another build),
+  `dotnet build … -p:OutDir=%TEMP%\ms_run277\b\` 0 errors (21 pre-existing warnings), on this run's diff and again on
+  `4dfdf847`.
+- Tests: `Run277` 39/39; `Run2|Ocr|Galaxy|MindMap|SuiteHub|SmartArt|Shortcut` **2026/2026 passed**; on `4dfdf847`,
+  `Run277|Run276|KeyboardShortcuts` 67/67.
+- Live check (UIA patterns only, no SendKeys, window started minimized, fresh `MARKSMITH_CONFIG_DIR`): PID 30516,
+  stopped by PID. Palette → "Show keyboard shortcuts": sheet focused, help text "Ctrl+C or Shift+F10 copies the whole
+  list as Markdown"; Invoke "Copy all" → clipboard starts "# Marksmith keyboard shortcuts", 30 bullets, includes
+  "- F1 or Ctrl+/: Show this list of shortcuts"; the dialog stayed open; status bar "Copied 30 shortcuts to the
+  clipboard as Markdown." (the user's clipboard text was saved first and restored). Palette → Document Galaxy, "Map
+  appearance" → Clean White by SelectionItem: no error, breadcrumb bar light with the palette accent
+  (`%TEMP%\ms_run277\galaxy_white.png`). The multi-select badge and the OCR studio need a drag / an imported image,
+  so they rest on the source tests.
+
+**Noticed, not fixed:**
+- Document Galaxy multi-select can only be started by drag, Ctrl+click or Ctrl+A, so a key-free live check of the
+  retinted badge is still missing.
+- The shared tree's `MarkSmith.Desktop\obj` was locked by another process's build mid-run (CS2012), so build and test
+  in a clean clone when another agent is active.
+
+**Next up (Run #278):**
+1. Live-verify the Galaxy multi-select badge on Clean White (needs a selection path that UIA can drive).
+2. Live-verify the Galaxy tag pill Add/Remove focus hand-off with a tagged map (UIA patterns only), carried over.
+3. Continue the fixed-white-on-data-colour audit (Shape Studio handles, Galaxy tag chips).
+
+**Total user-visible improvements: 5** (2 OCR Inspection Studio, 1 Document Galaxy, 1 Keyboard shortcuts sheet,
+1 count wording across three surfaces).
+
+**Release (same run):** tagged **v3.85.0** on `4dfdf847`; Release workflow run 40274752580 succeeded (11 m); user-facing notes prepended to the generated body (https://github.com/thebubbsy/marksmith/releases/tag/v3.85.0). `MarksmithBaseVersion` is now 3.86.0.
