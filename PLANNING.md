@@ -19335,3 +19335,6 @@ run #271's diff: behaviour fine, but it broke an older source-contract test (fix
 3. Fix the outline flyout's row-focus check (use `FocusManager.GetFocusedElement` ancestry, not `FocusState`).
 
 **Total user-visible improvements: 11** (3 Document Galaxy, 3 SmartArt Studio, 3 Shape Studio, 2 main window).
+
+**Release (same run):** tagged **v3.81.0** on `fd89b5c` (it also carries runs #270 and #271, which shipped without a tag); Release workflow run 40250640798 succeeded; user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.81.0). `MarksmithBaseVersion` is now 3.82.0.
