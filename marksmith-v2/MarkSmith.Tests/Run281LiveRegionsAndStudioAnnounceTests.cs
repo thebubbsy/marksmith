@@ -8,8 +8,8 @@ namespace MarkSmith.Tests;
 // Run #281: Sweeping remaining XAML-declared live regions across OCR Studio, History Window,
 // Mermaid Diagram Studio, Node Palette, and SmartArt Studio into LiveAnnounce.Track or LiveAnnounce.Raise.
 // - OCR Studio: PageIndicatorText, WordStreamText, SelectedElementBadgeText, and SessionMetricsText are tracked;
-// - History Window: TimelineSearchMatchText, NoMatchesTextBlock, and DiffTitleText are tracked; ChangeStepperButton and DiffMatchCountLabel are reliably raised via LiveAnnounce.Raise;
-// - Mermaid Studio: CanvasSummaryText is tracked on CanvasSummaryButton; AnnounceLiveRegion uses LiveAnnounce.Raise;
+// - History Window: TimelineSearchMatchText and NoMatchesTextBlock are tracked (DiffTitleText is quiet since run #288); ChangeStepperButton and DiffMatchCountLabel are reliably raised via LiveAnnounce.Raise;
+// - Mermaid Studio: CanvasSummaryText is quiet since run #288 (the status line reads each change); AnnounceLiveRegion uses LiveAnnounce.Raise;
 // - Node Palette: PaletteCountText is tracked; NoMatchesText is raised via LiveAnnounce.Raise;
 // - SmartArt Studio: NoMatchesTitleText is tracked; CustomPaletteStatusText, OutlineMatchCountLabel, and AnnounceLiveRegion use LiveAnnounce.Raise;
 // - None of the explicitly raised lines are tracked, preventing duplicate screen reader announcements.

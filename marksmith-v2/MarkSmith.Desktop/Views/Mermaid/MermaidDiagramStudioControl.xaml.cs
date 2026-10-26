@@ -624,6 +624,8 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
     {
         if (MenuOwnsKeys()) return;
         if (IsEditingText()) return;
+        // Backspace on a palette shape, a category pill or the style combo deleted the selected node.
+        if (ChoiceKeys.FocusIsInChoiceControl(XamlRoot, CanvasContainer)) return;
         ViewModel?.DeleteSelected();
         args.Handled = true;
     }
@@ -672,6 +674,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
     {
         if (MenuOwnsKeys()) return;
         if (IsEditingText()) return;
+        if (ChoiceKeys.FocusIsInChoiceControl(XamlRoot, CanvasContainer)) return;
         ViewModel?.SelectAll();
         args.Handled = true;
     }

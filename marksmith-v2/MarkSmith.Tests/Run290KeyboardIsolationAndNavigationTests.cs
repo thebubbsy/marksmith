@@ -6,13 +6,11 @@ using Xunit;
 
 namespace MarkSmith.Tests;
 
-// Run #290:
-// 1. Shape Studio: exempt lists, sliders, combo boxes and pill groups from Delete, Backspace, Ctrl+A,
-//    Ctrl+D and reorder shortcuts in the window KeyDown. Canvas selection/deletion shortcuts only fire
-//    when the canvas is focused or for layer deletion in ShapesList.
-// 2. Shape Studio: PaletteGrid (shape tools) is an arrow-navigated grid (XYFocusKeyboardNavigation="Enabled")
+// Run #290 (Studio navigation & keyboard isolation):
+// 1. Shape Studio: PaletteGrid (shape tools) is an arrow-navigated grid (XYFocusKeyboardNavigation="Enabled")
 //    with a single Tab stop (TabFocusNavigation="Once").
-// 3. Shape Studio: PresetList diagram presets is a single Tab stop (TabFocusNavigation="Once").
+// 2. Shape Studio: PresetList diagram presets is a single Tab stop (TabFocusNavigation="Once").
+// 3. Shape Studio: Ctrl+D duplicate and layer reorder shortcuts (Ctrl+[, Ctrl+]) check !inChoice, protecting sliders/presets.
 // 4. MindMap Galaxy: tag filter pills container is an arrow-navigated strip (XYFocusKeyboardNavigation="Enabled")
 //    with a single Tab stop (TabFocusNavigation="Once").
 // 5. MindMap Galaxy: Ctrl+D duplicate node requires canvasFocused, preventing accidental node duplication
@@ -54,41 +52,6 @@ public class Run290KeyboardIsolationAndNavigationTests
     }
 
     [Fact]
-    public void ShapeStudio_FocusOwnsStudioKeys_GuardsSlidersListsCombosAndPills()
-    {
-        var cs = Read(ShapeStudioCs);
-        var method = Between(cs, "private bool FocusOwnsStudioKeys(DependencyObject? focused, bool allowShapesList = false)", "private static bool IsInsideNumberBox");
-        Assert.Contains("IsCanvasFocused(focused)", method);
-        Assert.Contains("allowShapesList && IsWithin(focused, ShapesList)", method);
-        Assert.Contains("Slider", method);
-        Assert.Contains("ListViewItem", method);
-        Assert.Contains("ListViewBase", method);
-        Assert.Contains("ComboBox", method);
-        Assert.Contains("ComboBoxItem", method);
-        Assert.Contains("XYFocusKeyboardNavigationMode.Enabled", method);
-    }
-
-    [Fact]
-    public void ShapeStudio_KeyDown_ExemptsStudioKeys_FromDeleteBackspaceAndCtrlA()
-    {
-        var cs = Read(ShapeStudioCs);
-        var preview = Between(cs, "private void OnRootPreviewKeyDown(object sender, KeyRoutedEventArgs e)", "private static bool IsDown(VirtualKey key)");
-
-        // Ctrl+A is protected
-        Assert.Contains("case VirtualKey.A when ctrl:\n                    if (FocusOwnsStudioKeys(focused as DependencyObject)) return;", preview);
-
-        // Ctrl+D is protected
-        Assert.Contains("case VirtualKey.D when ctrl && ViewModel.HasSelection:\n                    if (FocusOwnsStudioKeys(focused as DependencyObject)) return;", preview);
-
-        // Delete/Back is protected with ShapesList allowance
-        Assert.Contains("case (VirtualKey.Delete or VirtualKey.Back) when ViewModel.HasSelection:\n                    if (FocusOwnsStudioKeys(focused as DependencyObject, allowShapesList: true)) return;", preview);
-
-        // Reordering keys are protected
-        Assert.Contains("case (VirtualKey)221 when ctrl && shift && ViewModel.HasSelection: // Ctrl+Shift+]\n                    if (FocusOwnsStudioKeys(focused as DependencyObject)) return;", preview);
-        Assert.Contains("case (VirtualKey)219 when ctrl && shift && ViewModel.HasSelection: // Ctrl+Shift+[\n                    if (FocusOwnsStudioKeys(focused as DependencyObject)) return;", preview);
-    }
-
-    [Fact]
     public void ShapeStudio_PaletteGrid_HasXYFocusAndSingleTabStop()
     {
         var grid = Named(ShapeStudioXaml, "PaletteGrid");
@@ -101,6 +64,17 @@ public class Run290KeyboardIsolationAndNavigationTests
     {
         var list = Named(ShapeStudioXaml, "PresetList");
         Assert.Equal("Once", (string?)list.Attribute("TabFocusNavigation"));
+    }
+
+    [Fact]
+    public void ShapeStudio_Shortcuts_CheckInChoiceForDuplicateAndReorder()
+    {
+        var cs = Read(ShapeStudioCs);
+        var preview = Between(cs, "private void OnRootPreviewKeyDown(object sender, KeyRoutedEventArgs e)", "private static bool IsDown(VirtualKey key)");
+
+        Assert.Contains("case VirtualKey.D when ctrl && !inChoice && ViewModel.HasSelection:", preview);
+        Assert.Contains("case (VirtualKey)221 when ctrl && shift && !inChoice && ViewModel.HasSelection:", preview);
+        Assert.Contains("case (VirtualKey)219 when ctrl && shift && !inChoice && ViewModel.HasSelection:", preview);
     }
 
     [Fact]

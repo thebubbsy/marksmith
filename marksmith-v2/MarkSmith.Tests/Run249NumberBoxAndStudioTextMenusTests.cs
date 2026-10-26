@@ -242,7 +242,7 @@ public class Run249NumberBoxAndStudioTextMenusTests
         Assert.True(guard >= 0);
         // Before any shortcut: Ctrl+F, the text-box Esc, Ctrl+C / V, Delete and the Esc that clears the selection.
         foreach (var later in new[] { "ctrl && e.Key == VirtualKey.F", "VirtualKey.Escape && focused is TextBox", "OnCopyMarkdownClick",
-                                      "case (VirtualKey.Delete or VirtualKey.Back) when ViewModel.HasSelection", "case VirtualKey.Escape when ViewModel.HasSelection" })
+                                      "case (VirtualKey.Delete or VirtualKey.Back) when !inChoice && ViewModel.HasSelection", "case VirtualKey.Escape when ViewModel.HasSelection" })
         {
             var at = handler.IndexOf(later, StringComparison.Ordinal);
             Assert.True(at > guard, later);

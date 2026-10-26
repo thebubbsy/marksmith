@@ -738,6 +738,10 @@ namespace MarkSmith.Views.ShapeStudio
             if (focused is DependencyObject d && IsInsideNumberBox(d)) return;
             // An open list owns its keys: Esc closes it, arrows/Home/End move through it.
             if (focused is ComboBoxItem || focused is ComboBox { IsDropDownOpen: true }) return;
+            // Delete and Ctrl+A in the preset list, shape palette, colour schemes or a slider aren't
+            // about the canvas: Delete on a preset deleted the selected shapes. The Shapes list lists
+            // the canvas shapes themselves, so it keeps both.
+            bool inChoice = ChoiceKeys.FocusIsInChoiceControl(this.RootGrid.XamlRoot, ShapesList);
 
             if (ctrl && e.Key == VirtualKey.C && !shift)
             {
@@ -808,43 +812,35 @@ namespace MarkSmith.Views.ShapeStudio
                     ZoomStep(-1);
                     e.Handled = true;
                     return;
-                case VirtualKey.A when ctrl:
-                    if (FocusOwnsStudioKeys(focused as DependencyObject)) return;
+                case VirtualKey.A when ctrl && !inChoice:
                     ViewModel.SelectAllCommand.Execute(null);
                     e.Handled = true;
                     return;
-                case VirtualKey.D when ctrl && ViewModel.HasSelection:
-                    if (FocusOwnsStudioKeys(focused as DependencyObject)) return;
+                case VirtualKey.D when ctrl && !inChoice && ViewModel.HasSelection:
                     ExecuteDuplicateWithHudFeedback();
                     e.Handled = true;
                     return;
-                case VirtualKey.D when ctrl && !ViewModel.HasSelection:
-                    if (FocusOwnsStudioKeys(focused as DependencyObject)) return;
+                case VirtualKey.D when ctrl && !inChoice && !ViewModel.HasSelection:
                     ViewModel.StatusMessage = "Nothing to duplicate: select a shape on the canvas first.";
                     e.Handled = true;
                     return;
-                case (VirtualKey)221 when ctrl && shift && ViewModel.HasSelection: // Ctrl+Shift+]
-                    if (FocusOwnsStudioKeys(focused as DependencyObject)) return;
+                case (VirtualKey)221 when ctrl && shift && !inChoice && ViewModel.HasSelection: // Ctrl+Shift+]
                     ViewModel.BringToFrontCommand.Execute(null);
                     e.Handled = true;
                     return;
-                case (VirtualKey)221 when ctrl && ViewModel.HasSelection: // Ctrl+]
-                    if (FocusOwnsStudioKeys(focused as DependencyObject)) return;
+                case (VirtualKey)221 when ctrl && !inChoice && ViewModel.HasSelection: // Ctrl+]
                     ViewModel.BringForwardCommand.Execute(null);
                     e.Handled = true;
                     return;
-                case (VirtualKey)219 when ctrl && shift && ViewModel.HasSelection: // Ctrl+Shift+[
-                    if (FocusOwnsStudioKeys(focused as DependencyObject)) return;
+                case (VirtualKey)219 when ctrl && shift && !inChoice && ViewModel.HasSelection: // Ctrl+Shift+[
                     ViewModel.SendToBackCommand.Execute(null);
                     e.Handled = true;
                     return;
-                case (VirtualKey)219 when ctrl && ViewModel.HasSelection: // Ctrl+[
-                    if (FocusOwnsStudioKeys(focused as DependencyObject)) return;
+                case (VirtualKey)219 when ctrl && !inChoice && ViewModel.HasSelection: // Ctrl+[
                     ViewModel.SendBackwardCommand.Execute(null);
                     e.Handled = true;
                     return;
-                case (VirtualKey)221 or (VirtualKey)219 when ctrl && !ViewModel.HasSelection:
-                    if (FocusOwnsStudioKeys(focused as DependencyObject)) return;
+                case (VirtualKey)221 or (VirtualKey)219 when ctrl && !inChoice && !ViewModel.HasSelection:
                     ViewModel.StatusMessage = "Nothing to reorder: select a shape on the canvas first.";
                     e.Handled = true;
                     return;
@@ -863,9 +859,12 @@ namespace MarkSmith.Views.ShapeStudio
                         ShowCanvasContextMenu(new Point(160, 140));
                     e.Handled = true;
                     return;
-                case (VirtualKey.Delete or VirtualKey.Back) when ViewModel.HasSelection:
-                    if (FocusOwnsStudioKeys(focused as DependencyObject, allowShapesList: true)) return;
+                case (VirtualKey.Delete or VirtualKey.Back) when !inChoice && ViewModel.HasSelection:
                     ViewModel.RemoveSelectedCommand.Execute(null);
+                    e.Handled = true;
+                    return;
+                case VirtualKey.Delete when !inChoice && !ViewModel.HasSelection:
+                    ViewModel.StatusMessage = "Nothing to delete: select a shape on the canvas first.";
                     e.Handled = true;
                     return;
                 case VirtualKey.Escape when ViewModel.IsPlacing:
@@ -915,34 +914,10 @@ namespace MarkSmith.Views.ShapeStudio
             Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(key)
                 .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
 
-        private static bool IsWithin(DependencyObject? element, DependencyObject? targetParent)
+        private bool IsWithinRootGrid(DependencyObject? obj)
         {
-            if (element is null || targetParent is null) return false;
-            for (var cur = element; cur is not null; cur = cur is UIElement ? VisualTreeHelper.GetParent(cur) : null)
-            {
-                if (ReferenceEquals(cur, targetParent)) return true;
-            }
-            return false;
-        }
-
-        private bool IsWithinRootGrid(DependencyObject? obj) => IsWithin(obj, RootGrid);
-
-        private bool IsCanvasFocused(DependencyObject? focused)
-        {
-            return IsWithin(focused, CanvasScroller) || IsWithin(focused, MainCanvas);
-        }
-
-        private bool FocusOwnsStudioKeys(DependencyObject? focused, bool allowShapesList = false)
-        {
-            if (focused is null) return false;
-            if (IsCanvasFocused(focused)) return false;
-            if (allowShapesList && IsWithin(focused, ShapesList)) return false;
-
-            for (var cur = focused; cur is not null; cur = cur is UIElement ? VisualTreeHelper.GetParent(cur) : null)
-            {
-                if (cur is Slider or ListViewItem or ListViewBase or ComboBox or ComboBoxItem) return true;
-                if (cur is UIElement { XYFocusKeyboardNavigation: XYFocusKeyboardNavigationMode.Enabled }) return true;
-            }
+            for (; obj is not null; obj = VisualTreeHelper.GetParent(obj))
+                if (ReferenceEquals(obj, RootGrid)) return true;
             return false;
         }
 
