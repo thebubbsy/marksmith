@@ -2000,18 +2000,19 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
     private void UpdateSessionTelemetry()
     {
         if (HeaderElementsCountText is not null)
-            HeaderElementsCountText.Text = _session.TotalElements.ToString();
+            HeaderElementsCountText.Text = _session.TotalElements.ToString("N0");
         if (HeaderReclassifiedCountText is not null)
-            HeaderReclassifiedCountText.Text = _session.TotalReclassifications.ToString();
+            HeaderReclassifiedCountText.Text = _session.TotalReclassifications.ToString("N0");
         if (WordCountBadgeText is not null)
             WordCountBadgeText.Text = CountText.Of(_session.CurrentPage?.Words.Count ?? 0, "word");
 
         if (SessionMetricsText is not null)
         {
-            string metrics = $"{CountText.Of(_session.Pages.Count, "Page")} · " +
-                             $"{CountText.Of(_session.TotalElements, "Element")} · " +
-                             $"{CountText.Of(_session.TotalWords, "Word")} · " +
-                             $"{_session.TotalReclassifications:N0} Reclassified";
+            // Sentence case, like every other count line ("1 page · 3 elements"), not "1 Page · 3 Elements".
+            string metrics = $"{CountText.Of(_session.Pages.Count, "page")} · " +
+                             $"{CountText.Of(_session.TotalElements, "element")} · " +
+                             $"{CountText.Of(_session.TotalWords, "word")} · " +
+                             $"{_session.TotalReclassifications:N0} reclassified";
             SessionMetricsText.Text = metrics;
             AutomationProperties.SetName(SessionMetricsText, metrics);
         }

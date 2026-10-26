@@ -828,8 +828,10 @@
                                                 <TextBlock Text="Harmony palette generator" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center" />
                                                 <TextBlock x:Name="HarmonyModeLabel" Grid.Column="1" Text="Monochromatic" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
                                             </Grid>
-                                            <!-- Toggles, so the active mode stays pressed (and reads "checked") on the button itself. -->
-                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <!-- Toggles, so the active mode stays pressed (and reads "checked") on the button itself.
+                                                 Arrow keys move between the three modes; Tab passes them in one stop. -->
+                                            <StackPanel x:Name="HarmonyModeSegment" Orientation="Horizontal" Spacing="4"
+                                                        XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once">
                                                 <ToggleButton x:Name="HarmonyMonoBtn" Padding="8,3" Height="26" MinWidth="0" IsChecked="True"
                                                         AutomationProperties.Name="Monochromatic harmony"
                                                         Click="OnHarmonyMonoClick" ToolTipService.ToolTip="Monochromatic harmony (stepped lightness)">

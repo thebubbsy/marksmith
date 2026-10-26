@@ -5,16 +5,13 @@ using Xunit;
 
 namespace MarkSmith.Tests;
 
-// Run #288:
-// 1. Silent Live Region Declarations: removed unused AutomationProperties.LiveSetting="Polite"
-//    from CanvasSummaryText (MermaidDiagramStudioControl) and DiffTitleText (HistoryWindow)
-//    where announcements were never raised or are already communicated via status bar / timeline.
-// 2. Extended TextBoxEndScroll to path and URL text boxes across the main window, settings, and studios:
+// Run #289:
+// 1. Extended TextBoxEndScroll to path and URL text boxes across the main window, settings, and studios:
 //    RunningDocPathTextBox, WatchFolderTextBox, BrandLogoPathTextBox, CustomFontPathTextBox,
 //    CloudSubfolderBox, and FuseImagePathBox.
-// 3. Swept remaining raw interpolation plurals across MindMap Galaxy, Shape Studio, Mermaid Canvas,
+// 2. Swept remaining raw interpolation plurals across MindMap Galaxy, Shape Studio, Mermaid Canvas,
 //    and TextSearch math diagnostics using canonical CountText.Of sentences.
-public class Run288SilentLiveLinesAndPathEndScrollTests
+public class Run289PathEndScrollAndStudioPluralsTests
 {
     private static string RepoDir()
     {
@@ -29,8 +26,6 @@ public class Run288SilentLiveLinesAndPathEndScrollTests
 
     private static string Read(string relative) => File.ReadAllText(Path.Combine(RepoDir(), relative)).Replace("\r\n", "\n");
 
-    private const string MermaidStudioXaml = "MarkSmith.Desktop/Views/Mermaid/MermaidDiagramStudioControl.xaml";
-    private const string HistoryXaml = "MarkSmith.Desktop/Views/History/HistoryWindow.xaml";
     private const string MainXaml = "MarkSmith.Desktop/MainWindow.xaml";
     private const string MainCs = "MarkSmith.Desktop/MainWindow.xaml.cs";
     private const string SettingsXaml = "MarkSmith.Desktop/Views/SettingsView.xaml";
@@ -39,30 +34,6 @@ public class Run288SilentLiveLinesAndPathEndScrollTests
     private const string MindMapCs = "MarkSmith.Desktop/Views/MindMap/MindMapGalaxyWindow.xaml.cs";
     private const string MermaidCanvasCs = "MarkSmith.Desktop/Views/Mermaid/MermaidCanvasControl.xaml.cs";
     private const string TextSearchCs = "MarkSmith.Core/Services/TextSearch.cs";
-
-    [Fact]
-    public void CanvasSummaryText_DoesNotDeclareLiveSettingInXaml()
-    {
-        var xaml = Read(MermaidStudioXaml);
-        var at = xaml.IndexOf("x:Name=\"CanvasSummaryText\"", StringComparison.Ordinal);
-        Assert.True(at >= 0);
-        var end = xaml.IndexOf("/>", at, StringComparison.Ordinal);
-        Assert.True(end > at);
-        var tag = xaml[at..end];
-        Assert.DoesNotContain("LiveSetting", tag);
-    }
-
-    [Fact]
-    public void DiffTitleText_DoesNotDeclareLiveSettingInXaml()
-    {
-        var xaml = Read(HistoryXaml);
-        var at = xaml.IndexOf("x:Name=\"DiffTitleText\"", StringComparison.Ordinal);
-        Assert.True(at >= 0);
-        var end = xaml.IndexOf("/>", at, StringComparison.Ordinal);
-        Assert.True(end > at);
-        var tag = xaml[at..end];
-        Assert.DoesNotContain("LiveSetting", tag);
-    }
 
     [Fact]
     public void MainWindow_PathBoxes_AreDeclaredAndAttachedToEndScroll()

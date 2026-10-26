@@ -157,9 +157,9 @@ public class Run281TracedLiveLinesTests
     public void Ocr_SessionMetrics_CountEachNoun()
     {
         var telemetry = Body(Read(Ocr), "private void UpdateSessionTelemetry()");
-        Assert.Contains("CountText.Of(_session.Pages.Count, \"Page\")", telemetry);
-        Assert.Contains("CountText.Of(_session.TotalElements, \"Element\")", telemetry);
-        Assert.Contains("CountText.Of(_session.TotalWords, \"Word\")", telemetry);
+        Assert.Contains("CountText.Of(_session.Pages.Count, \"page\")", telemetry);
+        Assert.Contains("CountText.Of(_session.TotalElements, \"element\")", telemetry);
+        Assert.Contains("CountText.Of(_session.TotalWords, \"word\")", telemetry);
         Assert.DoesNotContain("} Elements ·", telemetry);
         Assert.DoesNotContain("} Words ·", telemetry);
     }

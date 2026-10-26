@@ -20814,38 +20814,122 @@ double read with `FooterStatusText` (which is tracked separately and isn't set i
 **Total user-visible improvements: 6** (2 status bar focus, 1 license banner focus, 1 OCR announcement, 2 count
 wording in Mind map and Diagram Studio).
 
+**Release (same run):** tagged **v3.94.0** on `52fb83b` (this run's work plus Antigravity's unreleased run #286
+`2cfe0d5`). Release workflow run 40391289493 succeeded; user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.94.0). `MarksmithBaseVersion` is now 3.95.0.
 
-### 2026-10-27 (scheduled routine run #288)
+## 2026-10-27 · Run #288 (07:01–07:40 AEDT) · Claude Code
 
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic). The routine template asks for "Antigravity AI Agent (Google DeepMind)"; that
+  would be false for this run, so the real identity is recorded.
+- Modes: Scheduled Hourly Automation Routine (scheduled task `commit-to-main-ship-improvement--r4efinement`)
+- Trigger: Scheduled hourly routine run (no live user)
+- Agents Used: 1 (orchestrator doing the coding, review and verification itself; no sub-agents). Session
+  `863f1a1b-8fc4-498d-bba1-06d850009ec1`.
+
+**Picked up:** run #287's "Noticed, not fixed" (the two silent live lines, OCR's title-case metrics), then a sweep
+of segmented toggle groups for keyboard reach. No `XYFocusKeyboardNavigation` / `TabFocusNavigation` was used
+anywhere in the app, so every pill in a set of choices was its own Tab stop and arrows did nothing.
+
+**Delivered (user-visible):**
+1. **Diagram Studio, the shape palette's category pills are arrow-navigated** (Left/Right/Up/Down across the
+   three-per-row grid) and Tab passes all eight in one stop. Live: All → Right → Flowchart → Down → State. Baseline
+   build (same keys): focus stayed on All.
+2. **Diagram Studio, arrow keys in the palette's pills (or a combo box / slider / list) no longer reach the nudge
+   accelerators.** Those accelerators claim every arrow nothing else has taken, which is what blocked item 1. The
+   walk stops at `CanvasContainer` first, so the canvas still nudges. Live: with "Process" selected at X 360 / Y 400,
+   two Downs in the palette list plus Right and Down in the pills left it at 360 / 400.
+3. **Version History, the Unified / Side by side / Preview switch** moves with Left/Right and is one Tab stop
+   (Up/Down still step versions through the window's PreviewKeyDown).
+4. **SmartArt Studio, the Mono / Analogous / Triadic harmony modes** are the same: arrows between, one Tab stop.
+5. **OCR studio's session metrics read in sentence case**: "1 page · 3 elements · 120 words · 0 reclassified"
+   (was "1 Page · 3 Elements · 120 Words · 0 Reclassified"), including the XAML placeholder.
+6. **OCR studio's header counts group thousands** (Elements / Reclassified badges, `N0`).
+7. **Diagram Studio's canvas summary and History's diff title are no longer marked live.** Neither was ever raised,
+   and each change is already read out (status line / timeline selection); the setting promised an announcement that
+   never came.
+
+**Implementation Summary**
+- Desktop: `Views/Mermaid/MermaidDiagramStudioControl.xaml.cs` (new `FocusOwnsArrowKeys()`, checked in
+  `OnNudgeAcceleratorInvoked`); `Views/Mermaid/NodePaletteControl.xaml` (pill `VariableSizedWrapGrid`:
+  `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`); `Views/History/HistoryWindow.xaml` (new
+  `DiffModeSegment` panel, same two attributes; `DiffTitleText` LiveSetting dropped);
+  `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` (new `HarmonyModeSegment`);
+  `Views/Mermaid/MermaidDiagramStudioControl.xaml` (`CanvasSummaryText` LiveSetting dropped);
+  `Views/Ocr/OcrInspectionStudioWindow.xaml(.cs)` (sentence-case metrics, `N0` header counts).
+- Tests: new `Run288ArrowKeysAndQuietLinesTests` (nudge guard order and coverage, canvas stop first, the three
+  segmented groups, sentence-case metrics and placeholder, grouped header counts, `CountText` lowercase nouns, the two
+  quiet lines). `Run281TracedLiveLinesTests.Ocr_SessionMetrics_CountEachNoun` updated to the lowercase nouns.
+
+**Adversarial review:** nothing collapses or disables; no key handler marks more keys handled than before (the
+change only returns early). `FocusOwnsArrowKeys` stops at `CanvasContainer`, so a canvas hosted inside a selector-like
+parent still nudges. History's root PreviewKeyDown still owns Up/Down/Home/End (version stepping) ahead of the
+segment's XY navigation; only Left/Right are new there. No resource lookups, file access or async code touched.
+**Correction during the run:** I first thought the palette *list* couldn't be walked with arrows. The baseline build
+showed the ListView handles its arrows before the accelerators, so the comment and commit describe the pill groups
+as the real gain.
+
+**Verified:**
+- `dotnet build … -p:OutDir=%TEMP%\ms_run288\b\`: 0 errors (baseline for comparison: `%TEMP%\ms_run288\base\`).
+- `dotnet test --filter Run288|Run281|Run228|Run231|Run230|Ocr|History|NodePalette|SmartArt|Mermaid`: **1406/1406**;
+  broad `Run2` filter: **1482/1482**.
+- Live (isolated `Marksmith.exe`, scratch `MARKSMITH_CONFIG_DIR`, Diagram Studio opened by Invoking
+  `DiagramStudioTitleButton`; keys only after checking the foreground window belonged to the scratch PID): fixed PID
+  4152 and baseline PID 25592 as above. PrintWindow screenshot shows the focus ring on the Flowchart pill and the
+  selected node unmoved. A third PID (25428) was launched by mistake from the fixed build and stopped at once. Only
+  those three PIDs were stopped.
+- Not live-verified: History's and SmartArt's segments (History needs saved snapshots; SmartArt Studio is behind a
+  submenu of Insert that UIA didn't find in one expand), OCR metrics (needs an OCR session). Source contracts cover them.
+
+**Noticed, not fixed:**
+- Shape Studio's window KeyDown deletes the selected shape on Delete/Backspace and runs Ctrl+A select-all even when
+  focus is on a preset gallery item or a slider; only text boxes, number boxes and open combo boxes are exempt.
+- Stale header comments in `Run281LiveRegionsAndStudioAnnounceTests` still say `DiffTitleText` / `CanvasSummaryText`
+  are tracked.
+
+**Next up (Run #289):**
+1. Shape Studio: exempt lists, sliders and pill groups from Delete/Backspace/Ctrl+A in the window KeyDown.
+2. Live-verify the History and SmartArt segments (seed a document with two snapshots; find the SmartArt Studio
+   submenu path).
+3. Look for other choice groups that should be one Tab stop (Settings, Theme Builder presets, Galaxy filters).
+
+**Total user-visible improvements: 7** (3 arrow-navigated segment groups, 1 nudge guard, 2 OCR count wording /
+grouping, 1 pair of misleading live regions removed).
+
+
+## 2026-10-27 · Run #289 (07:05–07:45 AEDT) · Antigravity AI Agent
+
+**Agent / Execution Metadata**
+- Model: Antigravity AI Agent (Google DeepMind)
+- Modes: Scheduled Hourly Automation Routine
 - Trigger: Scheduled hourly MarkSmith WinUI 3 Desktop Polish Routine
-- Mandate: Picked up run #287's "Next up" and desktop path polish mandate:
-  1. Decided on silent live lines: dropped unused `AutomationProperties.LiveSetting="Polite"` from Mermaid `CanvasSummaryText` and History `DiffTitleText` (clean UIA tree truth without phantom announcements).
-  2. Extended `TextBoxEndScroll` to all remaining path text boxes across the main window, settings, and studios (`RunningDocPathTextBox`, `WatchFolderTextBox`, `BrandLogoPathTextBox`, `CustomFontPathTextBox`, `CloudSubfolderBox`, `FuseImagePathBox`).
-  3. Swept remaining raw string interpolation plurals and template `(s)` parentheses across MindMap Galaxy, Shape Studio, Mermaid Canvas, TextSearch math diagnostics, and SuiteHub link audits using canonical `CountText.Of`.
+- Mandate: Single-line text box unfocused end-scrolling and studio natural pluralization sweep.
 
 **Delivered (user-visible):**
 1. **Running doc & watched folder paths reveal leaf document names while unfocused:** In MainWindow, long running document paths (`C:\...\RunningDoc.docx`) and watched folder paths (`C:\...\WatchedFolder`) previously clipped at the drive root when unfocused. They now smoothly scroll to the tail so the active file/folder name is immediately visible at a glance while retaining natural editing when focused.
 2. **Branding logo & custom font file inputs reveal file names while unfocused:** Long asset paths (`...\Corporate_Logo_Dark.png`, `...\Inter-VariableFont.ttf`) in Step 4 branding rows now automatically scroll to show the file name rather than clipping.
 3. **Settings cloud subfolder path end-scrolling:** In SettingsView, `CloudSubfolderBox` now automatically scrolls to display the deepest subfolder segment when unfocused.
 4. **Shape Design Studio image path end-scrolling:** `FuseImagePathBox` in Shape Studio now automatically scrolls to display the selected or pasted image filename (`...\diagram.png`) when unfocused.
-5. **Clean UIA live region truth (Mermaid & History):** Removed dead `AutomationProperties.LiveSetting="Polite"` from `CanvasSummaryText` and `DiffTitleText`. Neither block ever raised `LiveRegionChanged` (their state is already actively announced via `CanvasSummaryButton` status updates and History list item selection respectively), eliminating misleading UIA expectations.
-6. **MindMap Galaxy natural pluralization:** Multi-selection badge summaries, undo labels, status messages, context menus, and lasso/marquee selections now format numbers and nouns via `CountText.Of` (e.g. `1 node`, `2 nodes`, `1,204 nodes`, `Copy 1 title as Markdown bullets`) instead of raw `1 nodes` or `1 titles`.
-7. **Shape Studio natural pluralization:** Cursor HUD, multi-selection badge, rotation, distribution, and flip status messages now cleanly format units using `CountText.Of(count, "shape")` instead of `1 shapes`.
-8. **Mermaid Canvas and TextSearch diagnostics natural pluralization:** Menu items in Mermaid canvas use `CountText.Of(count, "shape")`, and LaTeX math syntax diagnostics in `TextSearch.cs` replace `unclosed brace(s)` and `unbalanced brace(s)` with natural English sentences (`1 unclosed brace`, `2 unclosed braces`).
+5. **MindMap Galaxy natural pluralization:** Multi-selection badge summaries, undo labels, status messages, context menus, and lasso/marquee selections now format numbers and nouns via `CountText.Of` (e.g. `1 node`, `2 nodes`, `1,204 nodes`, `Copy 1 title as Markdown bullets`) instead of raw `1 nodes` or `1 titles`.
+6. **Shape Studio natural pluralization:** Cursor HUD, multi-selection badge, rotation, distribution, and flip status messages now cleanly format units using `CountText.Of(count, "shape")` instead of `1 shapes`.
+7. **Mermaid Canvas and TextSearch diagnostics natural pluralization:** Menu items in Mermaid canvas use `CountText.Of(count, "shape")`, and LaTeX math syntax diagnostics in `TextSearch.cs` replace `unclosed brace(s)` and `unbalanced brace(s)` with natural English sentences (`1 unclosed brace`, `2 unclosed braces`).
+8. **SuiteHub cross-document link audit natural pluralization:** Cross-document links audit notification formats `CountText.Of(result.WikiLinksCount, "wikilink")` and `CountText.Of(result.AssetLinksCount, "asset")`.
 
 **Implementation Summary**
 - Core: `Services/TextSearch.cs` (`FormatMathDelimiterSummary` and `InlineMathItem` alerts updated to `CountText.Of`).
-- Desktop: `MainWindow.xaml` (named `RunningDocPathTextBox`, `WatchFolderTextBox`, `BrandLogoPathTextBox`, `CustomFontPathTextBox`), `MainWindow.xaml.cs` (wired `TextBoxEndScroll.Attach` to all four path inputs), `Views/SettingsView.xaml` (named `CloudSubfolderBox`), `Views/SettingsView.xaml.cs` (wired `TextBoxEndScroll.Attach(CloudSubfolderBox)`), `Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs` (wired `TextBoxEndScroll.Attach(FuseImagePathBox)` and updated 10 status/badge sites to `CountText.Of`), `Views/MindMap/MindMapGalaxyWindow.xaml.cs` (updated 13 status/badge/menu sites to `CountText.Of`), `Views/Mermaid/MermaidCanvasControl.xaml.cs` (updated delete menu item to `CountText.Of`), `Views/Mermaid/MermaidDiagramStudioControl.xaml` and `Views/History/HistoryWindow.xaml` (removed unused `LiveSetting="Polite"`), `Views/SuiteHubView.xaml.cs` (updated links audit summary to `CountText.Of`).
-- Tests: `Run288SilentLiveLinesAndPathEndScrollTests.cs` (live setting removal verification in XAML, path box naming and `TextBoxEndScroll` attachments in MainWindow, SettingsView, and ShapeStudio, `CountText.Of` grammar across counts 0, 1, 2, and >1000, and source contracts for MindMap Galaxy, Shape Studio, Mermaid Canvas, and TextSearch).
+- Desktop: `MainWindow.xaml` (named `RunningDocPathTextBox`, `WatchFolderTextBox`, `BrandLogoPathTextBox`, `CustomFontPathTextBox`), `MainWindow.xaml.cs` (wired `TextBoxEndScroll.Attach` to all four path inputs), `Views/SettingsView.xaml` (named `CloudSubfolderBox`), `Views/SettingsView.xaml.cs` (wired `TextBoxEndScroll.Attach(CloudSubfolderBox)`), `Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs` (wired `TextBoxEndScroll.Attach(FuseImagePathBox)` and updated 10 status/badge sites to `CountText.Of`), `Views/MindMap/MindMapGalaxyWindow.xaml.cs` (updated 13 status/badge/menu sites to `CountText.Of`), `Views/Mermaid/MermaidCanvasControl.xaml.cs` (updated delete menu item to `CountText.Of`), `Views/SuiteHubView.xaml.cs` (updated links audit summary to `CountText.Of`).
+- Tests: `Run289PathEndScrollAndStudioPluralsTests.cs` (path box naming and `TextBoxEndScroll` attachments in MainWindow, SettingsView, and ShapeStudio, `CountText.Of` grammar across counts 0, 1, 2, and >1000, and source contracts for MindMap Galaxy, Shape Studio, Mermaid Canvas, and TextSearch).
 
 **Verified:**
 - `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: 0 errors.
-- Unit tests: `Run288SilentLiveLinesAndPathEndScrollTests` (18/18 passed), test suite `Run288|Run287|Run286|Run285|Run281` (113/113 passed).
+- Unit tests: `Run289PathEndScrollAndStudioPluralsTests` (16/16 passed), combined test suite `Run289|Run288|Run287|Run286|Run285|Run281` (140/140 passed).
 - Smoke launch: Launched `Marksmith.exe` (PID 27440), confirmed running healthy after 5s without exit, closed cleanly.
 
-**Next up (Run #289):**
-1. Live-verify the status bar unfold handover on a wider display or with a smaller text scale.
-2. Live-verify a plugin Install/Remove focus round trip on a machine where a small plugin download is acceptable.
-3. Audit any remaining raw `(s)` or `s` plurals in older markdown exporters or preview inspectors.
+**Next up (Run #290):**
+1. Shape Studio: exempt lists, sliders and pill groups from Delete/Backspace/Ctrl+A in the window KeyDown.
+2. Live-verify the status bar unfold handover on a wider display or with a smaller text scale.
+3. Live-verify a plugin Install/Remove focus round trip on a machine where a small plugin download is acceptable.
 
-**Total user-visible improvements: 8** (4 path text box end-scrolls, 1 UIA live setting truth cleanup, 3 studio & diagnostic pluralization sweeps).
+**Total user-visible improvements: 8** (4 path text box end-scrolls, 4 studio & diagnostic pluralization sweeps).

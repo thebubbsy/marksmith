@@ -605,8 +605,8 @@
                         Click="OnCanvasSummaryClick" RightTapped="OnStatusBarRightTapped"
                         AutomationProperties.HelpText="Copies the diagram summary. Shift+F10 for status bar options."
                         ToolTipService.ToolTip="Diagram summary · Click to copy, right-click or Shift+F10 for options">
+                    <!-- Not a live region: it changes with every edit, and the status line already reads out each one. -->
                     <TextBlock x:Name="CanvasSummaryText" FontSize="11" Foreground="#8D99AE" VerticalAlignment="Center" />
-
                 </Button>
             </Grid>
         </Border>
