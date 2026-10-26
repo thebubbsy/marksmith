@@ -19338,3 +19338,97 @@ run #271's diff: behaviour fine, but it broke an older source-contract test (fix
 
 **Release (same run):** tagged **v3.81.0** on `fd89b5c` (it also carries runs #270 and #271, which shipped without a tag); Release workflow run 40250640798 succeeded; user-facing notes prepended to the generated body
 (https://github.com/thebubbsy/marksmith/releases/tag/v3.81.0). `MarksmithBaseVersion` is now 3.82.0.
+
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #273 (2026-10-26, 12:45–13:05 AEDT)
+
+**Agent / Execution Metadata**
+- Model: Gemini 2.5 Pro (Antigravity)
+- Identity: Antigravity AI coding assistant (Google DeepMind)
+- Modes: Scheduled hourly desktop polish routine, unattended
+- Trigger: Scheduled MarkSmith WinUI 3 Desktop Polish Routine (`commit-to-main-ship-improvement--r4efinement` / `0 * * * *`)
+- Target: `C:\Users\Tony\.gemini\antigravity\scratch\marksmith`
+
+**Picked up:** Run #272's Noticed-not-fixed items (SmartArt row template Delete button focus rescue; Outline and History list-row focus detection), screen reader UIA level and key discovery on outline rows, natural singular/plural phrasing across count messages (`CountText`), and status bar Frontmatter quick-action pill.
+
+**Delivered (user-visible):**
+1. **SmartArt Studio Row Delete Focus Retention**: Deleting a node from its own template "Delete item" button (`OnRowDeleteClick`) no longer strands keyboard focus or ejects to the window's first tab stop; focus smoothly transfers to `OutlineScroll` (`Keyboard` focus state on keyboard invocation, `Programmatic` on click).
+2. **Outline Flyout Empty-State Focus Hand-off**: `UpdateOutlineEmptyState` now detects focus inside child rows via `FocusIsWithin(TocList)` (instead of relying on `TocList.FocusState`, which remains `Unfocused` when a row is active). When filtering headings to 0 matches from a row, keyboard focus cleanly transfers to `TocFilterTextBox`.
+3. **Export History Empty-State Focus Hand-off**: `UpdateExportHistoryFlyoutState` now checks `FocusIsWithin(HistoryList)`. Deleting the last export item from keyboard focus now safely hands focus back to `MoreMenuButton` instead of stranding focus.
+4. **Outline Flyout Screen Reader Hierarchy (UIA Level)**: `OnTocListContainerContentChanging` assigns `AutomationProperties.SetLevel(args.ItemContainer, Math.Clamp(entry.Level, 1, 6))`, allowing screen readers to announce true heading depth (e.g., "Heading level 2") matching visual indentation.
+5. **Outline Flyout Keyboard Shortcut Discovery**: Sets `AutomationProperties.SetHelpText` on outline rows announcing: "Enter jumps to the heading. Ctrl+C copies its text, Ctrl+Shift+C a Markdown link, Shift+F10 for options."
+6. **Outline TOC Natural Singular Phrasing**: Copying a single heading now announces "Copied 1 heading as Markdown TOC" (and "Copy Table of Contents (1 heading)") via `CountText.Of`, eliminating awkward pluralizations ("1 headings").
+7. **Document Galaxy Natural Singular Phrasing**: Branch collapse/expand and summary copy use `CountText.Of` ("1 node hidden", "1 node revealed", "1 link", "1 node").
+8. **OCR Studio & Mermaid Studio Natural Counts**: Page word count badges, block assembly notices, element summaries ("1 word", "1 block"), and Mermaid diagram status/minimap ("1 node", "1 edge") properly handle singular and plural quantities.
+9. **Status Bar Copy Frontmatter Pill Button**: Added `StatusCopyFrontmatterButton` to the secondary copy pill group. Left-clicking copies the raw YAML frontmatter block (`--- ... ---`) or announces status if none is present.
+10. **Status Bar Frontmatter Rich Context Menu**: Right-click or Shift+F10 on `StatusCopyFrontmatterButton` opens a 5-action flyout menu:
+   - "Copy YAML frontmatter block (--- ... ---)"
+   - "Copy properties as key-value pairs (key: value)"
+   - "Copy YAML frontmatter schema audit"
+   - "Copy as Frontmatter Properties Table" (formatted Markdown table with property names, inferred types, escaped values, line numbers)
+   - "Insert Frontmatter Properties Table at cursor" (inserts full Markdown table into active document)
+
+**Implementation Summary**
+- Modified:
+  - `MarkSmith.Desktop/MainWindow.xaml` (added `StatusCopyFrontmatterButton` with AutomationProperties, updated Outline ListView container event and tooltip)
+  - `MarkSmith.Desktop/MainWindow.xaml.cs` (`FocusIsWithin` helper, `OnTocListContainerContentChanging` UIA Level and HelpText, `CountText.Of` on TOC notices, frontmatter click/right-click handlers)
+  - `MarkSmith.Desktop/Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml.cs` (`OnRowDeleteClick` outline focus rescue)
+  - `MarkSmith.Desktop/Views/MindMap/MindMapGalaxyWindow.xaml.cs` (`CountText.Of` on branch expand/collapse and stats summary)
+  - `MarkSmith.Desktop/Views/Ocr/OcrInspectionStudioWindow.xaml.cs` (`CountText.Of` on word count badges and assembly status)
+  - `MarkSmith.Desktop/Views/Mermaid/MermaidDiagramStudioControl.xaml.cs` (`CountText.Of` on node and edge status)
+  - `MarkSmith.Desktop/Views/Mermaid/MermaidMinimapControl.cs` (`CountText.Of` on node minimap label)
+  - `MarkSmith.Tests/Run273FrontmatterCopyPolishTests.cs` (2 tests verifying XAML properties and code-behind wiring)
+  - `MarkSmith.Tests/Run273ListRowsKeepFocusAndCountsReadRightTests.cs` (32 tests covering focus hand-off, UIA levels, CountText singular/plural rules)
+- Verification:
+  - `dotnet test marksmith-v2/MarkSmith.Tests/MarkSmith.Tests.csproj --filter "Run273"`: 34 passed, 0 failed.
+  - Commit: `ebaf5762fa333ab4e879cb348c511eb8af6fb893`.
+
+**Total user-visible improvements: 10** (1 SmartArt Studio, 3 Main Window Outline & History, 4 CountText phrasing across studios, 2 Status Bar Frontmatter pill & menu).
+
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #274 (2026-10-26, 13:05–13:25 AEDT)
+
+**Agent / Execution Metadata**
+- Model: Gemini 2.5 Pro (Antigravity) & Claude Opus 5.5
+- Identity: Antigravity AI coding assistant (Google DeepMind) & Claude Code, collaborating across concurrent routine passes
+- Modes: Scheduled hourly desktop polish routine, unattended
+- Trigger: Scheduled MarkSmith WinUI 3 Desktop Polish Routine (`commit-to-main-ship-improvement--r4efinement` / `0 * * * *`)
+- Target: `C:\Users\Tony\.gemini\antigravity\scratch\marksmith`
+
+**Picked up:** Focus retention across self-closing studio flyouts, colour swatches, and canvas deletes; natural phrasing across Shape Studio and SmartArt Studio; empty outline plain text copy guard.
+
+**Delivered (user-visible):**
+1. **Shape Studio Fill Flyout Swatches Keyboard Context Menu**: Recent swatches in `RebuildRecentColorsSwatches` support opening their context menu via Shift+F10 / Menu key through `KeyboardContextMenu.Bridge(btn, openMenu)` with anchor-relative positioning.
+2. **Shape Studio Recent Swatch Remove Focus Retention**: Removing a recent swatch from keyboard focus (`RemoveRecentColor`) automatically transfers focus to the neighbouring swatch (or colour picker), preventing focus from ejecting to the window's first tab stop.
+3. **Shape Studio Clear Recent Colours Focus Hand-off**: Clear hands focus to the colour picker before the Recent colours row collapses.
+4. **Shape Studio Swatches Hover Lift**: Enabled `PointerHoverPolish.Apply(FillFlyoutSwatches)` so swatches in the flyout popup receive standard hover lift.
+5. **Shape Studio Natural Phrasing**: "Selected all 1 shape", "1 preset", etc. use `CountText.Of`.
+6. **Mermaid Studio Delete Selection Focus Rescue**: Wired `FocusRescue.Attach(() => _canvas.FocusTarget, DeleteSelectedButton)` so deleting a selected shape via keyboard returns focus to the canvas scroll viewer.
+7. **Document Galaxy Tag Filter Clear Focus Hand-off**: Clicking or pressing Clear on the active tag filter transfers keyboard focus to the "All tags" pill rather than stranding focus when the clear button hides itself.
+8. **Document Galaxy Tag Filter Accessibility**: Tag filter pills now provide tooltip and AutomationProperties: "Filter nodes by tag · Right-click or Shift+F10 for options".
+9. **Version History Last Version Delete Focus Hand-off**: When deleting a document's last version (`DeleteAsync`), focus safely transfers to the document in the file list or the search box.
+10. **SmartArt Studio Empty Outline Plain Copy Guard**: `OnCopyPlainOutlineTextClick` checks `ViewModel.OutlineRows.Count == 0` and announces "The outline is empty: nothing to copy." before copying, and formats copied line counts with `CountText.Of`.
+11. **SmartArt Studio Outline Metrics Natural Phrasing**: Word, character, and node counts in outline metrics use `CountText.Of`.
+
+**Implementation Summary**
+- Modified:
+  - `MarkSmith.Desktop/Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml.cs` (`OnCopyPlainOutlineTextClick` empty guard, metrics `CountText.Of`)
+  - `MarkSmith.Desktop/Views/MindMap/MindMapGalaxyWindow.xaml` & `.xaml.cs` (`OnTagFilterClearClick` focus hand-off to `AllTagsPill`, accessibility tooltip/helptext)
+  - `MarkSmith.Desktop/Views/Mermaid/MermaidCanvasControl.xaml.cs` (`FocusTarget` exposed)
+  - `MarkSmith.Desktop/Views/Mermaid/MermaidDiagramStudioControl.xaml.cs` (`FocusRescue.Attach` on `DeleteSelectedButton`)
+  - `MarkSmith.Desktop/Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs` (recent swatch Shift+F10 menu, `FocusRecentSwatchOrPicker` on remove, `PointerHoverPolish` on fill flyout swatches, `CountText.Of` on shapes/presets)
+  - `MarkSmith.Desktop/Views/History/HistoryWindow.xaml.cs` (`FocusAfterDelete` hand-off to selected version, document, or search box)
+  - `MarkSmith.Tests/Run273StudioFlyoutsAndDeletesKeepFocusTests.cs` (15 tests covering studio flyouts, delete focus retention, and CountText phrasing)
+- Verification:
+  - `dotnet test marksmith-v2/MarkSmith.Tests/MarkSmith.Tests.csproj --filter "Run270|Run271|Run272|Run273"`: 100 passed, 0 failed.
+  - `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: 0 errors (21 pre-existing warnings).
+  - Smoke launch: `Marksmith.exe` launched with isolated config dir, verified healthy (PID 3260), and shut down cleanly.
+  - Commit: `b6eda1e0deaf0b5d6efa7d1447e7fb08d24944cf`.
+
+**Next up (Run #275):**
+1. Audit Shape Studio connector hover anchor snapping feedback consistency.
+2. Review Markdown table column auto-formatting keyboard accelerators in editor.
+3. Live-verify preview zoom end buttons with keyboard idle.
+
+**Total user-visible improvements: 11** (5 Shape Studio, 2 SmartArt Studio, 1 Mermaid Studio, 2 Document Galaxy, 1 Version History).
+
