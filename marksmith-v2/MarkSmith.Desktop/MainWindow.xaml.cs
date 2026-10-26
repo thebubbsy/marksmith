@@ -281,6 +281,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             (StatusCopyDiagramsButton, OnStatusCopyDiagramsButtonRightTapped),
             (StatusCopyFrontmatterButton, OnStatusCopyFrontmatterButtonRightTapped),
             (StatusCopyHtmlButton, OnStatusCopyHtmlButtonRightTapped),
+            (StatusCopyTextButton, OnStatusCopyTextButtonRightTapped),
             (StatusMoreCopyButton, OnStatusMoreCopyButtonRightTapped),
             (StatusShortcutsButton, OnStatusShortcutsButtonRightTapped),
             (CommandPaletteButton, OnCommandPaletteButtonRightTapped),
@@ -335,6 +336,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             Services.KeyboardContextMenu.Bridge(pill, handler);
         // A double-click is left to the boxes (it selects a word); the path actions are in the menu.
         TextBoxMenu.Attach(InputFileTextBox, FillInputFileMenu);
+        TextBoxEndScroll.Attach(InputFileTextBox);
+        InputFileTextBox.Loaded += (_, _) => UpdateInputFileToolTip();
+        TextBoxEndScroll.Attach(OutputFolderTextBox);
         TextBoxMenu.Attach(OutputFolderTextBox, FillOutputFolderMenu);
         OutputFolderTextBox.Loaded += (_, _) => ScrollOutputFolderToEnd();
         OutputFolderTextBox.SizeChanged += (_, _) => ScrollOutputFolderToEnd();
@@ -636,6 +640,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         UpdatePinFileButton();
         UpdateThemeButtons();
         UpdateOutputFolderToolTip();
+        }
+
+
+        {
+            UpdateInputFileToolTip();
         UpdateStatusMsgHost();
         ApplyAutomationSettings();
         UpdateLicenseBanner();
@@ -1382,6 +1391,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (e.PropertyName == nameof(ViewModels.MainViewModel.OutputFolder))
         {
             UpdateOutputFolderToolTip();
+        }
+
+
+        {
+            UpdateInputFileToolTip();
         }
 
         // The "Get the extension" card has done its job once the extension checks in: retire it
@@ -12408,6 +12422,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         Add("Copy diagrams", "", OnStatusCopyDiagramsButtonClick);
         Add("Copy YAML frontmatter", "\uE82D", OnStatusCopyFrontmatterButtonClick);
         Add("Copy rendered HTML", "\uE774", OnStatusCopyHtmlButtonClick);
+        Add("Copy plain text", "\uE8D2", OnStatusCopyTextButtonClick);
         if (StatusShortcutsButton?.Visibility == Visibility.Collapsed)
         {
             menu.Items.Add(new MenuFlyoutSeparator());
@@ -14077,6 +14092,170 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         menu.Items.Add(copyStandaloneItem);
 
         menu.ShowAt(anchor);
+    }
+
+    private void OnStatusCopyTextButtonClick(object sender, RoutedEventArgs e)
+    {
+        var selected = PasteTextBox?.SelectedText;
+        if (!string.IsNullOrEmpty(selected))
+        {
+            var cleanSelected = ExtractPlainText(selected);
+            var words = CountWords(cleanSelected);
+            CopyAndAnnounce(cleanSelected, $"Copied plain text selection ({CountText.Of(words, "word")}, {CountText.Of(cleanSelected.Length, "char")}) to clipboard");
+            return;
+        }
+
+        var md = EditorDocument();
+        if (string.IsNullOrWhiteSpace(md))
+        {
+            AnnounceStatus("Document is empty — nothing to copy");
+            return;
+        }
+
+        var plain = ExtractPlainText(md);
+        var totalWords = CountWords(plain);
+        CopyAndAnnounce(plain, $"Copied plain text document ({CountText.Of(totalWords, "word")}, {CountText.Of(plain.Length, "char")}) to clipboard");
+    }
+
+    private void OnStatusCopyTextButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (sender is not FrameworkElement anchor) return;
+
+        var menu = new MenuFlyout();
+
+        var copyPlainItem = new MenuFlyoutItem
+        {
+            Text = "Copy plain text document (Markdown stripped)",
+            Icon = new FontIcon { Glyph = "\uE8D2" }
+        };
+        copyPlainItem.Click += (_, _) => OnStatusCopyTextButtonClick(anchor, new RoutedEventArgs());
+        menu.Items.Add(copyPlainItem);
+
+        var copySingleLineItem = new MenuFlyoutItem
+        {
+            Text = "Copy single-line prompt text (normalized for AI/chat prompts)",
+            Icon = new FontIcon { Glyph = "\uE8C8" }
+        };
+        copySingleLineItem.Click += (_, _) =>
+        {
+            var md = EditorDocument();
+            if (string.IsNullOrWhiteSpace(md))
+            {
+                AnnounceStatus("Document is empty — nothing to copy");
+                return;
+            }
+            var plain = ExtractPlainText(md);
+            var singleLine = System.Text.RegularExpressions.Regex.Replace(plain, @"\s+", " ").Trim();
+            var words = CountWords(singleLine);
+            CopyAndAnnounce(singleLine, $"Copied single-line prompt text ({CountText.Of(words, "word")}, {CountText.Of(singleLine.Length, "char")}) to clipboard");
+        };
+        menu.Items.Add(copySingleLineItem);
+
+        var copyMetricsItem = new MenuFlyoutItem
+        {
+            Text = "Copy text metrics summary (Words, Chars, Reading Time)",
+            Icon = new FontIcon { Glyph = "\uE9E9" }
+        };
+        copyMetricsItem.Click += (_, _) =>
+        {
+            var md = EditorDocument();
+            if (string.IsNullOrWhiteSpace(md))
+            {
+                AnnounceStatus("Document is empty — nothing to copy");
+                return;
+            }
+            var plain = ExtractPlainText(md);
+            var words = CountWords(plain);
+            var chars = plain.Length;
+            var sentences = plain.Split(new[] { '.', '!', '?' }, StringSplitOptions.RemoveEmptyEntries).Length;
+            var paragraphs = plain.Split(new[] { "\r\n\r\n", "\n\n" }, StringSplitOptions.RemoveEmptyEntries).Length;
+            var readingMinutes = Math.Max(1, (int)Math.Ceiling(words / 200.0));
+            var speakingMinutes = Math.Max(1, (int)Math.Ceiling(words / 130.0));
+
+            var table = new System.Text.StringBuilder();
+            table.AppendLine("| Metric | Count |");
+            table.AppendLine("| :--- | ---: |");
+            table.AppendLine($"| Words | {words:N0} |");
+            table.AppendLine($"| Characters | {chars:N0} |");
+            table.AppendLine($"| Sentences | {sentences:N0} |");
+            table.AppendLine($"| Paragraphs | {paragraphs:N0} |");
+            table.AppendLine($"| Estimated Reading Time | ~{readingMinutes} min |");
+            table.AppendLine($"| Estimated Speaking Time | ~{speakingMinutes} min |");
+
+            CopyAndAnnounce(table.ToString(), "Copied text metrics summary table to clipboard");
+        };
+        menu.Items.Add(copyMetricsItem);
+
+        var insertMetricsItem = new MenuFlyoutItem
+        {
+            Text = "Insert Text Metrics Summary at cursor",
+            Icon = new FontIcon { Glyph = "\uE70F" }
+        };
+        insertMetricsItem.Click += (_, _) =>
+        {
+            var md = EditorDocument();
+            if (string.IsNullOrWhiteSpace(md))
+            {
+                AnnounceStatus("Document is empty — nothing to summarize");
+                return;
+            }
+            var plain = ExtractPlainText(md);
+            var words = CountWords(plain);
+            var chars = plain.Length;
+            var sentences = plain.Split(new[] { '.', '!', '?' }, StringSplitOptions.RemoveEmptyEntries).Length;
+            var paragraphs = plain.Split(new[] { "\r\n\r\n", "\n\n" }, StringSplitOptions.RemoveEmptyEntries).Length;
+            var readingMinutes = Math.Max(1, (int)Math.Ceiling(words / 200.0));
+
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine();
+            sb.AppendLine("### Document Metrics Summary");
+            sb.AppendLine();
+            sb.AppendLine("| Metric | Value |");
+            sb.AppendLine("| :--- | ---: |");
+            sb.AppendLine($"| Words | {words:N0} |");
+            sb.AppendLine($"| Characters | {chars:N0} |");
+            sb.AppendLine($"| Sentences | {sentences:N0} |");
+            sb.AppendLine($"| Paragraphs | {paragraphs:N0} |");
+            sb.AppendLine($"| Reading Time | ~{readingMinutes} min |");
+            sb.AppendLine();
+
+            InsertMarkdown(sb.ToString());
+            AnnounceStatus("Inserted Text Metrics Summary at cursor");
+        };
+        menu.Items.Add(insertMetricsItem);
+
+        menu.ShowAt(anchor);
+    }
+
+    private static string ExtractPlainText(string markdown)
+    {
+        if (string.IsNullOrWhiteSpace(markdown)) return string.Empty;
+
+        var text = System.Text.RegularExpressions.Regex.Replace(markdown, @"^---[\s\S]*?---\s*", string.Empty);
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"```[\s\S]*?```|~~~[\s\S]*?~~~", string.Empty);
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"^:::[^\r\n]*", string.Empty, System.Text.RegularExpressions.RegexOptions.Multiline);
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"!\[([^\]]*)\]\([^\)]+\)", "$1");
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"\[([^\]]+)\]\([^\)]+\)", "$1");
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"<[^>]+>", " ");
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"^#+\s+", string.Empty, System.Text.RegularExpressions.RegexOptions.Multiline);
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"^>\s?", string.Empty, System.Text.RegularExpressions.RegexOptions.Multiline);
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"^[\*\-\+]\s+", string.Empty, System.Text.RegularExpressions.RegexOptions.Multiline);
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"^\d+\.\s+", string.Empty, System.Text.RegularExpressions.RegexOptions.Multiline);
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"`([^`\r\n]+)`", "$1");
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"[*_]{1,3}([^*_\r\n]+)[*_]{1,3}", "$1");
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"~~([^~\r\n]+)~~", "$1");
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"[ \t]+", " ");
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"(\r?\n){3,}", "\r\n\r\n");
+
+        return text.Trim();
+    }
+
+    private static int CountWords(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return 0;
+        var words = text.Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+        return words.Length;
     }
 
     private void OnStatusCopyFrontmatterButtonClick(object sender, RoutedEventArgs e)

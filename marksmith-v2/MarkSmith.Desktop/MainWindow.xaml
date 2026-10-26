@@ -2468,12 +2468,24 @@
                                 <TextBlock x:Name="StatusCopyHtmlText" Text="Copy HTML" />
                             </StackPanel>
                         </HyperlinkButton>
+                        <Border Width="1" Height="12" Background="{ThemeResource CardStrokeColorDefaultBrush}" VerticalAlignment="Center" />
+                        <HyperlinkButton x:Name="StatusCopyTextButton"
+                                         Click="OnStatusCopyTextButtonClick"
+                                         RightTapped="OnStatusCopyTextButtonRightTapped"
+                                         Padding="5,1" FontSize="11.5" Opacity="0.85"
+                                         ToolTipService.ToolTip="Copy plain text document (Markdown stripped) to clipboard · Right-click or Shift+F10 for single-line or text metrics"
+                                         AutomationProperties.Name="Copy plain text">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <FontIcon Glyph="&#xE8D2;" FontSize="11" />
+                                <TextBlock x:Name="StatusCopyTextText" Text="Copy Text" />
+                            </StackPanel>
+                        </HyperlinkButton>
                     </StackPanel>
                     <HyperlinkButton x:Name="StatusMoreCopyButton" Visibility="Collapsed"
                                      Click="OnStatusMoreCopyButtonClick"
                                      RightTapped="OnStatusMoreCopyButtonRightTapped"
                                      Padding="5,1" FontSize="11.5" Opacity="0.85"
-                                     ToolTipService.ToolTip="More copy actions: code, tables, tasks, math, callouts, images, footnotes, diagrams and frontmatter · Click, Right-click or Shift+F10 for menu"
+                                     ToolTipService.ToolTip="More copy actions: code, tables, tasks, math, callouts, images, footnotes, diagrams, frontmatter and HTML · Click, Right-click or Shift+F10 for menu"
                                      AutomationProperties.Name="More copy actions">
                         <StackPanel Orientation="Horizontal" Spacing="4">
                             <FontIcon Glyph="&#xE8C8;" FontSize="11" />
