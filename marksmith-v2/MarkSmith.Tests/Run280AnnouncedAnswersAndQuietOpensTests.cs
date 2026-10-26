@@ -141,6 +141,15 @@ public class Run280AnnouncedAnswersAndQuietOpensTests
         Assert.Contains(track, Read(file));
     }
 
+    // A line raised explicitly must not also be tracked, or a changed answer is read out twice.
+    [Theory]
+    [InlineData(Settings, "CloudRescanStatusText")]
+    [InlineData("MarkSmith.Desktop/Views/ExtensionSetupView.xaml.cs", "StatusText")]
+    public void ExplicitlyRaisedLines_AreNotAlsoTracked(string file, string name)
+    {
+        Assert.DoesNotContain($"LiveAnnounce.Track({name})", Read(file));
+    }
+
     [Fact]
     public void SettingsTrackers_RunAfterInitializeComponent()
     {

@@ -25,8 +25,6 @@ public sealed partial class SettingsView : UserControl
         InitializeComponent();
         // The house-style round trip reports progress here while the user waits.
         LiveAnnounce.Track(HouseStyleStatusText);
-        if (CloudRescanStatusText is not null)
-            LiveAnnounce.Track(CloudRescanStatusText);
         // Lines that answer a choice the user just made: the file name a pattern produces, what the
         // chosen OCR engine does, whether the local API started.
         LiveAnnounce.Track(FileNamePreviewText);

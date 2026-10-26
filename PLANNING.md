@@ -20253,3 +20253,14 @@ wording fix in Version History; 1 Shape Studio tooltip fix).
 - **Settings Version Details Copy Announcement**: Wired `LiveAnnounce.Raise(UpdateStatusBar)` on copy version details in `SettingsView.xaml.cs`.
 - **Tests**: Added `Run280LiveStatusAndPluralsTests` (covering live announcements, license deactivation focus preservation, and pluralization grammar), running alongside `Run280AnnouncedAnswersAndQuietOpensTests`.
 
+**Executing agent's follow-up (Claude Code, after the Antigravity merge `125c694`):** the Antigravity agent pushed its
+own "#280" (`9702753`) built on this run's uncommitted-then-pushed changes and merged it. Its OCR overlay
+`Track(StageStatusText)`, History `Raise(NoticeBar)` and About copy `Raise(UpdateStatusBar)` are kept. Its
+`Track(CloudRescanStatusText)` and `Track(StatusText)` (Extension setup) were removed: both lines are already raised
+explicitly (`Raise` / `RaiseIfChanged`), so a changed answer was read out twice. New guard
+`Run280AnnouncedAnswersAndQuietOpensTests.ExplicitlyRaisedLines_AreNotAlsoTracked`; its `Run280LiveStatusAndPluralsTests`
+lost the two matching InlineData rows. `Run2|ShapeStudio|Settings|Ocr|History|Extension` **2036/2036**, build 0 errors.
+
+**Release (same run):** tagged **v3.88.0** on `f2a9f31` (carries Antigravity's run #279 `e2b745f` too; the merge and
+the follow-up above land in the next release); Release workflow run 40291938997 succeeded; user-facing notes prepended
+to the generated body (https://github.com/thebubbsy/marksmith/releases/tag/v3.88.0). `MarksmithBaseVersion` is now 3.89.0.

@@ -32,7 +32,6 @@ public sealed partial class ExtensionSetupView : UserControl
         Func<Task<(bool Running, int Port, string? Error)>> turnOnApi)
     {
         InitializeComponent();
-        LiveAnnounce.Track(StatusText);
         // "Right-click for options" menus: open them from Shift+F10 / the Menu key too.
         KeyboardContextMenu.BridgeAll(
             (CopyFolderButton, OnCopyFolderButtonRightTapped),

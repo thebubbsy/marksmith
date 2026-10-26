@@ -32,7 +32,6 @@ public class Run280LiveStatusAndPluralsTests
 
     [Theory]
     [InlineData(Settings, "LiveAnnounce.Track(HouseStyleStatusText)")]
-    [InlineData(Settings, "LiveAnnounce.Track(CloudRescanStatusText)")]
     [InlineData(Settings, "LiveAnnounce.Raise(LicenseStatusBar)")]
     [InlineData(Settings, "LiveAnnounce.Raise(CloudRescanStatusText)")]
     [InlineData(Settings, "LiveAnnounce.Raise(UpdateStatusBar)")]
@@ -41,7 +40,6 @@ public class Run280LiveStatusAndPluralsTests
     [InlineData(SuiteHub, "LiveAnnounce.Raise(Notification)")]
     [InlineData(History, "LiveAnnounce.Raise(NoticeBar)")]
     [InlineData(OcrOverlay, "Services.LiveAnnounce.Track(StageStatusText)")]
-    [InlineData(ExtensionSetup, "LiveAnnounce.Track(StatusText)")]
     [InlineData(ExtensionSetup, "LiveAnnounce.RaiseIfChanged(StatusText, message)")]
     public void StatusLinesAndInfoBars_AreAnnounced(string file, string expectedCall)
     {
