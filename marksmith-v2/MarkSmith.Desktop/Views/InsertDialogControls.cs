@@ -431,13 +431,17 @@ public sealed class LinesInsertControl : InsertDialogBody
     private readonly int _minimum;
     private readonly Func<string, bool>? _lineIsValid;
     private readonly string? _lineHint;
+    private readonly bool _headerFirst;
 
     /// <param name="noun">Singular name of one entry ("step"), used in the count and the hints.</param>
     /// <param name="minimum">Entries needed before Insert is enabled.</param>
     /// <param name="lineIsValid">Optional per-line shape check; failing lines are named in the hint.</param>
+    /// <param name="headerFirst">The first line is a header, not an entry (data grid): it is left out
+    /// of the count, and <paramref name="minimum"/> still counts it.</param>
     public LinesInsertControl(string description, string header, string defaultText,
         Func<IReadOnlyList<string>, string> build, string noun, int minimum = 1,
-        string placeholder = "", Func<string, bool>? lineIsValid = null, string? lineHint = null)
+        string placeholder = "", Func<string, bool>? lineIsValid = null, string? lineHint = null,
+        bool headerFirst = false)
         : base(description)
     {
         _build = build;
@@ -445,7 +449,11 @@ public sealed class LinesInsertControl : InsertDialogBody
         _minimum = minimum;
         _lineIsValid = lineIsValid;
         _lineHint = lineHint;
+        _headerFirst = headerFirst;
         _box = MultilineBox(defaultText, placeholder);
+        // The heading is a separate TextBlock (it shares a row with the count), so the box itself
+        // had no name and screen readers announced an unnamed edit field.
+        AutomationProperties.SetName(_box, header);
         _box.TextChanged += (_, _) => Refresh();
 
         var headerRow = new Grid();
@@ -464,9 +472,10 @@ public sealed class LinesInsertControl : InsertDialogBody
         get
         {
             var lines = Lines;
-            _count.Text = $"{lines.Count} {_noun}{(lines.Count == 1 ? "" : "s")}";
+            // A data grid's first line is its header: "label,value / Q1,10 / Q2,25" is 2 rows, not 3.
+            _count.Text = Services.InsertCountText.Lines(lines.Count, _noun, _headerFirst);
             if (lines.Count < _minimum)
-                return _minimum == 1 ? $"Add at least one {_noun}." : $"Add at least {_minimum} {_noun}s.";
+                return Services.InsertCountText.Shortfall(_minimum, _noun, _headerFirst);
             if (_lineIsValid is not null)
             {
                 var bad = lines.Select((l, i) => (l, i)).Where(x => !_lineIsValid(x.l)).Select(x => x.i + 1).ToList();
@@ -495,9 +504,11 @@ public sealed class ChartInsertControl : InsertDialogBody
         _type.SelectionChanged += (_, _) => Refresh();
 
         _box = MultilineBox("Q1,10\nQ2,25\nQ3,15", "Label,Value");
+        const string dataHeader = "Data — one label,value per line";
+        AutomationProperties.SetName(_box, dataHeader);
         _box.TextChanged += (_, _) => Refresh();
         var headerRow = new Grid();
-        headerRow.Children.Add(new TextBlock { Text = "Data — one label,value per line", Style = (Style)Application.Current.Resources["BodyStrongTextBlockStyle"] });
+        headerRow.Children.Add(new TextBlock { Text = dataHeader, Style = (Style)Application.Current.Resources["BodyStrongTextBlockStyle"] });
         headerRow.Children.Add(_count);
 
         AddField(_type);

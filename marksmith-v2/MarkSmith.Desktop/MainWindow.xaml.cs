@@ -259,6 +259,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         // The centre header trims at the default width ("Editor / Pr…"); show the full text on hover.
         Services.TrimmedTextToolTip.Attach(EditorStepTitle, EditorStepCaption, StatusMsgText);
+        // When it would trim, it names the open view instead (FitEditorStepTitle).
+        EditorStepTitleHost.SizeChanged += (_, _) => FitEditorStepTitle();
+        EditorStepTitleProbe.SizeChanged += (_, _) => FitEditorStepTitle();
         // The status-bar pills advertise "Right-click for options"; make those menus reachable
         // from Shift+F10 / the Menu key as well, so keyboard users get the same choices.
         foreach (var (pill, handler) in new (UIElement, Microsoft.UI.Xaml.Input.RightTappedEventHandler)[]
@@ -628,6 +631,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // the modal with trial/upgrade actions (non-UI hosts get only the StatusText fallback).
         ViewModel.ProFeatureAttempted += feature => DispatcherQueue.TryEnqueue(() => _ = ShowProGateAsync(feature));
         UpdatePinFileButton();
+        UpdateThemeButtons();
+        UpdateOutputFolderToolTip();
         UpdateStatusMsgHost();
         ApplyAutomationSettings();
         UpdateLicenseBanner();
@@ -1365,6 +1370,17 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             UpdatePinFileButton();
         }
 
+        if (e.PropertyName is nameof(ViewModels.MainViewModel.SelectedThemeName)
+            or nameof(ViewModels.MainViewModel.IsCurrentThemeFavorite))
+        {
+            UpdateThemeButtons();
+        }
+
+        if (e.PropertyName == nameof(ViewModels.MainViewModel.OutputFolder))
+        {
+            UpdateOutputFolderToolTip();
+        }
+
         // The "Get the extension" card has done its job once the extension checks in: retire it
         // for good rather than advertising something that's already installed.
         if (e.PropertyName == nameof(ViewModels.MainViewModel.ExtensionConnected) &&
@@ -1813,11 +1829,21 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         RefreshThemeNames(select: name);
     }
 
-    private void RefreshThemeNames(string select)
+    // Through the view model so pinned themes stay at the top (this used to refill the list in
+    // catalogue order, dropping every pin until the next launch).
+    private void RefreshThemeNames(string select) => ViewModel.RebuildThemeNames(select);
+
+    // The star and the palette button beside the theme picker say what they will do to which theme.
+    private void UpdateThemeButtons()
     {
-        ViewModel.ThemeNames.Clear();
-        foreach (var t in App.Themes.All) ViewModel.ThemeNames.Add(t.Name);
-        ViewModel.SelectedThemeName = select; // triggers preview refresh
+        if (ThemePinButton is null || ThemeEditButton is null) return;
+        var theme = ViewModel.SelectedThemeName;
+        var pinned = ViewModel.IsCurrentThemeFavorite;
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(ThemePinButton, Services.ThemeButtonText.PinName(theme, pinned));
+        ToolTipService.SetToolTip(ThemePinButton, Services.ThemeButtonText.PinToolTip(theme, pinned));
+        var custom = !string.IsNullOrWhiteSpace(theme) && !App.Themes.IsBuiltin(theme);
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(ThemeEditButton, Services.ThemeButtonText.EditName(theme, custom));
+        ToolTipService.SetToolTip(ThemeEditButton, Services.ThemeButtonText.EditToolTip(theme, custom));
     }
 
     private void OnTakeTourClick(object sender, RoutedEventArgs e) => _ = ShowWelcomeTourAsync();
@@ -3952,6 +3978,15 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         ToolTipService.SetToolTip(PinFileButton, tip);
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(
             PinFileButton, pinned ? "Unpin this file" : "Pin this file");
+    }
+
+    // At the default width the box shows "C:\Users\…\OneDrive\Doc" and hides the folder that
+    // matters; the tooltip carries the whole path (the menu hint stays on its own line).
+    private void UpdateOutputFolderToolTip()
+    {
+        if (OutputFolderTextBox is null) return;
+        var folder = ViewModel.OutputFolder;
+        ToolTipService.SetToolTip(OutputFolderTextBox, Services.OutputFolderText.ToolTip(folder));
     }
 
     private void UpdateDropZoneVisual()
@@ -7179,6 +7214,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         menu.ShowAt(CenterViewSelector, KeyboardContextMenu.PointIn(e, CenterViewSelector));
     }
 
+    // "Editor / Pr…" at the default window width: when the full title doesn't fit beside the view
+    // toggles, show the name of the view that is open instead (Core EditorStepTitleText). The
+    // full title's width comes from EditorStepTitleProbe, an invisible copy laid out unconstrained
+    // in a zero-size Canvas (a detached TextBlock measures as 0 in WinUI).
+    private void FitEditorStepTitle()
+    {
+        var host = EditorStepTitleHost;
+        if (host is null || EditorStepTitle is null || host.ActualWidth <= 0) return;
+        var fullWidth = EditorStepTitleProbe?.ActualWidth ?? 0;
+        if (fullWidth <= 0) return;
+        var text = Services.EditorStepTitleText.For(_viewMode.ToString(), host.ActualWidth >= fullWidth);
+        if (EditorStepTitle.Text != text) EditorStepTitle.Text = text;
+    }
+
     // Switch the centre "Looking Glass" between Code, Split (editor + preview side by side) and
     // Preview. In split mode both panes share the column and a splitter between them appears.
     private void ApplyViewMode(ViewMode mode)
@@ -7193,6 +7242,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 ViewMode.Preview => "Check the finished document",
                 _ => "Write and edit the Markdown",
             };
+        FitEditorStepTitle();
         var showEditor = mode is ViewMode.Code or ViewMode.Split;
         var showPreview = mode is ViewMode.Preview or ViewMode.Split;
 
@@ -16699,7 +16749,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         var control = new Views.LinesInsertControl(
             "A styled data table. Numbers line up on the right; the first line is the header.",
             "Rows — comma-separated, headers first", "label,value\nQ1,10\nQ2,25",
-            Services.InsertSnippetBuilder.Datagrid, "row", minimum: 2);
+            Services.InsertSnippetBuilder.Datagrid, "row", minimum: 2, headerFirst: true);
         if (await ShowInsertDialogAsync("Insert data grid", control) != ContentDialogResult.Primary) return;
         InsertBlock(control.Snippet);
     }

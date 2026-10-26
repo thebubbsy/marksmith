@@ -578,9 +578,16 @@
                                 ToolTipService.ToolTip="Step 2: Editor / Preview · Click to cycle Code, Split and Preview, Right-click or Shift+F10 to navigate the pipeline">
                             <TextBlock Text="2" Style="{StaticResource StepBadgeTextStyle}" />
                         </Button>
-                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <StackPanel x:Name="EditorStepTitleHost" Grid.Column="1" VerticalAlignment="Center">
                             <TextBlock x:Name="EditorStepTitle" Text="Editor / Preview" Style="{StaticResource StepTitleStyle}" TextTrimming="CharacterEllipsis" />
                             <TextBlock x:Name="EditorStepCaption" Text="Write and edit the Markdown" Style="{StaticResource StepCaptionStyle}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                            <!-- Measures the full title at its natural width (a Canvas never constrains
+                                 its children and takes no space); FitEditorStepTitle compares it with
+                                 the room the header has. Invisible to people and screen readers. -->
+                            <Canvas Width="0" Height="0" IsHitTestVisible="False">
+                                <TextBlock x:Name="EditorStepTitleProbe" Text="Editor / Preview" Style="{StaticResource StepTitleStyle}"
+                                           Opacity="0" AutomationProperties.AccessibilityView="Raw" />
+                            </Canvas>
                         </StackPanel>
                     </Grid>
                     
@@ -1591,8 +1598,10 @@
                                         </DataTemplate>
                                     </ComboBox.ItemTemplate>
                                 </ComboBox>
-                                <Button Grid.Column="1" Click="OnToggleThemeFavoriteClick" VerticalAlignment="Bottom"
-                                        ToolTipService.ToolTip="Pin/unpin the selected theme to the top of the list">
+                                <!-- Name and tooltip are set in code (UpdateThemeButtons): they name the
+                                     theme and say whether pressing pins or unpins it. -->
+                                <Button x:Name="ThemePinButton" Grid.Column="1" Click="OnToggleThemeFavoriteClick" VerticalAlignment="Bottom"
+                                        AutomationProperties.Name="Pin theme">
                                     <Grid>
                                         <FontIcon Glyph="&#xE735;" FontSize="14" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
                                                   Visibility="{Binding IsCurrentThemeFavorite, Converter={StaticResource BoolToVisibilityConverter}}" />
@@ -1600,8 +1609,10 @@
                                                   Visibility="{Binding IsCurrentThemeFavorite, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}" />
                                     </Grid>
                                 </Button>
-                                <Button Grid.Column="2" Click="OnCreateThemeClick" Padding="8,5"
-                                        VerticalAlignment="Bottom" ToolTipService.ToolTip="Create a theme — pick your own colors for every element (starts from the selected theme)">
+                                <!-- "Create a theme", or "Edit theme X" while a custom theme is selected
+                                     (the same button opens that theme's editor). Set in code. -->
+                                <Button x:Name="ThemeEditButton" Grid.Column="2" Click="OnCreateThemeClick" Padding="8,5"
+                                        VerticalAlignment="Bottom" AutomationProperties.Name="Create a theme">
                                     <FontIcon Glyph="&#xE790;" FontSize="14" />
                                 </Button>
                             </Grid>
@@ -2071,6 +2082,7 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
+                    <!-- Code replaces this tooltip (UpdateOutputFolderToolTip) with the full path, then the menu hint. -->
                     <TextBox x:Name="OutputFolderTextBox" Grid.Column="0" Text="{Binding OutputFolder, Mode=TwoWay}"
                              PlaceholderText="Output folder (defaults to next to the input file)"
                              IsSpellCheckEnabled="False"

@@ -20495,3 +20495,90 @@ release). Release workflow run 40306502341 succeeded; user-facing notes prepende
 1. Check why the command palette doesn't open from a UIA Invoke when the main window isn't foreground (host visibility transition vs foreground activation).
 2. Live-verify the Rescan (Step 1) focus round trip and an export with an image held open (carried over).
 3. Live-verify History's word pill with two snapshots (carried over).
+
+
+## Run #283 — executing agent's record (Claude Code, 2026-10-26, 22:01–22:55 AEDT)
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running in the Claude desktop app. Not the Antigravity agent: the task template's
+  "Antigravity AI Agent (Google DeepMind)" line doesn't describe this executor.
+- Modes: Scheduled hourly automation routine (non-interactive, no user present; the PC was locked all run)
+- Trigger: Scheduled task `commit-to-main-ship-improvement--r4efinement` (22:00 firing)
+- Agents Used: 1 (single orchestrator doing the coding, review and verification inline; no sub-agents spawned).
+  Worked in the clean clone `%TEMP%\ms249`.
+
+**Picked up:** run #282's "Next up". #1 (command palette not opening from a UIA Invoke) did not reproduce: with the
+welcome tour skipped and the window restored, Invoking `CommandPaletteButton` opened the palette and `SearchBox`
+was found at once, so the earlier miss was the tour dialog or a minimized window (`ShowCommandPaletteAsync` returns
+while a ContentDialog is open; the palette closes when the host isn't visible). #2 (error notices that are really
+guidance): MainWindow's 29 red status lines are all real failures; the studios' status bars have no severity; the
+History line jump was the one left, and the Antigravity agent's concurrent "#283" (`2236929`) changed it first, so
+this run kept theirs. Then a live audit of the main window at the default 1220×800 found the rest.
+
+**Delivered (user-visible):**
+1. **Pinning a theme no longer blanks the Theme picker.** The star cleared `ThemeNames` under the picker's TwoWay
+   binding, which wrote null back: the picker went empty, the star showed "unpinned" and settings saved
+   `"Theme": null` (seen live on the baseline build). New `MainViewModel.RebuildThemeNames(select)` refills the list
+   with the selection kept, and a null from the picker never reaches settings.
+2. **Pressing the star says what it did:** "Pinned “GitHub Light” to the top of the theme list." / "Unpinned … it's
+   back in alphabetical order." in the status line (it was silent).
+3. **The star names the theme and the action** ("Pin GitHub Light" / "Unpin GitHub Light", tooltip to match). Its
+   screen-reader name used to be the fixed tooltip sentence "Pin/unpin the selected theme to the top of the list".
+4. **The palette button says "Edit theme X" when a custom theme is selected** (it opens that theme's editor) and
+   "Create a theme" otherwise, with a tooltip naming the starting theme. It always said "Create a theme".
+5. **Creating, editing or deleting a custom theme keeps pinned themes at the top.** MainWindow refilled the list in
+   catalogue order, dropping every pin until the next launch; it now goes through `RebuildThemeNames`.
+6. **The centre step no longer reads "Editor / Pr…" at the default size.** When "Editor / Preview" doesn't fit beside
+   the view toggles it names the open view ("Editor" in Code and Split, "Preview" in Preview) and switches back to the
+   full title as soon as there's room (live: "Editor" at 1220 px, "Editor / Preview" at 1600 px, "Preview" after
+   selecting the Preview tab). The badge and its tooltip keep "Step 2: Editor / Preview".
+7. **The output folder's tooltip shows the whole path** the 200 px box cuts off ("C:\Users\Tony\OneDrive\Doc"),
+   followed by the right-click hint; with no folder chosen it says files go next to the input file.
+8. **Insert ▸ Data grid counts rows under the header:** "Header + 2 rows" for the sample (it said "3 rows"), and a
+   header-only grid says "Add a header line and at least one row under it." instead of "Add at least 2 rows."
+9. **The one-entry-per-line Insert dialogs' text boxes have names.** Workflow, Timeline, Tabs, Data grid and Chart
+   announced an unnamed edit field (the heading is a separate TextBlock beside the count); each box is now named
+   after its heading.
+
+**Implementation Summary**
+- Core: new `Services/ThemeButtonText.cs`, `Services/EditorStepTitleText.cs`, `Services/OutputFolderText.cs`,
+  `Services/InsertCountText.cs`; `ViewModels/MainViewModel.cs` (`RebuildThemeNames`, `_rebuildingThemeNames` guard in
+  `OnSelectedThemeNameChanged`, `ToggleFavoriteTheme` status line, house-style import uses the rebuild).
+- Desktop: `MainWindow.xaml` (`ThemePinButton`, `ThemeEditButton`, `EditorStepTitleHost`, invisible
+  `EditorStepTitleProbe` in a zero-size Canvas); `MainWindow.xaml.cs` (`UpdateThemeButtons`, `UpdateOutputFolderToolTip`,
+  `FitEditorStepTitle`, `RefreshThemeNames` through the VM); `Views/InsertDialogControls.cs` (`headerFirst`, box names).
+- Tests: new `Run283ThemePickerAndHeaderPolishTests` (VM behaviour with a simulated picker binding that writes null on
+  Reset, Core wording, source contracts).
+
+**Adversarial review:** no control is collapsed or disabled while focused (the star keeps focus through the rebuild);
+no key handlers touched; no `Application.Current.Resources` brush lookups; no file access. The step title only writes
+when its text changes, so resizing doesn't churn the trimmed-text tooltip, and the probe is Opacity 0, raw to UIA,
+hit-test invisible and takes no space. Two dead ends worth knowing: a detached `TextBlock.Measure(∞)` returns width 0
+in WinUI, and `EditorStepTitle.Parent` was null at constructor time, so the host must be named.
+
+**Verified:**
+- `dotnet build MarkSmith.Desktop.csproj -c Debug -p:Platform=x64 -p:OutDir=%TEMP%\ms_run283\b\`: 0 errors.
+- Targeted + broad regression on the tree merged with Antigravity's `2236929`
+  (`Run2|HouseStyle|History|Insert|Theme|MainViewModel|Keyboard|Palette`): **1969/1969** passed.
+- Live (isolated `Marksmith.exe`, scratch `MARKSMITH_CONFIG_DIR`, key-free UIA Invoke / Value / SelectionItem /
+  Transform plus PrintWindow; PC locked): baseline build reproduced the blank picker and `"Theme": null`; fixed build
+  keeps "GitHub Light", star filled, name "Unpin GitHub Light", status "Pinned “GitHub Light”…", settings
+  `"Theme": "GitHub Light"`. Step title cases above. Data grid shows "Header + 2 rows", the header-only hint, Insert
+  disabled, and the box is named "Rows — comma-separated, headers first". Only launched PIDs were stopped.
+- The baseline instance crashed once (0xc000027b in CoreMessagingXP.dll) a few minutes after the blank-picker state
+  plus an Insert dialog Cancel; the same steps on the fixed build ran on for 20 s+ with no crash. Not attributed.
+
+**Noticed, not fixed:**
+- The output folder box itself still shows the start of the path; scrolling it to the end when unfocused would show
+  the folder name, but needs a live check that WinUI scrolls an unfocused TextBox.
+- `InsertDialogBody` still raises its problem line with a raw `RaiseAutomationEvent` rather than `LiveAnnounce`.
+
+**Next up (Run #284):**
+1. Output folder box: show the end of the path while unfocused (live-verify by screenshot).
+2. Move `InsertDialogBody`'s problem announcement to `LiveAnnounce.RaiseIfChanged`.
+3. Audit the other `ObservableCollection.Clear()` + refill sites bound to a ComboBox `SelectedItem` (presets,
+   Markdown files, cloud providers) for the same blank-selection bug.
+
+**Total user-visible improvements: 9** (5 theme picker fixes, 1 centre header, 1 output folder tooltip, 2 Insert
+dialog fixes).

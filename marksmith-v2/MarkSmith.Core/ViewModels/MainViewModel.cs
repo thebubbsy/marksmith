@@ -295,10 +295,7 @@ private readonly MarkdownExportService _mdExport = new();
         }
 
         TemplateThemeService.SaveTheme(theme);
-        var ordered = BuildOrderedThemeNames(_settingsService.Current.FavoriteThemes);
-        ThemeNames.Clear();
-        foreach (var name in ordered) ThemeNames.Add(name);
-        SelectedThemeName = theme.Name;
+        RebuildThemeNames(theme.Name);
         HouseStyleStatus = $"Theme “{theme.Name}” created and selected.";
         StatusText = $"House-style theme “{theme.Name}” applied.";
         StatusSeverity = StatusSeverity.Success;
@@ -1164,6 +1161,7 @@ private readonly MarkdownExportService _mdExport = new();
     partial void OnOutputFolderChanged(string value) { _settingsService.Current.OutputFolder = value; SaveSettingsDebounced(); }
     partial void OnFileNameTemplateChanged(string value) { _settingsService.Current.FileNameTemplate = value; SaveSettingsDebounced(); OnPropertyChanged(nameof(FileNamePreview)); }
     partial void OnSelectedThemeNameChanged(string value) {
+        if (_rebuildingThemeNames || string.IsNullOrWhiteSpace(value)) return;
         _settingsService.Current.Theme = value;
         IsCurrentThemeFavorite = _settingsService.Current.FavoriteThemes.Contains(value);
         SaveSettingsDebounced();
@@ -1348,15 +1346,40 @@ private readonly MarkdownExportService _mdExport = new();
     {
         if (string.IsNullOrWhiteSpace(SelectedThemeName)) return;
         var favorites = _settingsService.Current.FavoriteThemes;
-        if (favorites.Contains(SelectedThemeName)) favorites.Remove(SelectedThemeName);
-        else favorites.Add(SelectedThemeName);
-        IsCurrentThemeFavorite = favorites.Contains(SelectedThemeName);
+        var theme = SelectedThemeName;
+        if (favorites.Contains(theme)) favorites.Remove(theme);
+        else favorites.Add(theme);
 
-        // Rebuild the ordered list without disturbing the current selection.
-        var ordered = BuildOrderedThemeNames(favorites);
-        ThemeNames.Clear();
-        foreach (var name in ordered) ThemeNames.Add(name);
+        RebuildThemeNames(theme);
+        IsCurrentThemeFavorite = favorites.Contains(theme);
         SaveSettingsDebounced();
+        StatusText = Services.ThemeButtonText.PinStatus(theme, IsCurrentThemeFavorite);
+    }
+
+    // Set while ThemeNames is being refilled: the theme picker's TwoWay SelectedItem binding writes
+    // null back when its items are cleared, and that null must not reach settings.
+    private bool _rebuildingThemeNames;
+
+    /// <summary>
+    /// Refills the theme list (pinned themes first) and keeps <paramref name="select"/> (default:
+    /// the current theme) selected. Pinning a theme used to clear the list under the picker, which
+    /// blanked it and saved "Theme": null; creating a custom theme refilled it unpinned-first.
+    /// </summary>
+    public void RebuildThemeNames(string? select = null)
+    {
+        var keep = string.IsNullOrWhiteSpace(select) ? SelectedThemeName : select;
+        _rebuildingThemeNames = true;
+        try
+        {
+            ThemeNames.Clear();
+            foreach (var name in BuildOrderedThemeNames(_settingsService.Current.FavoriteThemes)) ThemeNames.Add(name);
+        }
+        finally { _rebuildingThemeNames = false; }
+
+        if (string.IsNullOrWhiteSpace(keep) || !ThemeNames.Contains(keep))
+            keep = ThemeNames.FirstOrDefault() ?? keep;
+        if (SelectedThemeName != keep) SelectedThemeName = keep;
+        else OnPropertyChanged(nameof(SelectedThemeName)); // the picker lost its item; reselect it
     }
 
     private List<string> BuildOrderedThemeNames(IEnumerable<string> favorites)
