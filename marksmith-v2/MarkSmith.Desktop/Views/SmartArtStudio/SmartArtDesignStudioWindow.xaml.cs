@@ -3208,7 +3208,10 @@ namespace MarkSmith.Views.SmartArtStudio
             else if (ctrl && e.Key == VirtualKey.Z) { ViewModel.UndoCommand.Execute(null); e.Handled = true; }
             else if (ctrl && e.Key == VirtualKey.Y) { ViewModel.RedoCommand.Execute(null); e.Handled = true; }
             else if (ctrl && e.Key == VirtualKey.D) { ViewModel.DuplicateSelectedCommand.Execute(null); e.Handled = true; }
-            else if (e.Key is VirtualKey.Delete or VirtualKey.Back) { ViewModel.DeleteSelectedCommand.Execute(null); e.Handled = true; }
+            // Backspace on a layout in the gallery, a colour scheme or the quick layout strip deleted the
+            // selected outline item; those lists leave it alone now (the outline handles its own keys).
+            else if ((e.Key is VirtualKey.Delete or VirtualKey.Back) && !ChoiceKeys.FocusIsInChoiceControl(RootGrid.XamlRoot))
+            { ViewModel.DeleteSelectedCommand.Execute(null); e.Handled = true; }
             else if (e.Key == VirtualKey.F2) { BeginRenameAndFocus(); e.Handled = true; }
         }
 

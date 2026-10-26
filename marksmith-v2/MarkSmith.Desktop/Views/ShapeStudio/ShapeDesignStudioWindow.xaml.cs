@@ -738,6 +738,10 @@ namespace MarkSmith.Views.ShapeStudio
             if (focused is DependencyObject d && IsInsideNumberBox(d)) return;
             // An open list owns its keys: Esc closes it, arrows/Home/End move through it.
             if (focused is ComboBoxItem || focused is ComboBox { IsDropDownOpen: true }) return;
+            // Delete and Ctrl+A in the preset list, shape palette, colour schemes or a slider aren't
+            // about the canvas: Delete on a preset deleted the selected shapes. The Shapes list lists
+            // the canvas shapes themselves, so it keeps both.
+            bool inChoice = ChoiceKeys.FocusIsInChoiceControl(this.RootGrid.XamlRoot, ShapesList);
 
             if (ctrl && e.Key == VirtualKey.C && !shift)
             {
@@ -808,7 +812,7 @@ namespace MarkSmith.Views.ShapeStudio
                     ZoomStep(-1);
                     e.Handled = true;
                     return;
-                case VirtualKey.A when ctrl:
+                case VirtualKey.A when ctrl && !inChoice:
                     ViewModel.SelectAllCommand.Execute(null);
                     e.Handled = true;
                     return;
@@ -855,8 +859,14 @@ namespace MarkSmith.Views.ShapeStudio
                         ShowCanvasContextMenu(new Point(160, 140));
                     e.Handled = true;
                     return;
-                case (VirtualKey.Delete or VirtualKey.Back) when ViewModel.HasSelection:
+                case (VirtualKey.Delete or VirtualKey.Back) when !inChoice && ViewModel.HasSelection:
                     ViewModel.RemoveSelectedCommand.Execute(null);
+                    e.Handled = true;
+                    return;
+                case VirtualKey.Delete when !inChoice && !ViewModel.HasSelection:
+                    ViewModel.StatusMessage = ViewModel.IsEmpty
+                        ? "Nothing to delete: the canvas is empty."
+                        : "Nothing to delete: select a shape on the canvas first.";
                     e.Handled = true;
                     return;
                 case VirtualKey.Escape when ViewModel.IsPlacing:

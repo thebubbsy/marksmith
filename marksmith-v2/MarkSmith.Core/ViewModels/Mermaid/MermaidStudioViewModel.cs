@@ -2018,6 +2018,13 @@ public partial class MermaidStudioViewModel : ObservableObject
             SelectedConnector = null;
             StatusText = $"Deleted connector: '{DisplayNameOf(connToDelete.SourceNodeId)}' → '{DisplayNameOf(connToDelete.TargetNodeId)}'.";
         }
+        else
+        {
+            // Delete with nothing selected used to do nothing, unlike Copy and Duplicate.
+            StatusText = Nodes.Count == 0
+                ? "Nothing to delete: the canvas is empty."
+                : "Nothing to delete: select a shape or connector on the canvas first.";
+        }
     }
 
     // ============================================================================================

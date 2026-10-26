@@ -621,7 +621,17 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(HasShapes))]
     public void SelectAll()
     {
-        if (Shapes.Count == 0 || IsDense) return;
+        // Ctrl+A on an empty canvas or traced line art used to do nothing at all.
+        if (Shapes.Count == 0)
+        {
+            StatusMessage = "Nothing to select: add a shape or pick a preset first.";
+            return;
+        }
+        if (IsDense)
+        {
+            StatusMessage = "Traced line art can't be selected all at once: pick a line in the Shapes list to inspect it.";
+            return;
+        }
         _additiveSelect = true;
         try
         {
@@ -630,7 +640,7 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         }
         finally { _additiveSelect = false; }
         RaiseSelectionChanged();
-        StatusMessage = $"Selected all {Shapes.Count} shapes.";
+        StatusMessage = Shapes.Count == 1 ? "Selected the only shape." : $"Selected all {MarkSmith.Services.CountText.Of(Shapes.Count, "shape")}.";
     }
 
     public void ClearSelection()
