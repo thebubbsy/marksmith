@@ -20363,3 +20363,98 @@ run 40298986648 succeeded; user-facing notes prepended to the generated body
 1. Drive OCR Studio live (import a 2-page PDF) to hear the page and selection read-outs.
 2. Live-verify the Rescan (Step 1) focus round trip and an export with an image held open (carried over).
 
+## Run #282 — executing agent's record (Claude Code, 2026-10-26, 21:01–21:45 AEDT)
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running in the Claude desktop app. Not the Antigravity agent: the task template's
+  "Antigravity AI Agent (Google DeepMind)" line doesn't describe this executor.
+- Modes: Scheduled hourly automation routine (non-interactive, no user present)
+- Trigger: Scheduled task `commit-to-main-ship-improvement--r4efinement` (21:00 firing)
+- Agents Used: 1 (single orchestrator doing the coding, review and verification inline; no sub-agents spawned).
+  Worked in the clean clone `%TEMP%\ms249` so the shared tree's concurrent agent couldn't pick up half-done edits.
+
+**Picked up:** run #281's "Next up" #1 (History's empty-editor checkpoint notice shouldn't be an error), widened to
+every "nothing to do here" notice in History. Then audited busy buttons that disable themselves (Suite Hub, Extension
+setup, Settings › License) and the Mermaid studio's style presets.
+
+**Delivered (user-visible):**
+1. **Version History: checkpoint guidance is information, not an error.** "Open a document in the editor first",
+   "Open notes.md in the editor first…" and "The editor is empty, so there's nothing to save as a checkpoint" now
+   show as a blue Informational InfoBar that clears itself (after `NoticeTiming`), not a red error that stays until
+   dismissed. New `HistoryWindowViewModel.ShowInfo` / `NoticeIsInfo`.
+2. **Version History: "nothing to do" diff notices are information too.** "No added / removed / unchanged context
+   lines in this diff", Ctrl+C / Ctrl+Shift+C with nothing to copy, and "No line changes in this version to copy as a
+   diff patch" (that last one was a red error).
+3. **Version History: only errors interrupt the screen reader.** The notice bar is Assertive for errors and Polite for
+   confirmations and guidance (it was Assertive for everything).
+4. **Suite Hub "Turn on" (local connection) keeps keyboard focus in the card.** Disabling the focused button threw focus
+   to the window's first tab stop for the whole wait; it now waits on "Get extension" (`FocusRescue.Park`) and comes
+   back to Turn on / Copy URL only if the user hasn't moved on, with the keyboard focus rectangle kept.
+5. **Extension setup "Turn on connection" does the same**: parks on Check now with the original focus state (it used
+   `Programmatic`, so keyboard users lost the rectangle) and returns after an error only while still waiting.
+6. **Settings › License "Activate" no longer pulls focus back after the user moved on**, and keyboard users keep their
+   focus rectangle on Remove license / the key box. New `FocusRescue.StillOn(control)`.
+7. **Diagram Studio style presets say which one is applied.** The accent border was the only sign; each preset is now
+   named "<preset> style preset" with UIA ItemStatus "Applied" on the active one, and a tooltip that says what it does
+   and that Ctrl+Z undoes it.
+8. **Diagram Studio: pressing the applied preset answers** ("'Nord Ocean' is already applied.") instead of doing
+   nothing, and applying one reads "Applied 'Nord Ocean' palette · Ctrl+Z to undo" in a single status line (a preset
+   loaded from a diagram's `%%{init}%%` keeps the plain wording). New `MermaidStudioViewModel.ApplyStylePreset`.
+
+**Implementation Summary**
+- `MarkSmith.Core/ViewModels/History/HistoryWindowViewModel.cs`: `NoticeIsInfo`, `ShowInfo`; checkpoint guidance uses it.
+- `MarkSmith.Core/ViewModels/Mermaid/MermaidStudioViewModel.cs`: `ApplyStylePreset` (one undo step, already-applied
+  answer, unknown names ignored) and the one-line status.
+- `MarkSmith.Desktop/Views/History/HistoryWindow.xaml.cs`: severity / live-setting mapping in `ShowNotice()`, five
+  notices moved to `ShowInfo`.
+- `MarkSmith.Desktop/Views/SuiteHubView.xaml.cs`, `Views/ExtensionSetupView.xaml.cs`, `Views/SettingsView.xaml.cs`,
+  `Services/FocusRescue.cs` (`StillOn`).
+- `MarkSmith.Desktop/Views/Mermaid/MermaidDiagramStudioControl.xaml.cs`: presets call `ApplyStylePreset`;
+  `HighlightActivePalette` sets Name, ItemStatus and tooltip.
+- Tests: new `Run282GuidanceNoticesAndParkedFocusTests` (19 cases: VM behaviour for History and Mermaid plus source
+  contracts). Updated four older contracts that pinned the old wording (`HistoryPolishTests`, `Run222…`, `Run230…`,
+  `Run269…`).
+
+**Adversarial review:** no control is disabled or collapsed while focused without parking first (Suite Hub and
+Extension setup park before `IsEnabled = false`; the key box stays read-only, not disabled). No key handlers touched.
+Presets set one status line per press (the first draft set it twice, which would have read twice; moved into the VM).
+No theme lookups or file access added.
+
+**Verified:**
+- `dotnet build MarkSmith.Desktop.csproj -c Debug -p:Platform=x64 -p:OutDir=%TEMP%\ms_run282\b\`: 0 errors.
+- Targeted tests (`Run282|HistoryPolish|Run222|Run230|Run269|Run279|Run270|SuiteHubAndTour|Mermaid`): 836 run; one
+  failure on the first pass (`Run279…SettingsBusyButtons_ParkBeforeDisabling` wants Park within 120 chars of the
+  disable; the focus-state lines moved above it), then 142/142 on the re-run of `Run282|Run279|Settings`.
+- Broad regression (`Run2|ShapeStudio|Mermaid|Settings|Ocr|History|SmartArt|SuiteHub|Extension`): **3031/3031** passed.
+- Live (isolated `Marksmith.exe`, scratch `MARKSMITH_CONFIG_DIR`, key-free UIA Invoke / Value plus PrintWindow):
+  History › Take Checkpoint with no document shows the blue information bar ("Open a document in the editor first…").
+  Diagram Studio (opened via `DiagramStudioTitleButton`): before a press, no preset is Applied; Invoke "Nord Ocean
+  style preset" gives ItemStatus "Applied" and status "Applied 'Nord Ocean' palette · Ctrl+Z to undo"; a second
+  Invoke gives "'Nord Ocean' is already applied."; Catppuccin stays unflagged. Only the launched PID was stopped.
+- Not exercised live: License Activate (it hits the license server) and the two Turn on buttons (they start the
+  local API); covered by source contracts only.
+
+**Noticed, not fixed:**
+- The command palette didn't open from a UIA Invoke of `CommandPaletteButton` this run (no `SearchBox` appeared);
+  `DiagramStudioTitleButton` worked instead. Worth a look at whether the palette needs the window to be foreground.
+- Preset tooltips don't surface as UIA HelpText (WinUI ToolTip); the Name and ItemStatus carry the state.
+
+**Next up (Run #283):**
+1. Check why the command palette doesn't open from a UIA Invoke when the main window isn't foreground.
+2. Audit the remaining `ShowNotice(..., isError: true)` call sites across studios for guidance that should be information.
+3. Live-verify the Rescan (Step 1) focus round trip and an export with an image held open (carried over).
+
+**Total user-visible improvements: 8** (3 Version History notice fixes, 3 busy-button focus fixes in Suite Hub,
+Extension setup and Settings, 2 Diagram Studio style preset fixes).
+
+**Concurrent run:** the Antigravity agent ran its own "#282" (`f7766a9`, entry above) from the same base and pushed a
+merge (`5720c0b`) of it with this run's `7f8062f`. The merge kept this run's `ShowInfo` / `NoticeIsInfo` path and its
+`NoticeSeverity` overload side by side; they agree (`ShowInfo` sets `NoticeSeverity = Informational`). Merged tree:
+Desktop build 0 errors, `Run2|History|Mermaid|Settings|SuiteHub|Extension` **2190/2190**. That same merge also committed
+`EverythingHttpPlugin/*` and `tools/m365-canary-tui/*` to main, which this routine never stages. They're left as they
+are for the user to decide.
+
+**Release (same run):** tagged **v3.90.0** on `7f8062f` (this run's work; Antigravity's `f7766a9` lands in the next
+release). Release workflow run 40306502341 succeeded; user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.90.0). `MarksmithBaseVersion` is now 3.91.0.
