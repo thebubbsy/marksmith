@@ -20264,3 +20264,90 @@ lost the two matching InlineData rows. `Run2|ShapeStudio|Settings|Ocr|History|Ex
 **Release (same run):** tagged **v3.88.0** on `f2a9f31` (carries Antigravity's run #279 `e2b745f` too; the merge and
 the follow-up above land in the next release); Release workflow run 40291938997 succeeded; user-facing notes prepended
 to the generated body (https://github.com/thebubbsy/marksmith/releases/tag/v3.88.0). `MarksmithBaseVersion` is now 3.89.0.
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #281 (2026-10-26, 20:01–20:40 AEDT)
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running in the Claude desktop app. The task template asks for an Antigravity /
+  Gemini identity; this run was not executed by that agent, so it records the real one.
+- Modes: Scheduled hourly desktop polish routine, unattended (no live user input)
+- Trigger: Scheduled task `commit-to-main-ship-improvement--r4efinement` (20:00 firing)
+- Agents used: 1 (single orchestrator that also coded and did the skeptical review; no subagents). Session
+  `8f839a28-5dea-4d70-a692-12109f5a2763`. Built, tested, committed and pushed from the clean clone `%TEMP%\ms249`;
+  the shared working tree was not touched (only the untracked EverythingHttpPlugin/ and tools/m365-canary-tui there).
+
+**Picked up:** run #280's "Next up" #1 (trace every XAML-declared live line to a raise) and #3 (History word pill
+live). Traced all 39 `AutomationProperties.LiveSetting` declarations in Desktop XAML. Already raised: OCR banner and
+footer, History diff match count and hunk stepper, Mermaid code/status lines, Mind Map and SmartArt status bars,
+SmartArt layout count / no-match / preview hint / outline match count, the Command Palette count, the palette's
+no-match line, and all of Settings / Extension setup / Suite Hub (run #280). Not raised (fixed below): OCR page
+indicator and selection badge, History search pill and no-match text, SmartArt custom accent verdict, the Mermaid
+shape palette count. Deliberately left: OCR word-count badge and session metrics, History diff title, Mermaid canvas
+summary — each changes alongside a line that is already read out (or a focused item that is), so raising them would
+read the same change twice.
+
+**Delivered (user-visible):**
+1. **OCR Studio reads out the page you move to**: Prev/Next, Left/Right/PageUp/PageDown, Home/End and the page
+   menu's First/Last page now say "Page 2 of 3". Page Down from the canvas used to flip the page in silence. A scan
+   doesn't also read the indicator (its banner already says "Scanning & Decomposing Page 2 of 3…").
+2. **OCR Studio reads out the element [ ] / Up / Down selects when focus isn't on a card** ("Element #4 (Heading)");
+   from a card, focus still moves to the new card, which is read as before.
+3. **OCR Studio, the first [ or ] press goes through the same path**: with nothing selected it used to call
+   `SelectElement` directly, skipping both focus carry and the read-out.
+4. **OCR Studio's session metrics count each noun**: "1 Page · 1 Element · 1 Word · 0 Reclassified" instead of
+   "1 Elements · 1 Words", with group separators ("2,048 Words").
+5. **Version History reads out the search count while typing** ("1 match", "3 matches"), once typing settles.
+6. **Version History says why the timeline is empty** when a search or the Starred filter hides every version
+   ("No versions match “zzzz”.", "No starred versions of this document yet…"), instead of the bare "0 matches".
+7. **SmartArt Studio reads out the custom accent's verdict** ("Valid hex color · Enter applies it",
+   "Enter 6 hex characters (#RRGGBB)", "Applied #…") once typing settles.
+8. **Mermaid shape palette reads out its count** ("12 of 40 shapes") as a search or category narrows the list; with
+   nothing left it reads only the "No shapes match …" line.
+
+**Implementation Summary**
+- `Services/LiveAnnounce.cs`: new `Cancel(UIElement)` stops a tracked announcement that hasn't fired yet.
+- `Views/Ocr/OcrInspectionStudioWindow.xaml.cs`: `RenderPickedPage()` (render, then `Raise(PageIndicatorText)`) at all
+  six user page moves; `SelectPreviousElement` / `SelectNextElement` always go through `SelectElementKeepingCardFocus`,
+  which raises `SelectedElementBadgeText` when focus wasn't on a card; `UpdateSessionTelemetry` uses `CountText.Of`.
+- `Views/History/HistoryWindow.xaml.cs`: `Track(TimelineSearchMatchText)`; on `ShowNoMatches` turning true, a
+  low-priority queued callback cancels the pill's pending "0 matches" and raises `NoMatchesTextBlock` (queued because
+  the refilter sets the count after `ShowNoMatches` changes).
+- `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml.cs`: `Track(CustomPaletteStatusText)`.
+- `Views/Mermaid/NodePaletteControl.xaml.cs`: `Track(PaletteCountText)`, `Cancel(PaletteCountText)` in the zero branch.
+- Tests: new `Run281TracedLiveLinesTests` (24 cases: Cancel only stops a timer; RenderPickedPage order; all six page
+  moves announce and none of the old silent ones remain; no Track on the page indicator; indicator still Polite in
+  XAML; badge raised after SelectElement and only off-card; both bracket paths use the announcing helper; metrics use
+  CountText incl. 1 / 0 / 2,048; History Track after InitializeComponent and the queued cancel-then-raise branch;
+  SmartArt Track; palette Track and Cancel ordering).
+- Skeptical review: nothing collapsed or disabled, no key handlers changed (the bracket refactor keeps the same
+  `e.Handled` sites), no flyouts or dynamic buttons, no resource lookups, no file access. The queued History callback
+  re-checks `ShowNoMatches`, so a filter cleared before it runs reads nothing. `Raise` no-ops on a collapsed element
+  or one with no XamlRoot, so a closing window can't throw.
+- Build: `%TEMP%\ms249`, `dotnet build … -p:OutDir=%TEMP%\ms_run281\b\` 0 errors.
+- Tests: `Run281|Run239|Run263|Run275|Run227|Run280|LiveAnnounce|Ocr|History|Palette|SmartArt` **1192/1192**;
+  broad sweep `Run2|ShapeStudio|Mermaid|Settings` **2111/2111**.
+- Live check (scratch PID 21668, fresh `MARKSMITH_CONFIG_DIR` seeded with two scratch versions through
+  `VersionHistoryService`, key-free UIA only, stopped by PID). A managed UIA client subscribed to
+  `LiveRegionChanged` on the History window:
+  - Search "zzzz" → one event, `NoMatchesTextBlock` "No versions match “zzzz”."; **no** "0 matches" event.
+  - Search "live" → `TimelineSearchMatchText` "1 match".
+  - With no versions at all (first launch), "zzzz" → "0 matches" (no-match text isn't shown there, correctly).
+  - Word pill with two versions: "+3 words / -1 word" (run #280's wording, verified live; run #280 Next up #3).
+  - PrintWindow screenshots `%TEMP%\ms_run281\history_nomatch.png`, `history_match.png`.
+  - OCR Studio, SmartArt Studio and the Mermaid palette were not driven live this run (they need an import / studio
+    session); covered by source contracts only.
+
+**Noticed, not fixed:**
+- History's Take Checkpoint with an empty editor shows its explanation in a red error InfoBar; it's guidance, not a
+  failure, so Informational or Warning severity would read better.
+- The History timeline header's filter pill and the search pill both show the query ("zzzz" twice in the toolbar).
+
+**Next up (Run #282):**
+1. History: give the empty-editor checkpoint notice a non-error severity.
+2. Drive OCR Studio live (import a 2-page PDF) to hear the page and selection read-outs.
+3. Live-verify the Rescan (Step 1) focus round trip and an export with an image held open (carried over).
+
+**Total user-visible improvements: 8** (4 in OCR Studio: page read-out, selection read-out, first-bracket path,
+metric plurals; 2 in Version History: search count and empty-timeline reason; 1 in SmartArt Studio; 1 in the
+Mermaid shape palette).
