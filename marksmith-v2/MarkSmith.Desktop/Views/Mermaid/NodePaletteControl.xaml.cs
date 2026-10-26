@@ -137,6 +137,7 @@ public sealed partial class NodePaletteControl : UserControl
     public NodePaletteControl()
     {
         InitializeComponent();
+        LiveAnnounce.Track(PaletteCountText);
         // "Right-click for options" menus: open them from Shift+F10 / the Menu key too.
         KeyboardContextMenu.BridgeAll(
             (CatAll, OnCategoryPillRightTapped),
@@ -422,8 +423,7 @@ public sealed partial class NodePaletteControl : UserControl
                     : selectedCat == "All" ? $"No shapes match “{rawQuery}”." : $"No {selectedCat} shapes match “{rawQuery}”.";
                 Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(NoMatchesText, NoMatchesText.Text);
                 Microsoft.UI.Xaml.Automation.AutomationProperties.SetLiveSetting(NoMatchesText, Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Assertive);
-                Microsoft.UI.Xaml.Automation.Peers.FrameworkElementAutomationPeer.FromElement(NoMatchesText)
-                    ?.RaiseAutomationEvent(Microsoft.UI.Xaml.Automation.Peers.AutomationEvents.LiveRegionChanged);
+                LiveAnnounce.Raise(NoMatchesText);
             }
         }
     }

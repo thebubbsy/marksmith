@@ -58,6 +58,9 @@ public sealed partial class HistoryWindow : Window
     public HistoryWindow(MainViewModel? mainViewModel = null, string? initialFilePath = null)
     {
         InitializeComponent();
+        LiveAnnounce.Track(TimelineSearchMatchText);
+        LiveAnnounce.Track(NoMatchesTextBlock);
+        LiveAnnounce.Track(DiffTitleText);
         // "Right-click for options" menus: open them from Shift+F10 / the Menu key too.
         KeyboardContextMenu.BridgeAll(
             (StarredFilterToggle, OnStarredFilterToggleRightTapped),
@@ -619,8 +622,7 @@ public sealed partial class HistoryWindow : Window
         ToolTipService.SetToolTip(ChangeStepperButton, tooltip);
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(ChangeStepperButton, spoken);
         if (announce)
-            Microsoft.UI.Xaml.Automation.Peers.FrameworkElementAutomationPeer.FromElement(ChangeStepperButton)
-                ?.RaiseAutomationEvent(Microsoft.UI.Xaml.Automation.Peers.AutomationEvents.LiveRegionChanged);
+            LiveAnnounce.Raise(ChangeStepperButton);
     }
 
     private List<int> GetChangeHunkIndices()
@@ -897,8 +899,7 @@ public sealed partial class HistoryWindow : Window
         DiffMatchCountLabel.Text = text;
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(DiffMatchCountLabel, spoken);
         if (spoken.Length > 0)
-            Microsoft.UI.Xaml.Automation.Peers.FrameworkElementAutomationPeer.FromElement(DiffMatchCountLabel)
-                ?.RaiseAutomationEvent(Microsoft.UI.Xaml.Automation.Peers.AutomationEvents.LiveRegionChanged);
+            LiveAnnounce.Raise(DiffMatchCountLabel);
     }
 
     private void ScrollToDiffRow(int targetRow)

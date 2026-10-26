@@ -53,6 +53,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
         InitializeComponent();
         // A long status line is cut off at the window edge; hovering it shows the whole message.
         TrimmedTextToolTip.Attach(StatusBarText);
+        LiveAnnounce.Track(CanvasSummaryText, CanvasSummaryButton);
         // "Right-click for options" menus: open them from Shift+F10 / the Menu key too.
         KeyboardContextMenu.BridgeAll(
             (TemplatesButton, OnTemplatesButtonRightTapped),
@@ -174,8 +175,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
             assertive
                 ? Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Assertive
                 : Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Polite);
-        Microsoft.UI.Xaml.Automation.Peers.FrameworkElementAutomationPeer.FromElement(element)
-            ?.RaiseAutomationEvent(Microsoft.UI.Xaml.Automation.Peers.AutomationEvents.LiveRegionChanged);
+        LiveAnnounce.Raise(element);
     }
 
     // Toolbar icons carry explicit colours (cyan, red for Delete), which the Button's disabled

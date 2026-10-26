@@ -68,6 +68,7 @@ namespace MarkSmith.Views.SmartArtStudio
             this.InitializeComponent();
             // A long status line is cut off at the window edge; hovering it shows the whole message.
             TrimmedTextToolTip.Attach(StatusBarText);
+            LiveAnnounce.Track(NoMatchesTitleText);
             var iconPath = System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "app.ico");
             if (System.IO.File.Exists(iconPath)) AppWindow.SetIcon(iconPath);
             SizeForDisplay();
@@ -231,9 +232,7 @@ namespace MarkSmith.Views.SmartArtStudio
             Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(element, text);
             Microsoft.UI.Xaml.Automation.AutomationProperties.SetLiveSetting(element, setting);
             if (!raiseEvent) return;
-            var peer = Microsoft.UI.Xaml.Automation.Peers.FrameworkElementAutomationPeer.FromElement(element)
-                       ?? Microsoft.UI.Xaml.Automation.Peers.FrameworkElementAutomationPeer.CreatePeerForElement(element);
-            peer?.RaiseAutomationEvent(Microsoft.UI.Xaml.Automation.Peers.AutomationEvents.LiveRegionChanged);
+            LiveAnnounce.Raise(element);
         }
 
         private void ScrollSelectedOutlineRowIntoView()
@@ -4068,6 +4067,7 @@ namespace MarkSmith.Views.SmartArtStudio
             CustomPaletteStatusText.Text = text;
             ThemeBrush.Set(CustomPaletteStatusText, TextBlock.ForegroundProperty, brushKey);
             CustomPaletteStatusText.Visibility = Visibility.Visible;
+            LiveAnnounce.Raise(CustomPaletteStatusText);
         }
 
         private void OnCustomPaletteHexBoxKeyDown(object sender, KeyRoutedEventArgs e)
@@ -5261,8 +5261,7 @@ namespace MarkSmith.Views.SmartArtStudio
             OutlineMatchCountLabel.Text = text;
             Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(OutlineMatchCountLabel, spoken);
             if (spoken.Length > 0)
-                Microsoft.UI.Xaml.Automation.Peers.FrameworkElementAutomationPeer.FromElement(OutlineMatchCountLabel)
-                    ?.RaiseAutomationEvent(Microsoft.UI.Xaml.Automation.Peers.AutomationEvents.LiveRegionChanged);
+                LiveAnnounce.Raise(OutlineMatchCountLabel);
         }
 
         private void SelectAndFocusOutlineMatch(StudioNodeViewModel node)

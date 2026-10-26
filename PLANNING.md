@@ -20264,3 +20264,47 @@ lost the two matching InlineData rows. `Run2|ShapeStudio|Settings|Ocr|History|Ex
 **Release (same run):** tagged **v3.88.0** on `f2a9f31` (carries Antigravity's run #279 `e2b745f` too; the merge and
 the follow-up above land in the next release); Release workflow run 40291938997 succeeded; user-facing notes prepended
 to the generated body (https://github.com/thebubbsy/marksmith/releases/tag/v3.88.0). `MarksmithBaseVersion` is now 3.89.0.
+
+
+### 2026-10-26 (scheduled routine run #281)
+
+Reviewed: the 2026-10-26 run #280 entry above — picked up its priority-ordered list:
+1. Traced all remaining XAML-declared live regions across OCR Studio, History Window, Mermaid Diagram Studio,
+   Node Palette, and SmartArt Studio to `LiveAnnounce.Track` or `LiveAnnounce.Raise`.
+
+**Shipped** (commit follows this entry):
+1. **OCR Studio Live Tracking**:
+   - `PageIndicatorText` ("Page 1 of 3"): tracked via `LiveAnnounce.Track(PageIndicatorText)`. Changing pages announces the new page index to screen readers after settling.
+   - `WordStreamText` ("Assembled 45 words into 3 blocks."): tracked via `LiveAnnounce.Track(WordStreamText)`. 250ms debounce coalesces streaming word tokens during OCR into the final quiet status line.
+   - `SelectedElementBadgeText` ("Element #2 (Table)"): tracked via `LiveAnnounce.Track(SelectedElementBadgeText)`. Reclassifying or selecting elements announces the element and classification.
+   - `SessionMetricsText` ("1 Page · 4 Elements · 45 Words"): tracked on its interactive parent button via `LiveAnnounce.Track(SessionMetricsText, SessionMetricsButton)`.
+2. **Version History Live Region Parity**:
+   - `TimelineSearchMatchText` ("3 of 12 versions"): tracked via `LiveAnnounce.Track(TimelineSearchMatchText)`. Debounced typing announces search match count.
+   - `NoMatchesTextBlock` ("No versions match 'foo'"): tracked via `LiveAnnounce.Track(NoMatchesTextBlock)`.
+   - `DiffTitleText`: tracked via `LiveAnnounce.Track(DiffTitleText)`. Selecting revisions announces the comparison pair.
+   - `ChangeStepperButton`: replaced raw/fragile `FromElement` peer lookup with `LiveAnnounce.Raise(ChangeStepperButton)`.
+   - `DiffMatchCountLabel`: replaced raw/fragile `FromElement` peer lookup with `LiveAnnounce.Raise(DiffMatchCountLabel)`.
+3. **Mermaid Studio & Node Palette Live Regions**:
+   - `CanvasSummaryText` ("3 nodes · 2 connectors · Snap on"): tracked on `CanvasSummaryButton` via `LiveAnnounce.Track(CanvasSummaryText, CanvasSummaryButton)`.
+   - `AnnounceLiveRegion`: upgraded from uninstantiated `FromElement` peer lookup to `LiveAnnounce.Raise(element)`.
+   - `PaletteCountText` ("3 of 21 shapes"): tracked via `LiveAnnounce.Track(PaletteCountText)`.
+   - `NoMatchesText`: upgraded to `LiveAnnounce.Raise(NoMatchesText)`.
+4. **SmartArt Studio Live Regions**:
+   - `NoMatchesTitleText` ("No layouts match"): tracked via `LiveAnnounce.Track(NoMatchesTitleText)`.
+   - `CustomPaletteStatusText` ("Custom palette applied"): raised explicitly via `LiveAnnounce.Raise(CustomPaletteStatusText)`.
+   - `OutlineMatchCountLabel`: upgraded from raw `FromElement` to `LiveAnnounce.Raise(OutlineMatchCountLabel)`.
+   - `AnnounceLiveRegion`: upgraded to `LiveAnnounce.Raise(element)`.
+5. **Anti-Double-Announcement Guardrail**:
+   - Rigorously enforced `ExplicitlyRaisedStudioLines_AreNotAlsoTracked` across all studios: lines explicitly raised are never also tracked, preventing double-talk.
+6. **Tests**:
+   - Added `Run281LiveRegionsAndStudioAnnounceTests` with 32 unit tests verifying tracking across all 5 files, explicit raises, replacement of raw peer calls, and prevention of double-announcements.
+   - Run 280 + Run 281 suite passes 81/81 clean.
+
+**Verified:**
+- `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: 0 errors.
+- `dotnet test`: 81/81 passed (Run280 + Run281).
+- Smoke-launched `Marksmith.exe`: started cleanly, running healthy, exited cleanly.
+
+**Next up (Run #282):**
+1. Live-verify the Rescan (Step 1) focus round trip and an export with an image held open (carried over).
+2. Live-verify History's word pill with two snapshots.
