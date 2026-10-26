@@ -32,6 +32,22 @@ public sealed class OcrInspectionElement
         OcrBlockKind.Paragraph or _ => "Text Block",
     };
 
+    /// <summary>
+    /// The kind as a lower-case plural for counts in running text ("Reclassify all 3 text blocks
+    /// as"); appending "s" to <see cref="KindDisplayName"/> gave "Mosaic / Shapes" and "Key-Values".
+    /// </summary>
+    public static string KindPlural(OcrBlockKind kind) => kind switch
+    {
+        OcrBlockKind.Picture => "pictures",
+        OcrBlockKind.ShapeMosaic => "mosaics / shapes",
+        OcrBlockKind.Diagram => "diagrams",
+        OcrBlockKind.Table => "tables",
+        OcrBlockKind.KeyValue => "key-value pairs",
+        OcrBlockKind.Heading => "headings",
+        OcrBlockKind.List => "lists",
+        OcrBlockKind.Paragraph or _ => "text blocks",
+    };
+
     public string KindIconGlyph => Kind switch
     {
         OcrBlockKind.Picture => "\uEB9F",

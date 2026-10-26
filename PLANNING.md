@@ -20613,3 +20613,92 @@ dialog fixes).
 1. Audit remaining dialogs/studios for any unfocused single-line text inputs containing long paths or URLs (e.g. Image URL, WebDAV endpoint, Watch Folder) that would benefit from end-scrolling when unfocused.
 2. Review `SettingsView` toggle card descriptions and layout spacing for high-DPI scaling consistency.
 3. Check and polish status bar copy pill tooltips across all document formats.
+
+## Run #285 — executing agent's record (Claude Code, 2026-10-27, 05:58–06:40 AEDT)
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running in the Claude desktop app. Not the Antigravity agent: the task template's
+  "Antigravity AI Agent (Google DeepMind)" line doesn't describe this executor.
+- Modes: Scheduled hourly automation routine (non-interactive, no user present)
+- Trigger: Scheduled task `commit-to-main-ship-improvement--r4efinement` (06:00 firing)
+- Agents Used: 1 (single orchestrator doing the coding, skeptical review and verification inline; no sub-agents).
+  Worked in the clean clone `%TEMP%\ms249`, reset to `origin/main` (`2e9ea35`).
+
+**State found:** `origin/main` is `2e9ea35` (run #284, tagged and released as **v3.92.0**), but its PLANNING.md record
+and the bump to 3.93.0 never reached origin. The shared working tree holds two unpushed Antigravity commits
+(`fd3bc0f8`, merge `d1768cbd`, with a duplicate run #284 entry, the output-folder end-scroll and a Presets
+`_presetSync` guard) plus an uncommitted edit to `InsertDialogControls.cs`. None of that was touched or pushed by
+this run; this commit bumps `MarksmithBaseVersion` to 3.93.0 because v3.92.0 has shipped.
+
+**Picked up:** run #283's Next up #3 (Clear() + refill under a picker): the one site neither run #284 covered was Step 1's
+Markdown file picker. Then a focus-trap sweep of every `*Button.IsEnabled = false` in Desktop (Settings ▸ Plugins was
+the one unguarded) and a raw-plural sweep (OCR studio's batch reclassify).
+
+**Delivered (user-visible):**
+1. **Step 1's file picker keeps the open file after Rescan.** `RefreshMarkdownFilesAsync` clears and refills
+   `MarkdownFiles`, which left the picker on "Pick a Markdown file from your PC…" with a document open (reproduced
+   live on the baseline build). The window now reselects the open document's row without reopening it.
+2. **…and after pin / unpin.** The star rebuilds the same list; the picker moves to the re-marked row (live: "alpha.md,
+   docs" after unpin, "alpha.md, 📌 docs, pinned" after re-pin).
+3. **The picker follows a file opened another way** (Browse, drag-and-drop, recent, History restore): when it's listed
+   the row is selected, otherwise the picker clears instead of naming a different file.
+4. **The picker's right-click menu names the file:** "Show alpha.md in File Explorer", "Copy path of alpha.md" (was
+   "Show selected in Explorer" / "Copy selected file path").
+5. **Settings ▸ Plugins: Install keeps keyboard focus while it downloads.** It disabled itself, which threw focus to the
+   window's first tab stop and scrolled Settings to the top for the whole download. It now stays enabled, reads
+   "Installing…" (screen-reader name "Installing <plugin>"), and ignores a second press until the download ends.
+6. **Install and Remove hand focus to each other before hiding.** Remove used to collapse while focused (focus fell to
+   the top of the page before Install was focused), and a finished download always yanked focus to Remove even if the
+   user had moved on. Now the partner is shown and focused first, and only while focus is still on the pressed button.
+7. **OCR studio: "Reclassify all 3 text blocks as".** The batch submenu appended "s" to the display name ("Mosaic /
+   Shapes", "Key-Values", "Text Blocks"); it uses a lower-case plural per kind.
+8. **…and the status line names what changed.** It read the element's kind *after* reclassifying it, so it said
+   "Reclassified 3 Heading elements to Heading."; it now says "Reclassified 3 text blocks as headings."
+
+**Implementation Summary**
+- Core: new `Services/MarkdownPickerText.cs` (`IndexOfOpenFile` with full-path, OS-case path equality; `ShowInExplorer`,
+  `CopyPath`); `ViewModels/MainViewModel.cs` (`MarkdownFilesRefreshed` event raised after the refill);
+  `Ocr/OcrInspectionModels.cs` (`OcrInspectionElement.KindPlural`).
+- Desktop: `MainWindow.xaml.cs` (`SelectOpenFileInPicker` on refresh and on `InputFilePath`, deferred through the
+  dispatcher, skipped while the dropdown is open; `_selectingOpenFile` guard in `OnMarkdownFileSelected`; menu text);
+  `Views/SettingsView.xaml.cs` (`installing` guard and "Installing…" content instead of `IsEnabled = false`; local
+  `HandOver(from, to)` shows and focuses the partner before `Refresh()` collapses the pressed button);
+  `Views/Ocr/OcrInspectionStudioWindow.xaml.cs` (plural submenu text, `fromPlural` captured before the loop).
+- Tests: new `Run285PickerSelectionAndPluginFocusTests` (picker index matching incl. relative segments, case on
+  Windows, unlisted / empty paths; menu wording; plural for every OCR kind; source contracts for the event order,
+  the reselect guard, Install/Remove focus handover and the OCR status).
+
+**Adversarial review:** no control is collapsed or disabled while focused (Install no longer disables; Remove and
+Install focus their partner before `Refresh()`); no key handlers touched; no `Application.Current.Resources` lookups
+added; no file access added (the picker only compares paths). The programmatic picker selection can't reopen the file
+(flag cleared at Low priority after the SelectionChanged it causes) and never runs under an open dropdown. Not
+changed: the Presets combo's Clear()+refill (the Antigravity agent's unpushed `fd3bc0f8` already guards it; doing it
+here too would only conflict).
+
+**Verified:**
+- `dotnet build MarkSmith.Desktop.csproj -c Debug -p:Platform=x64 -p:OutDir=%TEMP%\ms_run285\f\`: 0 errors
+  (baseline also built to `ms_run285\b`).
+- `dotnet test --filter Run285|Run284|Run283`: **55/55**; broad `Run2|Ocr|MainViewModel|Insert`: **1700/1700**;
+  `Settings|Plugin`: **126/126** (one earlier combined run's test host crashed mid-run and passed on rerun).
+- Live (isolated `Marksmith.exe`, scratch `MARKSMITH_CONFIG_DIR` with two pinned scratch files, key-free UIA
+  ExpandCollapse / SelectionItem / Invoke / Selection, PrintWindow): baseline PID 7696 picked alpha.md, Rescan →
+  selection `<none>`; fixed PID 17252: Rescan → "alpha.md, 📌 docs · 1m ago, pinned", unpin → "alpha.md, docs",
+  re-pin → pinned row, editor still "# Alpha"; screenshot shows the row and focus back on Rescan. Only those two PIDs
+  were stopped.
+- Not live-verified: plugin Install (downloads tens of MB from the network) and OCR batch reclassify (needs an OCR
+  session); both covered by source contracts and Core tests.
+
+**Noticed, not fixed:**
+- Picking a file in Step 1 auto-collapses the left pane, so the picker is out of sight right after a pick; fine for
+  mouse users, but a UIA client loses the combo until `LeftDrawerTab` is invoked.
+- The Presets combo still blanks on reload on `origin/main` until the Antigravity agent pushes `fd3bc0f8`.
+
+**Next up (Run #286):**
+1. Live-verify a plugin Install/Remove focus round trip on a machine where a small plugin download is acceptable.
+2. Audit Settings path boxes (watch folder, WebDAV endpoint) for the unfocused end-of-path display, once the
+   Antigravity output-folder change is on origin, to reuse its helper rather than duplicate it.
+3. Sweep the remaining `$"…{x}s …"` display-name pluralisations in the studios (Mermaid palette categories, Galaxy).
+
+**Total user-visible improvements: 8** (4 Step 1 picker, 2 Settings ▸ Plugins, 2 OCR studio).
+

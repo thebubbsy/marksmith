@@ -1051,7 +1051,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             {
                 var batchSubItem = new MenuFlyoutSubItem
                 {
-                    Text = $"Reclassify all {siblingsOfSameKind.Count} {elem.KindDisplayName}s as",
+                    Text = $"Reclassify all {siblingsOfSameKind.Count} {OcrInspectionElement.KindPlural(elem.Kind)} as",
                     Icon = new FontIcon { Glyph = "\uE8D2" }
                 };
                 foreach (var opt in ReclassifyKindOptions)
@@ -1062,6 +1062,8 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
                         Text = $"{opt.ShortcutNumber} · {opt.Label}"
                     };
                     var targetKind = opt.Kind;
+                    // Captured before the loop: reclassifying changes elem.Kind.
+                    var fromPlural = OcrInspectionElement.KindPlural(elem.Kind);
                     batchKindItem.Click += (_, _) =>
                     {
                         foreach (var targetElem in siblingsOfSameKind)
@@ -1071,7 +1073,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
                         UpdateSessionTelemetry();
                         UpdateLiveMarkdownPreview();
                         UpdateActionButtonsState();
-                        SetFooterStatusText($"Reclassified {siblingsOfSameKind.Count} {elem.KindDisplayName} elements to {opt.Label}.");
+                        SetFooterStatusText($"Reclassified {siblingsOfSameKind.Count} {fromPlural} as {OcrInspectionElement.KindPlural(targetKind)}.");
                     };
                     batchSubItem.Items.Add(batchKindItem);
                 }

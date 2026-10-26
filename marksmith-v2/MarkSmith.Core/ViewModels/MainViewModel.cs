@@ -768,6 +768,12 @@ private readonly MarkdownExportService _mdExport = new();
 
     [ObservableProperty] private bool _isDiscoveringFiles;
 
+    /// <summary>
+    /// Raised after <see cref="MarkdownFiles"/> is rebuilt. Clearing the list empties Step 1's
+    /// picker, so the window reselects the open document's row.
+    /// </summary>
+    public event EventHandler? MarkdownFilesRefreshed;
+
     // Scan Downloads/Documents/Desktop/OneDrive for real .md files (newest first), pinned/opened
     // files kept on top. Called from the UI thread so the await resumes there to update the list.
     public async Task RefreshMarkdownFilesAsync()
@@ -793,6 +799,7 @@ private readonly MarkdownExportService _mdExport = new();
                 else
                     MarkdownFiles.Add(e);
             }
+            MarkdownFilesRefreshed?.Invoke(this, EventArgs.Empty);
         }
         finally { IsDiscoveringFiles = false; }
     }

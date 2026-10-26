@@ -416,6 +416,14 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             if (e.PropertyName == nameof(ViewModel.CurrentMarkdown)) SyncEditorFromDocument();
         };
 
+        // Step 1's picker follows the open document: Rescan and pin/unpin rebuild its list, which
+        // left it blank with a file open, and a file opened some other way is selected when listed.
+        ViewModel.MarkdownFilesRefreshed += (_, _) => DispatcherQueue.TryEnqueue(SelectOpenFileInPicker);
+        ViewModel.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(ViewModel.InputFilePath)) DispatcherQueue.TryEnqueue(SelectOpenFileInPicker);
+        };
+
         // Persistent undo/redo: the editor owns its undo stack (native TextBox undo is disabled in
         // XAML). Keep the caret in the ViewModel so undo snapshots can restore it exactly.
         PasteTextBox.SelectionChanged += (_, _) => ViewModel.EditorCaret = PasteTextBox.SelectionStart;
@@ -5051,8 +5059,23 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         try { App.Settings.Save(); } catch { /* not worth interrupting a click for */ }
     }
 
+    // Set while SelectOpenFileInPicker moves the picker to the already-open file, so that
+    // selection doesn't open it again.
+    private bool _selectingOpenFile;
+
+    private void SelectOpenFileInPicker()
+    {
+        if (MarkdownFilesCombo is null || MarkdownFilesCombo.IsDropDownOpen) return;
+        var index = Services.MarkdownPickerText.IndexOfOpenFile(ViewModel.MarkdownFiles, ViewModel.InputFilePath);
+        if (MarkdownFilesCombo.SelectedIndex == index) return;
+        _selectingOpenFile = true;
+        try { MarkdownFilesCombo.SelectedIndex = index; }
+        finally { DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () => _selectingOpenFile = false); }
+    }
+
     private async void OnMarkdownFileSelected(object sender, SelectionChangedEventArgs e)
     {
+        if (_selectingOpenFile) return;
         try
         {
             if (sender is ComboBox { SelectedItem: Services.MarkdownFileEntry entry })
@@ -7115,7 +7138,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var showFolderItem = new MenuFlyoutItem
         {
-            Text = "Show selected in Explorer",
+            Text = Services.MarkdownPickerText.ShowInExplorer(selectedPath),
             Icon = new FontIcon { Glyph = "\uE838" },
             IsEnabled = hasSelected
         };
@@ -7127,7 +7150,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var copyPathItem = new MenuFlyoutItem
         {
-            Text = "Copy selected file path",
+            Text = Services.MarkdownPickerText.CopyPath(selectedPath),
             Icon = new FontIcon { Glyph = "\uE8C8" },
             IsEnabled = hasSelected
         };
