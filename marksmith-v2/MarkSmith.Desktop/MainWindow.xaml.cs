@@ -6250,7 +6250,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 var chordText = shortcut.Gesture ?? (shortcut.Chords.Count > 0 ? string.Join(", ", shortcut.Chords.Select(c => c.Display)) : "");
                 if (!string.IsNullOrEmpty(chordText))
                 {
-                    ToolTipService.SetToolTip(row, $"{shortcut.Action} ({chordText}) — right-click to copy");
+                    ToolTipService.SetToolTip(row, $"{shortcut.Action} ({chordText}) — right-click to copy · Ctrl+C copies the whole list");
                     var flyout = new MenuFlyout();
                     var copyItem = new MenuFlyoutItem
                     {
@@ -6316,14 +6316,54 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             UseSystemFocusVisuals = true,
         };
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(sheet, "Keyboard shortcuts list");
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(sheet, "Ctrl+C or Shift+F10 copies the whole list as Markdown");
+
+        // The rows copy one chord from a right-click, which keyboard users can't reach (rows aren't
+        // tab stops). The focused sheet copies the whole list instead: Ctrl+C, or its own menu from
+        // Shift+F10 / the Menu key / a right-click between rows.
+        async Task CopyWholeSheetAsync()
+        {
+            var visibleRows = Shortcuts.Sheet().Sum(s => s.Rows.Count);
+            var err = await ClipboardWriter.TrySetTextAsync(Shortcuts.SheetText());
+            ViewModel.StatusText = err is null
+                ? $"Copied {CountText.Of(visibleRows, "shortcut")} to the clipboard as Markdown."
+                : $"Failed to copy the shortcuts: {err}";
+            ViewModel.StatusSeverity = err is null ? Models.StatusSeverity.Informational : Models.StatusSeverity.Warning;
+        }
+        var sheetMenu = new MenuFlyout();
+        var copyAllItem = new MenuFlyoutItem
+        {
+            Text = "Copy all shortcuts as Markdown",
+            Icon = new FontIcon { Glyph = "" },
+            KeyboardAcceleratorTextOverride = "Ctrl+C",
+        };
+        copyAllItem.Click += async (_, _) => await CopyWholeSheetAsync();
+        sheetMenu.Items.Add(copyAllItem);
+        sheet.ContextFlyout = sheetMenu;
+        sheet.KeyDown += async (_, ke) =>
+        {
+            if (ke.Key != Windows.System.VirtualKey.C) return;
+            bool ctrlDown = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control)
+                .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+            if (!ctrlDown) return;
+            ke.Handled = true;
+            await CopyWholeSheetAsync();
+        };
+
         var dialog = new ContentDialog
         {
             Title = "Keyboard shortcuts",
             Content = sheet,
+            SecondaryButtonText = "Copy all",
             CloseButtonText = "Close",
             DefaultButton = ContentDialogButton.Close,
             XamlRoot = Content.XamlRoot,
             RequestedTheme = theme,
+        };
+        dialog.SecondaryButtonClick += async (_, args) =>
+        {
+            args.Cancel = true;
+            await CopyWholeSheetAsync();
         };
         dialog.Opened += (_, _) => sheet.Focus(FocusState.Programmatic);
         await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog);
@@ -8845,7 +8885,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             var count = _findHistory.Count;
             _findHistory.Clear();
             _findHistoryIndex = -1;
-            AnnounceStatus($"Cleared search history ({count} queries).");
+            AnnounceStatus($"Cleared search history ({CountText.Of(count, "query", "queries")}).");
         };
         menu.Items.Add(clearHistoryItem);
 

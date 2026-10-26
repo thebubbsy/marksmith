@@ -1617,7 +1617,7 @@ namespace MarkSmith.Views.SmartArtStudio
                 ViewModel.DemoteCommand.Execute(null);
                 count++;
             }
-            ViewModel.StatusMessage = $"Demoted item to deepest child level ({count} levels in) · Tab to adjust";
+            ViewModel.StatusMessage = $"Demoted item to deepest child level ({CountText.Of(count, "level")} in) · Tab to adjust";
         }
 
         private void OnDemoteButtonRightTapped(object sender, RightTappedRoutedEventArgs e)

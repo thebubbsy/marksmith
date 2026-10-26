@@ -144,4 +144,26 @@ public static class KeyboardShortcuts
     public static IEnumerable<(string Section, IReadOnlyList<KeyboardShortcut> Rows)> Sheet() =>
         Sections.Select(section => (section,
             (IReadOnlyList<KeyboardShortcut>)All.Where(s => s.Section == section && !s.Hidden).ToList()));
+
+    /// <summary>
+    /// The whole F1 sheet as Markdown: a heading per section and a "keys: action" bullet per row,
+    /// with alternative chords joined by " or ". What Ctrl+C on the sheet copies.
+    /// </summary>
+    public static string SheetText()
+    {
+        var sb = new System.Text.StringBuilder("# Marksmith keyboard shortcuts\n");
+        foreach (var (section, rows) in Sheet())
+        {
+            if (rows.Count == 0) continue;
+            sb.Append("\n## ").Append(section).Append('\n');
+            foreach (var row in rows)
+            {
+                var keys = row.Chords.Count > 0
+                    ? string.Join(" or ", row.Chords.Select(c => c.Display))
+                    : row.Gesture ?? "";
+                sb.Append("- ").Append(keys).Append(": ").Append(row.Action).Append('\n');
+            }
+        }
+        return sb.ToString();
+    }
 }

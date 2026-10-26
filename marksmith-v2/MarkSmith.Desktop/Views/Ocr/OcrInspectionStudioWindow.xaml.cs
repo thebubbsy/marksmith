@@ -124,6 +124,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         };
 
         RootGrid.PreviewKeyDown += OnRootKeyDown;
+        RootGrid.ActualThemeChanged += (_, _) => RetintInspectorCardTitles();
 
         _requestClose = CloseGuard.Attach(this,
             () => _session.TotalReclassifications > 0 && !_decisionTcs.Task.IsCompleted,
@@ -735,7 +736,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         {
             Glyph = elem.KindIconGlyph,
             FontSize = 9,
-            Foreground = new SolidColorBrush(Colors.White),
+            Foreground = BadgeInkFor(strokeColor),
             VerticalAlignment = VerticalAlignment.Center,
         });
         badgeStack.Children.Add(new TextBlock
@@ -743,7 +744,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             Text = $"#{elem.Id} {elem.KindDisplayName}",
             FontSize = 9,
             FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Colors.White),
+            Foreground = BadgeInkFor(strokeColor),
             VerticalAlignment = VerticalAlignment.Center,
         });
 
@@ -817,7 +818,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             Text = $"#{elem.Id} · {elem.KindDisplayName}" + (elem.IsReclassified ? " (Reclassified)" : string.Empty),
             FontSize = 11.5,
             FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(strokeColor),
+            Foreground = KindTitleBrush(strokeColor),
             VerticalAlignment = VerticalAlignment.Center,
         };
         Grid.SetColumn(titleText, 0);
@@ -1845,13 +1846,20 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
                 if (badge.Child is StackPanel badgeStack)
                 {
                     if (badgeStack.Children.Count > 0 && badgeStack.Children[0] is FontIcon badgeIcon)
+                    {
                         badgeIcon.Glyph = elem.KindIconGlyph;
+                        badgeIcon.Foreground = BadgeInkFor(sc);
+                    }
                     if (badgeStack.Children.Count > 1 && badgeStack.Children[1] is TextBlock badgeLabel)
+                    {
                         badgeLabel.Text = $"#{elem.Id} {elem.KindDisplayName}";
+                        badgeLabel.Foreground = BadgeInkFor(sc);
+                    }
                 }
                 else if (badge.Child is TextBlock badgeText)
                 {
                     badgeText.Text = $"#{elem.Id} {elem.KindDisplayName}";
+                    badgeText.Foreground = BadgeInkFor(sc);
                 }
             }
             AutomationProperties.SetName(frame, DescribeElementForAccessibility(elem));
@@ -1866,7 +1874,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
                 headerGrid.Children.Count > 0 && headerGrid.Children[0] is TextBlock titleText)
             {
                 titleText.Text = $"#{elem.Id} · {elem.KindDisplayName}" + (elem.IsReclassified ? " (Reclassified)" : string.Empty);
-                titleText.Foreground = new SolidColorBrush(strokeColor);
+                titleText.Foreground = KindTitleBrush(strokeColor);
             }
             if (cardStack.Children.Count > 1 && cardStack.Children[1] is ComboBox cardCombo)
             {
@@ -1990,6 +1998,34 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
                              $"{_session.TotalReclassifications} Reclassified";
             SessionMetricsText.Text = metrics;
             AutomationProperties.SetName(SessionMetricsText, metrics);
+        }
+    }
+
+    // White on the amber, teal, green and cyan badges was about 2:1; each badge now takes whichever
+    // of black or white reads better on its kind colour.
+    private static SolidColorBrush BadgeInkFor(Color kindColor) =>
+        new(ReadableInk.PrefersDarkInk(kindColor.R, kindColor.G, kindColor.B) ? Colors.Black : Colors.White);
+
+    // A card title is its kind colour as text: darkened on the light theme's pane (amber on white
+    // was about 2:1) and lightened on the dark one, so it still matches the badge on the page.
+    private SolidColorBrush KindTitleBrush(Color kindColor)
+    {
+        var (r, g, b) = ReadableInk.AsTextOn(kindColor.R, kindColor.G, kindColor.B,
+            lightSurface: RootGrid.ActualTheme == ElementTheme.Light);
+        return new SolidColorBrush(Color.FromArgb(255, r, g, b));
+    }
+
+    // Cards are built once per page, so a theme switch re-tones their titles in place.
+    private void RetintInspectorCardTitles()
+    {
+        foreach (var (elem, card) in _inspectorCards)
+        {
+            if (card.Child is StackPanel cardStack && cardStack.Children.Count > 0 &&
+                cardStack.Children[0] is Grid headerGrid && headerGrid.Children.Count > 0 &&
+                headerGrid.Children[0] is TextBlock titleText)
+            {
+                titleText.Foreground = KindTitleBrush(GetKindPalette(elem.Kind).Stroke);
+            }
         }
     }
 

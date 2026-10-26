@@ -228,7 +228,7 @@ namespace MarkSmith.Views.MindMap
                 Stroke = new SolidColorBrush(_palette.HighlightBorder),
                 StrokeThickness = 1.25,
                 StrokeDashArray = new DoubleCollection { 3, 2 },
-                Fill = new SolidColorBrush(Windows.UI.Color.FromArgb(0x28, 0x00, 0x78, 0xD7)),
+                Fill = new SolidColorBrush(Tint(_palette.HighlightBorder, 0x28)),
                 Visibility = Visibility.Collapsed,
                 IsHitTestVisible = false
             };
@@ -248,13 +248,13 @@ namespace MarkSmith.Views.MindMap
             {
                 FontSize = 10.5,
                 FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-                Foreground = new SolidColorBrush(Microsoft.UI.Colors.White),
+                Foreground = new SolidColorBrush(_palette.Text),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center
             };
             _multiSelectBadge = new Border
             {
-                Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0xEE, 0x18, 0x20, 0x2C)),
+                Background = new SolidColorBrush(Tint(_palette.CardBackground, 0xEE)),
                 BorderBrush = new SolidColorBrush(_palette.HighlightBorder),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(10),
@@ -283,7 +283,7 @@ namespace MarkSmith.Views.MindMap
                 HorizontalAlignment = HorizontalAlignment.Left,
                 VerticalAlignment = VerticalAlignment.Top,
                 Margin = new Thickness(16, 12, 0, 0),
-                Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0xEE, 0x18, 0x20, 0x2C)),
+                Background = new SolidColorBrush(Tint(_palette.CardBackground, 0xEE)),
                 BorderBrush = new SolidColorBrush(_palette.HighlightBorder),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(8),
@@ -6146,7 +6146,7 @@ namespace MarkSmith.Views.MindMap
                     Padding = new Thickness(6, 2, 6, 2),
                     FontSize = 11,
                     Background = isCurrent
-                        ? new SolidColorBrush(Windows.UI.Color.FromArgb(0x40, 0x00, 0x78, 0xD7))
+                        ? new SolidColorBrush(Tint(_palette.HighlightBorder, 0x40))
                         : new SolidColorBrush(Microsoft.UI.Colors.Transparent),
                     BorderThickness = new Thickness(isCurrent ? 1 : 0),
                     BorderBrush = isCurrent ? new SolidColorBrush(_palette.HighlightBorder) : null,
@@ -6443,10 +6443,38 @@ namespace MarkSmith.Views.MindMap
             {
                 if (e.Link == null) e.Stroke.Color = ColorFromHex(_palette.HierarchyLine);
             }
+            RetintCanvasAdornments();
             UpdateTagPills();
             UpdateBreadcrumbs();
             RequestRedraw();
         }
+
+        /// <summary>
+        /// The snap guides, marquee, lasso and multi-select frame and badge are built once, with the
+        /// palette the window opened with. A theme switch left them in the old map's colours: the
+        /// selection badge stayed a near-black chip with white text even on Clean White.
+        /// </summary>
+        private void RetintCanvasAdornments()
+        {
+            var accent = new SolidColorBrush(_palette.HighlightBorder);
+            if (_snapGuideX != null) _snapGuideX.Stroke = accent;
+            if (_snapGuideY != null) _snapGuideY.Stroke = accent;
+            if (_lassoLine != null) _lassoLine.Stroke = accent;
+            if (_multiSelectFrame != null) _multiSelectFrame.Stroke = accent;
+            if (_marqueeBox != null)
+            {
+                _marqueeBox.Stroke = accent;
+                _marqueeBox.Fill = new SolidColorBrush(Tint(_palette.HighlightBorder, 0x28));
+            }
+            if (_multiSelectBadge != null)
+            {
+                _multiSelectBadge.Background = new SolidColorBrush(Tint(_palette.CardBackground, 0xEE));
+                _multiSelectBadge.BorderBrush = accent;
+            }
+            if (_multiSelectBadgeText != null) _multiSelectBadgeText.Foreground = new SolidColorBrush(_palette.Text);
+        }
+
+        private static Color Tint(Color c, byte alpha) => Color.FromArgb(alpha, c.R, c.G, c.B);
 
         private void OnSearchTextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
         {

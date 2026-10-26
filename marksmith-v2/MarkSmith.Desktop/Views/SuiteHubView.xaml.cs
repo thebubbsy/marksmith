@@ -4676,7 +4676,7 @@ public sealed partial class SuiteHubView : UserControl
 
             var clipboardError = await Services.ClipboardWriter.TrySetTextAsync(result.Summary);
 
-            var copyMessage = $"Dry-run: {result.TotalReplacementCount} replacements across {result.FilesRequiringNormalization} files (100% projected alignment)";
+            var copyMessage = $"Dry-run: {CountText.Of(result.TotalReplacementCount, "replacement")} across {CountText.Of(result.FilesRequiringNormalization, "file")} (100% projected alignment)";
             SetNotification(clipboardError is null ? copyMessage : Services.CopyStatusText.Failed(copyMessage, clipboardError), success: clipboardError is null);
 
             if (RecentDocsActionBtn != null)
@@ -4724,7 +4724,7 @@ public sealed partial class SuiteHubView : UserControl
 
                 var clipboardError = await Services.ClipboardWriter.TrySetTextAsync(result.Summary);
 
-                var copyMessage = $"Applied: {result.TotalReplacementsApplied} replacements across {result.FilesNormalized} files ({result.BackupsCreatedCount} backups)";
+                var copyMessage = $"Applied: {CountText.Of(result.TotalReplacementsApplied, "replacement")} across {CountText.Of(result.FilesNormalized, "file")} ({CountText.Of(result.BackupsCreatedCount, "backup")})";
                 SetNotification(clipboardError is null ? copyMessage : Services.CopyStatusText.Failed(copyMessage, clipboardError), success: clipboardError is null);
 
                 if (RecentDocsActionBtn != null)
