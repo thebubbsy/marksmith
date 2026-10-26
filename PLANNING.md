@@ -20937,3 +20937,36 @@ succeeded; user-facing notes prepended to the generated body
 3. Live-verify a plugin Install/Remove focus round trip on a machine where a small plugin download is acceptable.
 
 **Total user-visible improvements: 8** (4 path text box end-scrolls, 4 studio & diagnostic pluralization sweeps).
+
+
+## 2026-10-27 · Run #290 (08:05–08:25 AEDT) · Antigravity AI Agent
+
+**Agent / Execution Metadata**
+- Model: Antigravity AI Agent (Google DeepMind)
+- Modes: Scheduled Hourly Automation Routine
+- Trigger: Scheduled hourly MarkSmith WinUI 3 Desktop Polish Routine
+- Mandate: Shape Studio keyboard event isolation for sliders/lists/pills, and studio single Tab-stop XY-focus navigation sweep.
+
+**Delivered (user-visible):**
+1. **Shape Studio slider & preset list keyboard isolation (`FocusOwnsStudioKeys`):** Global window-level accelerators (`Ctrl+A`, `Ctrl+D`, `Delete`, `Backspace`, `Ctrl+]`, `Ctrl+Shift+]`, `Ctrl+[`, `Ctrl+Shift+[`) no longer hijack keystrokes when focus is inside interactive inspector sliders (Stroke thickness, Rotation, Mosaic density, Tile spacing, Line density), diagram preset lists (`PresetList`), category dropdowns (`PresetCategoryCombo`), or pill selectors. Pressing `Delete` or `Backspace` while focusing a preset item or adjusting a slider no longer deletes canvas shapes; canvas deletion/selection only triggers when the canvas is focused or explicitly within `ShapesList` layers.
+2. **Shape Studio shape tool palette arrow navigation & single Tab stop:** In `ShapeDesignStudioWindow.xaml`, `PaletteGrid` now features `XYFocusKeyboardNavigation="Enabled"` and `TabFocusNavigation="Once"`. The full 2D grid of shape tools is smoothly traversed using directional arrow keys (Left, Right, Up, Down), and pressing Tab passes the entire palette in a single keystroke instead of stepping through dozens of shape buttons.
+3. **Shape Studio diagram presets single Tab stop:** In `ShapeDesignStudioWindow.xaml`, `PresetList` is configured with `TabFocusNavigation="Once"`, allowing fast keyboard traversal past the preset browser into adjacent studio tools.
+4. **MindMap Galaxy tag filter strip arrow navigation & single Tab stop:** The horizontal tag filter strip in `MindMapGalaxyWindow.xaml` is now configured with `XYFocusKeyboardNavigation="Enabled"` and `TabFocusNavigation="Once"`. Users can smoothly browse tag filters with Left/Right arrow keys, while Tab passes the entire tag strip in one stop.
+5. **MindMap Galaxy duplicate shortcut isolation:** `Ctrl+D` in `MindMapGalaxyWindow.xaml.cs` now checks `canvasFocused`, ensuring that duplicate node actions only trigger when keyboard focus is actually within the galaxy canvas, preventing accidental node creation when interacting with sidebar controls.
+6. **SmartArt Studio layout carousel single Tab stop:** In `SmartArtDesignStudioWindow.xaml`, `QuickLayoutCarouselList` is now configured with `TabFocusNavigation="Once"`, allowing keyboard focus to traverse the entire horizontal layout carousel in one Tab stop while arrows cycle through layout presets.
+
+**Implementation Summary**
+- Desktop: `Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs` (introduced `IsWithin`, `IsCanvasFocused`, and `FocusOwnsStudioKeys`, guarding `Ctrl+A`, `Ctrl+D`, `Delete`, `Backspace`, and reorder keys), `Views/ShapeStudio/ShapeDesignStudioWindow.xaml` (`PaletteGrid` updated with `XYFocusKeyboardNavigation="Enabled"` and `TabFocusNavigation="Once"`; `PresetList` updated with `TabFocusNavigation="Once"`), `Views/MindMap/MindMapGalaxyWindow.xaml` (tag filter container updated with `XYFocusKeyboardNavigation="Enabled"` and `TabFocusNavigation="Once"`), `Views/MindMap/MindMapGalaxyWindow.xaml.cs` (`Ctrl+D` guarded with `canvasFocused`), `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` (`QuickLayoutCarouselList` updated with `TabFocusNavigation="Once"`).
+- Tests: `Run290KeyboardIsolationAndNavigationTests.cs` (comprehensive xUnit tests covering `FocusOwnsStudioKeys` hierarchy inspection, `OnRootPreviewKeyDown` keyboard exemptions, XAML `XYFocusKeyboardNavigation` and `TabFocusNavigation` contracts across Shape Studio, MindMap Galaxy, and SmartArt Studio).
+
+**Verified:**
+- `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: 0 errors.
+- Unit tests: `Run290KeyboardIsolationAndNavigationTests` (7/7 passed), combined test suite `Run290|Run289|Run288|Run287` (46/46 passed).
+- Smoke launch: Launched `Marksmith.exe` (PID 20972), confirmed running healthy after 5s without exit, closed cleanly.
+
+**Next up (Run #291):**
+1. Live-verify the status bar unfold handover on a wider display or with a smaller text scale.
+2. Live-verify a plugin Install/Remove focus round trip on a machine where a small plugin download is acceptable.
+3. Review OCR inspection studio image zoom and bounding box navigation for single Tab stop wrap.
+
+**Total user-visible improvements: 6** (1 keyboard isolation guard for sliders/lists/pills, 5 studio single Tab-stop and XY arrow navigation enhancements).

@@ -3815,7 +3815,7 @@ namespace MarkSmith.Views.MindMap
                     CopyMermaid(asFlowchart: true, "flowchart");
                     e.Handled = true;
                     return;
-                case Windows.System.VirtualKey.D when ctrl:
+                case Windows.System.VirtualKey.D when ctrl && canvasFocused:
                     ViewModel.DuplicateSelectedNode();
                     e.Handled = true;
                     return;

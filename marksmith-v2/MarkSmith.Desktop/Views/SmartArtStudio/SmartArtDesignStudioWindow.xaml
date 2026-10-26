@@ -1029,6 +1029,7 @@
                                       ItemsSource="{Binding Layouts}"
                                       SelectedItem="{Binding SelectedLayout, Mode=TwoWay}"
                                       SelectionMode="Single"
+                                      TabFocusNavigation="Once"
                                       IsItemClickEnabled="True"
                                       ItemClick="OnCarouselLayoutItemClick"
                                       ScrollViewer.HorizontalScrollBarVisibility="Hidden"
