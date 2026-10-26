@@ -378,9 +378,15 @@ public sealed partial class HistoryWindow : Window
             NoticeBar.IsOpen = false;
             return;
         }
-        NoticeBar.Severity = (InfoBarSeverity)(int)_vm.NoticeSeverity;
+        // Guidance ("Open notes.md in the editor first") is information, not a red error.
+        NoticeBar.Severity = _vm.NoticeIsError ? InfoBarSeverity.Error
+            : _vm.NoticeIsInfo ? InfoBarSeverity.Informational
+            : InfoBarSeverity.Success;
         NoticeBar.Message = _vm.Notice;
-        Microsoft.UI.Xaml.Automation.AutomationProperties.SetLiveSetting(NoticeBar, Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Assertive);
+        // Only an error interrupts what the screen reader is saying.
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetLiveSetting(NoticeBar, _vm.NoticeIsError
+            ? Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Assertive
+            : Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Polite);
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(NoticeBar, _vm.Notice);
         NoticeBar.IsOpen = true;
         LiveAnnounce.Raise(NoticeBar);
@@ -1106,7 +1112,7 @@ public sealed partial class HistoryWindow : Window
         var added = MarkSmith.Services.LineDiff.ExtractModifiedLines(_vm.UnifiedDiffRows, MarkSmith.Services.LineDiff.Kind.Added);
         if (added.Count == 0)
         {
-            _vm.ShowNotice("No added lines in this diff.");
+            _vm.ShowInfo("No added lines in this diff.");
             return;
         }
         var text = string.Join(Environment.NewLine, added);
@@ -1118,7 +1124,7 @@ public sealed partial class HistoryWindow : Window
         var removed = MarkSmith.Services.LineDiff.ExtractModifiedLines(_vm.UnifiedDiffRows, MarkSmith.Services.LineDiff.Kind.Removed);
         if (removed.Count == 0)
         {
-            _vm.ShowNotice("No removed lines in this diff.");
+            _vm.ShowInfo("No removed lines in this diff.");
             return;
         }
         var text = string.Join(Environment.NewLine, removed);
@@ -1130,7 +1136,7 @@ public sealed partial class HistoryWindow : Window
         var unchanged = MarkSmith.Services.LineDiff.ExtractModifiedLines(_vm.UnifiedDiffRows, MarkSmith.Services.LineDiff.Kind.Same);
         if (unchanged.Count == 0)
         {
-            _vm.ShowNotice("No unchanged context lines in this diff.");
+            _vm.ShowInfo("No unchanged context lines in this diff.");
             return;
         }
         var text = string.Join(Environment.NewLine, unchanged);
@@ -1346,7 +1352,7 @@ public sealed partial class HistoryWindow : Window
         var patch = await _vm.BuildUnifiedDiffPatchAsync(target);
         if (string.IsNullOrWhiteSpace(patch))
         {
-            _vm.ShowNotice("No line changes in this version to copy as a diff patch.", isError: true);
+            _vm.ShowInfo("No line changes in this version to copy as a diff patch.");
             var btnErr = feedbackButton ?? (CopyToolbarButton?.Visibility == Visibility.Visible && _vm.DiffMode != HistoryDiffMode.Preview ? CopyToolbarButton : null);
             if (btnErr is not null) CopyFeedback.ApplyButtonTick(btnErr, "No changes", "No changes");
             else if (feedbackIcon is not null) CopyFeedback.ApplyIconTick(feedbackIcon, feedbackButton, "No changes");
@@ -1743,7 +1749,7 @@ public sealed partial class HistoryWindow : Window
         {
             // No version to copy: say so instead of the shortcut doing nothing.
             e.Handled = true;
-            _vm.ShowNotice(_vm.NothingToCopyMessage(patch: isShift));
+            _vm.ShowInfo(_vm.NothingToCopyMessage(patch: isShift));
         }
         else if (e.Key == VirtualKey.F5 && !isCtrl && !isAlt)
         {

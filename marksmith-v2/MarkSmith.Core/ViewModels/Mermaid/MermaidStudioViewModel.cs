@@ -2972,6 +2972,26 @@ public partial class MermaidStudioViewModel : ObservableObject
         StatusText = $"Connector routing set to {value}.";
     }
 
+    private bool _presetFromUser;
+
+    /// <summary>
+    /// A preset button: recolours everything as one undo step (it used to be none) and says how to
+    /// take it back. Pressing the preset that's already applied used to do nothing at all.
+    /// </summary>
+    public void ApplyStylePreset(string name)
+    {
+        if (string.Equals(ActivePalette, name, StringComparison.Ordinal))
+        {
+            StatusText = $"'{name}' is already applied.";
+            return;
+        }
+        if (!StylePresets.Any(p => p.Name == name)) return;
+        SnapshotForUndo();
+        _presetFromUser = true;
+        try { ActivePalette = name; }
+        finally { _presetFromUser = false; }
+    }
+
     partial void OnActivePaletteChanged(string value)
     {
         var preset = StylePresets.FirstOrDefault(p => p.Name == value);
@@ -2986,7 +3006,8 @@ public partial class MermaidStudioViewModel : ObservableObject
         {
             c.StrokeColor = preset.Line;
         }
-        StatusText = $"Applied '{value}' palette.";
+        // One status line (one read-out): the undo hint only when a press took an undo step.
+        StatusText = _presetFromUser ? $"Applied '{value}' palette · Ctrl+Z to undo" : $"Applied '{value}' palette.";
     }
 
     public string GenerateMermaidCode()

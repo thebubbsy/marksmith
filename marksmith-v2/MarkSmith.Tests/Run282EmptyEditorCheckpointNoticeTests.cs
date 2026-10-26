@@ -53,6 +53,7 @@ public class Run282EmptyEditorCheckpointNoticeTests : IDisposable
 
         Assert.Equal("The editor is empty, so there's nothing to save as a checkpoint.", vm.Notice);
         Assert.Equal(StatusSeverity.Informational, vm.NoticeSeverity);
+        Assert.True(vm.NoticeIsInfo);
         Assert.False(vm.NoticeIsError);
         Assert.True(vm.HasNotice);
     }
@@ -71,11 +72,12 @@ public class Run282EmptyEditorCheckpointNoticeTests : IDisposable
 
         Assert.Equal("The editor is empty, so there's nothing to save as a checkpoint.", vm.Notice);
         Assert.Equal(StatusSeverity.Informational, vm.NoticeSeverity);
+        Assert.True(vm.NoticeIsInfo);
         Assert.False(vm.NoticeIsError);
     }
 
     [Fact]
-    public async Task NoDocumentSelected_TakeCheckpoint_RemainsError()
+    public async Task NoDocumentSelected_TakeCheckpoint_IsGuidanceInfo()
     {
         var vm = NewVm(NewService(), "", _ => "some text");
         await vm.LoadCommand.ExecuteAsync(null);
@@ -83,12 +85,13 @@ public class Run282EmptyEditorCheckpointNoticeTests : IDisposable
         await vm.TakeSnapshotCommand.ExecuteAsync(null);
 
         Assert.Equal(HistoryWindowViewModel.NoDocumentCheckpointNotice, vm.Notice);
-        Assert.Equal(StatusSeverity.Error, vm.NoticeSeverity);
-        Assert.True(vm.NoticeIsError);
+        Assert.Equal(StatusSeverity.Informational, vm.NoticeSeverity);
+        Assert.True(vm.NoticeIsInfo);
+        Assert.False(vm.NoticeIsError);
     }
 
     [Fact]
-    public async Task FileNotOpenInEditor_TakeCheckpoint_RemainsError()
+    public async Task FileNotOpenInEditor_TakeCheckpoint_IsGuidanceInfo()
     {
         var service = NewService();
         const string file = @"C:\docs\closed.md";
@@ -100,8 +103,9 @@ public class Run282EmptyEditorCheckpointNoticeTests : IDisposable
         await vm.TakeSnapshotCommand.ExecuteAsync(null);
 
         Assert.Equal($"Open closed.md in the editor first. A checkpoint saves the editor's current text.", vm.Notice);
-        Assert.Equal(StatusSeverity.Error, vm.NoticeSeverity);
-        Assert.True(vm.NoticeIsError);
+        Assert.Equal(StatusSeverity.Informational, vm.NoticeSeverity);
+        Assert.True(vm.NoticeIsInfo);
+        Assert.False(vm.NoticeIsError);
     }
 
     [Fact]
@@ -118,6 +122,7 @@ public class Run282EmptyEditorCheckpointNoticeTests : IDisposable
 
         Assert.Equal("Checkpoint “Release Milestone” saved.", vm.Notice);
         Assert.Equal(StatusSeverity.Success, vm.NoticeSeverity);
+        Assert.False(vm.NoticeIsInfo);
         Assert.False(vm.NoticeIsError);
     }
 
@@ -128,30 +133,40 @@ public class Run282EmptyEditorCheckpointNoticeTests : IDisposable
 
         vm.ShowNotice("Info test", StatusSeverity.Informational);
         Assert.Equal(StatusSeverity.Informational, vm.NoticeSeverity);
+        Assert.True(vm.NoticeIsInfo);
         Assert.False(vm.NoticeIsError);
 
         vm.ShowNotice("Warning test", StatusSeverity.Warning);
         Assert.Equal(StatusSeverity.Warning, vm.NoticeSeverity);
+        Assert.False(vm.NoticeIsInfo);
         Assert.False(vm.NoticeIsError);
 
         vm.ShowNotice("Error test", StatusSeverity.Error);
         Assert.Equal(StatusSeverity.Error, vm.NoticeSeverity);
+        Assert.False(vm.NoticeIsInfo);
         Assert.True(vm.NoticeIsError);
 
         vm.ShowNotice("Bool false test", isError: false);
         Assert.Equal(StatusSeverity.Success, vm.NoticeSeverity);
+        Assert.False(vm.NoticeIsInfo);
         Assert.False(vm.NoticeIsError);
 
         vm.ShowNotice("Bool true test", isError: true);
         Assert.Equal(StatusSeverity.Error, vm.NoticeSeverity);
+        Assert.False(vm.NoticeIsInfo);
         Assert.True(vm.NoticeIsError);
+
+        vm.ShowInfo("Info guidance");
+        Assert.Equal(StatusSeverity.Informational, vm.NoticeSeverity);
+        Assert.True(vm.NoticeIsInfo);
+        Assert.False(vm.NoticeIsError);
     }
 
     [Fact]
     public void HistoryWindow_SetsNoticeBarSeverity_FromNoticeSeverity()
     {
         var src = Read("MarkSmith.Desktop/Views/History/HistoryWindow.xaml.cs");
-        Assert.Contains("NoticeBar.Severity = (InfoBarSeverity)(int)_vm.NoticeSeverity;", src);
+        Assert.Contains("_vm.NoticeIsInfo ? InfoBarSeverity.Informational", src);
         Assert.Contains("NoticeHold.Attach(NoticeBar, _noticeTimer, () => NoticeBar.IsOpen && !_vm.NoticeIsError);", src);
         Assert.Contains("if (!_vm.NoticeIsError && !NoticeHold.IsHeld(NoticeBar)) _noticeTimer.Start();", src);
     }

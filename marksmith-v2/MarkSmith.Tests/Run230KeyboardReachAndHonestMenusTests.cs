@@ -115,7 +115,8 @@ public class Run230KeyboardReachAndHonestMenusTests
         Assert.DoesNotContain("CopyFolderButton ?? (Control)FolderPathBox", code);
         // Turn on collapses once the API is on: its focus goes to the always-visible check button.
         Assert.Contains("CheckNowButton.Focus(", Method(code, "void Refresh("));
-        Assert.Contains("CheckNowButton.Focus(", Method(code, "void OnTurnOnClick("));
+        // Run #282: parked there (FocusRescue keeps the keyboard rectangle) rather than focused by hand.
+        Assert.Contains("FocusRescue.Park(TurnOnButton, CheckNowButton)", Method(code, "void OnTurnOnClick("));
     }
 
     [Fact]

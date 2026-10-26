@@ -1,0 +1,9 @@
+# Internal Discovery Report (Pure-Python Native Socket Scanner)
+# Target / Subnet: 127.0.0.1 | Scanned Hosts: 1
+# Timestamp: 2026-10-19T11:51:05.903651+00:00
+
+Host: 127.0.0.1
+  Port: 135/tcp  Service: MS-RPC          Banner: Open
+  Port: 445/tcp  Service: SMB             Banner: Open
+  Port: 5985/tcp  Service: WinRM-HTTP      Banner: Open
+  Port: 8080/tcp  Service: HTTP-Proxy      Banner: Open

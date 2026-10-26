@@ -359,7 +359,11 @@ public sealed partial class SettingsView : UserControl
     {
         // Read-only, not disabled: a disabled key box (where Enter starts this) threw focus to the
         // window's first tab stop for the whole check.
-        FocusRescue.Park(ActivateButton, KeyBox);
+        var keyBoxFocus = KeyBox.FocusState;
+        // Keyboard users keep their focus rectangle on whatever the result focuses.
+        var how = keyBoxFocus == FocusState.Keyboard || ActivateButton.FocusState == FocusState.Keyboard
+            ? FocusState.Keyboard : FocusState.Programmatic;
+        var parked = FocusRescue.Park(ActivateButton, KeyBox);
         ActivateButton.IsEnabled = false;
         KeyBox.IsReadOnly = true;
         LicenseActionRing.Visibility = Visibility.Visible;
@@ -378,10 +382,14 @@ public sealed partial class SettingsView : UserControl
             LicenseActionRing.Visibility = Visibility.Collapsed;
             KeyBox.IsReadOnly = false;
             ActivateButton.IsEnabled = !string.IsNullOrWhiteSpace(KeyBox.Text);
-            if (ok && DeactivateButton.Visibility == Visibility.Visible)
-                DeactivateButton.Focus(FocusState.Programmatic);
-            else if (KeyEntryRow.Visibility == Visibility.Visible)
-                KeyBox.Focus(FocusState.Programmatic);
+            // Only while focus still waits on the key box (or was lost when the key row closed): a
+            // check that finished after the user moved on used to pull focus back from wherever they were.
+            var stillWaiting = parked.Waiting
+                || (keyBoxFocus != FocusState.Unfocused && FocusRescue.StillOn(KeyBox));
+            if (stillWaiting && ok && DeactivateButton.Visibility == Visibility.Visible)
+                DeactivateButton.Focus(how);
+            else if (stillWaiting && KeyEntryRow.Visibility == Visibility.Visible)
+                KeyBox.Focus(how);
         }
     }
 

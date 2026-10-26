@@ -436,9 +436,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
     private void OnPalettePresetClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel is null || sender is not FrameworkElement { Tag: string name }) return;
-        // A preset recolours everything: one undo step (it used to be none).
-        if (!string.Equals(ViewModel.ActivePalette, name, StringComparison.Ordinal)) ViewModel.SnapshotForUndo();
-        ViewModel.ActivePalette = name;
+        ViewModel.ApplyStylePreset(name);
         HighlightActivePalette();
     }
 
@@ -454,6 +452,13 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
             bool isActive = btn.Tag is string tag && tag == active;
             btn.BorderBrush = isActive ? accent : rest;
             btn.BorderThickness = isActive ? new Thickness(1.5) : new Thickness(1);
+            // The accent border was the only sign of the applied preset; screen readers get it too.
+            var label = btn.Tag as string ?? "";
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(btn, $"{label} style preset");
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetItemStatus(btn, isActive ? "Applied" : "");
+            ToolTipService.SetToolTip(btn, isActive
+                ? $"{label} is applied · Ctrl+Z undoes it"
+                : $"Recolour every node and connector with {label} · Ctrl+Z undoes it");
         }
     }
 

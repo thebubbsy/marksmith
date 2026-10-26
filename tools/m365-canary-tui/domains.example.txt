@@ -1,0 +1,3 @@
+# Example domains list for batch scanning (-l domains.example.txt)
+microsoft.com
+contoso.com

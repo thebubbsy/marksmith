@@ -97,7 +97,7 @@ public class Run269SilentShortcutsExplainThemselvesTests : IDisposable
         var src = Read("Views/History/HistoryWindow.xaml.cs");
         var body = Body(src, "private void OnRootKeyDown(");
         int copy = body.IndexOf("_ = CopyVersionMarkdownAsync(copyTarget", StringComparison.Ordinal);
-        int notice = body.IndexOf("_vm.ShowNotice(_vm.NothingToCopyMessage(patch: isShift));", StringComparison.Ordinal);
+        int notice = body.IndexOf("_vm.ShowInfo(_vm.NothingToCopyMessage(patch: isShift));", StringComparison.Ordinal);
         Assert.True(copy > 0 && notice > copy, "the fallback must come after both copy branches");
         // Text boxes and selectable text keep their own Ctrl+C.
         Assert.Contains("isCtrl && e.Key == VirtualKey.C && !inTextBox && !isAlt && e.OriginalSource is not (TextBlock or RichTextBlock)", body);
