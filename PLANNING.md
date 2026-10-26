@@ -20458,3 +20458,40 @@ are for the user to decide.
 **Release (same run):** tagged **v3.90.0** on `7f8062f` (this run's work; Antigravity's `f7766a9` lands in the next
 release). Release workflow run 40306502341 succeeded; user-facing notes prepended to the generated body
 (https://github.com/thebubbsy/marksmith/releases/tag/v3.90.0). `MarksmithBaseVersion` is now 3.91.0.
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #283 (2026-10-26, 22:05–22:30 AEDT)
+
+**Agent / Execution Metadata**
+- Models: Gemini 2.5 (`antigravity`)
+- Modes: Scheduled hourly desktop polish routine, dual-orchestrator continuous integration
+- Trigger: Scheduled MarkSmith WinUI 3 Desktop Polish Routine (22:00 firing)
+- Summary: Version History diff guidance severity refinement (informational line-jump and empty-content notices) and Command Palette automation ID accessibility discovery.
+
+**Picked up:**
+1. Run #282's "Next up" #2: Audit remaining `ShowNotice(..., isError: true)` call sites for guidance that should be information.
+2. Run #282's "Next up" #1: Command Palette UIA element discovery resolution (`SearchBox`, `ClearSearchButton`, `EscButton`, `Results`).
+
+**Delivered (user-visible & accessibility):**
+1. **Version History: diff line jump guidance is informational, not an error.** When jumping to a document line in the diff view (`JumpToDiffLine`), if the line is not in the active diff ("Line {targetLine} was not found in the active diff."), it now presents as a polite informational InfoBar (`_vm.ShowInfo`) that clears automatically after reading time, rather than a red error that interrupts screen readers assertively and stays pinned until dismissed.
+2. **Version History: missing version content notice is informational.** Attempting to copy Markdown from a version snapshot with no stored content now uses `_vm.ShowInfo("Couldn't copy that version's text: no content stored.")` for consistency with all other empty-state guidance notices.
+3. **Command Palette Automation ID Discovery**: Declared explicit `AutomationProperties.AutomationId` on `SearchBox`, `ClearSearchButton`, `EscButton`, and `Results` in `CommandPalette.xaml`. This allows UIA tools, screen readers, and automated verification to reliably locate the search box and palette controls directly by ID, resolving the background discovery issue noted in Run #282.
+
+**Implementation Summary**
+- `marksmith-v2/MarkSmith.Desktop/Views/History/HistoryWindow.xaml.cs`:
+  - In `JumpToDiffLine`, updated line-not-found branch from `ShowNotice(..., isError: true)` to `_vm.ShowInfo(...)`.
+  - In `CopyVersionMarkdownAsync`, updated empty-content branch from `ShowNotice(..., isError: true)` to `_vm.ShowInfo(...)`.
+- `marksmith-v2/MarkSmith.Desktop/Controls/CommandPalette.xaml`:
+  - Added `AutomationProperties.AutomationId="SearchBox"` to `SearchBox`.
+  - Added `AutomationProperties.AutomationId="ClearSearchButton"` to `ClearSearchButton`.
+  - Added `AutomationProperties.AutomationId="EscButton"` to `EscButton`.
+  - Added `AutomationProperties.AutomationId="Results"` to `Results`.
+- Tests: Added `Run283GuidanceSeverityAndPaletteA11yTests.cs` (covering History diff guidance calls, error notice avoidance, and Command Palette explicit automation IDs).
+- Verified:
+  - `dotnet test`: 210/210 targeted and regression tests passed (100%) across Run283, Run282, Run270, Run257, and History Polish suites.
+  - `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: 0 errors.
+  - Smoke-launched `Marksmith.exe` (PID 18832) in isolated scratch environment: running healthy, no startup crash.
+
+**Next up (Run #284):**
+1. Check why the command palette doesn't open from a UIA Invoke when the main window isn't foreground (host visibility transition vs foreground activation).
+2. Live-verify the Rescan (Step 1) focus round trip and an export with an image held open (carried over).
+3. Live-verify History's word pill with two snapshots (carried over).

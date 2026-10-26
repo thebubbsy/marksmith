@@ -73,6 +73,7 @@
                              BorderThickness="0" Background="Transparent"
                              PlaceholderText="Type a command: export, find, heading, theme…"
                              AutomationProperties.Name="Search commands"
+                             AutomationProperties.AutomationId="SearchBox"
                              TextChanged="OnSearchTextChanged"
                              ToolTipService.ToolTip="Type to filter commands · Up/Down to choose, Enter to run · Right-click or Shift+F10 for options">
                         <TextBox.Resources>
@@ -91,6 +92,7 @@
                             BorderThickness="0"
                             ToolTipService.ToolTip="Clear search query (Esc) · Right-click or Shift+F10 for options"
                             AutomationProperties.Name="Clear search query"
+                            AutomationProperties.AutomationId="ClearSearchButton"
                             RightTapped="OnClearSearchButtonRightTapped">
                         <FontIcon Glyph="&#xE711;" FontSize="10" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                   AutomationProperties.AccessibilityView="Raw" />
@@ -101,6 +103,7 @@
                             BorderThickness="0"
                             ToolTipService.ToolTip="Close (Esc) · Right-click or Shift+F10 for options"
                             AutomationProperties.Name="Close command palette"
+                            AutomationProperties.AutomationId="EscButton"
                             RightTapped="OnEscButtonRightTapped">
                         <Border Style="{StaticResource PaletteKeyCapStyle}">
                             <TextBlock Text="Esc" Style="{StaticResource PaletteKeyCapTextStyle}" />
@@ -118,7 +121,8 @@
                               ItemClick="OnResultClick"
                               RightTapped="OnResultsRightTapped"
                               ContainerContentChanging="OnContainerContentChanging"
-                              AutomationProperties.Name="Commands">
+                              AutomationProperties.Name="Commands"
+                              AutomationProperties.AutomationId="Results">
                         <!-- Sticky headings drew over the row scrolled beneath them (the header
                              container is transparent on acrylic), so headings scroll away. -->
                         <ListView.ItemsPanel>

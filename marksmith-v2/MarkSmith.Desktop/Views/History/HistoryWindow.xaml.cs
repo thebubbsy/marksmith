@@ -1292,7 +1292,7 @@ public sealed partial class HistoryWindow : Window
         }
         else
         {
-            _vm.ShowNotice($"Line {targetLine} was not found in the active diff.", isError: true);
+            _vm.ShowInfo($"Line {targetLine} was not found in the active diff.");
         }
     }
 
@@ -1322,7 +1322,7 @@ public sealed partial class HistoryWindow : Window
         var text = await _vm.GetVersionContentAsync(target);
         if (string.IsNullOrEmpty(text))
         {
-            _vm.ShowNotice("Couldn't copy that version's text: no content stored.", isError: true);
+            _vm.ShowInfo("Couldn't copy that version's text: no content stored.");
             var btnErr = feedbackButton ?? (CopyToolbarButton?.Visibility == Visibility.Visible && _vm.DiffMode == HistoryDiffMode.Preview ? CopyToolbarButton : null);
             if (btnErr is not null) CopyFeedback.ApplyButtonTick(btnErr, "No content", "No content");
             else if (feedbackIcon is not null) CopyFeedback.ApplyIconTick(feedbackIcon, feedbackButton, "No content");
