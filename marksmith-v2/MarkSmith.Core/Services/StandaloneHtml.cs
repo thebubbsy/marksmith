@@ -74,7 +74,7 @@ public static class StandaloneHtml
             {
                 var file = DocumentImages.ServedPath(m.Groups["url"].Value);
                 if (file is null) return m.Value;
-                try { return m.Groups["pre"].Value + $"data:{DocumentImages.MimeFor(file)};base64,{Convert.ToBase64String(File.ReadAllBytes(file))}" + m.Groups["post"].Value; }
+                try { return m.Groups["pre"].Value + $"data:{DocumentImages.MimeFor(file)};base64,{Convert.ToBase64String(SharedFile.ReadAllBytes(file))}" + m.Groups["post"].Value; }
                 catch { return m.Value; }
             });
         }

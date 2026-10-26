@@ -56,7 +56,7 @@ namespace MarkSmith.Core.Generator
 
                 if (File.Exists(imagePath))
                 {
-                    using var imgStream = File.OpenRead(imagePath);
+                    using var imgStream = MarkSmith.Services.SharedFile.OpenRead(imagePath);
                     var entry = archive.CreateEntry(mediaName);
                     using var stream = entry.Open();
                     imgStream.CopyTo(stream);

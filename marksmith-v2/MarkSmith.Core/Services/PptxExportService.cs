@@ -262,7 +262,7 @@ public sealed class PptxExportService
         if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return null;
         try
         {
-            var bytes = File.ReadAllBytes(path);
+            var bytes = SharedFile.ReadAllBytes(path);
             using var codec = SkiaSharp.SKCodec.Create(new SkiaSharp.SKMemoryStream(bytes));
             if (codec is null) return null;
             var type = codec.EncodedFormat switch
@@ -880,7 +880,7 @@ public sealed class PptxExportService
                     if (!File.Exists(imgPath)) continue;
                     var ext = Path.GetExtension(imgPath).TrimStart('.').ToLowerInvariant();
                     var img = dm.AddImagePart(ext is "jpg" or "jpeg" ? ImagePartType.Jpeg : ImagePartType.Png, rId);
-                    using var fs = File.OpenRead(imgPath);
+                    using var fs = SharedFile.OpenRead(imgPath);
                     img.FeedData(fs);
                 }
 

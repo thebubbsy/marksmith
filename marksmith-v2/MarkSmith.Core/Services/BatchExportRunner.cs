@@ -77,7 +77,7 @@ public sealed class BatchExportRunner
         foreach (var file in files)
         {
             var fileName = Path.GetFileNameWithoutExtension(file);
-            var markdown = await File.ReadAllTextAsync(file);
+            var markdown = await SharedFile.ReadAllTextAsync(file);
             using var images = DocumentImages.UseFolder(Path.GetDirectoryName(Path.GetFullPath(file)));
 
             foreach (var fmt in options.Formats)

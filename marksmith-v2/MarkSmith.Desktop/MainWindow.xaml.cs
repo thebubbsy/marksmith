@@ -5405,7 +5405,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 {
                     if (path is not null)
                     {
-                        var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite).AsRandomAccessStream();
+                        var stream = MarkSmith.Services.SharedFile.OpenRead(path).AsRandomAccessStream();
                         e.Response = core.Environment.CreateWebResourceResponse(stream, 200, "OK",
                             $"Content-Type: {Services.DocumentImages.MimeFor(path)}\r\nCache-Control: no-cache");
                         return;
@@ -11568,7 +11568,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             }
             var formatted = string.Join(Environment.NewLine, links.Select(l => $"- [{l.Label}]({l.Url})"));
             InsertMarkdown($"## References & Links\n\n{formatted}\n\n");
-            AnnounceStatus($"Inserted Link Index ({links.Count:N0} links) at cursor");
+            AnnounceStatus($"Inserted Link Index ({CountText.Of(links.Count, "link")}) at cursor");
         };
         menu.Items.Add(insertLinksItem);
 
@@ -12348,7 +12348,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         var formatted = string.Join(
             Environment.NewLine + Environment.NewLine,
             blocks.Select(b => $"```{b.Language}{Environment.NewLine}{b.Code}{Environment.NewLine}```"));
-        CopyAndAnnounce(formatted, $"Copied {CountText.Of(blocks.Count, "fenced code block")} ({totalLines:N0} lines) to clipboard");
+        CopyAndAnnounce(formatted, $"Copied {CountText.Of(blocks.Count, "fenced code block")} ({CountText.Of(totalLines, "line")}) to clipboard");
     }
 
     private void OnStatusCopyCodeButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
@@ -12381,7 +12381,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             }
             var raw = string.Join(Environment.NewLine + Environment.NewLine, blocks.Select(b => b.Code));
             var totalLines = blocks.Sum(b => b.LineCount);
-            CopyAndAnnounce(raw, $"Copied {CountText.Of(blocks.Count, "raw code snippet")} ({totalLines:N0} lines) to clipboard");
+            CopyAndAnnounce(raw, $"Copied {CountText.Of(blocks.Count, "raw code snippet")} ({CountText.Of(totalLines, "line")}) to clipboard");
         };
         menu.Items.Add(rawCodeItem);
 
@@ -12411,7 +12411,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             {
                 sb.AppendLine($"| `{g.Key}` | {g.Count():N0} | {g.Sum(x => x.LineCount):N0} |");
             }
-            CopyAndAnnounce(sb.ToString().TrimEnd(), $"Copied Code Language Breakdown ({grouped.Count:N0} languages, {blocks.Count:N0} blocks) to clipboard");
+            CopyAndAnnounce(sb.ToString().TrimEnd(), $"Copied Code Language Breakdown ({CountText.Of(grouped.Count, "language")}, {CountText.Of(blocks.Count, "block")}) to clipboard");
         };
         menu.Items.Add(breakdownItem);
 
@@ -12445,7 +12445,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             }
             sb.AppendLine();
             InsertMarkdown(sb.ToString());
-            AnnounceStatus($"Inserted Code Language Summary ({blocks.Count:N0} blocks) at cursor");
+            AnnounceStatus($"Inserted Code Language Summary ({CountText.Of(blocks.Count, "block")}) at cursor");
         };
         menu.Items.Add(insertCatalogItem);
 
@@ -12573,7 +12573,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 }
             }
             var totalRows = tables.Sum(t => t.Rows.Count);
-            CopyAndAnnounce(sb.ToString().TrimEnd(), $"Copied {CountText.Of(tables.Count, "table")} ({totalRows:N0} rows) as TSV for Excel/Sheets");
+            CopyAndAnnounce(sb.ToString().TrimEnd(), $"Copied {CountText.Of(tables.Count, "table")} ({CountText.Of(totalRows, "row")}) as TSV for Excel/Sheets");
         };
         menu.Items.Add(copyTsvItem);
 
@@ -12600,7 +12600,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 var hdrPreview = string.Join(", ", t.Headers.Select(h => h.Replace("|", "\\|")));
                 sb.AppendLine($"| #{idx + 1} | {t.Headers.Count:N0} | {t.Rows.Count:N0} | {hdrPreview} |");
             }
-            CopyAndAnnounce(sb.ToString().TrimEnd(), $"Copied Table Inventory Summary ({tables.Count:N0} tables) to clipboard");
+            CopyAndAnnounce(sb.ToString().TrimEnd(), $"Copied Table Inventory Summary ({CountText.Of(tables.Count, "table")}) to clipboard");
         };
         menu.Items.Add(copySummaryItem);
 
@@ -12631,7 +12631,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             }
             sb.AppendLine();
             InsertMarkdown(sb.ToString());
-            AnnounceStatus($"Inserted Table Inventory Summary ({tables.Count:N0} tables) at cursor");
+            AnnounceStatus($"Inserted Table Inventory Summary ({CountText.Of(tables.Count, "table")}) at cursor");
         };
         menu.Items.Add(insertSummaryItem);
 
@@ -12794,7 +12794,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             }
             sb.AppendLine();
             InsertMarkdown(sb.ToString());
-            AnnounceStatus($"Inserted Task Progress Summary ({tasks.Count:N0} tasks) at cursor");
+            AnnounceStatus($"Inserted Task Progress Summary ({CountText.Of(tasks.Count, "task")}) at cursor");
         };
         menu.Items.Add(insertSummaryTableItem);
 
@@ -13250,7 +13250,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 var cleanSummary = b.SummaryText.Replace("\r", " ").Replace("\n", " ").Replace("|", "\\|");
                 sb.AppendLine($"| {idx + 1} | `{b.CalloutType}` | Ln {b.StartLine} | {b.LineCount} | {cleanSummary} |");
             }
-            CopyAndAnnounce(sb.ToString().TrimEnd(), $"Copied Callout Inventory Table ({blocks.Count:N0} blocks) to clipboard");
+            CopyAndAnnounce(sb.ToString().TrimEnd(), $"Copied Callout Inventory Table ({CountText.Of(blocks.Count, "block")}) to clipboard");
         };
         menu.Items.Add(copyTableItem);
 
@@ -13280,7 +13280,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             }
             sb.AppendLine();
             InsertMarkdown(sb.ToString());
-            AnnounceStatus($"Inserted Callout Inventory Table ({blocks.Count:N0} blocks) at cursor");
+            AnnounceStatus($"Inserted Callout Inventory Table ({CountText.Of(blocks.Count, "block")}) at cursor");
         };
         menu.Items.Add(insertTableItem);
 
@@ -13422,7 +13422,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 var cleanSrc = img.SourceUrl.Replace("|", "\\|");
                 sb.AppendLine($"| {idx + 1} | `{img.SyntaxType}` | Ln {img.LineNumber} | {cleanAlt} | `{cleanSrc}` |");
             }
-            CopyAndAnnounce(sb.ToString().TrimEnd(), $"Copied Image Asset Inventory Table ({images.Count:N0} images) to clipboard");
+            CopyAndAnnounce(sb.ToString().TrimEnd(), $"Copied Image Asset Inventory Table ({CountText.Of(images.Count, "image")}) to clipboard");
         };
         menu.Items.Add(copyTableItem);
 
@@ -13453,7 +13453,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             }
             sb.AppendLine();
             InsertMarkdown(sb.ToString());
-            AnnounceStatus($"Inserted Image Asset Inventory Table ({images.Count:N0} images) at cursor");
+            AnnounceStatus($"Inserted Image Asset Inventory Table ({CountText.Of(images.Count, "image")}) at cursor");
         };
         menu.Items.Add(insertTableItem);
 
@@ -13636,7 +13636,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 var cleanDef = string.IsNullOrWhiteSpace(fn.DefinitionText) ? "_(none)_" : fn.DefinitionText.Replace("|", "\\|");
                 sb.AppendLine($"| {idx + 1} | `[^{fn.Id}]` | {fn.ReferenceCount} | {refLinesStr} | {defLineStr} | {status} | {cleanDef} |");
             }
-            CopyAndAnnounce(sb.ToString().TrimEnd(), $"Copied Footnote Inventory Table ({footnotes.Count:N0} footnotes) to clipboard");
+            CopyAndAnnounce(sb.ToString().TrimEnd(), $"Copied Footnote Inventory Table ({CountText.Of(footnotes.Count, "footnote")}) to clipboard");
         };
         menu.Items.Add(copyTableItem);
 
@@ -13669,7 +13669,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             }
             sb.AppendLine();
             InsertMarkdown(sb.ToString());
-            AnnounceStatus($"Inserted Footnote Inventory Table ({footnotes.Count:N0} footnotes) at cursor");
+            AnnounceStatus($"Inserted Footnote Inventory Table ({CountText.Of(footnotes.Count, "footnote")}) at cursor");
         };
         menu.Items.Add(insertTableItem);
 
@@ -13872,7 +13872,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 var cleanSub = d.SubType.Replace("|", "\\|");
                 sb.AppendLine($"| {idx + 1} | `{d.Kind}` | `{cleanSub}` | {d.LineCount} | Ln {d.StartLine}–{d.EndLine} |");
             }
-            CopyAndAnnounce(sb.ToString().TrimEnd(), $"Copied Diagram Inventory Table ({diagrams.Count:N0} blocks) to clipboard");
+            CopyAndAnnounce(sb.ToString().TrimEnd(), $"Copied Diagram Inventory Table ({CountText.Of(diagrams.Count, "block")}) to clipboard");
         };
         menu.Items.Add(copyTableItem);
 
@@ -13902,7 +13902,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             }
             sb.AppendLine();
             InsertMarkdown(sb.ToString());
-            AnnounceStatus($"Inserted Diagram Inventory Table ({diagrams.Count:N0} blocks) at cursor");
+            AnnounceStatus($"Inserted Diagram Inventory Table ({CountText.Of(diagrams.Count, "block")}) at cursor");
         };
         menu.Items.Add(insertTableItem);
 
@@ -14088,7 +14088,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         }
 
                 var stats = ViewModel.DocumentStats;
-        CopyAndAnnounce(md, $"Copied Markdown ({stats.Words:N0} words, {stats.Lines:N0} lines) to clipboard");
+        CopyAndAnnounce(md, $"Copied Markdown ({CountText.Of(stats.Words, "word")}, {CountText.Of(stats.Lines, "line")}) to clipboard");
     }
 
     private void OnStatusCopyMarkdownButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
@@ -14112,7 +14112,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 AnnounceStatus("Document is empty — nothing to copy");
                 return;
             }
-            CopyAndAnnounce(md, $"Copied Markdown ({ViewModel.DocumentStats.Words:N0} words) to clipboard");
+            CopyAndAnnounce(md, $"Copied Markdown ({CountText.Of(ViewModel.DocumentStats.Words, "word")}) to clipboard");
         };
         menu.Items.Add(copyMdItem);
 
@@ -14207,7 +14207,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             return;
         }
 
-        CopyAndAnnounce(toc, $"Copied Markdown Table of Contents ({count:N0} headings) to clipboard");
+        CopyAndAnnounce(toc, $"Copied Markdown Table of Contents ({CountText.Of(count, "heading")}) to clipboard");
     }
 
     private void OnStatusCopyTocButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
@@ -14238,7 +14238,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 AnnounceStatus("No Markdown headings found in document");
                 return;
             }
-            CopyAndAnnounce(outline, $"Copied plain heading outline ({count:N0} headings) to clipboard");
+            CopyAndAnnounce(outline, $"Copied plain heading outline ({CountText.Of(count, "heading")}) to clipboard");
         };
         menu.Items.Add(plainItem);
 
@@ -14256,7 +14256,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 return;
             }
             InsertMarkdown($"## Table of Contents\n\n{toc}\n\n");
-            AnnounceStatus($"Inserted Table of Contents ({count:N0} headings) at cursor");
+            AnnounceStatus($"Inserted Table of Contents ({CountText.Of(count, "heading")}) at cursor");
         };
         menu.Items.Add(insertItem);
 
@@ -14391,9 +14391,9 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         copyWordsBtn.Click += (_, _) =>
         {
             flyout.Hide();
-            CopyAndAnnounce($"{stats.Words:N0} words", $"Copied word count: {stats.Words:N0} words");
+            CopyAndAnnounce(CountText.Of(stats.Words, "word"), $"Copied word count: {CountText.Of(stats.Words, "word")}");
         };
-        ToolTipService.SetToolTip(copyWordsBtn, $"Copy “{stats.Words:N0} words” to the clipboard");
+        ToolTipService.SetToolTip(copyWordsBtn, $"Copy “{CountText.Of(stats.Words, "word")}” to the clipboard");
         btnBar.Children.Add(copyWordsBtn);
 
         var copySummaryBtn = new Button
@@ -16682,7 +16682,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 Services.TableModel tableModel;
                 if (ext == ".xlsx")
                 {
-                    using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                    using var stream = MarkSmith.Services.SharedFile.OpenRead(filePath);
                     var sheets = Services.SpreadsheetService.ReadXlsx(stream);
                     if (sheets.Count == 0)
                     {
@@ -16928,7 +16928,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
 
             if (ext == ".xlsx")
             {
-                using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                using var stream = MarkSmith.Services.SharedFile.OpenRead(filePath);
                 var sheets = Services.SpreadsheetService.ReadXlsx(stream);
                 if (sheets.Count == 0)
                 {

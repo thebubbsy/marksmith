@@ -125,7 +125,7 @@ public sealed class OcrEngineService
     /// <summary>Loads an image file and applies OCR-friendly preprocessing.</summary>
     private static SKBitmap? LoadAndPreprocess(string path)
     {
-        using var stream = File.OpenRead(path);
+        using var stream = SharedFile.OpenRead(path);
         return PreprocessStream(stream);
     }
 
@@ -247,7 +247,7 @@ public sealed class OcrEngineService
     private static List<SKBitmap> RenderPdfPages(string pdfPath, float dpi)
     {
         var bitmaps = new List<SKBitmap>();
-        using var stream = File.OpenRead(pdfPath);
+        using var stream = SharedFile.OpenRead(pdfPath);
         // Use PdfDocumentOpenMode.Import for reading/extracting PDF document streams (ReadOnly is obsolete CS0618)
         using var doc = PdfSharp.Pdf.IO.PdfReader.Open(stream, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import);
 

@@ -839,7 +839,7 @@ public sealed class EmailHtmlRenderer
             // The same lookup as the preview and every other exporter (relative to the document).
             var path = DocumentImages.Resolve(url, _options.BaseDirectory);
             if (path is null) return false;
-            bytes = File.ReadAllBytes(path);
+            bytes = SharedFile.ReadAllBytes(path);
             name = Path.GetFileName(path);
             mime = Path.GetExtension(path).ToLowerInvariant() switch
             {

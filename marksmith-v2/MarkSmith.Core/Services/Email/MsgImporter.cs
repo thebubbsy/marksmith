@@ -49,7 +49,7 @@ public static class MsgImporter
     /// An unsent message (a draft) gets <c>X-Unsent: 1</c>, as an .eml draft would.</summary>
     public static MimeMessage ToMimeMessage(string msgPath)
     {
-        using var stream = new FileStream(msgPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        using var stream = SharedFile.OpenRead(msgPath);
         using var msg = new OutlookMessage(stream);
         var mime = new MimeMessage { Subject = msg.Subject ?? "" };
 

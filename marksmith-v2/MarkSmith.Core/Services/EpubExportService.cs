@@ -113,7 +113,7 @@ public sealed class EpubExportService
                     ".svg" => "cover.svg",
                     _ => "cover.img"
                 };
-                coverBytes = File.ReadAllBytes(logoPath);
+                coverBytes = SharedFile.ReadAllBytes(logoPath);
             }
         }
 
@@ -149,7 +149,7 @@ public sealed class EpubExportService
             if (!embedded.TryGetValue(resolved, out var file))
             {
                 file = $"images/{images.Count + 1:000}{Path.GetExtension(resolved).ToLowerInvariant()}";
-                try { images.Add(new($"img{images.Count + 1:000}", file, media, File.ReadAllBytes(resolved))); }
+                try { images.Add(new($"img{images.Count + 1:000}", file, media, SharedFile.ReadAllBytes(resolved))); }
                 catch { continue; }
                 embedded[resolved] = file;
             }

@@ -3541,7 +3541,7 @@ public sealed partial class SuiteHubView : UserControl
 
             var clipboardError = await Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
 
-            var copyMessage = $"Copied format matrix: {audit.TotalFormats} formats (Diversity: {audit.DiversityIndex:0.##})";
+            var copyMessage = $"Copied format matrix: {CountText.Of(audit.TotalFormats, "format")} (Diversity: {audit.DiversityIndex:0.##})";
             SetNotification(clipboardError is null ? copyMessage : Services.CopyStatusText.Failed(copyMessage, clipboardError), success: clipboardError is null);
 
             if (RecentDocsActionBtn != null)
@@ -3658,7 +3658,7 @@ public sealed partial class SuiteHubView : UserControl
 
             var clipboardError = await Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
 
-            var copyMessage = $"Copied storage footprint: {audit.FormattedTotalSize} across {audit.ExistingFiles} files (avg {audit.FormattedAverageSize})";
+            var copyMessage = $"Copied storage footprint: {audit.FormattedTotalSize} across {CountText.Of(audit.ExistingFiles, "file")} (avg {audit.FormattedAverageSize})";
             SetNotification(clipboardError is null ? copyMessage : Services.CopyStatusText.Failed(copyMessage, clipboardError), success: clipboardError is null);
 
             if (RecentDocsActionBtn != null)
@@ -3697,7 +3697,7 @@ public sealed partial class SuiteHubView : UserControl
 
             var clipboardError = await Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
 
-            var copyMessage = $"Copied naming conventions audit: {audit.DominantConvention} ({audit.ConsistencyScore:0.#}%) across {audit.TotalFiles} files";
+            var copyMessage = $"Copied naming conventions audit: {audit.DominantConvention} ({audit.ConsistencyScore:0.#}%) across {CountText.Of(audit.TotalFiles, "file")}";
             SetNotification(clipboardError is null ? copyMessage : Services.CopyStatusText.Failed(copyMessage, clipboardError), success: clipboardError is null);
 
             if (RecentDocsActionBtn != null)
@@ -3775,7 +3775,7 @@ public sealed partial class SuiteHubView : UserControl
 
             var clipboardError = await Services.ClipboardWriter.TrySetTextAsync(audit.Summary);
 
-            var copyMessage = $"Copied extension diversity audit: {audit.DiversityCategory} · {audit.UniqueExtensions} formats across {audit.TotalFiles} files";
+            var copyMessage = $"Copied extension diversity audit: {audit.DiversityCategory} · {CountText.Of(audit.UniqueExtensions, "format")} across {CountText.Of(audit.TotalFiles, "file")}";
             SetNotification(clipboardError is null ? copyMessage : Services.CopyStatusText.Failed(copyMessage, clipboardError), success: clipboardError is null);
 
             if (RecentDocsActionBtn != null)
@@ -4768,7 +4768,7 @@ public sealed partial class SuiteHubView : UserControl
 
             var clipboardError = await Services.ClipboardWriter.TrySetTextAsync(result.Summary);
 
-            var copyMessage = $"Frontmatter: {result.ConformingFilesCount}/{result.FilesWithFrontmatter} conforming ({result.MissingKeysViolationsCount} missing keys, {result.DateFormatViolationsCount} date errors)";
+            var copyMessage = $"Frontmatter: {result.ConformingFilesCount}/{result.FilesWithFrontmatter} conforming ({CountText.Of(result.MissingKeysViolationsCount, "missing key")}, {CountText.Of(result.DateFormatViolationsCount, "date error")})";
             SetNotification(clipboardError is null ? copyMessage : Services.CopyStatusText.Failed(copyMessage, clipboardError), success: clipboardError is null);
 
             if (RecentDocsActionBtn != null)
@@ -4885,7 +4885,7 @@ public sealed partial class SuiteHubView : UserControl
 
             var clipboardError = await Services.ClipboardWriter.TrySetTextAsync(result.Summary);
 
-            var copyMessage = $"Word Counts: {result.TotalWords} words (~{result.TotalReadingMinutes:0.#} min read across {result.TotalFilesScanned} docs, longest: {result.LongestDocumentName})";
+            var copyMessage = $"Word Counts: {CountText.Of(result.TotalWords, "word")} (~{result.TotalReadingMinutes:0.#} min read across {CountText.Of(result.TotalFilesScanned, "doc")}, longest: {result.LongestDocumentName})";
             SetNotification(clipboardError is null ? copyMessage : Services.CopyStatusText.Failed(copyMessage, clipboardError), success: clipboardError is null);
 
             if (RecentDocsActionBtn != null)
@@ -4924,7 +4924,7 @@ public sealed partial class SuiteHubView : UserControl
 
             var clipboardError = await Services.ClipboardWriter.TrySetTextAsync(result.Summary);
 
-            var copyMessage = $"Code Blocks: {result.TotalCodeBlocks} blocks ({result.TaggedCodeBlocks} tagged across {result.TotalFilesScanned} docs)";
+            var copyMessage = $"Code Blocks: {CountText.Of(result.TotalCodeBlocks, "block")} ({result.TaggedCodeBlocks:N0} tagged across {CountText.Of(result.TotalFilesScanned, "doc")})";
             SetNotification(clipboardError is null ? copyMessage : Services.CopyStatusText.Failed(copyMessage, clipboardError), success: clipboardError is null);
 
             if (RecentDocsActionBtn != null)
@@ -4963,7 +4963,7 @@ public sealed partial class SuiteHubView : UserControl
 
             var clipboardError = await Services.ClipboardWriter.TrySetTextAsync(result.Summary);
 
-            var copyMessage = $"Math Formulas: {result.TotalFormulasFound} formulas ({result.SyntaxErrorCount} errors across {result.TotalFilesScanned} docs)";
+            var copyMessage = $"Math Formulas: {CountText.Of(result.TotalFormulasFound, "formula")} ({CountText.Of(result.SyntaxErrorCount, "error")} across {CountText.Of(result.TotalFilesScanned, "doc")})";
             SetNotification(clipboardError is null ? copyMessage : Services.CopyStatusText.Failed(copyMessage, clipboardError), success: clipboardError is null);
 
             if (RecentDocsActionBtn != null)
@@ -5002,7 +5002,7 @@ public sealed partial class SuiteHubView : UserControl
 
             var clipboardError = await Services.ClipboardWriter.TrySetTextAsync(result.Summary);
 
-            var copyMessage = $"Table Alignment: {result.TotalTablesFound} tables ({result.RaggedColumnCount} ragged across {result.TotalFilesScanned} docs)";
+            var copyMessage = $"Table Alignment: {CountText.Of(result.TotalTablesFound, "table")} ({result.RaggedColumnCount:N0} ragged across {CountText.Of(result.TotalFilesScanned, "doc")})";
             SetNotification(clipboardError is null ? copyMessage : Services.CopyStatusText.Failed(copyMessage, clipboardError), success: clipboardError is null);
 
             if (RecentDocsActionBtn != null)
@@ -5041,7 +5041,7 @@ public sealed partial class SuiteHubView : UserControl
 
             var clipboardError = await Services.ClipboardWriter.TrySetTextAsync(result.Summary);
 
-            var copyMessage = $"Frontmatter: {result.FrontmatterDocumentCount} docs with frontmatter ({result.MissingRequiredKeysCount} missing keys across {result.TotalDocumentsAudited} docs)";
+            var copyMessage = $"Frontmatter: {CountText.Of(result.FrontmatterDocumentCount, "doc")} with frontmatter ({CountText.Of(result.MissingRequiredKeysCount, "missing key")} across {CountText.Of(result.TotalDocumentsAudited, "doc")})";
             SetNotification(clipboardError is null ? copyMessage : Services.CopyStatusText.Failed(copyMessage, clipboardError), success: clipboardError is null);
 
             if (RecentDocsActionBtn != null)
@@ -5080,7 +5080,7 @@ public sealed partial class SuiteHubView : UserControl
 
             var clipboardError = await Services.ClipboardWriter.TrySetTextAsync(result.Summary);
 
-            var copyMessage = $"Workspace Tasks: {result.CompletedTasksCount}/{result.TotalTasksFound} completed ({result.WorkspaceCompletionPercentage:0.#}%) across {result.DocumentsWithTasksCount} docs";
+            var copyMessage = $"Workspace Tasks: {result.CompletedTasksCount}/{result.TotalTasksFound} completed ({result.WorkspaceCompletionPercentage:0.#}%) across {CountText.Of(result.DocumentsWithTasksCount, "doc")}";
             SetNotification(clipboardError is null ? copyMessage : Services.CopyStatusText.Failed(copyMessage, clipboardError), success: clipboardError is null);
 
             if (RecentDocsActionBtn != null)
@@ -5119,7 +5119,7 @@ public sealed partial class SuiteHubView : UserControl
 
             var clipboardError = await Services.ClipboardWriter.TrySetTextAsync(result.Summary);
 
-            var copyMessage = $"Cross-Doc Links: {result.TotalLinksAudited} links ({result.ValidLinksCount} valid, {result.MissingFileCount} missing files, {result.MissingAnchorCount} missing anchors) across {result.DocumentsWithLinksCount} docs";
+            var copyMessage = $"Cross-Doc Links: {CountText.Of(result.TotalLinksAudited, "link")} ({result.ValidLinksCount:N0} valid, {CountText.Of(result.MissingFileCount, "missing file")}, {CountText.Of(result.MissingAnchorCount, "missing anchor")}) across {CountText.Of(result.DocumentsWithLinksCount, "doc")}";
             SetNotification(clipboardError is null ? copyMessage : Services.CopyStatusText.Failed(copyMessage, clipboardError), success: clipboardError is null);
 
             if (RecentDocsActionBtn != null)
@@ -5158,7 +5158,7 @@ public sealed partial class SuiteHubView : UserControl
 
             var clipboardError = await Services.ClipboardWriter.TrySetTextAsync(result.Summary);
 
-            var copyMessage = $"Workspace Images: {result.TotalImagesFound} found ({result.ValidLocalImagesCount} valid local, {result.BrokenLocalImagesCount} broken) across {result.DocumentsWithImagesCount} docs";
+            var copyMessage = $"Workspace Images: {result.TotalImagesFound} found ({result.ValidLocalImagesCount} valid local, {result.BrokenLocalImagesCount} broken) across {CountText.Of(result.DocumentsWithImagesCount, "doc")}";
             SetNotification(clipboardError is null ? copyMessage : Services.CopyStatusText.Failed(copyMessage, clipboardError), success: clipboardError is null);
 
             if (RecentDocsActionBtn != null)

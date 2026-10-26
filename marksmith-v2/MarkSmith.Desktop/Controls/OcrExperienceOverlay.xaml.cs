@@ -924,13 +924,13 @@ public sealed partial class OcrExperienceOverlay : UserControl, IOcrObserver
             : "";
         int pagesCount = Math.Max(1, _assembledPages.Count);
         string pagesLabel = pagesCount > 1 ? $"{pagesCount} pages · " : "";
-        FinalBannerText.Text = $"✓ {pagesLabel}{_totalBlocks} block{(_totalBlocks == 1 ? "" : "s")} ({_totalWords} words{visualsNote}) assembled in Markdown — opening in editor…";
+        FinalBannerText.Text = $"✓ {pagesLabel}{MarkSmith.Services.CountText.Of(_totalBlocks, "block")} ({MarkSmith.Services.CountText.Of(_totalWords, "word")}{visualsNote}) assembled in Markdown — opening in editor…";
 
         MarkdownScrollViewer.Visibility = Visibility.Collapsed;
         FinalMarkdownSheetBorder.Visibility = Visibility.Visible;
 
         SetStatus($"All {pagesCount} page{(pagesCount == 1 ? "" : "s")} assembled in Markdown — handing off to the editor…", 100);
-        WordStreamText.Text = $"Complete · {pagesLabel}{_totalWords} words{visualsNote} pieced into {_totalBlocks} Markdown block{(_totalBlocks == 1 ? "" : "s")}";
+        WordStreamText.Text = $"Complete · {pagesLabel}{MarkSmith.Services.CountText.Of(_totalWords, "word")}{visualsNote} pieced into {MarkSmith.Services.CountText.Of(_totalBlocks, "Markdown block")}";
         BlocksProgressText.Text = "✓ Assembled in .md";
 
         await Task.Delay(950, token);

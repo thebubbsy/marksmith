@@ -3147,9 +3147,9 @@ public sealed partial class MarkdownHtmlService
     {
         var ext = info.Extension.ToLowerInvariant();
         // Vector: inlined byte-for-byte when small (an <img> SVG can't run script); a big one is served.
-        if (ext == ".svg") return info.Length <= 350_000 ? (File.ReadAllBytes(path), "image/svg+xml") : (null, null);
+        if (ext == ".svg") return info.Length <= 350_000 ? (SharedFile.ReadAllBytes(path), "image/svg+xml") : (null, null);
 
-        var raw = File.ReadAllBytes(path);
+        var raw = SharedFile.ReadAllBytes(path);
 
         // Fast path: already small AND not huge-resolution → inline the original bytes verbatim,
         // preserving the exact format (and any transparency/animation) with zero re-encoding.

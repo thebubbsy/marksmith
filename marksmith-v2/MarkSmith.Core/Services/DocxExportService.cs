@@ -1287,7 +1287,7 @@ public sealed partial class DocxExportService
         {
             try
             {
-                var bytes = File.ReadAllBytes(settings.BrandLogoPath);
+                var bytes = SharedFile.ReadAllBytes(settings.BrandLogoPath);
                 var isPng = bytes.Length > 8 && bytes[0] == 0x89 && bytes[1] == (byte)'P';
                 var part = ctx.MainPart.AddImagePart(isPng ? ImagePartType.Png : ImagePartType.Jpeg);
                 using (var ms = new MemoryStream(bytes)) part.FeedData(ms);
@@ -3522,7 +3522,7 @@ public sealed partial class DocxExportService
                 return null;
             }
 
-            return File.ReadAllBytes(path);
+            return SharedFile.ReadAllBytes(path);
         }
         catch
         {

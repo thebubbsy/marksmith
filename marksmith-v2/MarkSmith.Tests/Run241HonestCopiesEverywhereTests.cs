@@ -136,7 +136,8 @@ public class Run241HonestCopiesEverywhereTests
         // Run #267 moved these to CountText ("3 footnotes" instead of "3 footnote(s)").
         Assert.Contains("CopyAndAnnounce(sb.ToString().TrimEnd(), $\"Copied {CountText.Of(footnotes.Count, \"footnote\")}", code);
         Assert.Contains("CopyAndAnnounce(joined, $\"Copied {CountText.Of(diagrams.Count, \"diagram/visual block\")}", code);
-        Assert.Contains("CopyAndAnnounce(md, $\"Copied Markdown ({stats.Words:N0} words", code);
+        // Run #278: the word and line counts use CountText too ("1 word").
+        Assert.Contains("CopyAndAnnounce(md, $\"Copied Markdown ({CountText.Of(stats.Words, \"word\")}", code);
     }
 
     [Fact]

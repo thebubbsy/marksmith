@@ -63,7 +63,7 @@ public static class EmailImporter
 {
     public static EmailImportResult Import(string emlPath, QuotedHistoryMode history = QuotedHistoryMode.Collapse, string? mediaDir = null)
     {
-        using var stream = File.OpenRead(emlPath);
+        using var stream = SharedFile.OpenRead(emlPath);
         var message = MimeMessage.Load(stream);
         var stem = Path.GetFileNameWithoutExtension(emlPath);
         var dir = Path.GetDirectoryName(Path.GetFullPath(emlPath)) ?? ".";

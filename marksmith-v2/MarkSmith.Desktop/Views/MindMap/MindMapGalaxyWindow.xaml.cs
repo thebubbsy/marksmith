@@ -1395,7 +1395,7 @@ namespace MarkSmith.Views.MindMap
                 BorderStroke = new SolidColorBrush(ColorFromHex(node.ColorHex)),
                 TitleInk = new SolidColorBrush(_palette.Text),
                 BadgeFill = new SolidColorBrush(ColorFromHex(node.ColorHex)),
-                BadgeInk = new SolidColorBrush(Colors.White),
+                BadgeInk = new SolidColorBrush(ReadableOn(ColorFromHex(node.ColorHex))),
                 MutedInk = new SolidColorBrush(_palette.Muted),
                 TrackFill = new SolidColorBrush(_palette.Track),
                 ConnectionInk = new SolidColorBrush(_palette.Muted),
@@ -1958,7 +1958,7 @@ namespace MarkSmith.Views.MindMap
                         ? new SolidColorBrush(ReadableOn(accent))
                         : new SolidColorBrush(_palette.Muted);
                     ToolTipService.SetToolTip(v.CollapseToggle, node.IsCollapsed
-                        ? $"Subtree collapsed ({descendants} hidden nodes) · Click to expand"
+                        ? $"Subtree collapsed ({CountText.Of(descendants, "hidden node")}) · Click to expand"
                         : "Subtree expanded · Click to collapse branch");
                 }
                 else
@@ -3061,13 +3061,15 @@ namespace MarkSmith.Views.MindMap
             return Color.FromArgb(255, 255, 124, 77);
         }
 
-        /// <summary>Black or white, whichever stays legible on the given fill. The format badge
-        /// used to be hardcoded white, which vanished on the yellow and cyan branch colours.</summary>
-        private static Color ReadableOn(Color background)
-        {
-            double luminance = (0.299 * background.R + 0.587 * background.G + 0.114 * background.B) / 255.0;
-            return luminance > 0.6 ? Color.FromArgb(255, 17, 24, 39) : Colors.White;
-        }
+        /// <summary>Near-black or white, whichever contrasts more with the given fill. The format badge
+        /// used to be hardcoded white, which vanished on the yellow and cyan branch colours; the
+        /// perceived-brightness cut-off that replaced it still put white on mid greens and on the
+        /// blue, purple and rose branch colours (2.3:1 to 3.9:1 at the badge's 9 px). This is the
+        /// same WCAG crossover as the OCR studio's kind badges.</summary>
+        private static Color ReadableOn(Color background) =>
+            ReadableInk.PrefersDarkInk(background.R, background.G, background.B)
+                ? Color.FromArgb(255, 17, 24, 39)
+                : Colors.White;
 
         // ---- Canvas pointer, pan & zoom ----
 
