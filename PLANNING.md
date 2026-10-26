@@ -20813,3 +20813,7 @@ double read with `FooterStatusText` (which is tracked separately and isn't set i
 
 **Total user-visible improvements: 6** (2 status bar focus, 1 license banner focus, 1 OCR announcement, 2 count
 wording in Mind map and Diagram Studio).
+
+**Release (same run):** tagged **v3.94.0** on `52fb83b` (this run's work plus Antigravity's unreleased run #286
+`2cfe0d5`). Release workflow run 40391289493 succeeded; user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.94.0). `MarksmithBaseVersion` is now 3.95.0.
