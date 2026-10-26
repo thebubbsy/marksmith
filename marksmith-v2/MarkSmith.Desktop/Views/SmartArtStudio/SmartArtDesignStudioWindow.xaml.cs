@@ -68,7 +68,6 @@ namespace MarkSmith.Views.SmartArtStudio
             this.InitializeComponent();
             // A long status line is cut off at the window edge; hovering it shows the whole message.
             TrimmedTextToolTip.Attach(StatusBarText);
-            LiveAnnounce.Track(NoMatchesTitleText);
             // The custom accent's verdict ("Valid hex color · Enter applies it", "Applied #…") was
             // marked live but never raised; it now reads out once typing settles.
             LiveAnnounce.Track(CustomPaletteStatusText);
@@ -4070,7 +4069,6 @@ namespace MarkSmith.Views.SmartArtStudio
             CustomPaletteStatusText.Text = text;
             ThemeBrush.Set(CustomPaletteStatusText, TextBlock.ForegroundProperty, brushKey);
             CustomPaletteStatusText.Visibility = Visibility.Visible;
-            LiveAnnounce.Raise(CustomPaletteStatusText);
         }
 
         private void OnCustomPaletteHexBoxKeyDown(object sender, KeyRoutedEventArgs e)

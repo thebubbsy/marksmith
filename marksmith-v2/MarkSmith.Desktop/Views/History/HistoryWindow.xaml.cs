@@ -58,9 +58,6 @@ public sealed partial class HistoryWindow : Window
     public HistoryWindow(MainViewModel? mainViewModel = null, string? initialFilePath = null)
     {
         InitializeComponent();
-        LiveAnnounce.Track(TimelineSearchMatchText);
-        LiveAnnounce.Track(NoMatchesTextBlock);
-        LiveAnnounce.Track(DiffTitleText);
         // "Right-click for options" menus: open them from Shift+F10 / the Menu key too.
         KeyboardContextMenu.BridgeAll(
             (StarredFilterToggle, OnStarredFilterToggleRightTapped),

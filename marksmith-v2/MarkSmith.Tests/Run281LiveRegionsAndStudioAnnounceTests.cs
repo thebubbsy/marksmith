@@ -39,14 +39,8 @@ public class Run281LiveRegionsAndStudioAnnounceTests
     [Theory]
     [InlineData(OcrStudio, "LiveAnnounce.Track(StatusBannerText);")]
     [InlineData(OcrStudio, "LiveAnnounce.Track(FooterStatusText);")]
-    [InlineData(OcrStudio, "LiveAnnounce.Track(WordStreamText);")]
-    [InlineData(OcrStudio, "LiveAnnounce.Track(SessionMetricsText, SessionMetricsButton);")]
     [InlineData(History, "LiveAnnounce.Track(TimelineSearchMatchText);")]
-    [InlineData(History, "LiveAnnounce.Track(NoMatchesTextBlock);")]
-    [InlineData(History, "LiveAnnounce.Track(DiffTitleText);")]
-    [InlineData(Mermaid, "LiveAnnounce.Track(CanvasSummaryText, CanvasSummaryButton);")]
     [InlineData(NodePalette, "LiveAnnounce.Track(PaletteCountText);")]
-    [InlineData(SmartArt, "LiveAnnounce.Track(NoMatchesTitleText);")]
     [InlineData(SmartArt, "LiveAnnounce.Track(CustomPaletteStatusText);")]
     public void ChangingStudioLines_AreTracked(string file, string expectedTrackCall)
     {

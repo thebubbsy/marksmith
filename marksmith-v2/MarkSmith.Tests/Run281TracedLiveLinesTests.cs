@@ -199,6 +199,30 @@ public class Run281TracedLiveLinesTests
         Before(branch, "LiveAnnounce.Cancel(TimelineSearchMatchText);", "LiveAnnounce.Raise(NoMatchesTextBlock);");
     }
 
+    // Lines that change together with one that is already read out (or with the focused item),
+    // so tracking them read the same change twice: the scan banner covers the word stream, the
+    // footer covers the metrics, the focused timeline row covers the diff title, the queued raise
+    // covers the no-match text, the status bar covers the canvas summary, and SmartArt raises its
+    // no-match title itself. The custom accent verdict is tracked, so it isn't raised per keystroke.
+    [Theory]
+    [InlineData(Ocr, "LiveAnnounce.Track(WordStreamText")]
+    [InlineData(Ocr, "LiveAnnounce.Track(SessionMetricsText")]
+    [InlineData(History, "LiveAnnounce.Track(DiffTitleText")]
+    [InlineData(History, "LiveAnnounce.Track(NoMatchesTextBlock")]
+    [InlineData("MarkSmith.Desktop/Views/Mermaid/MermaidDiagramStudioControl.xaml.cs", "LiveAnnounce.Track(CanvasSummaryText")]
+    [InlineData(SmartArt, "LiveAnnounce.Track(NoMatchesTitleText")]
+    [InlineData(SmartArt, "LiveAnnounce.Raise(CustomPaletteStatusText")]
+    public void LinesAlreadyCoveredElsewhere_AreNotReadTwice(string file, string call)
+    {
+        Assert.DoesNotContain(call, Read(file));
+    }
+
+    [Fact]
+    public void History_SearchCountPill_IsTrackedOnce()
+    {
+        Assert.Equal(1, CountOf(Read(History), "LiveAnnounce.Track(TimelineSearchMatchText)"));
+    }
+
     // ---- SmartArt Studio ----
 
     [Fact]

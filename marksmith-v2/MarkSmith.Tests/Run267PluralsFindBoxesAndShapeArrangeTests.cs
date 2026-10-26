@@ -145,7 +145,8 @@ public class Run267PluralsFindBoxesAndShapeArrangeTests
 
         var cs = Read(SmartArtCs);
         Assert.Contains("private void SetOutlineMatchCount(string text, string spoken)", cs);
-        Assert.Contains("AutomationEvents.LiveRegionChanged", cs);
+        // Raised through LiveAnnounce since run #281 (which also creates a missing peer).
+        Assert.Contains("LiveAnnounce.Raise(OutlineMatchCountLabel);", cs);
         Assert.DoesNotContain("OutlineMatchCountLabel.Text = \"0 matches\"", cs);
         Assert.Contains("SetOutlineMatchCount(\"No match\"", cs);
         Assert.Contains("ViewModel.StatusMessage = $\"No node matches “{query}”.\";", cs);

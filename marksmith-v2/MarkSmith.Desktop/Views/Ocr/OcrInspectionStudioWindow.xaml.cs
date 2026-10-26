@@ -89,8 +89,6 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         // The scan banner and footer were marked live in XAML but never raised the event.
         LiveAnnounce.Track(StatusBannerText);
         LiveAnnounce.Track(FooterStatusText);
-        LiveAnnounce.Track(WordStreamText);
-        LiveAnnounce.Track(SessionMetricsText, SessionMetricsButton);
         // "Right-click for options" menus: open them from Shift+F10 / the Menu key too.
         KeyboardContextMenu.BridgeAll(
             (PrevPageButton, OnPrevPageButtonRightTapped),

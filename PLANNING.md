@@ -20308,3 +20308,23 @@ to the generated body (https://github.com/thebubbsy/marksmith/releases/tag/v3.88
 1. History: give the empty-editor checkpoint notice a non-error severity.
 2. Drive OCR Studio live (import a 2-page PDF) to hear the page and selection read-outs.
 3. Live-verify the Rescan (Step 1) focus round trip and an export with an image held open (carried over).
+
+**Executing agent's follow-up (Claude Code, after the Antigravity merge `7000f05`):** the Antigravity agent pushed its
+own "#281" (`ef90b4f`) onto this run's pushed work and merged it. Kept: its switch of the History hunk stepper and
+diff match count, the Mermaid and SmartArt `AnnounceLiveRegion` helpers, the SmartArt outline match count and the
+palette's no-match line from raw `RaiseAutomationEvent` to `LiveAnnounce.Raise` (which also creates a missing peer).
+Removed, because each read the same change twice: `Track(WordStreamText)` and `Track(SessionMetricsText)` in OCR
+Studio (the scan banner and footer already cover them), `Track(DiffTitleText)` and `Track(NoMatchesTextBlock)` in
+History (the focused row and the queued raise cover them) plus a second `Track(TimelineSearchMatchText)`,
+`Track(CanvasSummaryText)` in Mermaid (the status bar covers it), `Track(NoMatchesTitleText)` in SmartArt (raised
+explicitly; its text never changes) and the per-keystroke `Raise(CustomPaletteStatusText)` (the tracked line already
+reads it once typing settles). New guards `Run281TracedLiveLinesTests.LinesAlreadyCoveredElsewhere_AreNotReadTwice` (7)
+and `History_SearchCountPill_IsTrackedOnce`; its `Run281LiveRegionsAndStudioAnnounceTests` lost the six matching rows.
+Its raise swap had left `Run267…SmartArt_OutlineFind_IsNamedAndAnnounced` failing on main (it looked for
+`AutomationEvents.LiveRegionChanged`); now it checks `LiveAnnounce.Raise(OutlineMatchCountLabel)`. Build 0 errors;
+`Run2|ShapeStudio|Mermaid|Settings|Ocr|History|SmartArt` **2804/2804** after the fix.
+
+**Release (same run):** tagged **v3.89.0** on `4bf79fc` (this run's work plus Antigravity's run #280 merge `125c694` and
+the follow-up `5d4760b`; Antigravity's `ef90b4f` and the follow-up above land in the next release). Release workflow
+run 40298986648 succeeded; user-facing notes prepended to the generated body
+(https://github.com/thebubbsy/marksmith/releases/tag/v3.89.0). `MarksmithBaseVersion` is now 3.90.0.
