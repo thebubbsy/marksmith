@@ -21067,3 +21067,92 @@ succeeded; user-facing notes prepended to the generated body
 4. Live-verify the status bar unfold handover on a wider display or with a smaller text scale.
 
 **Total user-visible improvements: 6** (1 shortcut isolation guard for duplicate/reorder, 5 studio single Tab-stop and XY arrow navigation enhancements).
+
+## 2026-10-27 · Run #291 (09:01–09:50 AEDT) · Claude Code
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic). The routine template asks for "Antigravity AI Agent (Google DeepMind)"; that
+  would be false for this run, so the real identity is recorded.
+- Modes: Scheduled Hourly Automation Routine (scheduled task `commit-to-main-ship-improvement--r4efinement`)
+- Trigger: Scheduled hourly routine run (no live user)
+- Agents Used: 1 (orchestrator doing the coding, review and verification itself; no sub-agents). Session
+  `f35bdbbe-76d7-4d01-b589-13fcd94bb532`.
+
+**Picked up:** run #290's "Next up" #1 (window keys reaching past a choice control in Galaxy and History) and #3
+(SmartArt's Ctrl+C from the gallery), then the same sweep through the OCR studio and the Diagram Studio
+accelerators that run #290 left unguarded (Ctrl+D, Ctrl+[ / Ctrl+]). Document Galaxy needed nothing: every
+single-letter and editing key there is already gated on the canvas holding focus.
+
+**Delivered (user-visible):**
+1. **Version History: S, F2 and Delete on the Unified / Side by side / Preview switch no longer star, rename or
+   delete the selected version** behind it. Up/Down from the switch still step versions (run #288's behaviour).
+2. **SmartArt Studio: Ctrl+D on a layout or a colour scheme no longer duplicates the selected outline item.**
+3. **SmartArt Studio: Ctrl+C on a layout copies that layout's name** ("Copied layout name "Horizontal List 9" to
+   clipboard."). It copied the selected outline item's text, which had nothing to do with the focused layout.
+4. **SmartArt Studio: the layout menu has "Copy layout name" and shows its shortcuts**: Use … (Enter), Copy layout
+   name (Ctrl+C), Copy SmartArt Markdown block (Ctrl+Shift+C, which was unlabelled). Live: all three accelerator
+   texts read from UIA.
+5. **SmartArt Studio: Shift+F10 / the Menu key opens the layout menu on the focused row** and for that layout.
+   It opened at the top of the list, for the *selected* layout. Live: focus on "Horizontal List 9" (row y 651–709,
+   not selected) put the menu at y 685 with "Use "Horizontal List 9""; the selected layout sat at the list top.
+6. **OCR studio: a closed combo box (Quick reclassify, Markdown scope, a card's kind picker) keeps its arrows and
+   Home/End.** The studio's PreviewKeyDown turned the page or jumped to another element first.
+7. **Diagram Studio: Ctrl+D and Ctrl+[ / Ctrl+] / Ctrl+Shift+[ / Ctrl+Shift+] in the palette, the category pills or
+   a combo box no longer duplicate or reorder the selected canvas shape** (run #290 covered Delete and Ctrl+A).
+
+**Implementation Summary**
+- Desktop: `Views/History/HistoryWindow.xaml.cs` (`inChoice` in `OnRootKeyDown`; S / F2 / Delete branches gated).
+  `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml.cs` (`inChoice` computed once in `OnRootGridKeyDown`;
+  gallery Ctrl+C branch before the outline copy; Ctrl+D gated; new `FocusedLayoutItem()` walk that stops at
+  `RootGrid`; `OnLayoutListKeyDown` anchors the menu on `ContainerFromItem(item)`; `ShowLayoutContextMenu` gains
+  "Copy layout name" and accelerator texts). `Views/Ocr/OcrInspectionStudioWindow.xaml.cs` (`ChoiceKeys` check after
+  the modifier return, before the page / element keys; Ctrl+C and the context-menu key still work from a combo).
+  `Views/Mermaid/MermaidDiagramStudioControl.xaml.cs` (duplicate and the four z-order accelerators return in a
+  choice control, `CanvasContainer` as host).
+- Tests: new `Run291ChoiceKeysFollowUpTests` (11 source contracts: History gating and the switch being XY-navigated,
+  Up/Down left alone; SmartArt Ctrl+C order, Ctrl+D / Delete gating, single `ChoiceKeys` call, helper stop, menu
+  texts and order, Shift+F10 anchor; OCR guard order; Diagram duplicate and z-order guards).
+  `Run290StudioChoiceKeysTests.SmartArt_RootDelete_SkipsChoiceControls` follows the `inChoice` variable.
+
+**Adversarial review:** nothing collapses or disables; every change returns early (a key now goes unhandled to a
+toggle button, list or combo that either uses it or ignores it) or adds a menu item, so no key is newly swallowed.
+The SmartArt Ctrl+C gallery branch handles the key only when a layout is found; on a colour scheme or the category
+combo it returns unhandled. `FocusedLayoutItem` stops at `RootGrid`, whose DataContext is the view model, so it
+can't match an ancestor's data. History's `inChoice` only matches `DiffModeSegment` (no lists in that window; the
+timeline is buttons in an ItemsControl), so S / F2 / Delete from a version row still work. OCR's guard sits after
+the Ctrl/Alt return, so Ctrl+C / Ctrl+Shift+R / Ctrl+Enter / Esc / Shift+F10 behave as before. Clipboard writes go
+through `ClipboardWriter` with the result reported. No resource lookups, file access or async code added.
+
+**Verified:**
+- Worked in a clean clone (`%TEMP%\ms_run291\src`, `git clone --depth 5`), untouched by the shared working tree.
+- `dotnet build … -p:OutDir=%TEMP%\ms_run291\b\`: 0 errors (existing nullable warnings only).
+- `dotnet test --filter Run291|Run290|Run288|Run250|History|SmartArt|Ocr|Mermaid`: **1392/1392**; broad
+  `Run2|ShapeStudio|MindMap`: **2083/2083**.
+- Live (isolated `Marksmith.exe` PID 6224, scratch `MARKSMITH_CONFIG_DIR`; SmartArt Studio opened by UIA through
+  Insert ▸ Diagrams and studios ▸ "SmartArt Studio…"). The workstation was locked (LogonUI running), so keys were
+  posted with `PostMessage` to the scratch window's own `InputSiteWindowClass` hwnd after checking its owner PID.
+  Menu key on a focused row: items 4 and 5 as above. Invoking "Copy layout name" put "Horizontal List 9" on the
+  clipboard and the status bar read "Copied layout name "Horizontal List 9" to clipboard." (PrintWindow screenshot).
+  The clipboard's previous text was saved and restored (322 chars, checked afterwards); `SetText` threw on the
+  restore but the text did land. Only PID 6224 was stopped.
+- Not live-verified: Ctrl+C / Ctrl+D (posted keys can't carry the Ctrl state), History (needs saved snapshots), OCR
+  (needs a session), Diagram Studio. Source contracts cover them.
+- **Correction to run #290's "Noticed":** SmartArt's status TextBlock does have its UIA Name. It is missing from a
+  content-view `FindAll(Descendants)` because that search stops at the WebView2; the raw view walker finds
+  `StatusBarText` with the current message. It was a rig artifact, not a bug.
+
+**Noticed, not fixed:**
+- The clipboard restore in the rig (`System.Windows.Forms.Clipboard.SetText`) can throw while still succeeding;
+  future rigs should retry and then compare lengths instead of trusting the exception.
+- History's root Delete still deletes the selected version from any toolbar button that isn't in a choice group
+  (with the confirmation dialog); probably intended, but worth a look against Explorer-style expectations.
+
+**Next up (Run #292):**
+1. Live-verify History's switch keys with a scratch document that has two or three snapshots.
+2. Galaxy's Escape from the tag-filter strip clears search / filter / focus mode all at once; check that matches
+   what the strip's tooltip promises.
+3. Audit Theme Builder and the Insert dialogs for window keys that reach past a combo box or slider.
+
+**Total user-visible improvements: 7** (5 key leaks closed across History, SmartArt, OCR and Diagram Studio, 1 new
+"Copy layout name" with shortcut hints on the SmartArt layout menu, 1 menu placement fix).
