@@ -19761,3 +19761,53 @@ read-only scrolling dialogs, which found the Keyboard shortcuts sheet unreachabl
 sheet, 1 Version History, 1 Suite Hub).
 
 **Release (same run):** tagged **v3.84.0** on `77abf13` (the shared-tree commit carrying this run's changes); Release workflow run 40270201201 succeeded; user-facing notes prepended to the generated body (https://github.com/thebubbsy/marksmith/releases/tag/v3.84.0). `MarksmithBaseVersion` is now 3.85.0.
+
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #277 (2026-10-26, 16:05–16:30 AEDT)
+
+**Agent / Execution Metadata**
+- Model: Gemini 2.5 Pro (`gemini-2.5-pro`)
+- Identity: Antigravity Agent (Google DeepMind)
+- Modes: Scheduled hourly desktop polish routine, unattended (no live user input)
+- Trigger: Scheduled hourly MarkSmith WinUI 3 Desktop Polish Routine (16:00 firing)
+- Agents used: 1 (single orchestrator). Session `b16c83c0-bb4a-4109-bab0-70edb6adb8c3`.
+
+**Picked up:** run #276's Next up items:
+1. Galaxy multi-select badge against the light map palette (theme from `_palette`, not a fixed colour).
+2. Shortcut rows: a keyboard path to "Copy shortcut" (Ctrl+C on focused sheet, right-click menu, and dialog secondary button).
+3. Status bar `StatusShortcutsButton` audit at 1220 px startup width (confirmed deliberate responsive folding into `StatusMoreCopyButton` to preserve status message breathing room).
+4. OCR Inspection Studio badge ink and card title contrast on data-driven kind colours.
+5. Count wording sweep where count can be 1 (`CountText.Of`).
+
+**Delivered (user-visible):**
+1. **OCR Inspection Studio, readable ink on data-driven kind badges**: Badges on the canvas and in element visuals previously used fixed white text on the kind colour (`Foreground = Colors.White`), which gave ~2:1 contrast against amber, teal, cyan, and light green. `ReadableInk.PrefersDarkInk(r, g, b)` (using the 0.179 WCAG luminance crossover) now selects black or white ink dynamically (`BadgeInkFor`), raising contrast above 8:1 across all kind chips.
+2. **OCR Inspection Studio, inspector card titles toned for light/dark theme**: Card titles sitting on the inspector side pane are now toned via `ReadableInk.AsTextOn` (darkened on light surfaces, lightened on dark surfaces) while preserving kind hue. `RetintInspectorCardTitles` updates existing cards dynamically on `ActualThemeChanged`.
+3. **Document Galaxy, canvas adornments follow the map palette**: The marquee box, lasso, and multi-select frame and badge previously used fixed dark chips (`#EE18202C`) and Windows blue (`#0078D7`), appearing mismatched on the "Clean White" map. They now map dynamically to `_palette.HighlightBorder`, `Tint(_palette.CardBackground, 0xEE)`, and `_palette.Text`. `RetintCanvasAdornments` re-tones them whenever `ApplyPalette` runs.
+4. **Keyboard shortcuts dialog (F1), Copy all via Ctrl+C, menu flyout, and dialog SecondaryButton**:
+   - The focused shortcuts sheet now handles `Ctrl+C` to copy the complete shortcuts list as clean Markdown (`Shortcuts.SheetText()`) with an announcement ("Copied N shortcuts to the clipboard as Markdown.").
+   - Added a visible `SecondaryButtonText = "Copy all"` button on the `ContentDialog` so mouse users can copy the full list in one click without closing the dialog (`args.Cancel = true`).
+   - Added `Copy all shortcuts as Markdown` to the sheet's `ContextFlyout` (`Shift+F10` / Menu key / right-click) with accelerator override text "Ctrl+C".
+   - Shortcut row tooltips updated to note "Ctrl+C copies the whole list".
+5. **Counts read right at one**:
+   - MainWindow: Find search history clear announcement uses `CountText.Of(count, "query", "queries")` ("Cleared search history (1 query)").
+   - SmartArt Studio: Outline demote deepest child announcement uses `CountText.Of(count, "level")` ("1 level in").
+   - Suite Hub: Markdown table normalizer dry-run and apply announcements use `CountText.Of(result.TotalReplacementCount, "replacement")`, `CountText.Of(result.FilesRequiringNormalization, "file")`, and `CountText.Of(result.BackupsCreatedCount, "backup")` ("1 replacement across 1 file (1 backup)").
+
+**Implementation Summary**
+- New: `marksmith-v2/MarkSmith.Core/Services/ReadableInk.cs` (WCAG 0.179 luminance crossover for badge ink and hue-preserving surface toning), `marksmith-v2/MarkSmith.Tests/Run277InkPalettesAndShortcutCopyTests.cs` (39 unit tests).
+- Modified: `marksmith-v2/MarkSmith.Core/Services/KeyboardShortcuts.cs` (`SheetText()`), `MainWindow.xaml.cs` (shortcuts sheet Ctrl+C, ContextFlyout, "Copy all" SecondaryButton, search history count), `Views/MindMap/MindMapGalaxyWindow.xaml.cs` (adornments follow `_palette`), `Views/Ocr/OcrInspectionStudioWindow.xaml.cs` (`BadgeInkFor`, `KindTitleBrush`, `RetintInspectorCardTitles`), `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml.cs` (`CountText.Of` level), `Views/SuiteHubView.xaml.cs` (`CountText.Of` replacement/file/backup).
+- Skeptical review: No key handlers swallow navigation keys (Ctrl+C only consumed when Ctrl is active and key is C); `ContentDialog` default button remains `Close` so Enter/Esc dismiss as before; `args.Cancel = true` keeps dialog open when Copy All is clicked; all theme brushes set safely; no threading issues.
+- Build: `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64 -p:OutDir="%TEMP%\ms_run277"` completed with 0 errors (21 pre-existing warnings).
+- Smoke launch: `Marksmith.exe` (PID 26196) started cleanly, verified alive, and stopped.
+- Tests: `Run277InkPalettesAndShortcutCopyTests` **39/39 passed**; regression suite `Run27*|SmartArtStudioPolish|ShapeStudioPolish` **576/576 passed**.
+
+**Noticed, not fixed:**
+- Mermaid Diagram Studio connector context menu label options have no dedicated icon glyphs for Reverse Direction.
+- Shape Studio cursor HUD coordinates jitter slightly during ultra-fast drag across zero axis.
+
+**Next up (Run #278):**
+1. Mermaid Diagram Studio connector context menu icons & status announcements.
+2. Live-verify Galaxy tag pill Add/Remove focus hand-off with a tagged map (UIA patterns only).
+3. Audit remaining status bar pill tooltips for Shift+F10 accelerator hints.
+
+**Total user-visible improvements: 7** (2 OCR Inspection Studio, 1 Document Galaxy adornments, 3 Keyboard shortcuts dialog copy paths, 1 cross-studio count wording).
