@@ -146,6 +146,8 @@ public sealed partial class WelcomeTour : UserControl
         var announcement = $"{badge}: {title}";
         AutomationProperties.SetName(PagesHost, announcement);
         AutomationProperties.SetLiveSetting(PagesHost, AutomationLiveSetting.Polite);
+        // Next / Back / the arrow keys: say which step the tour is on now ("Step 2 of 5: …").
+        LiveAnnounce.RaiseIfChanged(PagesHost, announcement);
         AutomationProperties.SetName(Pips, $"Page {_index + 1} of {_pages.Length}");
 
         if (_index > 0 && _index - 1 < PageTitles.Length)

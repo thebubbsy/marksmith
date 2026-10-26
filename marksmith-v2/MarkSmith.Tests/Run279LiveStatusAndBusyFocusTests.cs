@@ -119,7 +119,9 @@ public class Run279LiveStatusAndBusyFocusTests
     public void Return_LeavesFocusAloneIfTheUserMovedOn()
     {
         var src = Read(Rescue);
-        Assert.Contains("if (ReferenceEquals(focused, Spot) || FocusWasLost(Button)) Button.Focus(How);", src);
+        // Run #280 moved the check into Parked.Waiting so Remove license can share it.
+        Assert.Contains("return ReferenceEquals(focused, Spot) || FocusWasLost(Button);", src);
+        Assert.Contains("if (Waiting) Button.Focus(How);", src);
         Assert.Contains("!IsAvailable(Button)) return;", src);
     }
 

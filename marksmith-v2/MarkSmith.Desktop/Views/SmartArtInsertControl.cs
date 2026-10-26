@@ -116,7 +116,8 @@ public sealed class SmartArtInsertControl : InsertDialogBody
             FontSize = 12,
             TextWrapping = TextWrapping.Wrap,
         }.Themed(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
-        AutomationProperties.SetLiveSetting(_layoutCaption, Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Polite);
+        // The gallery is pictures only: picking one reads out its name and what it's for.
+        LiveAnnounce.Track(_layoutCaption);
 
         AddField(new StackPanel { Spacing = 6, Children = { galleryHeader, _gallery, _layoutCaption } });
 
@@ -170,7 +171,8 @@ public sealed class SmartArtInsertControl : InsertDialogBody
         }.Themed(FontIcon.ForegroundProperty, "AccentTextFillColorPrimaryBrush"));
         Grid.SetColumn(_adviceText, 1);
         _advice.Children.Add(_adviceText);
-        AutomationProperties.SetLiveSetting(_adviceText, Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Polite);
+        // "This layout reads best with 3 to 7 items": read out once typing in the outline settles.
+        LiveAnnounce.Track(_adviceText);
 
         AddField(new StackPanel { Spacing = 6, Children = { outlineHeader, _box, indentRow, _advice } });
 

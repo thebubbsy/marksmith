@@ -565,7 +565,7 @@ public sealed partial class HistoryWindow : Window
         DiffWordDeltaPill.Visibility = Visibility.Visible;
         int net = addedWords - removedWords;
         string netSign = net >= 0 ? $"+{net:N0}" : $"{net:N0}";
-        DiffWordDeltaText.Text = $"+{addedWords:N0} / -{removedWords:N0} words";
+        DiffWordDeltaText.Text = CountText.Delta(addedWords, removedWords, "word");
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(DiffWordDeltaPill, $"Word delta {DiffWordDeltaText.Text}");
         ToolTipService.SetToolTip(DiffWordDeltaPill, $"Word delta: +{addedWords:N0} added, -{removedWords:N0} removed (net {netSign} {CountText.Noun(Math.Abs(net), "word")}) · Click to copy, Right-click or Shift+F10 for options");
     }
@@ -2165,7 +2165,7 @@ public sealed partial class HistoryWindow : Window
     {
         int net = _lastAddedWords - _lastRemovedWords;
         string netSign = net >= 0 ? $"+{net:N0}" : $"{net:N0}";
-        string text = $"+{_lastAddedWords:N0} / -{_lastRemovedWords:N0} words (net {netSign})";
+        string text = $"{CountText.Delta(_lastAddedWords, _lastRemovedWords, "word")} (net {netSign})";
         CopyAndNotify(text, $"Copied word delta statistics: {text}");
     }
 
@@ -2193,7 +2193,7 @@ public sealed partial class HistoryWindow : Window
         {
             int net = _lastAddedWords - _lastRemovedWords;
             string netSign = net >= 0 ? $"+{net:N0}" : $"{net:N0}";
-            string text = $"+{_lastAddedWords:N0} / -{_lastRemovedWords:N0} words (net {netSign})";
+            string text = $"{CountText.Delta(_lastAddedWords, _lastRemovedWords, "word")} (net {netSign})";
             CopyAndNotify(text, $"Copied word delta: {text}");
         };
         menu.Items.Add(copyWordDelta);

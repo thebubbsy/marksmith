@@ -25,6 +25,12 @@ public sealed partial class SettingsView : UserControl
         InitializeComponent();
         // The house-style round trip reports progress here while the user waits.
         LiveAnnounce.Track(HouseStyleStatusText);
+        // Lines that answer a choice the user just made: the file name a pattern produces, what the
+        // chosen OCR engine does, whether the local API started.
+        LiveAnnounce.Track(FileNamePreviewText);
+        LiveAnnounce.Track(OcrEngineDescriptionText);
+        LiveAnnounce.Track(ApiStatusNormalText);
+        LiveAnnounce.Track(ApiStatusErrorText);
         // "Right-click for options" menus: open them from Shift+F10 / the Menu key too.
         KeyboardContextMenu.BridgeAll(
             (RescanCloudButton, OnRescanCloudButtonRightTapped),
@@ -274,6 +280,8 @@ public sealed partial class SettingsView : UserControl
             AutomationProperties.SetName(LicenseStatusBar, message);
             AutomationProperties.SetLiveSetting(LicenseStatusBar, AutomationLiveSetting.Polite);
             LicenseStatusBar.IsOpen = true;
+            // "License activated" / "That key isn't valid": the answer to the button just pressed.
+            LiveAnnounce.Raise(LicenseStatusBar);
         }
         else
         {
@@ -393,7 +401,7 @@ public sealed partial class SettingsView : UserControl
         // DeactivateAsync (not Deactivate) so the Lemon Squeezy activation seat is handed back.
         // Forgetting the key locally while the seat stays claimed is how a customer with a
         // 3-machine key runs out of machines they never used.
-        FocusRescue.Park(DeactivateButton, BuyButton, StartTrialButton);
+        var parked = FocusRescue.Park(DeactivateButton, BuyButton, StartTrialButton);
         DeactivateButton.IsEnabled = false;
         DeactivateRing.Visibility = Visibility.Visible;
         DeactivateRing.IsActive = true;
@@ -408,10 +416,15 @@ public sealed partial class SettingsView : UserControl
             DeactivateRing.IsActive = false;
             DeactivateRing.Visibility = Visibility.Collapsed;
             DeactivateButton.IsEnabled = true;
-            if (KeyEntryRow.Visibility == Visibility.Visible)
-                KeyBox.Focus(FocusState.Programmatic);
-            else if (DeactivateButton.Visibility == Visibility.Visible)
-                DeactivateButton.Focus(FocusState.Programmatic);
+            // Only while focus still waits where Park left it: after a mouse click (or once the user
+            // has moved on) the key box used to pull focus from wherever they were.
+            if (parked.Waiting)
+            {
+                if (KeyEntryRow.Visibility == Visibility.Visible)
+                    KeyBox.Focus(parked.How);
+                else
+                    parked.Return();
+            }
         }
     }
 
@@ -443,6 +456,8 @@ public sealed partial class SettingsView : UserControl
             CloudRescanStatusText.Visibility = Visibility.Visible;
             AutomationProperties.SetName(CloudRescanStatusText, summary);
             AutomationProperties.SetLiveSetting(CloudRescanStatusText, AutomationLiveSetting.Polite);
+            // Rescan says the same sentence twice in a row when nothing changed, so raise every time.
+            LiveAnnounce.Raise(CloudRescanStatusText);
         }
     }
 
@@ -1103,6 +1118,9 @@ public sealed partial class SettingsView : UserControl
         };
         AutomationProperties.SetName(GoogleStatusBar, vm.GoogleAuthStatus ?? "");
         AutomationProperties.SetLiveSetting(GoogleStatusBar, AutomationLiveSetting.Polite);
+        // "Waiting for you to approve…" then "Connected as …": re-rendered on every state change,
+        // so only a new message is read out.
+        LiveAnnounce.RaiseIfChanged(GoogleStatusBar, vm.GoogleAuthStatus);
         var hasCode = !string.IsNullOrEmpty(vm.GoogleDeviceCode);
         GoogleCodeText.Text = vm.GoogleDeviceCode;
         AutomationProperties.SetName(GoogleCodeText,
@@ -1171,6 +1189,7 @@ public sealed partial class SettingsView : UserControl
             AutomationProperties.SetName(PluginWarningsBar, $"{PluginWarningsBar.Title}: {PluginWarningsBar.Message}");
             AutomationProperties.SetLiveSetting(PluginWarningsBar, AutomationLiveSetting.Polite);
             PluginWarningsBar.IsOpen = true;
+            LiveAnnounce.RaiseIfChanged(PluginWarningsBar, PluginWarningsBar.Message);
         }
     }
 
@@ -1190,7 +1209,9 @@ public sealed partial class SettingsView : UserControl
 
         // Collapsed while empty so a not-yet-installed card doesn't carry a blank line of spacing.
         var status = new TextBlock { Style = caption, IsTextSelectionEnabled = true, Visibility = Visibility.Collapsed };
-        AutomationProperties.SetLiveSetting(status, AutomationLiveSetting.Polite);
+        // "Downloading… 40%", "Installed", "Couldn't download": coalesced, so a progress run is
+        // read out as it settles rather than once per percent.
+        LiveAnnounce.Track(status);
         void SetStatus(string message, bool failed = false)
         {
             status.Text = message;
