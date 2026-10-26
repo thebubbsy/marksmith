@@ -1257,9 +1257,32 @@ public sealed partial class SettingsView : UserControl
             if (installed && string.IsNullOrEmpty(status.Text)) SetStatus("Installed");
         }
 
+        // The pressed button is about to hide itself (Install once the plugin is in, Remove once
+        // it's gone). Collapsing it while focused sent focus to the top of Settings, so its partner
+        // is shown and focused first, but only while the user is still on it.
+        void HandOver(Button from, Button to)
+        {
+            var installed = plugin.State == PluginInstallState.Installed;
+            var toShows = ReferenceEquals(to, removeButton) ? installed : !installed;
+            if (toShows && FocusRescue.StillOn(from))
+            {
+                var how = from.FocusState == FocusState.Keyboard ? FocusState.Keyboard : FocusState.Programmatic;
+                to.Visibility = Visibility.Visible;
+                to.Focus(how);
+            }
+            Refresh();
+        }
+
+        // Disabling Install for the download threw keyboard focus to the window's first tab stop and
+        // scrolled Settings back to the top for the whole wait. It stays enabled and focused,
+        // reads "Installing…", and a second press is ignored until the download ends.
+        var installing = false;
         installButton.Click += async (_, _) =>
         {
-            installButton.IsEnabled = false;
+            if (installing) return;
+            installing = true;
+            installButton.Content = "Installing…";
+            AutomationProperties.SetName(installButton, $"Installing {plugin.Name}");
             tick.Visibility = Visibility.Collapsed;
             tick.Opacity = 0;
             ring.Visibility = Visibility.Visible;
@@ -1290,21 +1313,19 @@ public sealed partial class SettingsView : UserControl
 
             ring.IsActive = false;
             ring.Visibility = Visibility.Collapsed;
-            installButton.IsEnabled = true;
-            Refresh();
+            installing = false;
+            installButton.Content = "Install";
+            AutomationProperties.SetName(installButton, $"Install {plugin.Name}");
+            // Install hides itself once the plugin is in: hand focus to Remove first, and only when
+            // the user is still on Install (a download takes a while; they may have moved on).
+            HandOver(installButton, removeButton);
 
             if (ok)
             {
                 SetStatus("Installed");
                 ShowTick(tick);
-                if (removeButton.Visibility == Visibility.Visible)
-                    removeButton.Focus(FocusState.Programmatic);
                 // A new engine can change what the current document renders — refresh the preview.
                 PluginsChanged?.Invoke();
-            }
-            else if (installButton.Visibility == Visibility.Visible)
-            {
-                installButton.Focus(FocusState.Programmatic);
             }
         };
 
@@ -1320,9 +1341,7 @@ public sealed partial class SettingsView : UserControl
             {
                 SetStatus($"Remove failed: {ex.Message}", failed: true);
             }
-            Refresh();
-            if (installButton.Visibility == Visibility.Visible)
-                installButton.Focus(FocusState.Programmatic);
+            HandOver(removeButton, installButton);
             PluginsChanged?.Invoke();
         };
 
