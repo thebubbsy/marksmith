@@ -19620,3 +19620,6 @@ brush lookups (14 left, all in Shape Studio and SmartArt Studio) and a count-wor
 
 **Total user-visible improvements: 8** (3 Document Galaxy, 2 SmartArt Studio, 2 Shape Studio, 1 cross-app count
 wording).
+
+**Release (same run):** tagged **v3.83.0** on `fd3e7a10`; Release workflow run 40264168448 succeeded; user-facing notes
+prepended to the generated body (https://github.com/thebubbsy/marksmith/releases/tag/v3.83.0). `MarksmithBaseVersion` is now 3.84.0.
