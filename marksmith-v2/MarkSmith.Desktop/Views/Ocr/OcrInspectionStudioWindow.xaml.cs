@@ -89,9 +89,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         // The scan banner and footer were marked live in XAML but never raised the event.
         LiveAnnounce.Track(StatusBannerText);
         LiveAnnounce.Track(FooterStatusText);
-        LiveAnnounce.Track(PageIndicatorText);
         LiveAnnounce.Track(WordStreamText);
-        LiveAnnounce.Track(SelectedElementBadgeText);
         LiveAnnounce.Track(SessionMetricsText, SessionMetricsButton);
         // "Right-click for options" menus: open them from Shift+F10 / the Menu key too.
         KeyboardContextMenu.BridgeAll(
@@ -672,6 +670,14 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
                 : ImportCtaButton;
             fallback?.Focus(FocusState.Keyboard);
         }
+    }
+
+    // A page the user moved to (buttons, Left/Right, Home/End, the page menu). The indicator was
+    // marked live but never raised, so Page Down from the canvas changed the page in silence.
+    private void RenderPickedPage()
+    {
+        RenderCurrentPage();
+        if (PageIndicatorText is not null) LiveAnnounce.Raise(PageIndicatorText);
     }
 
     private bool IsFocusWithinElementCards()
@@ -1403,7 +1409,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             if (_session.Pages.Count > 0)
             {
                 _session.CurrentPageIndex = 0;
-                RenderCurrentPage();
+                RenderPickedPage();
             }
         };
         menu.Items.Add(firstItem);
@@ -1420,7 +1426,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             if (_session.Pages.Count > 0)
             {
                 _session.CurrentPageIndex = _session.Pages.Count - 1;
-                RenderCurrentPage();
+                RenderPickedPage();
             }
         };
         menu.Items.Add(lastItem);
@@ -1999,10 +2005,10 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
 
         if (SessionMetricsText is not null)
         {
-            string metrics = $"{_session.Pages.Count} Page{(_session.Pages.Count == 1 ? "" : "s")} · " +
-                             $"{_session.TotalElements} Elements · " +
-                             $"{_session.TotalWords} Words · " +
-                             $"{_session.TotalReclassifications} Reclassified";
+            string metrics = $"{CountText.Of(_session.Pages.Count, "Page")} · " +
+                             $"{CountText.Of(_session.TotalElements, "Element")} · " +
+                             $"{CountText.Of(_session.TotalWords, "Word")} · " +
+                             $"{_session.TotalReclassifications:N0} Reclassified";
             SessionMetricsText.Text = metrics;
             AutomationProperties.SetName(SessionMetricsText, metrics);
         }
@@ -2177,7 +2183,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         if (_session.CanPreviousPage)
         {
             _session.PreviousPage();
-            RenderCurrentPage();
+            RenderPickedPage();
         }
     }
 
@@ -2186,7 +2192,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         if (_session.CanNextPage)
         {
             _session.NextPage();
-            RenderCurrentPage();
+            RenderPickedPage();
         }
     }
 
@@ -2306,12 +2312,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
     {
         var page = _session.CurrentPage;
         if (page is null || page.Elements.Count == 0) return;
-        if (_selectedElement is null)
-        {
-            SelectElement(page.Elements[^1]);
-            return;
-        }
-        int idx = page.Elements.IndexOf(_selectedElement);
+        int idx = _selectedElement is null ? -1 : page.Elements.IndexOf(_selectedElement);
         int prevIdx = idx <= 0 ? page.Elements.Count - 1 : idx - 1;
         SelectElementKeepingCardFocus(page.Elements[prevIdx]);
     }
@@ -2320,23 +2321,20 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
     {
         var page = _session.CurrentPage;
         if (page is null || page.Elements.Count == 0) return;
-        if (_selectedElement is null)
-        {
-            SelectElement(page.Elements[0]);
-            return;
-        }
-        int idx = page.Elements.IndexOf(_selectedElement);
+        int idx = _selectedElement is null ? -1 : page.Elements.IndexOf(_selectedElement);
         int nextIdx = (idx < 0 || idx >= page.Elements.Count - 1) ? 0 : idx + 1;
         SelectElementKeepingCardFocus(page.Elements[nextIdx]);
     }
 
     // Up/Down (and [ ]) from inside a card take keyboard focus along to the newly selected card;
-    // otherwise focus stayed on the old card while the highlight moved on.
+    // otherwise focus stayed on the old card while the highlight moved on. From anywhere else
+    // focus stays put, so the selection badge says which element is now selected.
     private void SelectElementKeepingCardFocus(OcrInspectionElement elem)
     {
         bool focusWasOnCard = IsFocusWithinElementCards();
         SelectElement(elem);
         if (focusWasOnCard) FocusSelectedCard();
+        else if (SelectedElementBadgeText is not null) LiveAnnounce.Raise(SelectedElementBadgeText);
     }
 
     private void OnImportCtaClick(object sender, RoutedEventArgs e)
@@ -2477,7 +2475,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
                 {
                     e.Handled = true;
                     _session.GoToFirstPage();
-                    RenderCurrentPage();
+                    RenderPickedPage();
                 }
             }
             else if (e.Key == Windows.System.VirtualKey.End)
@@ -2486,7 +2484,7 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
                 {
                     e.Handled = true;
                     _session.GoToLastPage();
-                    RenderCurrentPage();
+                    RenderPickedPage();
                 }
             }
             else if (e.Key == Windows.System.VirtualKey.Up || (int)e.Key == 219) // Up or '['

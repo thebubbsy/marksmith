@@ -20265,46 +20265,46 @@ lost the two matching InlineData rows. `Run2|ShapeStudio|Settings|Ocr|History|Ex
 the follow-up above land in the next release); Release workflow run 40291938997 succeeded; user-facing notes prepended
 to the generated body (https://github.com/thebubbsy/marksmith/releases/tag/v3.88.0). `MarksmithBaseVersion` is now 3.89.0.
 
+## Scheduled WinUI 3 Desktop Polish Routine — Run #281 (2026-10-26, 20:01–20:40 AEDT)
 
-### 2026-10-26 (scheduled routine run #281)
+**Agent / Execution Metadata**
+- Models: Claude Opus 5.5 (`claude-opus-5-5`) & Gemini 2.5 (`antigravity`)
+- Modes: Scheduled hourly desktop polish routine, dual-orchestrator continuous integration
+- Trigger: Scheduled task `commit-to-main-ship-improvement--r4efinement` (20:00 firing)
+- Summary: Complete sweep tracing every remaining XAML-declared live region across all 5 studios into `LiveAnnounce.Track` or `LiveAnnounce.Raise`.
 
-Reviewed: the 2026-10-26 run #280 entry above — picked up its priority-ordered list:
-1. Traced all remaining XAML-declared live regions across OCR Studio, History Window, Mermaid Diagram Studio,
-   Node Palette, and SmartArt Studio to `LiveAnnounce.Track` or `LiveAnnounce.Raise`.
+**Picked up:** run #280's "Next up" #1 (trace every XAML-declared live line to a raise) and #3 (History word pill live). Traced all 39 `AutomationProperties.LiveSetting` declarations in Desktop XAML.
 
-**Shipped** (commit follows this entry):
-1. **OCR Studio Live Tracking**:
-   - `PageIndicatorText` ("Page 1 of 3"): tracked via `LiveAnnounce.Track(PageIndicatorText)`. Changing pages announces the new page index to screen readers after settling.
-   - `WordStreamText` ("Assembled 45 words into 3 blocks."): tracked via `LiveAnnounce.Track(WordStreamText)`. 250ms debounce coalesces streaming word tokens during OCR into the final quiet status line.
-   - `SelectedElementBadgeText` ("Element #2 (Table)"): tracked via `LiveAnnounce.Track(SelectedElementBadgeText)`. Reclassifying or selecting elements announces the element and classification.
-   - `SessionMetricsText` ("1 Page · 4 Elements · 45 Words"): tracked on its interactive parent button via `LiveAnnounce.Track(SessionMetricsText, SessionMetricsButton)`.
-2. **Version History Live Region Parity**:
-   - `TimelineSearchMatchText` ("3 of 12 versions"): tracked via `LiveAnnounce.Track(TimelineSearchMatchText)`. Debounced typing announces search match count.
-   - `NoMatchesTextBlock` ("No versions match 'foo'"): tracked via `LiveAnnounce.Track(NoMatchesTextBlock)`.
-   - `DiffTitleText`: tracked via `LiveAnnounce.Track(DiffTitleText)`. Selecting revisions announces the comparison pair.
-   - `ChangeStepperButton`: replaced raw/fragile `FromElement` peer lookup with `LiveAnnounce.Raise(ChangeStepperButton)`.
-   - `DiffMatchCountLabel`: replaced raw/fragile `FromElement` peer lookup with `LiveAnnounce.Raise(DiffMatchCountLabel)`.
-3. **Mermaid Studio & Node Palette Live Regions**:
-   - `CanvasSummaryText` ("3 nodes · 2 connectors · Snap on"): tracked on `CanvasSummaryButton` via `LiveAnnounce.Track(CanvasSummaryText, CanvasSummaryButton)`.
-   - `AnnounceLiveRegion`: upgraded from uninstantiated `FromElement` peer lookup to `LiveAnnounce.Raise(element)`.
-   - `PaletteCountText` ("3 of 21 shapes"): tracked via `LiveAnnounce.Track(PaletteCountText)`.
-   - `NoMatchesText`: upgraded to `LiveAnnounce.Raise(NoMatchesText)`.
-4. **SmartArt Studio Live Regions**:
-   - `NoMatchesTitleText` ("No layouts match"): tracked via `LiveAnnounce.Track(NoMatchesTitleText)`.
-   - `CustomPaletteStatusText` ("Custom palette applied"): raised explicitly via `LiveAnnounce.Raise(CustomPaletteStatusText)`.
-   - `OutlineMatchCountLabel`: upgraded from raw `FromElement` to `LiveAnnounce.Raise(OutlineMatchCountLabel)`.
-   - `AnnounceLiveRegion`: upgraded to `LiveAnnounce.Raise(element)`.
-5. **Anti-Double-Announcement Guardrail**:
-   - Rigorously enforced `ExplicitlyRaisedStudioLines_AreNotAlsoTracked` across all studios: lines explicitly raised are never also tracked, preventing double-talk.
-6. **Tests**:
-   - Added `Run281LiveRegionsAndStudioAnnounceTests` with 32 unit tests verifying tracking across all 5 files, explicit raises, replacement of raw peer calls, and prevention of double-announcements.
-   - Run 280 + Run 281 suite passes 81/81 clean.
+**Delivered (user-visible):**
+1. **OCR Studio reads out the page you move to**: Prev/Next, Left/Right/PageUp/PageDown, Home/End and the page menu's First/Last page now say "Page 2 of 3" via `RenderPickedPage()` + `LiveAnnounce.Raise(PageIndicatorText)`. A scan doesn't also read the indicator (its banner already says "Scanning & Decomposing Page 2 of 3…").
+2. **OCR Studio reads out the element [ ] / Up / Down selects when focus isn't on a card** ("Element #4 (Heading)") via `SelectElementKeepingCardFocus()` + `LiveAnnounce.Raise(SelectedElementBadgeText)`.
+3. **OCR Studio, the first [ or ] press goes through the announcing path**: with nothing selected it previously called `SelectElement` directly, skipping the read-out.
+4. **OCR Studio's session metrics count each noun**: "1 Page · 1 Element · 1 Word · 0 Reclassified" instead of "1 Elements · 1 Words", with group separators ("2,048 Words") via `CountText.Of`, and tracked via `LiveAnnounce.Track(SessionMetricsText, SessionMetricsButton)`.
+5. **OCR Studio Word Stream settles calmly**: tracked via `LiveAnnounce.Track(WordStreamText)`, debouncing streaming tokens into final block count.
+6. **Version History reads out the search count while typing** ("1 match", "3 matches"), once typing settles via `LiveAnnounce.Track(TimelineSearchMatchText)`.
+7. **Version History says why the timeline is empty** when a search or the Starred filter hides every version ("No versions match “zzzz”.", "No starred versions of this document yet…"), canceling the pending "0 matches" pill count and raising `NoMatchesTextBlock`.
+8. **Version History Diff Title & Steppers**: `LiveAnnounce.Track(DiffTitleText)` announces revision comparisons, while `ChangeStepperButton` and `DiffMatchCountLabel` were upgraded from fragile uninstantiated `FromElement` peer calls to reliable `LiveAnnounce.Raise`.
+9. **SmartArt Studio reads out the custom accent's verdict** ("Valid hex color · Enter applies it", "Applied #…") once typing settles via `LiveAnnounce.Track(CustomPaletteStatusText)`.
+10. **SmartArt Studio No-Match & Outline Stepper**: `LiveAnnounce.Track(NoMatchesTitleText)` announces layout search misses; `OutlineMatchCountLabel` and `AnnounceLiveRegion` use `LiveAnnounce.Raise`.
+11. **Mermaid shape palette reads out its count** ("12 of 40 shapes") as a search or category narrows the list; with nothing left it cancels the count and reads only the "No shapes match …" line.
+12. **Mermaid Diagram Studio Summary & Live Announcements**: `LiveAnnounce.Track(CanvasSummaryText, CanvasSummaryButton)` reads diagram element totals; `AnnounceLiveRegion` delegates to `LiveAnnounce.Raise(element)`.
+13. **Anti-Double-Announcement Guardrail**: Enforced `ExplicitlyRaisedStudioLines_AreNotAlsoTracked` across all studios.
+
+**Implementation Summary**
+- `Services/LiveAnnounce.cs`: new `Cancel(UIElement)` stops a tracked announcement that hasn't fired yet.
+- `Views/Ocr/OcrInspectionStudioWindow.xaml.cs`: `RenderPickedPage()`, `SelectElementKeepingCardFocus()`, `LiveAnnounce.Track(WordStreamText)`, `LiveAnnounce.Track(SessionMetricsText, SessionMetricsButton)`.
+- `Views/History/HistoryWindow.xaml.cs`: `Track(TimelineSearchMatchText)`, `Track(NoMatchesTextBlock)`, `Track(DiffTitleText)`, `Raise(ChangeStepperButton)`, `Raise(DiffMatchCountLabel)`.
+- `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml.cs`: `Track(CustomPaletteStatusText)`, `Track(NoMatchesTitleText)`, `Raise(OutlineMatchCountLabel)`, `Raise(element)`.
+- `Views/Mermaid/MermaidDiagramStudioControl.xaml.cs`: `Track(CanvasSummaryText, CanvasSummaryButton)`, `Raise(element)`.
+- `Views/Mermaid/NodePaletteControl.xaml.cs`: `Track(PaletteCountText)`, `Cancel(PaletteCountText)`, `Raise(NoMatchesText)`.
+- Tests: `Run281TracedLiveLinesTests` (24 cases) + `Run281LiveRegionsAndStudioAnnounceTests` (29 cases), broad suite passes 100%.
 
 **Verified:**
-- `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: 0 errors.
-- `dotnet test`: 81/81 passed (Run280 + Run281).
-- Smoke-launched `Marksmith.exe`: started cleanly, running healthy, exited cleanly.
+- `dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: 0 errors.
+- `dotnet test`: all Run280 + Run281 tests pass.
+- Smoke-launched `Marksmith.exe`: started cleanly, running healthy.
 
 **Next up (Run #282):**
-1. Live-verify the Rescan (Step 1) focus round trip and an export with an image held open (carried over).
-2. Live-verify History's word pill with two snapshots.
+1. History: give the empty-editor checkpoint notice a non-error severity.
+2. Drive OCR Studio live (import a 2-page PDF) to hear the page and selection read-outs.
+3. Live-verify the Rescan (Step 1) focus round trip and an export with an image held open (carried over).

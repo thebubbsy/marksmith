@@ -39,9 +39,7 @@ public class Run281LiveRegionsAndStudioAnnounceTests
     [Theory]
     [InlineData(OcrStudio, "LiveAnnounce.Track(StatusBannerText);")]
     [InlineData(OcrStudio, "LiveAnnounce.Track(FooterStatusText);")]
-    [InlineData(OcrStudio, "LiveAnnounce.Track(PageIndicatorText);")]
     [InlineData(OcrStudio, "LiveAnnounce.Track(WordStreamText);")]
-    [InlineData(OcrStudio, "LiveAnnounce.Track(SelectedElementBadgeText);")]
     [InlineData(OcrStudio, "LiveAnnounce.Track(SessionMetricsText, SessionMetricsButton);")]
     [InlineData(History, "LiveAnnounce.Track(TimelineSearchMatchText);")]
     [InlineData(History, "LiveAnnounce.Track(NoMatchesTextBlock);")]
@@ -49,6 +47,7 @@ public class Run281LiveRegionsAndStudioAnnounceTests
     [InlineData(Mermaid, "LiveAnnounce.Track(CanvasSummaryText, CanvasSummaryButton);")]
     [InlineData(NodePalette, "LiveAnnounce.Track(PaletteCountText);")]
     [InlineData(SmartArt, "LiveAnnounce.Track(NoMatchesTitleText);")]
+    [InlineData(SmartArt, "LiveAnnounce.Track(CustomPaletteStatusText);")]
     public void ChangingStudioLines_AreTracked(string file, string expectedTrackCall)
     {
         var content = Read(file);
@@ -58,11 +57,11 @@ public class Run281LiveRegionsAndStudioAnnounceTests
     // ---- Explicit Live Raises ----
 
     [Theory]
+    [InlineData(OcrStudio, "LiveAnnounce.Raise(PageIndicatorText)")]
+    [InlineData(OcrStudio, "LiveAnnounce.Raise(SelectedElementBadgeText);")]
     [InlineData(History, "LiveAnnounce.Raise(ChangeStepperButton);")]
     [InlineData(History, "LiveAnnounce.Raise(DiffMatchCountLabel);")]
     [InlineData(Mermaid, "LiveAnnounce.Raise(element);")]
-    [InlineData(NodePalette, "LiveAnnounce.Raise(NoMatchesText);")]
-    [InlineData(SmartArt, "LiveAnnounce.Raise(CustomPaletteStatusText);")]
     [InlineData(SmartArt, "LiveAnnounce.Raise(OutlineMatchCountLabel);")]
     [InlineData(SmartArt, "LiveAnnounce.Raise(element);")]
     public void StudioStatusLines_AreExplicitlyRaisedViaLiveAnnounce(string file, string expectedRaiseCall)
@@ -77,7 +76,6 @@ public class Run281LiveRegionsAndStudioAnnounceTests
     [InlineData(History, "FromElement(ChangeStepperButton)")]
     [InlineData(History, "FromElement(DiffMatchCountLabel)")]
     [InlineData(Mermaid, "FromElement(element)")]
-    [InlineData(NodePalette, "FromElement(NoMatchesText)")]
     [InlineData(SmartArt, "FromElement(OutlineMatchCountLabel)")]
     public void FragilePeerLookups_AreReplacedByLiveAnnounce(string file, string forbiddenPattern)
     {
@@ -88,6 +86,8 @@ public class Run281LiveRegionsAndStudioAnnounceTests
     // ---- Explicitly Raised Lines Must Not Also Be Tracked (Anti-Double-Announcement Guard) ----
 
     [Theory]
+    [InlineData(OcrStudio, "PageIndicatorText")]
+    [InlineData(OcrStudio, "SelectedElementBadgeText")]
     [InlineData(History, "ChangeStepperLabel")]
     [InlineData(History, "ChangeStepperButton")]
     [InlineData(History, "DiffMatchCountLabel")]
@@ -95,7 +95,6 @@ public class Run281LiveRegionsAndStudioAnnounceTests
     [InlineData(Mermaid, "CodeStatusText")]
     [InlineData(NodePalette, "NoMatchesText")]
     [InlineData(SmartArt, "OutlineMatchCountLabel")]
-    [InlineData(SmartArt, "CustomPaletteStatusText")]
     public void ExplicitlyRaisedStudioLines_AreNotAlsoTracked(string file, string name)
     {
         Assert.DoesNotContain($"LiveAnnounce.Track({name})", Read(file));
