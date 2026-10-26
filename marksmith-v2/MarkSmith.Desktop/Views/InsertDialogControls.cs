@@ -253,9 +253,22 @@ public abstract class InsertDialogBody : UserControl
         
         if (_opened)
         {
-            var message = string.IsNullOrWhiteSpace(problem) ? null : $"Problem: {problem}";
-            AutomationProperties.SetName(_problem, message ?? "");
-            Services.LiveAnnounce.RaiseIfChanged(_problem, message);
+            _lastAnnouncedProblem = problem;
+            if (!string.IsNullOrWhiteSpace(problem))
+            {
+                AutomationProperties.SetName(_problem, $"Problem: {problem}");
+                AutomationProperties.SetLiveSetting(_problem, AutomationLiveSetting.Polite);
+                // Setting the name alone is silent: a live region speaks only when it is told it
+                // changed. FromElement returned null until a screen reader had asked for the
+                // line's peer, so the first problem in a dialog was never read; LiveAnnounce
+                // creates the peer when needed.
+                LiveAnnounce.RaiseIfChanged(_problem, problem);
+            }
+            else
+            {
+                AutomationProperties.SetName(_problem, "");
+                LiveAnnounce.RaiseIfChanged(_problem, null); // so the same problem coming back is read again
+            }
         }
 
         // An empty card read as broken; say plainly that nothing has been chosen yet.

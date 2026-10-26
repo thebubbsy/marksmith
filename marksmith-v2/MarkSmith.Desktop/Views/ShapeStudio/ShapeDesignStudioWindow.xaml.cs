@@ -2985,29 +2985,31 @@ namespace MarkSmith.Views.ShapeStudio
             if (InspectorSendToBackBtn != null) InspectorSendToBackBtn.IsEnabled = index > 0;
         }
 
-        private void OnInspectorBringToFrontClick(object sender, RoutedEventArgs e)
+        // At the top or bottom of the stack the pressed Layer button disables itself (Send backward
+        // on layer 1, Bring to front on the top layer), and WinUI moved keyboard focus out of the
+        // inspector to the status bar. Keep it on the next Layer button that still applies.
+        private void PressLayerButton(Button? pressed, System.Windows.Input.ICommand command)
         {
-            ViewModel.BringToFrontCommand.Execute(null);
+            var how = pressed?.FocusState ?? FocusState.Unfocused;
+            command.Execute(null);
             UpdateInspectorLayerUi();
+            if (pressed is null || how == FocusState.Unfocused || pressed.IsEnabled) return;
+            Control[] layer = { InspectorBringToFrontBtn, InspectorBringForwardBtn, InspectorSendBackwardBtn, InspectorSendToBackBtn };
+            Control target = FocusRescue.NextAvailable(layer, pressed) ?? CanvasScroller;
+            target.Focus(how == FocusState.Pointer ? FocusState.Programmatic : FocusState.Keyboard);
         }
 
-        private void OnInspectorBringForwardClick(object sender, RoutedEventArgs e)
-        {
-            ViewModel.BringForwardCommand.Execute(null);
-            UpdateInspectorLayerUi();
-        }
+        private void OnInspectorBringToFrontClick(object sender, RoutedEventArgs e) =>
+            PressLayerButton(sender as Button, ViewModel.BringToFrontCommand);
 
-        private void OnInspectorSendBackwardClick(object sender, RoutedEventArgs e)
-        {
-            ViewModel.SendBackwardCommand.Execute(null);
-            UpdateInspectorLayerUi();
-        }
+        private void OnInspectorBringForwardClick(object sender, RoutedEventArgs e) =>
+            PressLayerButton(sender as Button, ViewModel.BringForwardCommand);
 
-        private void OnInspectorSendToBackClick(object sender, RoutedEventArgs e)
-        {
-            ViewModel.SendToBackCommand.Execute(null);
-            UpdateInspectorLayerUi();
-        }
+        private void OnInspectorSendBackwardClick(object sender, RoutedEventArgs e) =>
+            PressLayerButton(sender as Button, ViewModel.SendBackwardCommand);
+
+        private void OnInspectorSendToBackClick(object sender, RoutedEventArgs e) =>
+            PressLayerButton(sender as Button, ViewModel.SendToBackCommand);
 
         private void OnInspectorFlipHClick(object sender, RoutedEventArgs e)
         {

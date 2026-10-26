@@ -1151,26 +1151,27 @@ private readonly MarkdownExportService _mdExport = new();
         });
     }
 
-    // null back when its items are cleared, and that null must not reach settings.
-    private bool _refreshingCloudProviders;
+    // The Provider picker's TwoWay SelectedValue writes null back when its items are cleared.
+    private bool _rebuildingCloudProviders;
 
-    // Re-scans the machine for cloud-drive sync folders (Task 9) and refreshes the picker list.
+    /// <summary>
+    /// Re-scans the machine for cloud-drive sync folders (Task 9) and refreshes the picker list,
+    /// keeping the chosen provider. Clearing the list under the picker used to blank it and save
+    /// no provider on every Rescan, so exports silently stopped being copied.
+    /// </summary>
     public void RefreshCloudProviders()
     {
-        var keep = CloudProviderId;
-        _refreshingCloudProviders = true;
+        var keep = CloudProviderId ?? "";
+        _rebuildingCloudProviders = true;
         try
         {
             CloudProviders.Clear();
             foreach (var p in AppServices.CloudStorage.DetectProviders()) CloudProviders.Add(p);
         }
-        finally { _refreshingCloudProviders = false; }
+        finally { _rebuildingCloudProviders = false; }
 
-        if (!string.IsNullOrWhiteSpace(keep))
-        {
-            if (CloudProviderId != keep) CloudProviderId = keep;
-            else OnPropertyChanged(nameof(CloudProviderId));
-        }
+        if (CloudProviderId != keep) CloudProviderId = keep;
+        else OnPropertyChanged(nameof(CloudProviderId)); // the picker lost its item; reselect it
     }
 
     partial void OnOutputFolderChanged(string value) { _settingsService.Current.OutputFolder = value; SaveSettingsDebounced(); }
@@ -1293,12 +1294,7 @@ private readonly MarkdownExportService _mdExport = new();
     partial void OnSkipLaunchVideoChanged(bool value) { _settingsService.Current.SkipLaunchVideo = value; SaveSettingsDebounced(); }
     partial void OnAllowedExtensionIdChanged(string value) { _settingsService.Current.AllowedExtensionId = value; SaveSettingsDebounced(); }
     partial void OnCloudAutoPublishChanged(bool value) { _settingsService.Current.CloudAutoPublish = value; SaveSettingsDebounced(); }
-    partial void OnCloudProviderIdChanged(string value) {
-        if (_refreshingCloudProviders || string.IsNullOrWhiteSpace(value)) return;
-        _settingsService.Current.CloudProviderId = value;
-        OnPropertyChanged(nameof(IsWebDavProvider));
-        SaveSettingsDebounced();
-    }
+    partial void OnCloudProviderIdChanged(string value) { if (_rebuildingCloudProviders || value is null) return; _settingsService.Current.CloudProviderId = value; OnPropertyChanged(nameof(IsWebDavProvider)); SaveSettingsDebounced(); }
     partial void OnCloudSubfolderChanged(string value) { _settingsService.Current.CloudSubfolder = value; SaveSettingsDebounced(); }
     partial void OnWebDavEndpointChanged(string value) { _settingsService.Current.WebDavEndpoint = value; SaveSettingsDebounced(); }
     partial void OnWebDavUserChanged(string value) { _settingsService.Current.WebDavUser = value; SaveSettingsDebounced(); }

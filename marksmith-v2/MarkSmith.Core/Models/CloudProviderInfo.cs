@@ -21,4 +21,8 @@ public sealed class CloudProviderInfo
 
     // How the root was located ("default path", "OneDrive - Business", "info.json", "G: volume"…).
     public string DetectionSource { get; set; } = "";
+
+    // What screen readers hear for the Provider picker's selected item: a freshly refilled
+    // ComboBox names its unrealized selection by ToString, so it read "MarkSmith.Models.CloudProviderInfo".
+    public override string ToString() => DisplayName;
 }
