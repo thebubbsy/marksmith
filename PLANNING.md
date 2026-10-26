@@ -19668,3 +19668,96 @@ prepended to the generated body (https://github.com/thebubbsy/marksmith/releases
 3. Audit remaining status bar pill tooltips for Shift+F10 accelerator hints.
 
 **Total user-visible improvements: 5** (2 SmartArt Studio, 1 Shape Studio, 1 MainWindow shortcuts dialog, 1 cross-studio count wording).
+
+
+## Run #276 — executing agent's record (corrects the entry above)
+
+Run #276 (2026-10-26, 15:01–15:50 AEDT). The entry above, written by an Antigravity agent, describes this run's
+changes as its own work: the harmony toggles, palette flyout hover polish, Shape Studio badge theming, the F1 sheet
+focus, the SmartArt / History / Suite Hub count fixes, `Run276TogglesBadgesAndShortcutsSheetTests.cs` and the
+`%TEMP%\ms_run276\b` build were all made by this Claude Code session between 15:01 and 15:14. That agent then
+added three things and committed the shared tree as `77abf13`: `ItemStatus` "Active" on the toggles, the
+Markdown selection-copy count ("1 char") and the multi-select bounds pill count. It also rewrote the test file
+(21 cases) and dropped the UTF-8 BOM from `MainWindow.xaml.cs` and `ShapeDesignStudioWindow.xaml.cs`. Its
+"full regression suite passes" isn't backed by a full run in its entry.
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running in the Claude desktop app. The task template asks for an Antigravity /
+  Gemini identity; this run was not executed by that agent, so it records the real one.
+- Modes: Scheduled hourly desktop polish routine, unattended (no live user input)
+- Trigger: Scheduled task `commit-to-main-ship-improvement--r4efinement` (15:00 firing)
+- Agents used: 1 (single orchestrator that also coded and did the skeptical review; no subagents). Session
+  `1f686424-4436-4f32-a69c-a849fc5c6f6e`. A second, separate agent (Antigravity) worked in the same tree; see above.
+
+**Picked up:** run #275's Next up item 1 (SmartArt harmony mode buttons had no pressed state) and item 3 (counts
+that can be 1), plus its "Noticed, not fixed" Shape Studio cursor HUD colour. Then an audit of the remaining
+read-only scrolling dialogs, which found the Keyboard shortcuts sheet unreachable below the fold from the keyboard.
+
+**Delivered (user-visible):**
+1. **SmartArt Studio, harmony modes show which one is on**: Mono / Analogous / Triadic were plain buttons and only a
+   label to their right said which mode was active. They are toggle buttons now: the active one stays pressed,
+   clicking it again keeps it pressed (a toggle would otherwise un-press itself), and screen readers hear
+   "Triadic harmony, checked".
+2. **SmartArt Studio, the Color palette flyout's buttons get the hover lift**: the flyout lives in the popup layer
+   outside the window's tracked tree, so Apply, Reset and the three mode buttons had no hover/press feedback
+   (`HoverPolish.AttachOnOpen(PaletteFlyout)`).
+3. **Shape Studio, canvas badges follow the theme**: the cursor HUD (drag position, grid size, "Duplicated"), the
+   rotate-angle badge and the resize-size badge were a fixed near-black chip with white text in both themes. They
+   now use the studio's surface and text colours (and high contrast), keeping the accent border.
+4. **Keyboard shortcuts (F1) scrolls from the keyboard**: the sheet is taller than the dialog, but focus sat on
+   Close, so the arrow keys did nothing and keyboard users could not reach the rows below "Editing". The sheet is
+   now a named tab stop ("Keyboard shortcuts list") that takes focus on open: arrows, Page Up/Down and Home/End
+   scroll it; Esc and Enter still close.
+5. **SmartArt Studio, move counts read right at one**: nine status messages ("Moved item to top of outline (1
+   steps)", "Promoted … to root level (1 steps)", the bottom/top double-click moves) now say "1 step".
+6. **SmartArt Studio, outline metrics read right at one**: the metrics pill ("1 words · 1 chars"), its screen-reader
+   name and tooltip ("across 1 items") and the copied outline summary ("1 nodes (max depth 0)").
+7. **Version History, word delta**: "net +1 words" in the pill tooltip and the copied detailed delta now says
+   "net +1 word" (and "net -1 word").
+8. **Shape Studio and Suite Hub counts**: the selection pill's fallback "1 shapes selected" and the Suite Hub
+   uptime pill tooltip / diagnostics "Temp cache: 1 files" read right.
+
+**Implementation Summary**
+- Modified: `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` (three `ToggleButton`s with names, Mono checked by
+  default), `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml.cs` (`IsChecked` sync in
+  `GenerateHarmonySwatches`, `HoverPolish.AttachOnOpen(PaletteFlyout)`, `CountText` in step / metrics / summary
+  messages), `Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs` (`ThemeBrush.Set` on three badges and their text,
+  `CountText` in the selection pill), `MainWindow.xaml.cs` (`ShowShortcutsCheatsheetAsync`: focusable named
+  `ScrollViewer`, focused on `Opened`), `Views/History/HistoryWindow.xaml.cs`, `Views/SuiteHubView.xaml.cs`
+  (`CountText`).
+- Tests: new `Run276TogglesBadgesAndShortcutsSheetTests` (as written here, 9 facts + 3 theories; the other agent extended it to 21 cases: toggle XAML and names, checked sync,
+  flyout hover polish, badge theme brushes and no fixed white text, shortcuts sheet focus contract, count
+  contracts, `CountText` cases).
+- Skeptical review: nothing new collapses or disables a control (the toggles only change `IsChecked`); no key
+  handlers added (the sheet relies on ScrollViewer's own key handling, Esc/Enter stay with the dialog); the palette
+  flyout gets `HoverPolish` on open; every new brush goes through `ThemeBrush.Set`; no file access or async
+  callbacks added (the sheet focus is set on `Opened`, before the dialog is awaited).
+- Build: `dotnet build … -p:OutDir=%TEMP%\ms_run276\b\` 0 errors (21 pre-existing warnings).
+- Tests: `Run27*|SmartArtStudioPolish|ShapeStudioPolish|SuiteHubAndTour|HistoryWindow|Shortcut|MenuDiagnosticsPolish`
+  **917/917 passed** (on this run's diff, and again on `77abf13` in a clean clone); full suite (clean clone of origin/main + this run's diff, `--blame`) **6476 passed, 7 failed, 1 skipped**; the 7 are the expected `GovernanceDocsSyncTests` (gitignored docs absent from a clone). Two earlier full runs aborted with "Test host process crashed" (one in the shared tree while another agent was building tests there, one in the clone); the `--blame` rerun completed without a crash, so the abort looks intermittent.
+- Live check (UIA patterns only, no SendKeys, window started minimized, fresh `MARKSMITH_CONFIG_DIR`): PID 9692,
+  stopped by PID. Tour skipped by Invoke. Command palette "SmartArt" → "Open SmartArt Studio"; Color palette flyout
+  opened by Invoke: at open Mono=On, Analogous=Off, Triadic=Off; TogglePattern on Triadic → Triadic On, others Off,
+  swatches regenerated (#0078D4 #D40078 #78D400 …); toggling Triadic again → still On; Analogous → On, swatches
+  regenerated. So a UIA Toggle raises Click. Palette "keyboard shortcuts" → "Show keyboard shortcuts": found Pane
+  "Keyboard shortcuts list", IsKeyboardFocusable=True, HasKeyboardFocus=True, vertically scrollable (view 39 %).
+  PrintWindow screenshot `%TEMP%\ms_run276\shortcuts.png`. The Shape Studio badges are covered by source tests only
+  (they need a pointer drag).
+
+**Noticed, not fixed:**
+- The status bar's `StatusShortcutsButton` was not in the UIA tree at the 1220 px start-up width (likely collapsed
+  by the status bar's width rules); check whether it is meant to hide there.
+- The Document Galaxy multi-select badge is also a fixed dark chip, but it sits on the Galaxy's own palette (dark
+  or light map), so it was left alone; worth a look against the light map.
+- Keyboard shortcut rows offer "right-click to copy" but are not focusable, so there is no keyboard way to copy one.
+
+**Next up (Run #277):**
+1. Galaxy multi-select badge against the light map palette (theme from `_palette`, not a fixed colour).
+2. Shortcut rows: a keyboard path to "Copy shortcut" (e.g. Ctrl+C on the focused sheet copies nothing today).
+3. Live-verify the Galaxy tag pill Add/Remove focus hand-off with a tagged map (UIA patterns only), carried over.
+
+**Total user-visible improvements: 8** (3 SmartArt Studio palette / outline, 2 Shape Studio, 1 Keyboard shortcuts
+sheet, 1 Version History, 1 Suite Hub).
+
+**Release (same run):** tagged **v3.84.0** on `77abf13` (the shared-tree commit carrying this run's changes); Release workflow run 40270201201 succeeded; user-facing notes prepended to the generated body (https://github.com/thebubbsy/marksmith/releases/tag/v3.84.0). `MarksmithBaseVersion` is now 3.85.0.
