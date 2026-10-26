@@ -20143,3 +20143,11 @@ Document Galaxy, OCR, Suite Hub, Settings and the command palette; 3 busy-button
 1 OCR count wording).
 
 **Release (same run):** tagged **v3.87.0** on `4fb35ca` (carries Antigravity's run #278 `59d773a` too); Release workflow run 40285398900 succeeded; user-facing notes prepended to the generated body (https://github.com/thebubbsy/marksmith/releases/tag/v3.87.0). `MarksmithBaseVersion` is now 3.88.0.
+
+**Complementary GUI Loop Run #279 Deliveries (commit `e2b745f6`, merged in `213ea930`):**
+- **Status Bar Copy HTML Pill Button (`StatusCopyHtmlButton`)**: Added interactive pill button to MainWindow status bar with left-click full rendered HTML clipboard copy and right-click context menu (full standalone document with inlined typography/styles vs body fragment).
+- **Shape Studio Connector Port Snap Ring & Handle Polish**: Upgraded `_snapRing` to dynamic theme brushes (`ThemeBrush.Set` with `AccentFillColorDefaultBrush` / `AccentFillColorTertiaryBrush`), zoom-compensated stroke thickness (`2.0 / z`), and active point handle drag accent highlighting (`AccentFillColorDefaultBrush` / `SolidBackgroundFillColorPrimaryBrush`).
+- **Shape Studio Keyboard/Mouse Context Menu Parity**: Wired `MultiRotateHandle` and `MultiSelectionBadge` into `KeyboardContextMenu.BridgeAll` (`Shift+F10` / Menu key) with hover lift styling.
+- **Natural Pluralization Sweep (`CountText.Of`)**: Converted singular/plural counts at 1 across `MindMapStudioViewModel`, `MindMapNodeViewModel`, `MindMapGalaxyWindow` tag details, `SuiteHubView` template matches, and `ShapeDesignStudioWindow` status actions.
+- **Tests**: Added `Run279SnapRingKeyboardAndCountsTests` (13 cases) and `Run279CopyHtmlPillTests` (2 cases), bringing total Run #279 suite to 48/48 tests passing.
+
