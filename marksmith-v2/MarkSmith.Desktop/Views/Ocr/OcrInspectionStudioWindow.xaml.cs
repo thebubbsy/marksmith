@@ -2456,6 +2456,10 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             }
 
             if (ctrl || alt) return;
+            // A closed combo box (Quick reclassify, Markdown scope) steps its choices with the arrows and
+            // Home/End, but this preview handler took them first and turned the page or moved to another
+            // element instead.
+            if (ChoiceKeys.FocusIsInChoiceControl(RootGrid.XamlRoot)) return;
 
             if (e.Key == Windows.System.VirtualKey.Left || e.Key == Windows.System.VirtualKey.PageUp)
             {

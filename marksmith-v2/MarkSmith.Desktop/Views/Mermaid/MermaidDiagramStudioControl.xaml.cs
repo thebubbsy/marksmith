@@ -108,6 +108,8 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
             {
                 if (MenuOwnsKeys()) return;
                 if (IsEditingText()) return;
+                // Ctrl+[ / Ctrl+] in the palette, a pill group or a combo box reordered the selected shape behind it.
+                if (ChoiceKeys.FocusIsInChoiceControl(XamlRoot, CanvasContainer)) return;
                 if (isForward)
                 {
                     if (isShift) _canvas.BringToFront();
@@ -634,6 +636,8 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
     {
         if (MenuOwnsKeys()) return;
         if (IsEditingText()) return;
+        // Ctrl+D on a palette shape or a category pill duplicated the selected canvas shape behind it.
+        if (ChoiceKeys.FocusIsInChoiceControl(XamlRoot, CanvasContainer)) return;
         ViewModel?.DuplicateSelected();
         args.Handled = true;
     }
