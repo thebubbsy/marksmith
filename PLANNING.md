@@ -20582,3 +20582,5 @@ in WinUI, and `EditorStepTitle.Parent` was null at constructor time, so the host
 
 **Total user-visible improvements: 9** (5 theme picker fixes, 1 centre header, 1 output folder tooltip, 2 Insert
 dialog fixes).
+
+**Release (same run):** tagged **v3.91.0** on `d3fc9fe` (this run's work plus Antigravity's `2236929` and `f7766a9`). Release workflow run 40316738552 succeeded; user-facing notes prepended to the generated body (https://github.com/thebubbsy/marksmith/releases/tag/v3.91.0). `MarksmithBaseVersion` is now 3.92.0.
