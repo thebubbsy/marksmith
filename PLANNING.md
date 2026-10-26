@@ -19432,3 +19432,95 @@ run #271's diff: behaviour fine, but it broke an older source-contract test (fix
 
 **Total user-visible improvements: 11** (5 Shape Studio, 2 SmartArt Studio, 1 Mermaid Studio, 2 Document Galaxy, 1 Version History).
 
+
+
+## Run #274 — executing agent's record (corrects the entry above)
+
+The Run #274 entry above was written by the concurrent Antigravity agent about this run's commit `b6eda1e0`. It
+names methods that don't exist (`PointerHoverPolish`, `RemoveRecentColor`; the code uses `HoverPolish.Apply` and
+`FocusRecentSwatchOrPicker`), lists a smoke launch (PID 3260) and a `Run270–273` test count that belong to its own
+run, and leaves out the live-test incident below. This block is the record from the agent that did the work.
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running in the Claude desktop app. The task template asks for an Antigravity /
+  Gemini identity; this run was not executed by that agent, so it records the real one.
+- Modes: Scheduled hourly desktop polish routine, unattended (no live user input)
+- Trigger: Scheduled task `commit-to-main-ship-improvement--r4efinement` (13:00 firing)
+- Agents used: 1 (single orchestrator that also coded and did the skeptical review; no subagents). Session
+  `ba0f8e70-bffa-4951-bcd7-4cfd9e4810e0`.
+
+**Concurrency note:** this run started while the Antigravity agent was still running its own run #273 in the same
+working tree (it committed `ebaf5762` at 13:02, one minute in, and wrote its PLANNING entry at 13:15). The two
+runs shared the git index: this run kept its edits out of the files the other agent had touched in MainWindow,
+committed its own explicit paths as soon as they were ready (so a `git commit` from the other agent could not
+sweep them in), and left the other agent's PLANNING.md edit for it to commit. Two scheduled agents in one working
+tree is a standing hazard: shared index, shared `main`, and both may try to tag the same version.
+
+**Picked up:** run #272's Next up item 2 (rescue focus from controls that remove or hide themselves), extended
+across the studios not covered by run #273: Shape Studio's fill flyout, Mermaid Studio, Document Galaxy's tag
+filter, Version History deletes. Plus singular/plural cleanup in SmartArt and Shape Studio.
+
+**Delivered (user-visible):**
+1. **Shape Studio fill flyout, recent swatches open their menu from Shift+F10**: the "Copy #hex / Remove from
+   recent" menu was pointer-only (RightTapped); now bridged to Shift+F10 / the Menu key and anchored to the swatch
+   for keyboard requests. Tooltip says so.
+2. **Shape Studio, Remove from recent keeps focus**: the rebuild removed the focused swatch, dropping focus out of
+   the flyout. Focus now lands on the swatch that took its place (or the colour picker when none are left), with a
+   focus rectangle only for keyboard users. The status bar confirms the removal.
+3. **Shape Studio, Clear recent colours keeps focus**: Clear collapses its own row; focus moves to the colour
+   picker first.
+4. **Shape Studio, fill flyout swatches get the hover lift**: palette and recent swatches are created in the
+   flyout's popup, outside the window's tracked tree, so they had no HoverPolish scale/brush transition.
+5. **Mermaid Studio, Delete selection keeps focus**: deleting from the keyboard disabled the focused toolbar
+   button and WinUI threw focus to the window's first tab stop. `FocusRescue` now hands it to the canvas (where
+   Ctrl+Z undoes the delete).
+6. **Document Galaxy, tag filter Clear keeps focus**: Clear hides itself once the filter is off; focus now lands
+   on "All tags" (as Esc already did). Clear has an accessible name ("Clear tag filter"); tag pills' tooltips name
+   Shift+F10.
+7. **Version History, deleting the last version keeps focus**: with no version left to select, focus fell back to
+   the deleted row. It now lands on the document in the Files list, else the search box.
+8. **SmartArt Studio, copying an empty outline says so**: "Copy plain text outline" put an empty string on the
+   clipboard and reported "0 lines"; it now says the outline is empty and how to add nodes.
+9. **Counts read right at one**: SmartArt outline metrics ("1 word, 1 character, 1 node"), the outline stats
+   tooltip, Shape Studio "Selected all 1 shape" and "Preset category … (1 preset)".
+
+**Implementation Summary**
+- Modified: `Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs` (recent swatch menu bridge, `FocusRecentSwatchOrPicker`,
+  Clear focus hand-off, `HoverPolish.Apply` on both swatch rows, `CountText`), `Views/Mermaid/MermaidCanvasControl.xaml.cs`
+  (`internal FocusTarget`), `Views/Mermaid/MermaidDiagramStudioControl.xaml.cs` (`FocusRescue.Attach` on Delete selection),
+  `Views/MindMap/MindMapGalaxyWindow.xaml(.cs)` (Clear focus hand-off, name, tooltip), `Views/History/HistoryWindow.xaml.cs`
+  (`FocusAfterDelete`), `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml.cs` (empty guard, `CountText`).
+- Tests: new `Run273StudioFlyoutsAndDeletesKeepFocusTests` (15 cases: source contracts plus `CountText` theory).
+- Skeptical review: no key handlers added; nothing collapsed or disabled by new code without a focus hand-off;
+  dynamic flyout controls get `HoverPolish.Apply`; no resource lookups; no file access. The first draft forced a
+  keyboard focus rectangle after a mouse-driven "Remove from recent" and after History deletes; fixed (focus
+  state follows the input that opened the menu; History uses `Programmatic` like its other hand-offs).
+- Build (the exact commit contents, exported from the index to `%TEMP%\ms_run273b\v`, because the shared working
+  tree held the other agent's uncommitted edits at the time): `dotnet build … -p:OutDir=%TEMP%\ms_run273b\b\`
+  0 errors (21 pre-existing warnings).
+- Tests: `Run273|Run272|ShapeStudio|SmartArt|MindMap|History|Mermaid` filter **1837/1837 passed**; after the
+  review fixes, `Run273` **49/49 passed**.
+- Live check: scratch instance PID 13224 (isolated `MARKSMITH_CONFIG_DIR`) launched, window "MarkSmith"
+  responding, stopped by PID. **Live-test incident:** the user had been idle for 24 minutes, but UIA `SetFocus` on
+  the MarkSmith window threw ("cannot receive focus") and the script went on to send keys. Ctrl+K went to the
+  user's foreground Microsoft Edge window ("Personal" profile), so its active tab ran a Bing search for
+  "Open Diagram Studio" and navigated away from the page it was on. Input stopped there; nothing else was sent.
+  The focus-based checks are covered by source tests only. Future runs: after `SetFocus`, confirm
+  `GetForegroundWindow()` belongs to the scratch PID **before** any `SendKeys`, and abort if it doesn't (catching
+  the SetFocus exception is not enough).
+
+**Noticed, not fixed:**
+- `CountText.Of(n, "property")` in the frontmatter actions (commit `ebaf5762`) gives "2 propertys": it needs the
+  plural argument (`"properties"`).
+- Galaxy dynamic tag pill menu "Remove tag" can remove the focused pill (last node with that tag); no fallback yet.
+- Mermaid Studio's Delete selection button has no Shift+F10 menu, unlike its neighbours (fine, its tooltip
+  doesn't promise one).
+
+**Next up (Run #275):**
+1. Fix the "propertys" plural in the frontmatter menu messages (`MainWindow.xaml.cs`).
+2. Galaxy tag pill "Remove tag" focus fallback to "All tags".
+3. With a verified foreground window: live-verify Mermaid Delete → canvas and Shape Studio Remove-from-recent.
+
+**Total user-visible improvements: 9** (4 Shape Studio, 1 Mermaid Studio, 1 Document Galaxy, 1 Version History,
+1 SmartArt Studio, 1 cross-studio count wording).
