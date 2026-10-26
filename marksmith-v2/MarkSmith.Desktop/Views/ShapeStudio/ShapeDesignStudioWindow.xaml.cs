@@ -169,7 +169,9 @@ namespace MarkSmith.Views.ShapeStudio
                 (RotationSlider, OnRotationSliderRightTapped),
                 (ResetRotationButton, OnResetRotationButtonRightTapped),
                 (RotationReadoutButton, OnResetRotationButtonRightTapped),
-                (ZoomButton, OnZoomButtonRightTapped));
+                (ZoomButton, OnZoomButtonRightTapped),
+                (MultiRotateHandle, OnMultiRotateHandleRightTapped),
+                (MultiSelectionBadge, OnMultiSelectionBadgeRightTapped));
             // Undo at the start of history, Delete with the last selection, or Clear on the last
             // shapes disabled the button holding focus and dropped the keyboard out of the window.
             FocusRescue.Attach(() => CanvasScroller, ToolUndoButton, ToolRedoButton);
@@ -233,6 +235,8 @@ namespace MarkSmith.Views.ShapeStudio
                 MultiRotateHandle.PointerWheelChanged += OnMultiRotateHandlePointerWheelChanged;
                 MultiRotateHandle.DoubleTapped += OnMultiRotateHandleDoubleTapped;
                 MultiRotateHandle.RightTapped += OnMultiRotateHandleRightTapped;
+                MultiRotateHandle.PointerEntered += (_, _) => ThemeBrush.Set(MultiRotateHandle, Microsoft.UI.Xaml.Shapes.Shape.FillProperty, "AccentFillColorSecondaryBrush");
+                MultiRotateHandle.PointerExited += (_, _) => ThemeBrush.Set(MultiRotateHandle, Microsoft.UI.Xaml.Shapes.Shape.FillProperty, "AccentFillColorDefaultBrush");
             }
         }
 
@@ -2844,7 +2848,7 @@ namespace MarkSmith.Views.ShapeStudio
         private void OnMultiSelectionBadgeRightTapped(object sender, RightTappedRoutedEventArgs e)
         {
             e.Handled = true;
-            ShowMultiSelectionContextMenu(e.GetPosition(MainCanvas));
+            ShowMultiSelectionContextMenu(sender is FrameworkElement fe ? KeyboardContextMenu.PointIn(e, fe) : e.GetPosition(MainCanvas));
         }
 
         private void OnMultiAlignLeftClick(object sender, RoutedEventArgs e)
@@ -3328,7 +3332,7 @@ namespace MarkSmith.Views.ShapeStudio
             }));
 
             if (MultiRotateHandle != null)
-                flyout.ShowAt(MultiRotateHandle, e.GetPosition(MultiRotateHandle));
+                flyout.ShowAt(MultiRotateHandle, KeyboardContextMenu.PointIn(e, MultiRotateHandle));
         }
 
         private void OnCanvasDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
@@ -3749,9 +3753,9 @@ namespace MarkSmith.Views.ShapeStudio
             {
                 IsHitTestVisible = false,
                 Visibility = Visibility.Collapsed,
-                Stroke = new SolidColorBrush(AccentColor(0xFF)),
-                Fill = new SolidColorBrush(AccentColor(0x40)),
             };
+            ThemeBrush.Set(_snapRing, Microsoft.UI.Xaml.Shapes.Shape.StrokeProperty, "AccentFillColorDefaultBrush");
+            ThemeBrush.Set(_snapRing, Microsoft.UI.Xaml.Shapes.Shape.FillProperty, "AccentFillColorTertiaryBrush");
             _pointAdorner.Children.Add(_snapRing);
             MainCanvas.Children.Add(_pointAdorner);
         }
@@ -3776,14 +3780,14 @@ namespace MarkSmith.Views.ShapeStudio
                 ThemeBrush.Set(h, Microsoft.UI.Xaml.Shapes.Shape.StrokeProperty, "AccentFillColorDefaultBrush");
                 ToolTipService.SetToolTip(h, "Drag to re-route · it snaps to a shape's side or centre (Alt: no snap) · Double-click to reset/reverse · Right-click for options");
                 SetCursor(h, Microsoft.UI.Input.InputSystemCursorShape.SizeAll);
-                h.PointerEntered += (_, _) => ThemeBrush.Set(h, Microsoft.UI.Xaml.Shapes.Shape.FillProperty, "AccentFillColorSecondaryBrush");
-                h.PointerExited += (_, _) => ThemeBrush.Set(h, Microsoft.UI.Xaml.Shapes.Shape.FillProperty, "SolidBackgroundFillColorPrimaryBrush");
+                h.PointerEntered += (_, _) => { if (_pointIndex < 0) ThemeBrush.Set(h, Microsoft.UI.Xaml.Shapes.Shape.FillProperty, "AccentFillColorSecondaryBrush"); };
+                h.PointerExited += (_, _) => { if (_pointIndex < 0) ThemeBrush.Set(h, Microsoft.UI.Xaml.Shapes.Shape.FillProperty, "SolidBackgroundFillColorPrimaryBrush"); };
                 h.PointerPressed += OnPointHandlePressed;
                 h.PointerMoved += OnPointHandleMoved;
                 h.PointerReleased += OnPointHandleReleased;
                 h.DoubleTapped += OnPointHandleDoubleTapped;
                 h.RightTapped += OnPointHandleRightTapped;
-                h.PointerCaptureLost += (_, _) => { _pointIndex = -1; if (_snapRing is not null) _snapRing.Visibility = Visibility.Collapsed; };
+                h.PointerCaptureLost += (_, _) => { _pointIndex = -1; ThemeBrush.Set(h, Microsoft.UI.Xaml.Shapes.Shape.FillProperty, "SolidBackgroundFillColorPrimaryBrush"); if (_snapRing is not null) _snapRing.Visibility = Visibility.Collapsed; };
                 _pointAdorner.Children.Add(h);
                 _pointHandles.Add(h);
             }
@@ -3797,7 +3801,7 @@ namespace MarkSmith.Views.ShapeStudio
                 Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(h, i == 0 ? "Line start" : i == points.Count - 1 ? "Line end" : $"Bend {i}");
                 h.Visibility = Visibility.Visible;
                 h.Width = h.Height = end ? size : size * 0.8;
-                h.StrokeThickness = 1.25 / z;
+                h.StrokeThickness = Math.Max(1.25, 1.5 / z);
                 Canvas.SetLeft(h, points[i].X - h.Width / 2);
                 Canvas.SetTop(h, points[i].Y - h.Height / 2);
             }
@@ -3810,6 +3814,7 @@ namespace MarkSmith.Views.ShapeStudio
             _pointIndex = _pointHandles.IndexOf(h);
             _pointMoved = false;
             h.CapturePointer(e.Pointer);
+            ThemeBrush.Set(h, Microsoft.UI.Xaml.Shapes.Shape.FillProperty, "AccentFillColorDefaultBrush");
             e.Handled = true;
         }
 
@@ -3830,11 +3835,15 @@ namespace MarkSmith.Views.ShapeStudio
                 double z = Math.Max(0.05, CanvasScroller.ZoomFactor), r = 9 / z;
                 _snapRing.Visibility = target is null ? Visibility.Collapsed : Visibility.Visible;
                 _snapRing.Width = _snapRing.Height = r * 2;
-                _snapRing.StrokeThickness = 1.5 / z;
+                _snapRing.StrokeThickness = Math.Max(1.5, 2.0 / z);
                 if (_pointIndex < pts.Count)
                 {
                     Canvas.SetLeft(_snapRing, pts[_pointIndex].X - r);
                     Canvas.SetTop(_snapRing, pts[_pointIndex].Y - r);
+                }
+                if (target is not null)
+                {
+                    Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(_snapRing, $"Snapped to {target.DisplayName.ToLowerInvariant()}");
                 }
             }
             ViewModel.StatusMessage = target is null ? "Re-routing the line" : $"Snapped to {target.DisplayName.ToLowerInvariant()}";
@@ -3844,7 +3853,12 @@ namespace MarkSmith.Views.ShapeStudio
         private void OnPointHandleReleased(object sender, PointerRoutedEventArgs e)
         {
             if (_pointIndex < 0) return;
-            if (sender is UIElement h) h.ReleasePointerCapture(e.Pointer);
+            if (sender is UIElement h)
+            {
+                h.ReleasePointerCapture(e.Pointer);
+                if (h is Microsoft.UI.Xaml.Shapes.Ellipse ell)
+                    ThemeBrush.Set(ell, Microsoft.UI.Xaml.Shapes.Shape.FillProperty, "SolidBackgroundFillColorPrimaryBrush");
+            }
             if (_snapRing is not null) _snapRing.Visibility = Visibility.Collapsed;
             if (_pointMoved) ViewModel.StatusMessage = "Line re-routed · Ctrl+Z to undo";
             _pointIndex = -1;
@@ -4833,7 +4847,7 @@ namespace MarkSmith.Views.ShapeStudio
             if (!ViewModel.HasShapes) return;
             int n = ViewModel.Shapes.Count;
             ViewModel.ClearAllCommand.Execute(null);
-            ViewModel.StatusMessage = $"Cleared {n} shape{(n == 1 ? "" : "s")} · Ctrl+Z to undo";
+            ViewModel.StatusMessage = $"Cleared {CountText.Of(n, "shape")} · Ctrl+Z to undo";
         }
 
         // ---- presets ----
@@ -5948,7 +5962,7 @@ namespace MarkSmith.Views.ShapeStudio
             UpdateMultiSelectionAdorner();
             UpdateSelectionBoundsPill();
             ViewModel.StatusMessage = movedCount > 0
-                ? $"✓ Snapped {sel.Count} shape{(sel.Count == 1 ? "" : "s")} to 10px grid ({movedCount} aligned)."
+                ? $"✓ Snapped {CountText.Of(sel.Count, "shape")} to 10px grid ({CountText.Of(movedCount, "shape")} aligned)."
                 : "All selected shapes are already aligned to 10px grid.";
         }
 
@@ -5978,7 +5992,7 @@ namespace MarkSmith.Views.ShapeStudio
             UpdateMultiSelectionAdorner();
             UpdateSelectionBoundsPill();
             ViewModel.StatusMessage = updatedCount > 0
-                ? $"✓ Standardized {updatedCount} shape{(updatedCount == 1 ? "" : "s")} to 16:9 widescreen aspect ratio."
+                ? $"✓ Standardized {CountText.Of(updatedCount, "shape")} to 16:9 widescreen aspect ratio."
                 : "Selected shapes already conform to 16:9 aspect ratio.";
         }
 
@@ -6002,7 +6016,7 @@ namespace MarkSmith.Views.ShapeStudio
 
             UpdateAdorner();
             UpdateMultiSelectionAdorner();
-            ViewModel.StatusMessage = $"✓ Rotated {sel.Count} shape{(sel.Count == 1 ? "" : "s")} to {nextRot}° ({label}).";
+            ViewModel.StatusMessage = $"✓ Rotated {CountText.Of(sel.Count, "shape")} to {nextRot}° ({label}).";
         }
 
         private void OnSelectionToggleCornerStyleClick(object sender, RoutedEventArgs e)
@@ -6030,7 +6044,7 @@ namespace MarkSmith.Views.ShapeStudio
 
             UpdateAdorner();
             UpdateMultiSelectionAdorner();
-            ViewModel.StatusMessage = $"✓ Set {updatedCount} shape{(updatedCount == 1 ? "" : "s")} to {label}.";
+            ViewModel.StatusMessage = $"✓ Set {CountText.Of(updatedCount, "shape")} to {label}.";
         }
 
         private string _currentStrokeDash = "solid";
@@ -6066,7 +6080,7 @@ namespace MarkSmith.Views.ShapeStudio
 
             UpdateAdorner();
             UpdateMultiSelectionAdorner();
-            ViewModel.StatusMessage = $"✓ Set {updatedCount} shape{(updatedCount == 1 ? "" : "s")} to {label}.";
+            ViewModel.StatusMessage = $"✓ Set {CountText.Of(updatedCount, "shape")} to {label}.";
         }
 
         private double _currentShapeOpacity = 1.0;
@@ -6097,7 +6111,7 @@ namespace MarkSmith.Views.ShapeStudio
 
             UpdateAdorner();
             UpdateMultiSelectionAdorner();
-            ViewModel.StatusMessage = $"✓ Set {updatedCount} shape{(updatedCount == 1 ? "" : "s")} to {label}.";
+            ViewModel.StatusMessage = $"✓ Set {CountText.Of(updatedCount, "shape")} to {label}.";
         }
 
         private double _currentShadowBlurRadius = 0.0;
@@ -6127,7 +6141,7 @@ namespace MarkSmith.Views.ShapeStudio
 
             UpdateAdorner();
             UpdateMultiSelectionAdorner();
-            ViewModel.StatusMessage = $"✓ Set {updatedCount} shape{(updatedCount == 1 ? "" : "s")} to {label}.";
+            ViewModel.StatusMessage = $"✓ Set {CountText.Of(updatedCount, "shape")} to {label}.";
         }
 
         private double _currentCornerRadius = 0.0;
@@ -6157,7 +6171,7 @@ namespace MarkSmith.Views.ShapeStudio
 
             UpdateAdorner();
             UpdateMultiSelectionAdorner();
-            ViewModel.StatusMessage = $"✓ Set {updatedCount} shape{(updatedCount == 1 ? "" : "s")} to {label}.";
+            ViewModel.StatusMessage = $"✓ Set {CountText.Of(updatedCount, "shape")} to {label}.";
         }
 
         private double _currentStrokeDashOffset = 0.0;
@@ -6188,7 +6202,7 @@ namespace MarkSmith.Views.ShapeStudio
 
             UpdateAdorner();
             UpdateMultiSelectionAdorner();
-            ViewModel.StatusMessage = $"✓ Set {updatedCount} shape{(updatedCount == 1 ? "" : "s")} to {label}.";
+            ViewModel.StatusMessage = $"✓ Set {CountText.Of(updatedCount, "shape")} to {label}.";
         }
 
         private void OnSelectionReverseZOrderClick(object sender, RoutedEventArgs e)
@@ -6823,5 +6837,3 @@ namespace MarkSmith.Views.ShapeStudio
     }
     }
 }
-
-

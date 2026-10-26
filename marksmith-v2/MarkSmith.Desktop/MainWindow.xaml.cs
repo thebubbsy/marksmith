@@ -274,6 +274,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             (StatusCopyFootnotesButton, OnStatusCopyFootnotesButtonRightTapped),
             (StatusCopyDiagramsButton, OnStatusCopyDiagramsButtonRightTapped),
             (StatusCopyFrontmatterButton, OnStatusCopyFrontmatterButtonRightTapped),
+            (StatusCopyHtmlButton, OnStatusCopyHtmlButtonRightTapped),
             (StatusMoreCopyButton, OnStatusMoreCopyButtonRightTapped),
             (StatusShortcutsButton, OnStatusShortcutsButtonRightTapped),
             (CommandPaletteButton, OnCommandPaletteButtonRightTapped),
@@ -12334,6 +12335,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         Add("Copy footnotes", "", OnStatusCopyFootnotesButtonClick);
         Add("Copy diagrams", "", OnStatusCopyDiagramsButtonClick);
         Add("Copy YAML frontmatter", "\uE82D", OnStatusCopyFrontmatterButtonClick);
+        Add("Copy rendered HTML", "\uE774", OnStatusCopyHtmlButtonClick);
         if (StatusShortcutsButton?.Visibility == Visibility.Collapsed)
         {
             menu.Items.Add(new MenuFlyoutSeparator());
@@ -13945,6 +13947,64 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
 
         var rawBlock = string.Join(Environment.NewLine, lines.Skip(start).Take(end - start + 1));
         return (rawBlock, audit);
+    }
+
+    private void OnStatusCopyHtmlButtonClick(object sender, RoutedEventArgs e)
+    {
+        var selected = PasteTextBox?.SelectedText;
+        if (!string.IsNullOrEmpty(selected))
+        {
+            var selectedHtml = ViewModel.BuildPreviewHtml(selected, interactive: false);
+            CopyAndAnnounce(selectedHtml, $"Copied selected HTML ({CountText.Of(selectedHtml.Length, "char")}) to clipboard");
+            return;
+        }
+
+        var md = EditorDocument();
+        if (string.IsNullOrWhiteSpace(md))
+        {
+            AnnounceStatus("Document is empty — nothing to copy");
+            return;
+        }
+
+        var html = ViewModel.BuildPreviewHtml(md, interactive: false);
+        CopyAndAnnounce(html, $"Copied rendered HTML ({CountText.Of(html.Length, "char")}) to clipboard");
+    }
+
+    private void OnStatusCopyHtmlButtonRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (sender is not FrameworkElement anchor) return;
+
+        var menu = new MenuFlyout();
+
+        var copyRenderedItem = new MenuFlyoutItem
+        {
+            Text = "Copy rendered HTML document",
+            Icon = new FontIcon { Glyph = "\uE774" }
+        };
+        copyRenderedItem.Click += (_, _) => OnStatusCopyHtmlButtonClick(anchor, new RoutedEventArgs());
+        menu.Items.Add(copyRenderedItem);
+
+        var copyStandaloneItem = new MenuFlyoutItem
+        {
+            Text = "Copy standalone HTML (with inlined styles & fonts)",
+            Icon = new FontIcon { Glyph = "\uE8A5" }
+        };
+        copyStandaloneItem.Click += (_, _) =>
+        {
+            var md = EditorDocument();
+            if (string.IsNullOrWhiteSpace(md))
+            {
+                AnnounceStatus("Document is empty — nothing to copy");
+                return;
+            }
+            var raw = ViewModel.BuildPreviewHtml(md, interactive: false);
+            var inline = StandaloneHtml.Inline(raw);
+            CopyAndAnnounce(inline, $"Copied standalone HTML ({CountText.Of(inline.Length, "char")}) to clipboard");
+        };
+        menu.Items.Add(copyStandaloneItem);
+
+        menu.ShowAt(anchor);
     }
 
     private void OnStatusCopyFrontmatterButtonClick(object sender, RoutedEventArgs e)

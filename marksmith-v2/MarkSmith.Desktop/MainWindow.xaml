@@ -2444,6 +2444,18 @@
                                 <TextBlock x:Name="StatusCopyFrontmatterText" Text="Copy Frontmatter" />
                             </StackPanel>
                         </HyperlinkButton>
+                        <Border Width="1" Height="12" Background="{ThemeResource CardStrokeColorDefaultBrush}" VerticalAlignment="Center" />
+                        <HyperlinkButton x:Name="StatusCopyHtmlButton"
+                                         Click="OnStatusCopyHtmlButtonClick"
+                                         RightTapped="OnStatusCopyHtmlButtonRightTapped"
+                                         Padding="5,1" FontSize="11.5" Opacity="0.85"
+                                         ToolTipService.ToolTip="Copy rendered HTML document to clipboard · Right-click or Shift+F10 for standalone inlined HTML"
+                                         AutomationProperties.Name="Copy rendered HTML">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <FontIcon Glyph="&#xE774;" FontSize="11" />
+                                <TextBlock x:Name="StatusCopyHtmlText" Text="Copy HTML" />
+                            </StackPanel>
+                        </HyperlinkButton>
                     </StackPanel>
                     <HyperlinkButton x:Name="StatusMoreCopyButton" Visibility="Collapsed"
                                      Click="OnStatusMoreCopyButtonClick"

@@ -10,6 +10,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MarkSmith.Core.Composer;
 using MarkSmith.Models.MindMap;
+using MarkSmith.Services;
 using MarkSmith.Services.MindMap;
 
 namespace MarkSmith.ViewModels.MindMap
@@ -38,8 +39,8 @@ namespace MarkSmith.ViewModels.MindMap
         private double _zoomLevel = 1.0;
 
         public string ZoomLevelText => $"{(int)Math.Round(ZoomLevel * 100)}%";
-        public string NodesCountText => $"{Nodes.Count} {(Nodes.Count == 1 ? "node" : "nodes")}";
-        public string LinksCountText => $"{Links.Count} {(Links.Count == 1 ? "link" : "links")}";
+        public string NodesCountText => CountText.Of(Nodes.Count, "node");
+        public string LinksCountText => CountText.Of(Links.Count, "link");
 
         partial void OnZoomLevelChanged(double value)
         {

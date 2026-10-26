@@ -6126,7 +6126,7 @@ private void OnClearRecentFilterClick(object sender, RoutedEventArgs e)
         return true;
     }
 
-    private static string DocumentCount(int count) => count == 1 ? "1 document" : $"{count} documents";
+    private static string DocumentCount(int count) => CountText.Of(count, "document");
 
 
     private async void OnClearRecentDocsClick(object sender, RoutedEventArgs e)
@@ -7147,7 +7147,7 @@ Renders raw Markdown into an OpenXML or PDF binary document bundle.
 
             {
 
-                TemplateSearchStatusText.Text = visibleCount > 0 ? $"{visibleCount} match{(visibleCount == 1 ? "" : "es")}" : "No templates match";
+                TemplateSearchStatusText.Text = visibleCount > 0 ? CountText.Of(visibleCount, "match", "matches") : "No templates match";
 
                 TemplateSearchStatusText.Visibility = Visibility.Visible;
 

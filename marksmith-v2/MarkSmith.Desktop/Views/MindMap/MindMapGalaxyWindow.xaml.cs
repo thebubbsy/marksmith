@@ -5985,7 +5985,7 @@ namespace MarkSmith.Views.MindMap
                     row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                     row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
                     row.Children.Add(new TextBlock { Text = tag, FontSize = 13, TextTrimming = TextTrimming.CharacterEllipsis });
-                    var detail = new TextBlock { Text = count == 1 ? "1 node" : $"{count} nodes", FontSize = 12 }.Themed(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
+                    var detail = new TextBlock { Text = CountText.Of(count, "node"), FontSize = 12 }.Themed(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
                     Grid.SetColumn(detail, 1);
                     row.Children.Add(detail);
 

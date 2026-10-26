@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using MarkSmith.Models.MindMap;
+using MarkSmith.Services;
 
 namespace MarkSmith.ViewModels.MindMap
 {
@@ -108,7 +109,7 @@ namespace MarkSmith.ViewModels.MindMap
                 VersionCount = versions.Count;
                 if (versions.Count > 0)
                 {
-                    VersionCountText = $"{versions.Count} {(versions.Count == 1 ? "version" : "versions")}";
+                    VersionCountText = CountText.Of(versions.Count, "version");
                     var latest = versions[0];
                     LatestVersionLabel = latest.CreatedAt.LocalDateTime.ToString("d MMM · HH:mm");
                 }
