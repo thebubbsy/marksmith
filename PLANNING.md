@@ -19245,3 +19245,93 @@ v3.80.0 and ships in the next tag. `MarksmithBaseVersion` is now 3.81.0.
 3. Shape Studio connector arrowhead hover snapping feedback consistency.
 
 **Total user-visible improvements: 11** (3 Find/Replace, 2 Command Palette, 5 SmartArt Studio, 1 High Contrast).
+
+
+## Scheduled WinUI 3 Desktop Polish Routine — Run #272 (2026-10-26, 11:15–11:55 AEDT)
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running in the Claude desktop app. The task template asks for an Antigravity /
+  Gemini identity; this run was not executed by that agent, so it records the real one.
+- Modes: Scheduled hourly desktop polish routine, unattended (no live user input)
+- Trigger: Scheduled task `commit-to-main-ship-improvement--r4efinement`
+- Agents used: 1 (single orchestrator that also coded and did the skeptical review; no subagents). Session
+  `0c2a98e1-9b92-4880-9a4c-8efac0470305`.
+
+**Picked up:** run #271's Next up list was vague (item 2 would be a new feature), so this run took the routine's own
+skeptical-review rule ("never disable or collapse a control that holds keyboard focus") and audited every
+self-disabling button across the rotation matrix. Main-window Find/Replace, OCR page/reset/copy and Mermaid Studio
+undo already move focus first (the Find code documents that WinUI otherwise throws focus to the window's first tab
+stop, "Start free trial"). Document Galaxy, SmartArt Studio, Shape Studio and the preview zoom did not. Also reviewed
+run #271's diff: behaviour fine, but it broke an older source-contract test (fixed, see below).
+
+**Delivered (user-visible):**
+1. **Document Galaxy, Delete toolbar button**: deleting the selected node or link from the keyboard disabled the
+   button holding focus; focus now lands on the canvas.
+2. **Document Galaxy, Undo / Redo**: undoing (or redoing) to the end of history moves focus to the other button,
+   else the canvas.
+3. **Document Galaxy, link inspector Delete link**: the inspector closes under the button; focus goes to the canvas.
+4. **SmartArt Studio, Undo / Redo** (title bar): the final Undo hands focus to Redo. *Live-verified.*
+5. **SmartArt Studio, Move up / Move down / Promote / Demote**: pressing Promote until the item reaches the root (or
+   Move up until the top) moves focus to the next button still available in toolbar order. *Live-verified: Promote
+   at the root → Demote.*
+6. **SmartArt Studio, Rename / Duplicate / Delete**: when the selection goes, focus lands on the outline.
+7. **Shape Studio, Undo / Redo**: same as 2, fallback the canvas.
+8. **Shape Studio, selection tools** (align ×6, distribute ×2, z-order, rotate, Duplicate, Delete): Delete with the
+   last selection no longer strands focus; it goes to the canvas.
+9. **Shape Studio, Clear**: clearing the canvas from the keyboard puts focus on the canvas.
+10. **Main window preview zoom**: zooming in (or out) to the end of the ladder from the keyboard moves focus to the
+    other zoom button (or the readout) before the button is disabled, as the Find bar already did.
+11. **Markdown issues flyout, Auto-fix from an issue's menu**: the fix rebuilt the list under the focused row (and
+    hid it once clean), so focus fell out of the flyout. When something was fixed, the flyout now closes and the
+    caret goes back to the editor; when nothing was safe to fix, the list stays open as before.
+
+**Implementation Summary**
+- New `MarkSmith.Desktop/Services/FocusRescue.cs`: `FocusRescue.Attach(fallback, params Control[] group)`. On a
+  member's `LostFocus` (deferred one tick, so Undo disabling and Redo enabling have both landed) it acts only when
+  the member is no longer available (disabled, not a tab stop, or it or an ancestor collapsed) **and** focus is lost
+  (nothing, a disabled control, or the window's first tab stop via `FocusManager.FindFirstFocusableElement`). Focus
+  the press moved on purpose (a dialog, flyout, canvas or field) is left alone. Target: next available member, then
+  previous, then the fallback; pointer-focused buttons hand over with `Programmatic` (no focus rectangle).
+- Wired in the constructors of `Views/MindMap/MindMapGalaxyWindow.xaml.cs`,
+  `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml.cs`, `Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs`
+  (separate groups so Delete never lands on Undo).
+- `MainWindow.xaml.cs`: `UpdatePreviewZoomReadout` moves focus before disabling; `ApplySafeMarkdownLintFixes` now
+  returns `bool` (fixed something), used by the issue menu's Auto-fix to close the flyout. A text comparison was
+  rejected in review: the fix unfolds folded regions first, which changes the editor text even when nothing is fixed.
+- Tests: new `Run272ToolbarFocusStaysPutTests` (12 source-contract cases). Repaired stale contracts left by earlier
+  runs: `Run269…Palette_OpenRecent_MissingFile…` (run #271 moved the palette label into a `{prefix}`) and
+  `Run221…EditorStepHeader_ShowsFullTextWhenTrimmed` (run #270 added `StatusMsgText` to the same call); updated
+  `Run260…SafeLintFix_IsAnEditNotACopy` for the new `bool` signature.
+- Skeptical review: nothing collapsed or disabled by new code; no key handlers added; no flyouts created; no
+  resource lookups; no file access. `FocusRescue` ignores a normal Tab-away (member still available) and focus moved
+  into the button's own context menu.
+- Build: `dotnet build … -p:OutDir=%TEMP%\ms_run272\b\` 0 errors (21 pre-existing warnings).
+- Tests: `Run2|ShapeStudio|SmartArt|MindMap|Lint` filter, **2012/2012 passed** (before the repairs, 2 failures
+  from runs #270/#271).
+- Live UIA (isolated `MARKSMITH_CONFIG_DIR`, scratch PID 23528 launched and stopped by this run): SmartArt Studio
+  opened from the palette; Add child → focus Promote → Invoke twice: focus went Promote → **Demote** (Promote
+  disabled at the root). Focus Undo → Invoke until disabled: focus ended on **Redo**.
+- **Live-test incident:** UIA `SetFocus` activates the test window, and the user was typing at the time (idle
+  under 1 s): some of their keystrokes landed in the scratch instance (it opened Settings and typed into its
+  editor). Live testing stopped there; the preview zoom, Galaxy and Shape Studio cases are covered by source tests
+  only. The scratch config dir was isolated, so no user data was touched, but the user's typing in their own app was
+  interrupted. Future runs: check `GetLastInputInfo` idle time before any `SetFocus`/foreground UIA step and skip
+  focus-based checks while the user is active.
+- Final smoke launch (minimized, PID 15800): started, window "MarkSmith", stopped after 8 s.
+
+**Noticed, not fixed:**
+- `InsertSequentialFootnote`, `FormatTableAtCursor`, `FormatAllTablesInDocument` and `InsertMarkdownTableTemplate`
+  in `MainWindow.xaml.cs` have no callers (dead code). `FormatTableAtCursor` also splits on `\r\n`/`\n` while the
+  WinUI TextBox uses bare `\r`, so it would treat the whole document as one line if it were ever wired up.
+- SmartArt outline rows' own "Delete item" buttons are template-generated; deleting a row from its own button
+  removes the focused element. Not covered by `FocusRescue` (needs an items-aware fallback).
+- Outline flyout: `UpdateOutlineEmptyState` checks `TocList.FocusState`, which is `Unfocused` while a *row* holds
+  focus, so the "no match → focus the filter box" hand-off never triggers from a row.
+
+**Next up (Run #273):**
+1. With the user idle: live-verify Galaxy Delete / Undo, Shape Studio Clear and the preview zoom ends.
+2. Extend focus rescue to template-generated row buttons (SmartArt row Delete item, Galaxy / Shape lists).
+3. Fix the outline flyout's row-focus check (use `FocusManager.GetFocusedElement` ancestry, not `FocusState`).
+
+**Total user-visible improvements: 11** (3 Document Galaxy, 3 SmartArt Studio, 3 Shape Studio, 2 main window).

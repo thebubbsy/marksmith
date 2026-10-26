@@ -153,6 +153,12 @@ namespace MarkSmith.Views.MindMap
                 (SearchPrevMatchButton, OnSearchStepperPillRightTapped),
                 (SearchNextMatchButton, OnSearchStepperPillRightTapped),
                 (SearchClearButton, OnSearchStepperPillRightTapped));
+            // Delete with the last selection, or Undo / Redo at the end of their history, disabled the
+            // button holding focus and dropped the keyboard out of the window.
+            FocusRescue.Attach(() => GalaxyCanvas, DeleteToolButton);
+            FocusRescue.Attach(() => GalaxyCanvas, UndoToolButton, RedoToolButton);
+            // Delete link closes the link inspector under the button that pressed it.
+            FocusRescue.Attach(() => GalaxyCanvas, ReverseLinkButton, DeleteLinkButton);
             // Options menus that keep Cut / Copy / Paste over a selection and open from Shift+F10;
             // their RightTapped handlers replaced the text menu and were mouse only.
             TextBoxMenu.Attach(TitleBox, FillTitleBoxMenu);

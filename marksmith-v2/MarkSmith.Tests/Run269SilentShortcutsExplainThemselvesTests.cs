@@ -182,7 +182,8 @@ public class Run269SilentShortcutsExplainThemselvesTests : IDisposable
     public void Palette_OpenRecent_MissingFile_KeepsTheDocument_AndWarns()
     {
         var src = Read("MainWindow.xaml.cs");
-        int cmd = src.IndexOf("cmds.Add(new($\"Open recent:", StringComparison.Ordinal);
+        // Run #271 shares the command between "Open recent:" and "Open pinned:" via a prefix.
+        int cmd = src.IndexOf("cmds.Add(new($\"{prefix}{System.IO.Path.GetFileName(p)}", StringComparison.Ordinal);
         Assert.True(cmd > 0);
         var block = src.Substring(cmd, 900);
         Assert.DoesNotContain("ViewModel.InputFilePath = p;", block);

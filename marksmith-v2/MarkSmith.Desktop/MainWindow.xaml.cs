@@ -9311,9 +9311,10 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         e.Handled = true;
     }
 
-    private void ApplySafeMarkdownLintFixes()
+    // True when it changed the document.
+    private bool ApplySafeMarkdownLintFixes()
     {
-        if (PasteTextBox is null) return;
+        if (PasteTextBox is null) return false;
         EnsureUnfoldedForFind();
         var text = PasteTextBox.Text ?? string.Empty;
         var (fixedText, trailingFixed, tabsFixed, headingsFixed, blankClustersFixed, totalFixes) =
@@ -9324,7 +9325,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (totalFixes == 0)
         {
             AnnounceStatus(summary);
-            return;
+            return false;
         }
 
         // One undo step, and the caret and scroll stay where they were (setting Text sends both
@@ -9345,6 +9346,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         RecomputeFindMatches();
         ViewModel.StatusText = $"{summary}. Ctrl+Z undoes it.";
         ViewModel.StatusSeverity = Models.StatusSeverity.Success;
+        return true;
     }
 
     private bool _suppressFindJump;
@@ -11309,7 +11311,15 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             Icon = new FontIcon { Glyph = "\uE90F" },
             IsEnabled = _lintIssues.Count > 0
         };
-        fixSafeLintItem.Click += (_, _) => ApplySafeMarkdownLintFixes();
+        fixSafeLintItem.Click += (_, _) =>
+        {
+            // The fix rebuilt the issue list under the focused row (and hid it once nothing was
+            // left), so keyboard focus fell out of the flyout. Close it and go to the fixed text;
+            // when nothing was safe to fix, the list stays open as it was.
+            if (!ApplySafeMarkdownLintFixes()) return;
+            LintFlyout?.Hide();
+            PasteTextBox?.Focus(FocusState.Keyboard);
+        };
         menu.Items.Add(fixSafeLintItem);
 
         if (position.HasValue)
@@ -15600,8 +15610,16 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(PreviewZoomResetButton, $"Preview zoom {percent}%, reset to 100%");
         // The ends of the ladder: a button that can't do anything says so instead of silently
         // doing nothing.
-        PreviewZoomInButton.IsEnabled = Services.ZoomSteps.CanZoomIn(scale);
-        PreviewZoomOutButton.IsEnabled = Services.ZoomSteps.CanZoomOut(scale);
+        bool canIn = Services.ZoomSteps.CanZoomIn(scale), canOut = Services.ZoomSteps.CanZoomOut(scale);
+        // Zooming to the end of the ladder from the keyboard disabled the button holding focus, and
+        // WinUI threw focus to the window's first tab stop; hand it to the other zoom button (or
+        // the readout) first.
+        if (!canIn && PreviewZoomInButton.FocusState != FocusState.Unfocused)
+            (canOut ? PreviewZoomOutButton : (Control)PreviewZoomResetButton).Focus(PreviewZoomInButton.FocusState);
+        if (!canOut && PreviewZoomOutButton.FocusState != FocusState.Unfocused)
+            (canIn ? PreviewZoomInButton : (Control)PreviewZoomResetButton).Focus(PreviewZoomOutButton.FocusState);
+        PreviewZoomInButton.IsEnabled = canIn;
+        PreviewZoomOutButton.IsEnabled = canOut;
     }
 
 

@@ -170,6 +170,14 @@ namespace MarkSmith.Views.ShapeStudio
                 (ResetRotationButton, OnResetRotationButtonRightTapped),
                 (RotationReadoutButton, OnResetRotationButtonRightTapped),
                 (ZoomButton, OnZoomButtonRightTapped));
+            // Undo at the start of history, Delete with the last selection, or Clear on the last
+            // shapes disabled the button holding focus and dropped the keyboard out of the window.
+            FocusRescue.Attach(() => CanvasScroller, ToolUndoButton, ToolRedoButton);
+            FocusRescue.Attach(() => CanvasScroller, AlignLeftButton, AlignCenterButton, AlignRightButton,
+                AlignTopButton, AlignMiddleButton, AlignBottomButton, DistributeHorizontalButton,
+                DistributeVerticalButton, BringToFrontButton, SendToBackButton, RotateLeftButton,
+                RotateRightButton, DuplicateToolButton, DeleteSelectionToolButton);
+            FocusRescue.Attach(() => CanvasScroller, ClearCanvasButton);
             // Options menus that keep Cut / Copy / Paste over a selection and open from Shift+F10;
             // their RightTapped handlers replaced the text menu and were mouse only.
             TextBoxMenu.Attach(LabelTextBox, FillLabelTextBoxMenu);

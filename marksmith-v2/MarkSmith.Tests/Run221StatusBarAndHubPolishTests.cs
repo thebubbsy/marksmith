@@ -126,7 +126,7 @@ public class Run221StatusBarAndHubPolishTests
     public void EditorStepHeader_ShowsFullTextWhenTrimmed()
     {
         var code = File.ReadAllText(DesktopPath("MainWindow.xaml.cs"));
-        Assert.Contains("TrimmedTextToolTip.Attach(EditorStepTitle, EditorStepCaption)", code);
+        Assert.Contains("TrimmedTextToolTip.Attach(EditorStepTitle, EditorStepCaption", code);
         var helper = File.ReadAllText(DesktopPath("Services", "TrimmedTextToolTip.cs"));
         Assert.Contains("IsTextTrimmedChanged", helper);
         Assert.Contains("TextBlock.TextProperty", helper);

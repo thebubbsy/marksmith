@@ -105,6 +105,12 @@ namespace MarkSmith.Views.SmartArtStudio
                 (PreviewZoomResetBtn, OnPreviewZoomResetRightTapped),
                 (OutlineStatsPill, OnOutlineStatsPillRightTapped),
                 (OutlineMetricsPill, OnOutlineMetricsPillRightTapped));
+            // Move up at the top, Promote at the root, Delete with the last selection or Undo at the
+            // start of history disabled the button holding focus and dropped the keyboard out of
+            // the window; it now lands on the next button still available, else the outline.
+            FocusRescue.Attach(() => OutlineScroll, UndoStudioButton, RedoStudioButton);
+            FocusRescue.Attach(() => OutlineScroll, RenameButton, DuplicateButton, DeleteButton,
+                MoveUpButton, MoveDownButton, PromoteButton, DemoteButton);
             // Options menus that keep Cut / Copy / Paste over a selection and open from Shift+F10;
             // their RightTapped handlers replaced the text menu and were mouse only.
             TextBoxMenu.Attach(MarkdownTextBox, FillMarkdownTextBoxMenu);

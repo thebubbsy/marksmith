@@ -178,7 +178,7 @@ public class Run260FindReplaceAndCopyLineBreakTests
     [Fact]
     public void SafeLintFix_IsAnEditNotACopy()
     {
-        var body = Method(Read(Main), "private void ApplySafeMarkdownLintFixes(");
+        var body = Method(Read(Main), "private bool ApplySafeMarkdownLintFixes(");
         Assert.DoesNotContain("CopyAndAnnounce", body);
         Assert.Contains("BreakUndoBurst", body);
         Assert.Contains("SyncDocumentFromEditor()", body);
