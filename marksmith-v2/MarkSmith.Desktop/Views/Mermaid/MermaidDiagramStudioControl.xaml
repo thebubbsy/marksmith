@@ -473,7 +473,9 @@
                         <StackPanel x:Name="ConnectorInspectorPanel" Spacing="10" Visibility="Collapsed">
                             <TextBlock Text="Connector" Style="{StaticResource InspectorSectionStyle}" />
                             <!-- From -> To by node name (the ids are internal), with a one-click Reverse button in the middle. -->
-                            <Grid ColumnSpacing="6">
+                            <Grid x:Name="ConnectorEndpointsCluster" ColumnSpacing="6"
+                                  XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                  AutomationProperties.Name="Connector endpoint nodes">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />

@@ -21614,3 +21614,43 @@ through `ClipboardWriter` with the result reported. No resource lookups, file ac
 3. Carry forward Block 3's 2 refined ideas as first refinement targets.
 
 **Total user-visible improvements: 21** (1 status bar interactive shortcuts button with cheatsheet menu; 1 global F1 shortcuts accelerator; 11 action, geometry & tools clusters single Tab stops & XY arrow navigation; 8 studio buttons and container controls UIA accessible names).
+
+
+## 2026-10-28 · Run #302 (05:00–05:45 AEDT) · Antigravity AI Agent
+
+**Agent / Execution Metadata**
+- Model: Antigravity AI Agent (Google DeepMind)
+- Modes: Scheduled Hourly Automation Routine
+- Trigger: Scheduled hourly MarkSmith WinUI 3 Desktop Polish Routine
+- Protocol: AI-Executable 3-Block Cycle + Execution Phase Protocol (Blocks 1–3 generating 2 ideas each with dual refinement passes; Execution Phase refining Block 3 ideas and delivering all 6 refined ideas into production code)
+- Mandate: Milestone Run #302 - Shape Design Studio canvas top toolbar ribbon, shapes on canvas list, and color scheme list single Tab stops & XY directional navigation; SmartArt Design Studio layout search & filter cluster, layout cards gallery list, no matches notification accessible name, and preview color palette list single Tab stops & XY navigation; Version History diff inspector toolbar wrap row single Tab stop & XY navigation; OCR Inspection Studio live Markdown preview header wrap row single Tab stop and session metrics button accessible name; Mermaid Diagram Studio connector endpoint nodes cluster single Tab stop; Main Window status bar left indicators panel single Tab stop & XY navigation.
+
+**Delivered (user-visible):**
+1. **Shape Design Studio Canvas Top Toolbar Ribbon Single Tab Stop & Arrow Navigation (Idea 1.1):** In `Views/ShapeStudio/ShapeDesignStudioWindow.xaml`, `CanvasTopToolbarRibbon` (`ui:WrapRow` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Canvas top toolbar ribbon"`) encapsulates the canvas tool strip and geometry helpers into 1 unified Tab stop with 2D arrow navigation.
+2. **Shape Design Studio Shapes on Canvas List Single Tab Stop (Idea 1.1):** In `Views/ShapeStudio/ShapeDesignStudioWindow.xaml`, `ShapesList` (`ListView`) is upgraded with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, and `AutomationProperties.Name="Shapes on canvas"`, letting keyboard users tab into the canvas shape inventory once and arrow navigate items.
+3. **Shape Design Studio Colour Scheme List Single Tab Stop (Idea 1.1):** In `Views/ShapeStudio/ShapeDesignStudioWindow.xaml`, `PaletteList` inside `PaletteFlyout` is upgraded with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, and `AutomationProperties.Name="Colour schemes"`.
+4. **SmartArt Design Studio Layout Search & Filter Cluster Single Tab Stop (Idea 1.2):** In `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml`, `LayoutSearchFilterCluster` (`StackPanel` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Layout search and filter controls"`) unifies `LayoutSearch` and `LayoutCategoryCombo` into 1 Tab stop with directional arrow keys.
+5. **SmartArt Design Studio Layout Gallery List Single Tab Stop (Idea 1.2):** In `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml`, `LayoutList` (`ListView`) is configured with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, and `AutomationProperties.Name="Layouts"`, allowing rapid arrow-key browsing across all 40+ layout miniature cards in 1 Tab stop.
+6. **SmartArt Design Studio No Matches Notification Accessible Name (Idea 1.2):** In `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml`, `NoMatchesPanel` is labeled with `AutomationProperties.Name="No matching layouts notification"`.
+7. **SmartArt Design Studio Colour Palettes List Single Tab Stop (Idea 1.2 / Idea 3.2):** In `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml`, `PaletteList` inside `PaletteFlyout` is configured with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, and `AutomationProperties.Name="SmartArt colour palettes"`.
+8. **Version History Diff Inspector Toolbar Single Tab Stop & Arrow Navigation (Idea 2.1):** In `Views/History/HistoryWindow.xaml`, `DiffInspectorToolbarRow` (`ui:WrapRow` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Diff inspector toolbar"`) unifies diff view modes, change hunk stepper, diff search pill, and view options into 1 Tab stop with 2D directional navigation.
+9. **OCR Inspection Studio Live Markdown Header Wrap Row Single Tab Stop (Idea 2.2):** In `Views/Ocr/OcrInspectionStudioWindow.xaml`, `MarkdownPaneHeader` (`ui:WrapRow`) is upgraded with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, and `AutomationProperties.Name="Markdown pane header"`.
+10. **OCR Inspection Studio Session Metrics Button Accessible Name (Idea 2.2):** In `Views/Ocr/OcrInspectionStudioWindow.xaml`, `SessionMetricsButton` is explicitly labeled with `AutomationProperties.Name="Session metrics and status summary"`.
+11. **Mermaid Diagram Studio Connector Endpoints Cluster Single Tab Stop & Arrow Navigation (Idea 3.1):** In `Views/Mermaid/MermaidDiagramStudioControl.xaml`, `ConnectorEndpointsCluster` (`Grid` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Connector endpoint nodes"`) wraps source/target node indicators and `ReverseConnectorButton` into 1 Tab stop.
+12. **Main Window Status Bar Left Indicators Panel Single Tab Stop & Arrow Navigation:** In `MainWindow.xaml`, `StatusLeftPanel` (`StackPanel` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Status left panel"`) consolidates the detection badge, progress indicator, and status text into 1 Tab stop with directional arrow keys.
+
+**Implementation Summary**
+- Desktop Surfaces: `Views/ShapeStudio/ShapeDesignStudioWindow.xaml` (`CanvasTopToolbarRibbon`, `ShapesList`, `PaletteList`), `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` (`LayoutSearchFilterCluster`, `LayoutList`, `NoMatchesPanel`, `PaletteList`), `Views/History/HistoryWindow.xaml` (`DiffInspectorToolbarRow`), `Views/Ocr/OcrInspectionStudioWindow.xaml` (`MarkdownPaneHeader`, `SessionMetricsButton`), `Views/Mermaid/MermaidDiagramStudioControl.xaml` (`ConnectorEndpointsCluster`), `MainWindow.xaml` (`StatusLeftPanel`).
+- Tests: `Run302StudioPolishAndKeyboardNavigationTests.cs` (12 comprehensive xUnit unit tests verifying all XAML cluster configurations, XY focus navigation, Tab focus navigation, and UIA accessible names).
+
+**Verified:**
+- Unit tests: `Run302StudioPolishAndKeyboardNavigationTests` (12/12 passed in 130 ms); full suite across runs 300, 301, 302 (41/41 passed in 249 ms).
+- Build: `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: 0 errors.
+- Smoke launch: Launched `Marksmith.exe` (PID 23252), verified running healthy after 4 seconds, terminated cleanly.
+
+**Next up (Run #303):**
+1. Audit Shape Design Studio Picture-to-Vector panel slider controls and image picker for single Tab stops and XY keyboard focus navigation.
+2. Audit SmartArt Studio Outline editor row items and drag-handle affordances for keyboard accessibility.
+3. Carry forward Block 3's 2 refined ideas as first refinement targets.
+
+**Total user-visible improvements: 12** (7 action, ribbon, gallery & inspector toolbars single Tab stops & XY arrow navigation; 3 list views single Tab stops; 2 buttons and status panels UIA accessible names).

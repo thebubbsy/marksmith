@@ -408,7 +408,9 @@
                              controls drop to a line of their own, and the tools wrap only if they alone are too
                              wide. As one fixed row the tools' right end (z-order, rotate, duplicate, delete) was
                              cut off. -->
-                        <ui:WrapRow HorizontalSpacing="12" VerticalSpacing="6">
+                        <ui:WrapRow x:Name="CanvasTopToolbarRibbon" HorizontalSpacing="12" VerticalSpacing="6"
+                                    XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                    AutomationProperties.Name="Canvas top toolbar ribbon">
                         <ui:WrapRow x:Name="ToolStrip" HorizontalSpacing="4" VerticalSpacing="4" VerticalAlignment="Center"
                                     Background="Transparent" IsHitTestVisible="True"
                                     RightTapped="OnToolStripRightTapped"
@@ -922,7 +924,9 @@
                                         <StackPanel Spacing="8" Width="240">
                                             <TextBlock Text="Colour scheme" Style="{StaticResource SectionHeader}" />
                                             <TextBlock Text="Recolours the canvas now, and every preset you add after." Style="{StaticResource PaneCaption}" />
-                                            <ListView x:Name="PaletteList" SelectionMode="Single" Margin="-12,0" SelectionChanged="OnPaletteListSelectionChanged" AutomationProperties.Name="Colour schemes">
+                                            <ListView x:Name="PaletteList" SelectionMode="Single" Margin="-12,0" SelectionChanged="OnPaletteListSelectionChanged"
+                                                      XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                                      AutomationProperties.Name="Colour schemes">
                                                 <ListView.ItemTemplate>
                                                     <DataTemplate>
                                                         <StackPanel Padding="0,6" Spacing="6" AutomationProperties.Name="{Binding Name}">
@@ -1466,6 +1470,7 @@
                         </TextBlock>
                         <ListView Grid.Row="2" x:Name="ShapesList" ItemsSource="{Binding ListedShapes}" SelectedItem="{Binding SelectedShape, Mode=TwoWay}"
                                   Margin="-10,4,-10,0" AutomationProperties.Name="Shapes on canvas"
+                                  XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
                                   KeyDown="OnShapesListKeyDown">
                             <ListView.ItemTemplate>
                                 <DataTemplate>

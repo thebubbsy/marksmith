@@ -577,7 +577,9 @@
                             <!-- Everything else flows onto wrapping lines: in one row of ten columns the right end
                                  (word delta, copy, wrap, go to line, ignore whitespace) was clipped off a 1280 px window,
                                  and the version title squeezed to nothing. The title and Copy keep the first line. -->
-                            <ui:WrapRow Grid.Row="1" Grid.ColumnSpan="2" Margin="0,8,0,0" HorizontalSpacing="8" VerticalSpacing="6">
+                            <ui:WrapRow x:Name="DiffInspectorToolbarRow" Grid.Row="1" Grid.ColumnSpan="2" Margin="0,8,0,0" HorizontalSpacing="8" VerticalSpacing="6"
+                                        XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                        AutomationProperties.Name="Diff inspector toolbar">
                             <!-- Mode Selector -->
                             <!-- One segmented control: three loose bordered buttons read as three
                                   separate actions, not one choice of view. Left/Right move between the

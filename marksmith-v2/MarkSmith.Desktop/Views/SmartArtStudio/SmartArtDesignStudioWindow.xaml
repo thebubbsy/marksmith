@@ -94,7 +94,9 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
-                    <StackPanel Grid.Row="0" Spacing="8" Padding="12,12,12,6">
+                    <StackPanel x:Name="LayoutSearchFilterCluster" Grid.Row="0" Spacing="8" Padding="12,12,12,6"
+                                XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                AutomationProperties.Name="Layout search and filter controls">
                         <Grid>
                             <TextBlock Text="Layouts" FontWeight="SemiBold" FontSize="14" />
                             <!-- A button so Tab reaches the count's menu. A double-click used to clear the search
@@ -121,6 +123,7 @@
                     </StackPanel>
                     <ListView Grid.Row="1" x:Name="LayoutList" ItemsSource="{Binding Layouts}" SelectedItem="{Binding SelectedLayout, Mode=TwoWay}"
                               Padding="4,0,4,8" AutomationProperties.Name="Layouts" RightTapped="OnLayoutListRightTapped" KeyDown="OnLayoutListKeyDown"
+                              XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
                               DoubleTapped="OnLayoutListDoubleTapped">
                         <ListView.ItemTemplate>
                             <DataTemplate>
@@ -152,7 +155,7 @@
                             </DataTemplate>
                         </ListView.ItemTemplate>
                     </ListView>
-                    <StackPanel x:Name="NoMatchesPanel" Grid.Row="1" Spacing="6" Margin="16,24,16,0" HorizontalAlignment="Center" VerticalAlignment="Top"
+                    <StackPanel x:Name="NoMatchesPanel" Grid.Row="1" Spacing="6" AutomationProperties.Name="No matching layouts notification" Margin="16,24,16,0" HorizontalAlignment="Center" VerticalAlignment="Top"
                                 Background="Transparent" IsHitTestVisible="True"
                                 RightTapped="OnNoMatchesPanelRightTapped"
                                 ToolTipService.ToolTip="No matching layouts (Right-click for options)"
@@ -779,7 +782,7 @@
                                         <StackPanel Spacing="8" Width="260">
                                             <TextBlock Text="SmartArt colour palette" FontWeight="SemiBold" FontSize="13" />
                                             <TextBlock Text="Recolours the diagram SVG preview to match your document theme." FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                                            <ListView x:Name="PaletteList" SelectionMode="Single" Margin="-12,0" SelectionChanged="OnPaletteListSelectionChanged" AutomationProperties.Name="SmartArt colour palettes">
+                                            <ListView x:Name="PaletteList" SelectionMode="Single" Margin="-12,0" SelectionChanged="OnPaletteListSelectionChanged" XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once" AutomationProperties.Name="SmartArt colour palettes">
                                                 <ListView.ItemTemplate>
                                                     <DataTemplate>
                                                         <StackPanel Padding="0,6" Spacing="6" AutomationProperties.Name="{Binding Name}">

@@ -337,7 +337,9 @@
                     <!-- A WrapRow, not a Grid: the scope box and Copy used to take the whole header and
                          cut the title to "LIVE MARI" (and drop Copy at narrow widths); now they move
                          to their own line when the title and both controls don't fit side by side. -->
-                    <ui:WrapRow x:Name="MarkdownPaneHeader" Grid.Row="0" HorizontalSpacing="6" VerticalSpacing="6">
+                    <ui:WrapRow x:Name="MarkdownPaneHeader" Grid.Row="0" HorizontalSpacing="6" VerticalSpacing="6"
+                                XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                AutomationProperties.Name="Markdown pane header">
                         <StackPanel x:Name="MarkdownPaneTitle" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="0,0,10,0">
                             <Ellipse Width="7" Height="7" Fill="{ThemeResource SystemFillColorSuccessBrush}" />
                             <TextBlock Text="LIVE MARKDOWN PREVIEW" FontSize="11" FontWeight="SemiBold"
@@ -407,6 +409,7 @@
                 <!-- A button, so the keyboard can copy the metrics and reach the footer menu (Shift+F10). -->
                 <Button x:Name="SessionMetricsButton" Grid.Column="1" Click="OnSessionMetricsButtonClick"
                         RightTapped="OnFooterBarRightTapped"
+                        AutomationProperties.Name="Session metrics and status summary"
                         Style="{StaticResource SubtleButtonStyle}" Padding="6,1" Margin="0,-2,-6,-2"
                         MinWidth="0" MinHeight="0" VerticalAlignment="Center"
                         ToolTipService.ToolTip="Copy session metrics and status · Right-click or Shift+F10 for options"
