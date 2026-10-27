@@ -140,7 +140,8 @@
                                          for a white page. -->
                                     <Border Width="64" Height="44" CornerRadius="6" Padding="4" CenterPoint="32,22,0"
                                             Background="{ThemeResource SmartArtThumbTileBrush}"
-                                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                                            AutomationProperties.AccessibilityView="Raw">
                                         <Border.ScaleTransition>
                                             <Vector3Transition Duration="0:0:0.14" />
                                         </Border.ScaleTransition>
@@ -181,7 +182,9 @@
                     </Grid.RowDefinitions>
                     <!-- Tabs first, then the pills; the pane is a fixed 424 px, so the pills wrap onto a
                          second line rather than squeezing the Outline | Markdown tabs to nothing. -->
-                    <ui:WrapRow Grid.Row="0" Margin="6,4,6,4" HorizontalSpacing="6" VerticalSpacing="2">
+                    <ui:WrapRow x:Name="OutlineEditorHeaderRow" Grid.Row="0" Margin="6,4,6,4" HorizontalSpacing="6" VerticalSpacing="2"
+                                XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                AutomationProperties.Name="Outline editor header controls">
                         <SelectorBar x:Name="EditorTabs" SelectionChanged="OnEditorTabsChanged" XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once" AutomationProperties.Name="Editor view tabs"
                                      DoubleTapped="OnEditorTabsDoubleTapped"
                                      RightTapped="OnEditorTabsRightTapped">

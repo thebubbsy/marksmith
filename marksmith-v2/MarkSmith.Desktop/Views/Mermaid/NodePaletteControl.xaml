@@ -19,7 +19,9 @@
         </Grid.RowDefinitions>
 
         <!-- Header & Search -->
-        <StackPanel Grid.Row="0" Spacing="6">
+        <StackPanel x:Name="PaletteSearchCluster" Grid.Row="0" Spacing="6"
+                    XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                    AutomationProperties.Name="Search shape palette">
             <!-- The count says how much a pill or search is hiding ("3 of 21 shapes"). -->
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                 <TextBlock Text="Shape Palette" FontWeight="SemiBold" FontSize="14" Foreground="#EDF2F4" VerticalAlignment="Center" />
@@ -70,7 +72,9 @@
                   ItemClick="OnPaletteItemClick"
                   KeyDown="OnPaletteListViewKeyDown"
                   CanDragItems="True"
-                  DragItemsStarting="OnPaletteDragItemsStarting">
+                  DragItemsStarting="OnPaletteDragItemsStarting"
+                  XYFocusKeyboardNavigation="Enabled"
+                  TabFocusNavigation="Once">
             <ListView.ItemTemplate>
                 <DataTemplate>
                     <Border Background="#2B2D42"

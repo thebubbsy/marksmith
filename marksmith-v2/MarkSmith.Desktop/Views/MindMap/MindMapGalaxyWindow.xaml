@@ -236,6 +236,9 @@
 
                         <AppBarSeparator />
 
+                        <StackPanel x:Name="GalaxyLayoutToolsCluster" Orientation="Horizontal" Spacing="6"
+                                    XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                    AutomationProperties.Name="Layout and connection styling tools">
                         <DropDownButton x:Name="ArrangeDropDownButton" Padding="10,5" MinHeight="32"
                                         RightTapped="OnArrangeDropDownRightTapped"
                                         ToolTipService.ToolTip="Rearrange every node automatically (Right-click or Shift+F10 for options)"
@@ -598,9 +601,13 @@
                                 </MenuFlyout>
                             </DropDownButton.Flyout>
                         </DropDownButton>
+                        </StackPanel>
 
                         <AppBarSeparator />
 
+                        <StackPanel x:Name="GalaxyIOCluster" Orientation="Horizontal" Spacing="6"
+                                    XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                    AutomationProperties.Name="Import, export and save tools">
                         <Button x:Name="ImportFolderButton" Click="OnImportFolderClick" Style="{StaticResource GalaxyToolButton}"
                                 RightTapped="OnImportFolderButtonRightTapped"
                                 ToolTipService.ToolTip="Map a folder: every document in it becomes a node, linked by what they share (Right-click or Shift+F10 for options)"
@@ -650,6 +657,7 @@
                                 <TextBlock Text="Save" FontSize="12" />
                             </StackPanel>
                         </Button>
+                        </StackPanel>
                     </StackPanel>
                 </ScrollViewer>
             </Grid>

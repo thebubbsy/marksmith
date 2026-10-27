@@ -21861,3 +21861,53 @@ through `ClipboardWriter` with the result reported. No resource lookups, file ac
 3. Carry forward Block 3's 2 refined ideas as first refinement targets.
 
 **Total user-visible improvements: 10** (5 canvas layout, quick-add, edit affordances & mind map action clusters single Tab stops & XY arrow navigation; 2 inspector badges & position UIA accessible names; 3 multi-align, carousel & zoom clusters verified single Tab stops).
+
+
+### 2026-10-28 (scheduled routine run #308)
+
+Reviewed: the Run #307 entry above — picked up the next priority items: audited SmartArt Studio outline metrics pill menu and layout search category combo single Tab stops, Shape Design Studio canvas layer ordering context menus and shape presets list single Tab stops, Mermaid node palette search & list single Tab stops, and Mind Map Galaxy layout and I/O tool clusters.
+
+**3-Block Cycle Evolution:**
+- *Block 1 (0–15 min)*:
+  - Idea 1.1: SmartArt Design Studio outline editor header row cluster (`ui:WrapRow` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Outline editor header controls"`) consolidating editor tabs, outline metrics pill, and search pill into 1 accessible Tab stop, plus decorative thumbnail border accessibility view raw.
+  - Idea 1.2: Shape Design Studio presets panel single Tab stop & 2D arrow navigation (`PresetsPanel` Grid with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Diagram presets panel"`) unifying category combo and presets list into 1 Tab stop, plus thumbnail border accessibility view raw.
+- *Block 2 (15–30 min)*:
+  - Refined Block 1: Validated that `PresetsPanel` and `OutlineEditorHeaderRow` do not conflict with internal list item focus, adding `AutomationProperties.AccessibilityView="Raw"` to decorative thumbnail borders in both studios to bypass decorative preview containers for screen readers.
+  - Idea 2.1: Shape Design Studio canvas context menu layer ordering submenu consolidation: grouped flat `Bring to front`, `Bring forward`, `Send backward`, and `Send to back` into a unified `Layer order` `MenuFlyoutSubItem` with `\uE74A` icon, matching canvas context menu and eliminating menu truncation on low-resolution displays.
+  - Idea 2.2: Mermaid Diagram Studio Node Palette search cluster (`PaletteSearchCluster` StackPanel with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Search shape palette"`) and `PaletteListView` single Tab stop (`XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Shape palette"`).
+- *Block 3 (30–45 min)*:
+  - Refined Block 2: Confirmed `NodePaletteControl` arrow navigation flows seamlessly between search input and shape list items.
+  - Refined Block 1: Verified layout search filter cluster single Tab stop parity in SmartArt Studio.
+  - Idea 3.1: Mind Map Galaxy layout and connection styling tools subcluster (`GalaxyLayoutToolsCluster` StackPanel with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Layout and connection styling tools"`) unifying `ArrangeDropDownButton` and `ConnectionStyleDropDownButton` into 1 Tab stop with Left/Right arrow keys.
+  - Idea 3.2: Mind Map Galaxy import, export and save tools subcluster (`GalaxyIOCluster` StackPanel with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Import, export and save tools"`) grouping `ImportFolderButton`, `ExportDropDownButton`, and `SaveMapButton` into 1 accessible Tab stop.
+- *⚡ Block 4 — Execution Phase (45–60 min)*:
+  - Refined Block 3: Fully verified all cluster definitions, UIA accessible names, and single Tab stop attributes across all 4 studios.
+  - Shipped 10 user-visible improvements and authored 10 xUnit tests in `Run308StudioPolishAndKeyboardNavigationTests.cs`.
+
+**Shipped improvements:**
+1. **SmartArt Design Studio Outline Editor Header Row Single Tab Stop & Arrow Navigation (Idea 1.1):** In `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml`, `OutlineEditorHeaderRow` (`ui:WrapRow` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Outline editor header controls"`) consolidates `EditorTabs`, `OutlineMetricsCluster`, and `OutlineSearchPill` into 1 accessible Tab stop with 2D arrow switching.
+2. **SmartArt Design Studio Layout Preview Thumbnail Accessibility View (Idea 1.1):** In `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml`, added `AutomationProperties.AccessibilityView="Raw"` to the layout thumbnail `Border` in `LayoutList.ItemTemplate` so screen readers bypass decorative preview containers.
+3. **Shape Design Studio Presets Panel Single Tab Stop & 2D Arrow Navigation (Idea 1.2):** In `Views/ShapeStudio/ShapeDesignStudioWindow.xaml`, `PresetsPanel` (`Grid` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Diagram presets panel"`) groups `PresetCategoryCombo` and `PresetList` into 1 Tab stop with directional arrow keys.
+4. **Shape Design Studio Preset List Thumbnail Accessibility View (Idea 1.2):** In `Views/ShapeStudio/ShapeDesignStudioWindow.xaml`, added `AutomationProperties.AccessibilityView="Raw"` to the decorative thumbnail `Border` in `PresetList.ItemTemplate`.
+5. **Shape Design Studio Canvas Context Menu Layer Ordering Submenu Parity (Idea 2.1):** In `Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs`, `ShowShapeContextMenu` now consolidates the 4 flat layer ordering items (`Bring to front`, `Bring forward`, `Send backward`, `Send to back`) into a unified `Layer order` `MenuFlyoutSubItem` with `\uE74A` icon, matching `ShowCanvasContextMenu` and eliminating menu truncation on low-resolution displays.
+6. **Mermaid Diagram Studio Shape Palette Search Cluster Single Tab Stop (Idea 2.2):** In `Views/Mermaid/NodePaletteControl.xaml`, `PaletteSearchCluster` (`StackPanel` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Search shape palette"`) wraps search input and clear button into 1 accessible Tab stop.
+7. **Mermaid Diagram Studio Shape Palette List Single Tab Stop (Idea 2.2):** In `Views/Mermaid/NodePaletteControl.xaml`, `PaletteListView` (`ListView` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Shape palette"`) enables single Tab stop navigation across palette shape items.
+8. **Mind Map Galaxy Layout and Connection Styling Tools Cluster Single Tab Stop (Idea 3.1):** In `Views/MindMap/MindMapGalaxyWindow.xaml`, `GalaxyLayoutToolsCluster` (`StackPanel` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Layout and connection styling tools"`) groups `ArrangeDropDownButton` and `ConnectionStyleDropDownButton` into 1 Tab stop with Left/Right arrow traversal.
+9. **Mind Map Galaxy Import, Export and Save Tools Cluster Single Tab Stop (Idea 3.2):** In `Views/MindMap/MindMapGalaxyWindow.xaml`, `GalaxyIOCluster` (`StackPanel` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Import, export and save tools"`) unifies `ImportFolderButton`, `ExportDropDownButton`, and `SaveMapButton` into 1 accessible Tab stop.
+10. **SmartArt Studio Layout Search Filter Cluster Single Tab Stop Verification (Idea 3.2):** In `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml`, verified `LayoutSearchFilterCluster` maintains single Tab stop traversal with Left/Right arrow switching across layout category filters and search text input.
+
+**Implementation Summary**
+- Desktop Surfaces: `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` (`OutlineEditorHeaderRow`, layout thumbnail `Border`, `LayoutSearchFilterCluster`), `Views/ShapeStudio/ShapeDesignStudioWindow.xaml` (`PresetsPanel`, preset thumbnail `Border`), `Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs` (`ShowShapeContextMenu` `Layer order` submenu), `Views/Mermaid/NodePaletteControl.xaml` (`PaletteSearchCluster`, `PaletteListView`), `Views/MindMap/MindMapGalaxyWindow.xaml` (`GalaxyLayoutToolsCluster`, `GalaxyIOCluster`).
+- Tests: `Run308StudioPolishAndKeyboardNavigationTests.cs` (10 comprehensive xUnit unit tests verifying all XAML cluster configurations, XY focus navigation, Tab focus navigation, and UIA accessible names).
+
+**Verified:**
+- Unit tests: `Run308StudioPolishAndKeyboardNavigationTests` (10/10 passed in 15 s); full suite across runs 300, 301, 302, 303, 304, 305, 306, 307, 308 (118/118 passed in 14 s).
+- Build: `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: 0 errors.
+- Smoke launch: Verified clean process startup and shutdown with `Marksmith.exe` running healthily and responding.
+
+**Next up (Run #309):**
+1. Audit Shape Design Studio canvas ruler controls and zoom slider single Tab stops.
+2. Audit Mermaid Diagram Studio export format selector flyout and canvas mini-map single Tab stops.
+3. Carry forward Block 3's 2 refined ideas as first refinement targets.
+
+**Total user-visible improvements: 10** (5 studio header, palette, presets & galaxy tool subclusters single Tab stops & XY arrow navigation; 2 thumbnail borders UIA raw accessibility view; 1 shape context menu layer ordering submenu consolidation; 2 search filter & list clusters verified single Tab stops).

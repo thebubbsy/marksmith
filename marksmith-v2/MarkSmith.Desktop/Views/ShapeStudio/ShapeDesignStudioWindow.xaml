@@ -149,7 +149,9 @@
                     </SelectorBar>
 
                     <!-- Presets -->
-                    <Grid x:Name="PresetsPanel" Grid.Row="1" Padding="12,8,12,12" RowSpacing="8">
+                    <Grid x:Name="PresetsPanel" Grid.Row="1" Padding="12,8,12,12" RowSpacing="8"
+                          XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                          AutomationProperties.Name="Diagram presets panel">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
@@ -182,7 +184,8 @@
                                              eye instead of by name: every preset in a category used
                                              to share one icon. -->
                                         <Border Width="64" Height="46" CornerRadius="6" VerticalAlignment="Center" Padding="5"
-                                                Background="{ThemeResource SubtleFillColorSecondaryBrush}">
+                                                Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                                AutomationProperties.AccessibilityView="Raw">
                                             <Viewbox Stretch="Uniform">
                                                 <Canvas Loaded="OnPresetThumbLoaded" Unloaded="OnPresetThumbUnloaded"
                                                         DataContextChanged="OnPresetThumbDataContextChanged" />

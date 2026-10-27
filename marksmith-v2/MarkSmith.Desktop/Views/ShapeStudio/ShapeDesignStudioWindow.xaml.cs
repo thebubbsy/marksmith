@@ -1435,10 +1435,16 @@ namespace MarkSmith.Views.ShapeStudio
             flyout.Items.Add(ShapeMenuItem("Duplicate", "\uE8C8", () => ViewModel.DuplicateSelectedCommand.Execute(null), "Ctrl+D"));
             flyout.Items.Add(new MenuFlyoutSeparator());
 
-            flyout.Items.Add(ShapeMenuItem("Bring to front", "\uE74A", () => ViewModel.BringToFrontCommand.Execute(null), "Ctrl+Shift+]"));
-            flyout.Items.Add(ShapeMenuItem("Bring forward", "\uE74A", () => ViewModel.BringForwardCommand.Execute(null), "Ctrl+]"));
-            flyout.Items.Add(ShapeMenuItem("Send backward", "\uE74B", () => ViewModel.SendBackwardCommand.Execute(null), "Ctrl+["));
-            flyout.Items.Add(ShapeMenuItem("Send to back", "\uE74B", () => ViewModel.SendToBackCommand.Execute(null), "Ctrl+Shift+["));
+            var layerSub = new MenuFlyoutSubItem
+            {
+                Text = "Layer order",
+                Icon = new FontIcon { Glyph = "\uE74A" }
+            };
+            layerSub.Items.Add(ShapeMenuItem("Bring to front", "\uE74A", () => ViewModel.BringToFrontCommand.Execute(null), "Ctrl+Shift+]"));
+            layerSub.Items.Add(ShapeMenuItem("Bring forward", "\uE74A", () => ViewModel.BringForwardCommand.Execute(null), "Ctrl+]"));
+            layerSub.Items.Add(ShapeMenuItem("Send backward", "\uE74B", () => ViewModel.SendBackwardCommand.Execute(null), "Ctrl+["));
+            layerSub.Items.Add(ShapeMenuItem("Send to back", "\uE74B", () => ViewModel.SendToBackCommand.Execute(null), "Ctrl+Shift+["));
+            flyout.Items.Add(layerSub);
 
             if (!isLine)
             {
