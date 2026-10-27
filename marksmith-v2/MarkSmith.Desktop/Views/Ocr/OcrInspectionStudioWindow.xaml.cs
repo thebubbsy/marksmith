@@ -2419,7 +2419,16 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             if (e.Key == Windows.System.VirtualKey.Escape && !inputFocused)
             {
                 e.Handled = true;
-                OnDiscardClick(this, new RoutedEventArgs());
+                if (_selectedElement is not null)
+                {
+                    int id = _selectedElement.Id;
+                    ClearElementSelection();
+                    SetFooterStatusText($"Deselected element #{id}. Press Esc again to exit.");
+                }
+                else
+                {
+                    OnDiscardClick(this, new RoutedEventArgs());
+                }
                 return;
             }
 
@@ -2507,10 +2516,20 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             }
             else if (e.Key == Windows.System.VirtualKey.R && !shift)
             {
-                if (_selectedElement?.IsReclassified == true)
+                if (_selectedElement is null)
+                {
+                    e.Handled = true;
+                    SetFooterStatusText("No element selected to reset. Select an element on the canvas or press Up/Down first.");
+                }
+                else if (_selectedElement.IsReclassified)
                 {
                     e.Handled = true;
                     ResetSelectedElement();
+                }
+                else
+                {
+                    e.Handled = true;
+                    SetFooterStatusText($"Element #{_selectedElement.Id} is already using its original {_selectedElement.KindDisplayName} classification.");
                 }
             }
             else if (!shift)
@@ -2523,13 +2542,20 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
                         => (int)e.Key - (int)Windows.System.VirtualKey.NumberPad0,
                     _ => 0
                 };
-                if (shortcutNum > 0 && _selectedElement is not null &&
+                if (shortcutNum > 0 &&
                     OcrInspectionSession.TryMapShortcutNumberToKind(shortcutNum, out var newKind))
                 {
                     e.Handled = true;
-                    if (_selectedElement.Kind != newKind)
+                    if (_selectedElement is not null)
                     {
-                        ReclassifyElement(_selectedElement, newKind);
+                        if (_selectedElement.Kind != newKind)
+                        {
+                            ReclassifyElement(_selectedElement, newKind);
+                        }
+                    }
+                    else
+                    {
+                        SetFooterStatusText($"Select an element first to reclassify it as {newKind}. Use Up/Down or click a block.");
                     }
                 }
             }

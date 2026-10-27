@@ -21292,3 +21292,32 @@ through `ClipboardWriter` with the result reported. No resource lookups, file ac
 
 **Total user-visible improvements: 9** (3 Suite Hub single Tab-stop XY-navigation clusters across templates, cards, and footer, 2 Welcome Tour clusters across cards and nav, 1 Mermaid studio left tools cluster, 1 MindMap Galaxy action cluster, 1 Version History timeline jump cluster, 1 Main Window status utility cluster).
 
+## 2026-10-27 · Run #295 (22:00–22:25 AEDT) · Antigravity AI Agent
+
+**Agent / Execution Metadata**
+- Model: Antigravity AI Agent (Google DeepMind)
+- Modes: Scheduled Hourly Automation Routine
+- Trigger: Scheduled hourly MarkSmith WinUI 3 Desktop Polish Routine
+- Mandate: Version History diff search controls cluster single Tab stop, diff meters cluster single Tab stop, diff view options cluster single Tab stop, OCR Studio reclassification action cluster single Tab stop, and live Markdown preview actions cluster single Tab stop.
+
+**Delivered (user-visible):**
+1. **Version History Diff Search Controls Cluster single Tab stop & XY Arrow Navigation:** In `HistoryWindow.xaml`, `DiffSearchBox`, `DiffPrevMatchButton`, and `DiffNextMatchButton` inside `DiffSearchPill` are grouped into `DiffSearchControlsCluster` with `XYFocusKeyboardNavigation="Enabled"` and `TabFocusNavigation="Once"`. Reduces repetitive Tab stops in the diff header from 3 down to 1 while enabling natural Left/Right arrow cycling between search input and match stepper buttons.
+2. **Version History Diff Delta Meters Cluster single Tab stop & XY Arrow Navigation:** In `HistoryWindow.xaml`, `DeltaMeterButton` and `DiffWordDeltaPill` are grouped into `DiffMetersCluster` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, and unified `Visibility="{Binding HasDiffStats, Converter={StaticResource BoolToVis}}"`. Keyboard users can arrow seamlessly between line delta and word delta metrics.
+3. **Version History Diff View Options Cluster single Tab stop & XY Arrow Navigation:** In `HistoryWindow.xaml`, `DiffWrapButton`, `DiffLineJumpButton`, and `DiffIgnoreWhitespaceButton` are grouped into `DiffViewOptionsCluster` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, and `AutomationProperties.Name="Diff display options"`.
+4. **OCR Inspection Studio Quick Reclassify Action Cluster single Tab stop:** In `OcrInspectionStudioWindow.xaml`, `QuickReclassifyComboBox` and `ResetElementButton` are grouped into `ReclassifyActionCluster` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, and `AutomationProperties.Name="Reclassification actions"`.
+5. **OCR Inspection Studio Live Markdown Preview Actions Cluster single Tab stop:** In `OcrInspectionStudioWindow.xaml`, `MarkdownScopeComboBox` and `CopyMarkdownButton` inside `MarkdownPaneActions` are configured with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, and `AutomationProperties.Name="Markdown preview actions"`.
+
+**Implementation Summary**
+- Desktop: `Views/History/HistoryWindow.xaml` (`DiffSearchControlsCluster`, `DiffMetersCluster`, `DiffViewOptionsCluster`), `Views/Ocr/OcrInspectionStudioWindow.xaml` (`ReclassifyActionCluster`, `MarkdownPaneActions`).
+- Tests: `Run295StudioPolishAndKeyboardNavigationTests.cs` (9 xUnit tests verifying XAML `XYFocusKeyboardNavigation` / `TabFocusNavigation` attributes and cluster declarations across History and OCR studios).
+
+**Verified:**
+- `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: 0 errors.
+- Unit tests: `Run295StudioPolishAndKeyboardNavigationTests` (9/9 passed).
+
+**Next up (Run #296):**
+1. Audit Shape Studio and Mermaid Studio property inspectors for XY navigation clusters.
+2. Audit SmartArt Studio palette cards for single Tab stop traversal.
+3. Carry forward Block 3's 2 refined ideas as first refinement targets.
+
+**Total user-visible improvements: 5** (3 Version History diff toolbar clusters across search, delta meters, and view options; 2 OCR Inspection Studio clusters across reclassification and markdown preview).

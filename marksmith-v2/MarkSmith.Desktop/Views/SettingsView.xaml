@@ -1,4 +1,4 @@
-<UserControl
+﻿<UserControl
     x:Class="MarkSmith.Views.SettingsView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -571,7 +571,9 @@
                         <TextBlock Text="License" Style="{StaticResource SettingsPageTitleStyle}" />
                         <controls:SettingsCard x:Name="EditionCard" Glyph="&#xE734;" Header="{Binding EditionStatus}"
                                                Description="Pro adds Word and PowerPoint export (with editable equations), batch conversion and hands-free automation, and takes the MarkSmith footer off your exports. PDF, web page, EPUB, Markdown and email stay free.">
-                            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <StackPanel x:Name="LicenseActionCluster" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"
+                                        XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                        AutomationProperties.Name="License actions">
                                 <ProgressRing x:Name="DeactivateRing" IsActive="False" Width="16" Height="16" Visibility="Collapsed" />
                                  <Button x:Name="DeactivateButton" Content="Remove license" Click="OnDeactivateLicense" Visibility="Collapsed"
                                         AutomationProperties.Name="Remove license"
@@ -755,7 +757,9 @@
 
                         <TextBlock Text="Links" Style="{StaticResource SettingsSectionStyle}" />
                         <Border Style="{StaticResource PipelineCardStyle}" CornerRadius="8" Padding="4">
-                            <StackPanel x:Name="AboutLinks" Spacing="2">
+                            <StackPanel x:Name="AboutLinks" Spacing="2"
+                                        XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                        AutomationProperties.Name="Related links">
                                 <HyperlinkButton Style="{StaticResource SettingsLinkStyle}" NavigateUri="https://github.com/thebubbsy/MarkSmith"
                                                  AutomationProperties.Name="GitHub repository" ToolTipService.ToolTip="github.com/thebubbsy/MarkSmith">
                                     <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
