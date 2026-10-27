@@ -432,7 +432,9 @@
                                 </Button>
                             </Grid>
 
-                            <Grid ColumnSpacing="8">
+                            <Grid x:Name="NodePositionCluster" ColumnSpacing="8"
+                                  XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                  AutomationProperties.Name="Node position">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="*" />
@@ -444,7 +446,9 @@
                                            Value="{Binding SelectedNode.Y, Mode=TwoWay}" SpinButtonPlacementMode="Hidden"
                                            KeyDown="OnInspectorSingleLineKeyDown" />
                             </Grid>
-                            <Grid ColumnSpacing="8">
+                            <Grid x:Name="NodeDimensionsCluster" ColumnSpacing="8"
+                                  XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                  AutomationProperties.Name="Node dimensions">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="*" />

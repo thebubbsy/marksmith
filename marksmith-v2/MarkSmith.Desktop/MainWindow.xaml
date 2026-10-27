@@ -2151,7 +2151,9 @@
                 <!-- The primary export fills the row; Cancel and the busy ring only take space while
                      an export is actually running (a permanently greyed-out Cancel used to sit here
                      and was clipped off the edge whenever the pane was narrow). -->
-                <Grid Grid.Row="3">
+                <Grid x:Name="ExportActionsCluster" Grid.Row="3"
+                      XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                      AutomationProperties.Name="Export document actions">
                     <!-- Margins, not ColumnSpacing: spacing would still be reserved beside the
                          collapsed Cancel / ring and leave the button short of the row above. -->
                     <Grid.ColumnDefinitions>

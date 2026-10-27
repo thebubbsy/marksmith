@@ -675,7 +675,9 @@
                                     CornerRadius="6" Padding="4,2" VerticalAlignment="Center"
                                     AutomationProperties.Name="Find in diff controls"
                                     Visibility="{Binding HasDiffStats, Converter={StaticResource BoolToVis}}">
-                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                <StackPanel x:Name="DiffSearchCluster" Orientation="Horizontal" Spacing="4"
+                                            XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                            AutomationProperties.Name="Find in diff cluster">
                                     <FontIcon Glyph="&#xE721;" FontSize="11" Margin="4,0,2,0" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                     <TextBox x:Name="DiffSearchBox" Width="105" Height="26" MinHeight="0" Padding="4,2" FontSize="11"
                                              PlaceholderText="Find in diff…" BorderThickness="0" Background="Transparent"

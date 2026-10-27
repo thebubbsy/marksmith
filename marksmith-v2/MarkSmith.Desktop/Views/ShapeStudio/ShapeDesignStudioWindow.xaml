@@ -165,6 +165,7 @@
                         <ListView Grid.Row="2" x:Name="PresetList" ItemsSource="{Binding FilteredPresets}" SelectionMode="None"
                                   IsItemClickEnabled="True" ItemClick="OnPresetItemClick" Margin="-12,0,-12,0" Padding="4,0"
                                   RightTapped="OnPresetListRightTapped"
+                                  XYFocusKeyboardNavigation="Enabled"
                                   TabFocusNavigation="Once"
                                   ToolTipService.ToolTip="Diagram presets (Right-click or Shift+F10 for options)"
                                   AutomationProperties.Name="Diagram presets">
@@ -258,7 +259,9 @@
                                             <Image x:Name="FuseThumb" Stretch="UniformToFill" />
                                         </Grid>
                                     </Border>
-                                    <StackPanel Grid.Column="1" Spacing="6" VerticalAlignment="Center">
+                                    <StackPanel x:Name="ImageCardActionsCluster" Grid.Column="1" Spacing="6" VerticalAlignment="Center"
+                                                XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                                AutomationProperties.Name="Image source and path">
                                         <TextBlock x:Name="FuseImageLabel" Text="No image chosen" FontSize="12" TextTrimming="CharacterEllipsis"
                                                    Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
                                         <Button x:Name="PickImageButton" Content="Choose image…" Click="OnPickImageClick" Padding="10,4"
@@ -273,7 +276,8 @@
                                                      AutomationProperties.Name="Image file path"
                                                      DoubleTapped="OnFuseImagePathBoxDoubleTapped"
                                                      ToolTipService.ToolTip="Image file path · Double-click to select all, Right-click or Shift+F10 for options" />
-                                            <Button Grid.Column="1" Content="Use" Click="OnUseImagePathClick" Padding="10,4"
+                                            <Button x:Name="UseImagePathButton" Grid.Column="1" Content="Use" Click="OnUseImagePathClick" Padding="10,4"
+                                                    AutomationProperties.Name="Use image path"
                                                     ToolTipService.ToolTip="Use the pasted path (handy when the file dialog hangs on a cloud folder)" />
                                         </Grid>
                                     </StackPanel>
@@ -281,7 +285,9 @@
                             </Border>
 
                             <!-- Shape mosaic layer -->
-                            <StackPanel Spacing="6">
+                            <StackPanel x:Name="MosaicControlsCluster" Spacing="6"
+                                        XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                        AutomationProperties.Name="Shape mosaic settings">
                                 <TextBlock Text="Shape mosaic" Style="{StaticResource SectionHeader}" />
                                 <Grid>
                                     <TextBlock Text="Density" Style="{StaticResource InspectorLabel}" />
@@ -305,7 +311,9 @@
                                           Checked="OnCompAdaptiveChanged" Unchecked="OnCompAdaptiveChanged"
                                           ToolTipService.ToolTip="Flat areas become discs, edges become directional shapes, busy texture becomes hexagons. Overrides the tile-shape boxes below." />
                                 <TextBlock Text="Tile shapes" Style="{StaticResource InspectorLabel}" />
-                                <Grid ColumnSpacing="4" RowSpacing="0">
+                                <Grid x:Name="TileShapesCluster" ColumnSpacing="4" RowSpacing="0"
+                                      XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                      AutomationProperties.Name="Mosaic tile shapes">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="*" />
@@ -328,7 +336,9 @@
                             </StackPanel>
 
                             <!-- Line-art layer -->
-                            <StackPanel Spacing="6">
+                            <StackPanel x:Name="LineArtControlsCluster" Spacing="6"
+                                        XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                        AutomationProperties.Name="Traced line art settings">
                                 <TextBlock Text="Traced line art" Style="{StaticResource SectionHeader}" />
                                 <Grid>
                                     <TextBlock Text="Density" Style="{StaticResource InspectorLabel}" />
@@ -349,7 +359,9 @@
                                     <ComboBoxItem Content="Scanlines — horizontal strokes" Tag="Scanlines" />
                                     <ComboBoxItem Content="Silhouette — solid shapes" Tag="Silhouette" />
                                 </ComboBox>
-                                <Grid ColumnSpacing="12" Margin="0,4,0,0">
+                                <Grid x:Name="LineArtDetailStrokeCluster" ColumnSpacing="12" Margin="0,4,0,0"
+                                      XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                      AutomationProperties.Name="Line art detail and stroke">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="*" />

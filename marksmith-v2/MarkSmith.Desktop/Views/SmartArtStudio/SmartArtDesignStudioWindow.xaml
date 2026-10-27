@@ -1032,7 +1032,9 @@
                             Background="{ThemeResource LayerFillColorDefaultBrush}"
                             BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,0,1"
                             Padding="8,4">
-                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="4">
+                        <Grid x:Name="QuickLayoutCarouselCluster" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="4"
+                              XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                              AutomationProperties.Name="Quick layout carousel bar">
                             <Button x:Name="CarouselPrevButton" Click="OnCarouselPrevClick" Style="{StaticResource SubtleButtonStyle}"
                                     Width="24" Height="44" Padding="0" VerticalAlignment="Center"
                                     ToolTipService.ToolTip="Scroll layouts left" AutomationProperties.Name="Scroll layouts left">
@@ -1042,7 +1044,9 @@
                                       ItemsSource="{Binding Layouts}"
                                       SelectedItem="{Binding SelectedLayout, Mode=TwoWay}"
                                       SelectionMode="Single"
+                                      XYFocusKeyboardNavigation="Enabled"
                                       TabFocusNavigation="Once"
+                                      AutomationProperties.Name="Quick layout carousel"
                                       IsItemClickEnabled="True"
                                       ItemClick="OnCarouselLayoutItemClick"
                                       ScrollViewer.HorizontalScrollBarVisibility="Hidden"
@@ -1137,8 +1141,10 @@
         </Grid>
 
         <!-- Status -->
-        <Grid Grid.Row="2" Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}" Padding="14,7"
+        <Grid x:Name="SmartArtStatusBarCluster" Grid.Row="2" Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}" Padding="14,7"
               BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0" ColumnSpacing="12"
+              XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+              AutomationProperties.Name="SmartArt status bar"
               RightTapped="OnStatusBarRightTapped" DoubleTapped="OnStatusBarDoubleTapped"
               ToolTipService.ToolTip="SmartArt Studio status (Double-click to copy, Right-click for options)">
             <Grid.ColumnDefinitions>
