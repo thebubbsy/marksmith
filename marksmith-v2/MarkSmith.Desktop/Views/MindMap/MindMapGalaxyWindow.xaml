@@ -62,7 +62,9 @@
                     <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
                         <FontIcon Glyph="&#xEC26;" FontSize="18" Foreground="{ThemeResource AccentFillColorDefaultBrush}" VerticalAlignment="Center" />
                         <StackPanel Spacing="1">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
+                            <StackPanel x:Name="MapTitleCluster" Orientation="Horizontal" Spacing="6"
+                                        XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                        AutomationProperties.Name="Map title and state">
                                 <!-- A button, not a hit-testable TextBlock: the title bar treats plain text as a drag
                                      handle (so its right-click showed the window's system menu), and the keyboard
                                      could not reach the title's copy / save / fit menu at all. -->
@@ -91,7 +93,9 @@
                     </StackPanel>
 
                     <!-- Right: search and zoom -->
-                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <StackPanel x:Name="GalaxyTopToolsCluster" Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+                                XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                AutomationProperties.Name="Galaxy search and zoom tools">
                         <AutoSuggestBox x:Name="SearchBox" PlaceholderText="Search the map" Width="200"
                                         QueryIcon="Find" AutomationProperties.Name="Search the map"
                                         TextChanged="OnSearchTextChanged" QuerySubmitted="OnSearchQuerySubmitted"
@@ -1140,6 +1144,17 @@
                                      AutomationProperties.HelpText="Opens connection copy and layout options."
                                      ToolTipService.ToolTip="Total connections · Click, right-click or Shift+F10 for connection actions">
                         <TextBlock x:Name="LinksCountText" Text="{Binding LinksCountText}" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                    </HyperlinkButton>
+                    <TextBlock Text="·" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                    <HyperlinkButton x:Name="GalaxyShortcutsButton" Padding="4,0" MinHeight="0" VerticalAlignment="Center"
+                                     Click="OnGalaxyShortcutsButtonClick" RightTapped="OnGalaxyShortcutsButtonRightTapped"
+                                     AutomationProperties.Name="Document Galaxy keyboard shortcuts"
+                                     AutomationProperties.HelpText="Opens keyboard shortcuts overview and quick actions."
+                                     ToolTipService.ToolTip="Document Galaxy shortcuts (F1) · Click for shortcuts guide, Right-click or Shift+F10 for options">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <FontIcon Glyph="&#xE765;" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="Shortcuts · F1" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
+                        </StackPanel>
                     </HyperlinkButton>
                 </StackPanel>
             </Grid>

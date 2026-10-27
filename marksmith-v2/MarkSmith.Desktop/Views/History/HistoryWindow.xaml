@@ -71,7 +71,9 @@
                             BorderThickness="1" CornerRadius="6" Padding="6,2" VerticalAlignment="Center"
                             Visibility="{Binding HasSearchQuery, Converter={StaticResource BoolToVis}}"
                             ToolTipService.ToolTip="Versions matching the search · Clear with the × button or Esc">
-                        <StackPanel Orientation="Horizontal" Spacing="4">
+                        <StackPanel x:Name="TimelineSearchMatchCluster" Orientation="Horizontal" Spacing="4"
+                                    XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                    AutomationProperties.Name="Timeline search match">
                             <TextBlock x:Name="TimelineSearchMatchText" Text="{Binding SearchMatchText}" FontSize="11"
                                        AutomationProperties.LiveSetting="Polite"
                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />

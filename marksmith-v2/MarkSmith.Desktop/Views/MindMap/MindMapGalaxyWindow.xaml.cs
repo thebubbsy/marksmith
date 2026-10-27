@@ -150,6 +150,7 @@ namespace MarkSmith.Views.MindMap
                 (UnsavedBadge, OnUnsavedBadgeRightTapped),
                 (NodesCountButton, OnNodesCountRightTapped),
                 (LinksCountButton, OnLinksCountRightTapped),
+                (GalaxyShortcutsButton, OnGalaxyShortcutsButtonRightTapped),
                 (SearchMatchButton, OnSearchStepperPillRightTapped),
                 (SearchPrevMatchButton, OnSearchStepperPillRightTapped),
                 (SearchNextMatchButton, OnSearchStepperPillRightTapped),
@@ -3885,6 +3886,10 @@ namespace MarkSmith.Views.MindMap
                         if (ViewModel.NavigateDirection(dirX, dirY) is { } nextNode)
                             RequestRedraw(RedrawScope.Appearance);
                     }
+                    e.Handled = true;
+                    return;
+                case Windows.System.VirtualKey.F1:
+                    OnGalaxyShortcutsButtonClick(this, new RoutedEventArgs());
                     e.Handled = true;
                     return;
                 case Windows.System.VirtualKey.F3:
@@ -8056,6 +8061,103 @@ namespace MarkSmith.Views.MindMap
             menu.Items.Add(fitItem);
 
             menu.ShowAt(LinksCountButton, KeyboardContextMenu.PointIn(e, LinksCountButton));
+        }
+
+        private void OnGalaxyShortcutsButtonClick(object sender, RoutedEventArgs e) =>
+            KeyboardContextMenu.Invoke(GalaxyShortcutsButton, OnGalaxyShortcutsButtonRightTapped);
+
+        private void OnGalaxyShortcutsButtonRightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            if (GalaxyShortcutsButton is null) return;
+            e.Handled = true;
+            var menu = new MenuFlyout();
+
+            const string cheatsheetText =
+                "# MarkSmith Document Galaxy Shortcuts\n\n" +
+                "| Shortcut | Action |\n" +
+                "|---|---|\n" +
+                "| **F1** | Open Galaxy shortcuts menu |\n" +
+                "| **Tab** | Add child node under selected node |\n" +
+                "| **Enter** | Add sibling node beside selected node |\n" +
+                "| **Ctrl + L** | Link selected node to another node |\n" +
+                "| **Delete** | Delete selected node or link |\n" +
+                "| **Ctrl + Z** | Undo last layout or graph edit |\n" +
+                "| **Ctrl + Y / Ctrl+Shift+Z** | Redo last layout or graph edit |\n" +
+                "| **Ctrl + S** | Save map to document vault |\n" +
+                "| **Ctrl + F / /** | Focus map search box |\n" +
+                "| **F3 / Shift + F3** | Next / Previous search match |\n" +
+                "| **F** | Toggle Focus mode (fade unselected paths) |\n" +
+                "| **Ctrl + 0** | Fit whole map inside window |\n" +
+                "| **Ctrl + 1** | Reset zoom to 100% |\n" +
+                "| **Home** | Center viewport on root node |\n" +
+                "| **Space** | Expand / Collapse subtree |\n" +
+                "| **F2** | Rename selected node or link label |\n" +
+                "| **Escape** | Clear search filter or deselect |";
+
+            var copyCheatsheetItem = new MenuFlyoutItem
+            {
+                Text = "Copy Galaxy shortcuts cheatsheet (Markdown)",
+                Icon = new FontIcon { Glyph = "\uE8C8" }
+            };
+            copyCheatsheetItem.Click += (_, _) =>
+            {
+                CopyAndReport(cheatsheetText, "Copied Galaxy shortcuts cheatsheet to clipboard");
+            };
+            menu.Items.Add(copyCheatsheetItem);
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var fitItem = new MenuFlyoutItem
+            {
+                Text = "Fit whole map in window",
+                KeyboardAcceleratorTextOverride = "Ctrl+0",
+                Icon = new FontIcon { Glyph = "\uE9A6" }
+            };
+            fitItem.Click += (_, _) => OnFitToWindowClick(this, new RoutedEventArgs());
+            menu.Items.Add(fitItem);
+
+            var zoom100Item = new MenuFlyoutItem
+            {
+                Text = "Zoom to 100%",
+                KeyboardAcceleratorTextOverride = "Ctrl+1",
+                Icon = new FontIcon { Glyph = "\uE71E" }
+            };
+            zoom100Item.Click += (_, _) => OnZoomResetClick(this, new RoutedEventArgs());
+            menu.Items.Add(zoom100Item);
+
+            var centerRootItem = new MenuFlyoutItem
+            {
+                Text = "Center on root document",
+                KeyboardAcceleratorTextOverride = "Home",
+                Icon = new FontIcon { Glyph = "\uE80F" }
+            };
+            centerRootItem.Click += (_, _) => OnCenterOnRootClick(this, new RoutedEventArgs());
+            menu.Items.Add(centerRootItem);
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var focusSearchItem = new MenuFlyoutItem
+            {
+                Text = "Find in map",
+                KeyboardAcceleratorTextOverride = "Ctrl+F",
+                Icon = new FontIcon { Glyph = "\uE721" }
+            };
+            focusSearchItem.Click += (_, _) =>
+            {
+                SearchBox.Focus(FocusState.Programmatic);
+                if (FindDescendant<TextBox>(SearchBox) is { } tb) tb.SelectAll();
+            };
+            menu.Items.Add(focusSearchItem);
+
+            var toggleFocusItem = new MenuFlyoutItem
+            {
+                Text = ViewModel.IsFocusModeEnabled ? "Disable Focus mode" : "Enable Focus mode",
+                KeyboardAcceleratorTextOverride = "F",
+                Icon = new FontIcon { Glyph = "\uE890" }
+            };
+            toggleFocusItem.Click += (_, _) => OnToggleFocusModeClick(this, new RoutedEventArgs());
+            menu.Items.Add(toggleFocusItem);
+
+            menu.ShowAt(GalaxyShortcutsButton, KeyboardContextMenu.PointIn(e, GalaxyShortcutsButton));
         }
 
         private void OnMapTitleButtonClick(object sender, RoutedEventArgs e) =>

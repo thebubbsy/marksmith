@@ -21565,3 +21565,36 @@ through `ClipboardWriter` with the result reported. No resource lookups, file ac
 3. Carry forward Block 3's 2 refined ideas as first refinement targets.
 
 **Total user-visible improvements: 22** (4 Settings View action clusters single Tab stops & XY arrow navigation; 3 OCR Experience Overlay action & telemetry clusters; 5 Mermaid Diagram Studio style preset & canvas summary UIA names; 10 Suite Hub starter document template cards UIA names).
+
+
+## 2026-10-28 · Run #301 (04:00–04:30 AEDT) · Antigravity AI Agent
+
+**Agent / Execution Metadata**
+- Model: Antigravity AI Agent (Google DeepMind)
+- Modes: Scheduled Hourly Automation Routine
+- Trigger: Scheduled hourly MarkSmith WinUI 3 Desktop Polish Routine
+- Mandate: Milestone Run #301 - Document Galaxy Shortcuts status bar pill button ("Shortcuts · F1") with right-click / Shift+F10 cheatsheet menu and F1 accelerator; MindMap Galaxy title and state cluster single Tab stop & XY arrow navigation; MindMap Galaxy search and zoom tools cluster single Tab stop & XY arrow navigation; Version History timeline search match cluster single Tab stop & XY arrow navigation; OCR Inspection Studio telemetry counters cluster accessible name.
+
+**Delivered (user-visible):**
+1. **Document Galaxy Status Bar Shortcuts Pill Button:** In Views/MindMap/MindMapGalaxyWindow.xaml, added GalaxyShortcutsButton ("Shortcuts · F1") to GalaxyStatusCluster with keyboard icon, accessible name ("Document Galaxy keyboard shortcuts"), and rich tooltip.
+2. **Document Galaxy Shortcuts Cheatsheet & Quick Action Menu:** In Views/MindMap/MindMapGalaxyWindow.xaml.cs, wired OnGalaxyShortcutsButtonClick and OnGalaxyShortcutsButtonRightTapped with one-click clipboard copy of full Markdown shortcuts cheatsheet, Fit to Window (Ctrl+0), Zoom to 100% (Ctrl+1), Center on Root (Home), Find in Map (Ctrl+F), and Focus Mode Toggle (F).
+3. **Document Galaxy F1 Hotkey Accelerator:** In Views/MindMap/MindMapGalaxyWindow.xaml.cs, wired VirtualKey.F1 in the window keydown routing to immediately activate the Galaxy shortcuts menu.
+4. **MindMap Galaxy Title & State Cluster Single Tab Stop & Arrow Navigation:** In Views/MindMap/MindMapGalaxyWindow.xaml, MapTitleCluster (XYFocusKeyboardNavigation="Enabled", TabFocusNavigation="Once", AutomationProperties.Name="Map title and state") encapsulates MapTitleButton and UnsavedBadge into 1 Tab stop.
+5. **MindMap Galaxy Search & Zoom Tools Cluster Single Tab Stop & Arrow Navigation:** In Views/MindMap/MindMapGalaxyWindow.xaml, GalaxyTopToolsCluster (XYFocusKeyboardNavigation="Enabled", TabFocusNavigation="Once", AutomationProperties.Name="Galaxy search and zoom tools") encapsulates SearchBox, TagFilterButton, SearchStepperPill, and ZoomControlCluster into 1 Tab stop with XY directional traversal.
+6. **Version History Timeline Search Match Cluster Single Tab Stop & Arrow Navigation:** In Views/History/HistoryWindow.xaml, TimelineSearchMatchCluster (XYFocusKeyboardNavigation="Enabled", TabFocusNavigation="Once", AutomationProperties.Name="Timeline search match") encapsulates TimelineSearchMatchText and TimelineClearSearchBtn into 1 Tab stop.
+7. **OCR Inspection Studio Telemetry Cluster Accessible Name:** In Views/Ocr/OcrInspectionStudioWindow.xaml, OcrStudioTelemetryCluster is explicitly identified with AutomationProperties.Name="OCR studio telemetry counters".
+
+**Implementation Summary**
+- Desktop Surfaces: Views/MindMap/MindMapGalaxyWindow.xaml (MapTitleCluster, GalaxyTopToolsCluster, GalaxyShortcutsButton), Views/MindMap/MindMapGalaxyWindow.xaml.cs (F1 routing, BridgeAll registration, cheatsheet flyout), Views/History/HistoryWindow.xaml (TimelineSearchMatchCluster), Views/Ocr/OcrInspectionStudioWindow.xaml (OcrStudioTelemetryCluster).
+- Tests: Run301StudioPolishAndKeyboardNavigationTests.cs (6 xUnit tests asserting all XAML cluster configurations, XYFocusKeyboardNavigation, TabFocusNavigation, F1 routing, and AutomationProperties.Name).
+
+**Verified:**
+- Unit tests: Run301StudioPolishAndKeyboardNavigationTests (6/6 passed).
+- dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64: 0 errors.
+
+**Next up (Run #302):**
+1. Audit Shape Design Studio canvas ruler and guides toolbar for single Tab stops and XY keyboard focus navigation.
+2. Audit SmartArt Studio layout category navigation and preview cards for single Tab stops.
+3. Carry forward Block 3's 2 refined ideas as first refinement targets.
+
+**Total user-visible improvements: 7** (1 status bar interactive shortcuts button with cheatsheet menu; 1 global F1 shortcuts accelerator; 3 action & navigation clusters single Tab stops & XY arrow navigation; 2 studio telemetry and match clusters UIA accessible names).
