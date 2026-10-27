@@ -142,6 +142,7 @@
                                         Style="{StaticResource DefaultButtonStyle}"
                                         Background="Transparent" BorderThickness="0"
                                         Click="OnSearchPrevMatchClick"
+                                        AutomationProperties.Name="Previous match"
                                         ToolTipService.ToolTip="Previous match (Shift+F3 · Shift+F10 for search options)">
                                     <FontIcon Glyph="&#xE70E;" FontSize="9" />
                                 </Button>
@@ -149,6 +150,7 @@
                                         Style="{StaticResource DefaultButtonStyle}"
                                         Background="Transparent" BorderThickness="0"
                                         Click="OnSearchNextMatchClick"
+                                        AutomationProperties.Name="Next match"
                                         ToolTipService.ToolTip="Next match (F3 / Enter · Shift+F10 for search options)">
                                     <FontIcon Glyph="&#xE70D;" FontSize="9" />
                                 </Button>
@@ -156,6 +158,7 @@
                                         Style="{StaticResource DefaultButtonStyle}"
                                         Background="Transparent" BorderThickness="0"
                                         Click="OnSearchClearClick"
+                                        AutomationProperties.Name="Clear search"
                                         ToolTipService.ToolTip="Clear search (Esc · Shift+F10 for search options)">
                                     <FontIcon Glyph="&#xE711;" FontSize="9" />
                                 </Button>
@@ -761,6 +764,7 @@
                             <StackPanel x:Name="GalaxyTagPillsCluster" Orientation="Horizontal" Spacing="4" PreviewKeyDown="OnTagPillsPreviewKeyDown" XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once" AutomationProperties.Name="Filter tag pills">
                                 <FontIcon Glyph="&#xE8EC;" FontSize="12" VerticalAlignment="Center" Margin="4,0,4,0" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 <Button x:Name="AllTagsPill" Click="OnAllTagsClick" Padding="10,3" CornerRadius="12" FontSize="11"
+                                        AutomationProperties.Name="All tags"
                                         Content="All tags" ToolTipService.ToolTip="Show every node (Esc clears filter) · Right-click or Shift+F10 for options"
                                         Loaded="OnTagPillLoaded" Unloaded="OnTagPillUnloaded" RightTapped="OnAllTagsPillRightTapped" />
                                 <ItemsControl ItemsSource="{Binding DistinctTags}">

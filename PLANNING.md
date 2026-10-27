@@ -21780,3 +21780,46 @@ through `ClipboardWriter` with the result reported. No resource lookups, file ac
 3. Carry forward Block 3's 2 refined ideas as first refinement targets.
 
 **Total user-visible improvements: 14** (9 inspector geometry, morph, transform, palette, credentials & status clusters single Tab stops & XY arrow navigation; 2 search and stepper clusters single Tab stops; 3 buttons/dropdowns UIA accessible names & element IDs).
+
+
+## 2026-10-28 · Run #306 (07:45–08:05 AEDT) · Antigravity AI Agent
+
+**Agent / Execution Metadata**
+- Model: Antigravity AI Agent (Google DeepMind)
+- Modes: Scheduled Hourly Automation Routine
+- Trigger: Scheduled hourly MarkSmith WinUI 3 Desktop Polish Routine
+- Protocol: AI-Executable 3-Block Cycle + Execution Phase Protocol (Blocks 1–3 generating 2 ideas each with dual refinement passes; Execution Phase refining Block 3 ideas and delivering all 6 refined ideas into production code)
+- Mandate: Milestone Run #306 - Shape Design Studio top canvas toolbar undo/redo, align/distribute, z-order arrange/rotate, and duplicate/delete clusters single Tab stops & XY keyboard navigation; SmartArt Design Studio outline add items, item operations, and hierarchy clusters single Tab stops & XY navigation, with explicit outline row actions cluster name; Mermaid Diagram Studio undo/redo cluster and layout direction/routing cluster single Tab stops & XY navigation, plus sync button accessible name; Mind Map Galaxy search stepper buttons and all-tags pill accessible names; Main Window status exported file actions cluster and cursor position button accessible names.
+
+**Delivered (user-visible):**
+1. **Shape Design Studio Canvas Undo/Redo Cluster Single Tab Stop & Arrow Navigation (Idea 1.1):** In `Views/ShapeStudio/ShapeDesignStudioWindow.xaml`, `CanvasUndoRedoCluster` (`StackPanel` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Undo and redo canvas actions"`) consolidates `ToolUndoButton` and `ToolRedoButton` into 1 Tab stop with Left/Right arrow keys.
+2. **Shape Design Studio Canvas Align & Distribute Cluster Single Tab Stop & Arrow Navigation (Idea 1.1):** In `Views/ShapeStudio/ShapeDesignStudioWindow.xaml`, `CanvasAlignDistributeCluster` (`StackPanel` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Align and distribute shapes"`) consolidates all 8 align and distribute buttons (`AlignLeftButton`, `AlignCenterButton`, `AlignRightButton`, `AlignTopButton`, `AlignMiddleButton`, `AlignBottomButton`, `DistributeHorizontalButton`, `DistributeVerticalButton`) into 1 Tab stop with Left/Right arrow traversal.
+3. **Shape Design Studio Canvas Z-Order & Rotate Cluster Single Tab Stop & Arrow Navigation (Idea 1.1):** In `Views/ShapeStudio/ShapeDesignStudioWindow.xaml`, `CanvasZOrderArrangeCluster` (`StackPanel` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Arrange and rotate shapes"`) groups `BringToFrontButton`, `SendToBackButton`, `RotateLeftButton`, and `RotateRightButton` into 1 Tab stop with directional arrow keys.
+4. **Shape Design Studio Canvas Item Actions Cluster Single Tab Stop & Arrow Navigation (Idea 1.1):** In `Views/ShapeStudio/ShapeDesignStudioWindow.xaml`, `CanvasItemActionsCluster` (`StackPanel` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Duplicate and delete shapes"`) groups `DuplicateToolButton` and `DeleteSelectionToolButton` into 1 accessible Tab stop.
+5. **SmartArt Design Studio Outline Add Items Cluster Single Tab Stop & Arrow Navigation (Idea 2.1):** In `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml`, `OutlineAddItemsCluster` (`StackPanel` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Add outline items"`) unifies `OutlineAddChildButton` and `OutlineAddSiblingButton` into 1 Tab stop with Left/Right arrow switching.
+6. **SmartArt Design Studio Outline Item Operations Cluster Single Tab Stop & Arrow Navigation (Idea 2.1):** In `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml`, `OutlineItemOperationsCluster` (`StackPanel` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Outline item operations"`) unifies `RenameButton`, `DuplicateButton`, and `DeleteButton` into 1 Tab stop with Left/Right arrow switching.
+7. **SmartArt Design Studio Outline Item Hierarchy Cluster Single Tab Stop & Arrow Navigation (Idea 2.1):** In `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml`, `OutlineHierarchyCluster` (`StackPanel` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Outline item hierarchy and level"`) groups `MoveUpButton`, `MoveDownButton`, `PromoteButton`, and `DemoteButton` into 1 accessible Tab stop with Left/Right arrow keys.
+8. **SmartArt Design Studio Outline Row Actions Explicit Element Name (Idea 2.2):** In `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml`, `OutlineRowActionsCluster` is assigned an explicit element ID alongside its `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, and `AutomationProperties.Name="Outline row actions"`.
+9. **Mermaid Diagram Studio Undo/Redo Cluster Single Tab Stop & Arrow Navigation (Idea 3.1):** In `Views/Mermaid/MermaidDiagramStudioControl.xaml`, `MermaidUndoRedoCluster` (`StackPanel` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Undo and redo diagram changes"`) consolidates `UndoToolbarButton` and `RedoToolbarButton` into 1 Tab stop with Left/Right arrow switching.
+10. **Mermaid Diagram Studio Layout Direction & Routing Cluster Single Tab Stop & Arrow Navigation (Idea 3.1):** In `Views/Mermaid/MermaidDiagramStudioControl.xaml`, `DiagramLayoutRoutingCluster` (`StackPanel` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Diagram layout direction and connector routing"`) unifies `DirectionComboBox` and `RoutingComboBox` into 1 Tab stop with Left/Right arrow navigation.
+11. **Mermaid Diagram Studio Sync to Markdown Button Accessible Name (Idea 3.1):** In `Views/Mermaid/MermaidDiagramStudioControl.xaml`, `SyncToMarkdownButton` is labeled with `AutomationProperties.Name="Sync to Markdown"`.
+12. **Mind Map Galaxy Search Stepper Buttons Accessible Names (Idea 3.2):** In `Views/MindMap/MindMapGalaxyWindow.xaml`, `SearchPrevMatchButton`, `SearchNextMatchButton`, and `SearchClearButton` are labeled with `AutomationProperties.Name="Previous match"`, `AutomationProperties.Name="Next match"`, and `AutomationProperties.Name="Clear search"`.
+13. **Mind Map Galaxy All Tags Filter Button Accessible Name (Idea 3.2):** In `Views/MindMap/MindMapGalaxyWindow.xaml`, `AllTagsPill` is labeled with `AutomationProperties.Name="All tags"`.
+14. **Main Window Status Exported File Actions Cluster Accessible Name (Idea 3.2):** In `MainWindow.xaml`, `StatusOutputLinks` is labeled with `AutomationProperties.Name="Exported file actions"`.
+15. **Main Window Status Cursor Position Button Accessible Name (Idea 3.2):** In `MainWindow.xaml`, `CursorPosButton` is labeled with `AutomationProperties.Name="Cursor position"`.
+
+**Implementation Summary**
+- Desktop Surfaces: `Views/ShapeStudio/ShapeDesignStudioWindow.xaml` (`CanvasUndoRedoCluster`, `CanvasAlignDistributeCluster`, `CanvasZOrderArrangeCluster`, `CanvasItemActionsCluster`), `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` (`OutlineAddItemsCluster`, `OutlineItemOperationsCluster`, `OutlineHierarchyCluster`, `OutlineRowActionsCluster`), `Views/Mermaid/MermaidDiagramStudioControl.xaml` (`MermaidUndoRedoCluster`, `DiagramLayoutRoutingCluster`, `SyncToMarkdownButton`), `Views/MindMap/MindMapGalaxyWindow.xaml` (`SearchPrevMatchButton`, `SearchNextMatchButton`, `SearchClearButton`, `AllTagsPill`), `MainWindow.xaml` (`StatusOutputLinks`, `CursorPosButton`).
+- Tests: `Run306StudioPolishAndKeyboardNavigationTests.cs` (15 comprehensive xUnit unit tests verifying all XAML cluster configurations, XY focus navigation, Tab focus navigation, and UIA accessible names).
+
+**Verified:**
+- Unit tests: `Run306StudioPolishAndKeyboardNavigationTests` (15/15 passed in 126 ms); full suite across runs 300, 301, 302, 303, 304, 305, 306 (98/98 passed in 419 ms).
+- Build: `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: 0 errors.
+- Smoke launch: Launched `Marksmith.exe` (PID 19536), verified running healthy after 5 seconds, terminated cleanly.
+
+**Next up (Run #307):**
+1. Audit Shape Design Studio canvas layer ordering and grouping context actions for single Tab stops and XY keyboard focus navigation.
+2. Audit Mermaid Diagram Studio canvas node inline edit HUD and connector anchor snapping controls for single Tab stops.
+3. Carry forward Block 3's 2 refined ideas as first refinement targets.
+
+**Total user-visible improvements: 15** (9 canvas tool, outline, undo/redo & layout clusters single Tab stops & XY arrow navigation; 1 row actions explicit name; 5 buttons/pills/clusters UIA accessible names).

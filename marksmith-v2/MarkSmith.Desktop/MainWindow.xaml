@@ -2297,6 +2297,7 @@
                          Windows toast is easy to miss, or switched off entirely). -->
                     <StackPanel x:Name="StatusOutputLinks" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center"
                                 XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                AutomationProperties.Name="Exported file actions"
                                 Visibility="{Binding HasStatusOutput, Converter={StaticResource BoolToVisibilityConverter}}"
                                 IsHitTestVisible="True"
                                 RightTapped="OnStatusOutputLinksRightTapped"
@@ -2558,6 +2559,7 @@
     <!-- A button so Tab reaches it: Enter/Space opens Go to line, Shift+F10 its menu. -->
                         <HyperlinkButton x:Name="CursorPosButton" Padding="4,1" MinHeight="0" VerticalAlignment="Center"
                                          Click="OnCursorPosButtonClick" RightTapped="OnCursorPosButtonRightTapped"
+                                         AutomationProperties.Name="Cursor position"
                                          ToolTipService.ToolTip="Cursor position · Click to go to line (Ctrl+G) · Right-click or Shift+F10 for jump and copy options"
                                          AutomationProperties.HelpText="Opens Go to line (Ctrl+G). Shift+F10 for jump and copy options.">
                             <TextBlock x:Name="CursorPosText" Text="Ln 1, Col 1"
