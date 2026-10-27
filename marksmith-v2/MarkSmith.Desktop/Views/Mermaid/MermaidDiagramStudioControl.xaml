@@ -108,7 +108,9 @@
                 </Grid.ColumnDefinitions>
 
                 <!-- Left Tools (compact, icon-driven so the full set fits the default window) -->
-                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                <StackPanel x:Name="DiagramToolsCluster" Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+                            XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                            AutomationProperties.Name="Diagram tools">
                     <Button x:Name="TemplatesButton" Click="OnTemplatesClick" ToolTipService.ToolTip="Start from a template diagram (Right-click or Shift+F10 for options)"
                             RightTapped="OnTemplatesButtonRightTapped"
                             Background="#2B2D42" BorderBrush="#4CC9F0" BorderThickness="1" Foreground="#EDF2F4">

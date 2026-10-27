@@ -173,7 +173,9 @@
                 <!-- Action tools -->
                 <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" HorizontalScrollMode="Auto"
                               VerticalScrollBarVisibility="Disabled" VerticalScrollMode="Disabled">
-                    <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Left" VerticalAlignment="Center">
+                    <StackPanel x:Name="GalaxyActionCluster" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Left" VerticalAlignment="Center"
+                                XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                AutomationProperties.Name="MindMap action tools">
                         <Button x:Name="AddChildToolButton" Command="{Binding AddChildNodeCommand}" Style="{StaticResource GalaxyToolButton}"
                                 RightTapped="OnAddChildButtonRightTapped"
                                 ToolTipService.ToolTip="Add a node under the selected one (Tab, Right-click or Shift+F10 for options)" AutomationProperties.Name="Add child">

@@ -2499,27 +2499,31 @@
                         </StackPanel>
                     </HyperlinkButton>
                     <Border Width="1" Height="12" Background="{ThemeResource CardStrokeColorDefaultBrush}" VerticalAlignment="Center" />
-                    <!-- A button so Tab reaches it: Enter/Space opens Go to line, Shift+F10 its menu. -->
-                    <HyperlinkButton x:Name="CursorPosButton" Padding="4,1" MinHeight="0" VerticalAlignment="Center"
-                                     Click="OnCursorPosButtonClick" RightTapped="OnCursorPosButtonRightTapped"
-                                     ToolTipService.ToolTip="Cursor position · Click to go to line (Ctrl+G) · Right-click or Shift+F10 for jump and copy options"
-                                     AutomationProperties.HelpText="Opens Go to line (Ctrl+G). Shift+F10 for jump and copy options.">
-                        <TextBlock x:Name="CursorPosText" Text="Ln 1, Col 1"
-                                   FontFamily="Consolas" FontSize="11.5" Opacity="0.7"
-                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
-                    </HyperlinkButton>
-                    <Border x:Name="StatusShortcutsDivider" Width="1" Height="12" Background="{ThemeResource CardStrokeColorDefaultBrush}" VerticalAlignment="Center" />
-                    <HyperlinkButton x:Name="StatusShortcutsButton"
-                                     Click="OnStatusShortcutsButtonClick"
-                                     RightTapped="OnStatusShortcutsButtonRightTapped"
-                                     Padding="5,1" FontSize="11.5" Opacity="0.85"
-                                     ToolTipService.ToolTip="Keyboard shortcuts cheatsheet (F1) · Right-click or Shift+F10 for quick navigation actions"
-                                     AutomationProperties.Name="Keyboard shortcuts cheatsheet">
-                        <StackPanel Orientation="Horizontal" Spacing="4">
-                            <FontIcon Glyph="&#xE765;" FontSize="11" />
-                            <TextBlock Text="Shortcuts · F1" />
-                        </StackPanel>
-                    </HyperlinkButton>
+                    <StackPanel x:Name="StatusUtilityCluster" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center"
+                                XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                AutomationProperties.Name="Editor status and shortcuts">
+    <!-- A button so Tab reaches it: Enter/Space opens Go to line, Shift+F10 its menu. -->
+                        <HyperlinkButton x:Name="CursorPosButton" Padding="4,1" MinHeight="0" VerticalAlignment="Center"
+                                         Click="OnCursorPosButtonClick" RightTapped="OnCursorPosButtonRightTapped"
+                                         ToolTipService.ToolTip="Cursor position · Click to go to line (Ctrl+G) · Right-click or Shift+F10 for jump and copy options"
+                                         AutomationProperties.HelpText="Opens Go to line (Ctrl+G). Shift+F10 for jump and copy options.">
+                            <TextBlock x:Name="CursorPosText" Text="Ln 1, Col 1"
+                                       FontFamily="Consolas" FontSize="11.5" Opacity="0.7"
+                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                        </HyperlinkButton>
+                        <Border x:Name="StatusShortcutsDivider" Width="1" Height="12" Background="{ThemeResource CardStrokeColorDefaultBrush}" VerticalAlignment="Center" />
+                        <HyperlinkButton x:Name="StatusShortcutsButton"
+                                         Click="OnStatusShortcutsButtonClick"
+                                         RightTapped="OnStatusShortcutsButtonRightTapped"
+                                         Padding="5,1" FontSize="11.5" Opacity="0.85"
+                                         ToolTipService.ToolTip="Keyboard shortcuts cheatsheet (F1) · Right-click or Shift+F10 for quick navigation actions"
+                                         AutomationProperties.Name="Keyboard shortcuts cheatsheet">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <FontIcon Glyph="&#xE765;" FontSize="11" />
+                                <TextBlock Text="Shortcuts · F1" />
+                            </StackPanel>
+                        </HyperlinkButton>
+                    </StackPanel>
                 </StackPanel>
             </Grid>
         </Border>

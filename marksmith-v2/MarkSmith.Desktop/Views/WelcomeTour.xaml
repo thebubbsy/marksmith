@@ -102,7 +102,9 @@
                 <!-- The pipeline the rest of the tour walks through, as three cards. Each one
                      jumps straight to its page, so the welcome slide is a map, not a wall of
                      empty space under one line of text. -->
-                <Grid ColumnSpacing="6" Margin="0,8,0,0">
+                <Grid x:Name="PipelineCardsCluster" ColumnSpacing="6" Margin="0,8,0,0"
+                      XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                      AutomationProperties.Name="Tour pipeline steps">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
@@ -343,7 +345,9 @@
                 <FontIcon Glyph="&#xE73E;" Style="{StaticResource TourHero}" />
                 <TextBlock Text="You're all set" Style="{StaticResource TourTitle}" />
                 <TextBlock Style="{StaticResource TourLead}" Text="How would you like to start?" />
-                <Grid ColumnSpacing="10">
+                <Grid x:Name="FinishCardsCluster" ColumnSpacing="10"
+                          XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                          AutomationProperties.Name="Tour finish choices">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
@@ -408,7 +412,9 @@
             </Grid.ColumnDefinitions>
             <Button x:Name="SkipButton" Grid.Column="0" Content="Skip" Click="OnSkip" RightTapped="OnSkipButtonRightTapped" MinWidth="88"
                     ToolTipService.ToolTip="Skip the tour — reopen it anytime from the ⋯ menu (Esc)" />
-            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+            <StackPanel x:Name="TourNavCluster" Grid.Column="2" Orientation="Horizontal" Spacing="8"
+                            XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                            AutomationProperties.Name="Tour navigation">
                 <Button x:Name="BackButton" Content="Back" Click="OnBack" RightTapped="OnBackButtonRightTapped" Visibility="Collapsed" MinWidth="88"
                         ToolTipService.ToolTip="Previous step" />
                 <Button x:Name="NextButton" Content="Next" Click="OnNext" RightTapped="OnNextButtonRightTapped" Style="{StaticResource AccentButtonStyle}" MinWidth="112"

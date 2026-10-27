@@ -546,7 +546,9 @@
                     </Button>
                     <ScrollViewer x:Name="StarterTemplatesScroller" Grid.Column="1" HorizontalScrollBarVisibility="Auto" HorizontalScrollMode="Auto" VerticalScrollBarVisibility="Disabled"
                                   ViewChanged="OnStarterTemplatesViewChanged" SizeChanged="OnStarterTemplatesSizeChanged">
-                        <StackPanel x:Name="StarterTemplatesPanel" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" SizeChanged="OnStarterTemplatesSizeChanged">
+                        <StackPanel x:Name="StarterTemplatesPanel" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" SizeChanged="OnStarterTemplatesSizeChanged"
+                                    XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                    AutomationProperties.Name="Starter templates carousel">
                             <Button x:Name="TemplateMeetingNotesBtn" Style="{StaticResource DefaultButtonStyle}" Padding="10,4"
                                     Click="OnTemplateMeetingNotesClick" ToolTipService.ToolTip="Create a structured meeting minutes document with agenda and action items"
                                     Tag="meeting notes agenda minutes action items planning">
@@ -697,7 +699,9 @@
                         </Grid>
                         <TextBlock Grid.Row="1" Text="Draw flowcharts, sequence and state diagrams, or Word-ready shapes, then drop them straight into your document."
                                    FontSize="11.5" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                        <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="6">
+                        <StackPanel x:Name="Card1ActionCluster" Grid.Row="2" Orientation="Horizontal" Spacing="6"
+                                        XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                        AutomationProperties.Name="Drawing studios actions">
                             <Button x:Name="Card1DiagramButton" Click="OnOpenMermaidStudioClick" Padding="7,4" FontSize="11"
                                     RightTapped="OnCard1ButtonRightTapped"
                                     ToolTipService.ToolTip="Open Diagram Studio (Ctrl+Shift+M or Ctrl+1 · Right-click or Shift+F10 for options)"
@@ -749,7 +753,9 @@
                         </Grid>
                         <TextBlock Grid.Row="1" Text="Let Claude, Cursor, Gemini or any MCP app read, write and export your documents. Copy the setup for your app and paste it into its settings."
                                    FontSize="11.5" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                        <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="6">
+                        <StackPanel x:Name="Card2ActionCluster" Grid.Row="2" Orientation="Horizontal" Spacing="6"
+                                        XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                        AutomationProperties.Name="AI assistants actions">
                             <Button x:Name="Card2CopySetupButton" Padding="8,4" FontSize="11"
                                     RightTapped="OnCard2ButtonRightTapped"
                                     ToolTipService.ToolTip="Copy a ready-made MarkSmith entry for your AI app's settings (Ctrl+2)"
@@ -806,7 +812,9 @@
                         </Grid>
                         <TextBlock Grid.Row="1" Text="Send any ChatGPT, Claude, Gemini or Copilot answer to MarkSmith in one click, from Chrome or Edge."
                                    FontSize="11.5" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                        <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="6">
+                        <StackPanel x:Name="Card3ActionCluster" Grid.Row="2" Orientation="Horizontal" Spacing="6"
+                                        XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                        AutomationProperties.Name="Browser extension actions">
                             <!-- Shown while the connection is off: "API off" used to be a dead end that
                                  didn't say where to go. One click turns it on (same setting as
                                  Settings > Automation > Local API). -->
@@ -863,7 +871,9 @@
                         </Grid>
                         <TextBlock Grid.Row="1" Text="Convert a file or a whole folder from PowerShell or a script, with the same styles and output as the app."
                                    FontSize="11.5" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                        <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="6">
+                        <StackPanel x:Name="Card4ActionCluster" Grid.Row="2" Orientation="Horizontal" Spacing="6"
+                                        XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                        AutomationProperties.Name="Command line actions">
                             <Button x:Name="Card4CopyCommandButton" Padding="8,4" FontSize="11"
                                     RightTapped="OnCard4ButtonRightTapped"
                                     ToolTipService.ToolTip="Copy a ready-to-edit command (Ctrl+4)"
@@ -924,7 +934,9 @@
                         </Grid>
                         <TextBlock Grid.Row="1" Text="Use MarkSmith from a browser tab on this PC: paste Markdown, pick a style and download the document."
                                    FontSize="11.5" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                        <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="6">
+                        <StackPanel x:Name="Card5ActionCluster" Grid.Row="2" Orientation="Horizontal" Spacing="6"
+                                        XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                        AutomationProperties.Name="Web companion actions">
                             <Button x:Name="Card5ExpressButton" Click="OnLaunchExpressClick" Padding="8,4" FontSize="11"
                                     RightTapped="OnCard5ButtonRightTapped"
                                     ToolTipService.ToolTip="Start MarkSmith Express if needed and open it in your browser (Ctrl+5)"
@@ -968,7 +980,9 @@
                         </Grid>
                         <TextBlock Grid.Row="1" Text="See your documents as a map: which ones link to each other, how they are grouped and what changed over time."
                                    FontSize="11.5" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                        <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="6">
+                        <StackPanel x:Name="Card6ActionCluster" Grid.Row="2" Orientation="Horizontal" Spacing="6"
+                                        XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                        AutomationProperties.Name="Document Galaxy actions">
                             <Button x:Name="Card6GalaxyButton" Click="OnOpenGalaxyClick" Padding="8,4" FontSize="11"
                                     RightTapped="OnCard6ButtonRightTapped"
                                     ToolTipService.ToolTip="Open the Document Galaxy window (Ctrl+6)"
@@ -993,34 +1007,38 @@
             <Border x:Name="HubFooterStrip" Background="{ThemeResource LayerFillColorDefaultBrush}"
                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
                     CornerRadius="8" Padding="12,8" Margin="0,4,0,0">
-                <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
                     <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                         <Ellipse Width="7" Height="7" Fill="{ThemeResource SystemFillColorSuccessBrush}" VerticalAlignment="Center" />
                         <TextBlock Text="MarkSmith Desktop Environment" FontWeight="SemiBold" FontSize="11.5" VerticalAlignment="Center" />
                         <TextBlock Text="· All engines healthy" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
                     </StackPanel>
                     <!-- Uptime & Temporary Cache Footprint Pill -->
-                    <!-- Buttons so Tab reaches them; Shift+F10 copies the diagnostics as right-click does. -->
-                    <Button x:Name="UptimeStoragePill" Grid.Column="2" Background="{ThemeResource SubtleFillColorSecondaryBrush}" BorderThickness="0"
-                            CornerRadius="5" Padding="6,2" MinHeight="0" MinWidth="0" VerticalAlignment="Center"
-                            Click="OnUptimeStoragePillClick" RightTapped="OnUptimeStoragePillRightTapped"
-                            ToolTipService.ToolTip="Desktop engine uptime &amp; cache · Click to prune stale MarkSmith temp files · Right-click or Shift+F10 to copy diagnostics"
-                            AutomationProperties.Name="Prune stale MarkSmith temp files">
-                        <StackPanel Orientation="Horizontal" Spacing="4">
-                            <FontIcon Glyph="&#xE823;" FontSize="10" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
-                            <TextBlock x:Name="UptimeStorageText" Text="Uptime: 0m · Cache: OK" FontSize="10.5" FontFamily="Cascadia Mono, Consolas, monospace" />
-                        </StackPanel>
-                    </Button>
-                    <Button x:Name="MemoryUsagePill" Grid.Column="3" Background="{ThemeResource SubtleFillColorSecondaryBrush}" BorderThickness="0"
-                            CornerRadius="5" Padding="6,2" MinHeight="0" MinWidth="0" VerticalAlignment="Center"
-                            Click="OnMemoryUsagePillClick" RightTapped="OnMemoryUsagePillRightTapped"
-                            ToolTipService.ToolTip="Managed process memory · Click to run a garbage collection · Right-click or Shift+F10 to copy metrics"
-                            AutomationProperties.Name="Free managed memory">
-                        <StackPanel Orientation="Horizontal" Spacing="4">
-                            <FontIcon Glyph="&#xE950;" FontSize="10" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
-                            <TextBlock x:Name="MemoryUsageText" Text="Memory: ~45 MB" FontSize="10.5" FontFamily="Cascadia Mono, Consolas, monospace" />
-                        </StackPanel>
-                    </Button>
+                    <!-- Single Tab-stop cluster for environment diagnostics -->
+                    <StackPanel x:Name="HubFooterCluster" Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+                                XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                AutomationProperties.Name="Desktop environment diagnostics">
+                        <Button x:Name="UptimeStoragePill" Background="{ThemeResource SubtleFillColorSecondaryBrush}" BorderThickness="0"
+                                CornerRadius="5" Padding="6,2" MinHeight="0" MinWidth="0" VerticalAlignment="Center"
+                                Click="OnUptimeStoragePillClick" RightTapped="OnUptimeStoragePillRightTapped"
+                                ToolTipService.ToolTip="Desktop engine uptime &amp; cache · Click to prune stale MarkSmith temp files · Right-click or Shift+F10 to copy diagnostics"
+                                AutomationProperties.Name="Prune stale MarkSmith temp files">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <FontIcon Glyph="&#xE823;" FontSize="10" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                                <TextBlock x:Name="UptimeStorageText" Text="Uptime: 0m · Cache: OK" FontSize="10.5" FontFamily="Cascadia Mono, Consolas, monospace" />
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="MemoryUsagePill" Background="{ThemeResource SubtleFillColorSecondaryBrush}" BorderThickness="0"
+                                CornerRadius="5" Padding="6,2" MinHeight="0" MinWidth="0" VerticalAlignment="Center"
+                                Click="OnMemoryUsagePillClick" RightTapped="OnMemoryUsagePillRightTapped"
+                                ToolTipService.ToolTip="Managed process memory · Click to run a garbage collection · Right-click or Shift+F10 to copy metrics"
+                                AutomationProperties.Name="Free managed memory">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <FontIcon Glyph="&#xE950;" FontSize="10" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                                <TextBlock x:Name="MemoryUsageText" Text="Memory: ~45 MB" FontSize="10.5" FontFamily="Cascadia Mono, Consolas, monospace" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
                 </Grid>
             </Border>
 

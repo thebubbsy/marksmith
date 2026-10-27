@@ -21256,3 +21256,39 @@ through `ClipboardWriter` with the result reported. No resource lookups, file ac
 3. Carry forward Block 3's 2 refined ideas as first refinement targets.
 
 **Total user-visible improvements: 8** (3 studio single Tab-stop XY-navigation clusters across Shape and SmartArt, 2 main window status clusters with single Tab stops, 1 shape studio F2 shortcut isolation guard, 1 contextual preset copy action with menu accelerator, 1 theme builder swatch matrix arrow navigation flow).
+
+## 2026-10-27 · Run #294 (21:35–22:00 AEDT) · Antigravity AI Agent
+
+**Agent / Execution Metadata**
+- Model: Antigravity AI Agent (Google DeepMind)
+- Modes: Scheduled Hourly Automation Routine
+- Trigger: Scheduled hourly MarkSmith WinUI 3 Desktop Polish Routine
+- Mandate: Suite Hub launcher cards & starter templates carousel single Tab stops, Welcome Tour pipeline & decision clusters single Tab stops, Mermaid Studio left tools cluster single Tab stop, MindMap Galaxy action cluster single Tab stop, Version History timeline jump cluster single Tab stop, and Main Window status bar utility cluster single Tab stop.
+
+**Delivered (user-visible):**
+1. **Suite Hub Starter Templates Carousel single Tab stop & XY Arrow Navigation:** In `SuiteHubView.xaml`, `StarterTemplatesPanel` is configured with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, and `AutomationProperties.Name="Starter templates carousel"`. Keyboard users can fluidly explore all 10 starter template chips with Left/Right arrow keys while traversing the entire quick-start strip in 1 single Tab stop.
+2. **Suite Hub Launcher Cards 1–6 Action Clusters single Tab stops:** In `SuiteHubView.xaml`, the action strips for all 6 suite launcher cards (`Card1ActionCluster` through `Card6ActionCluster`) are configured with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, and explicit UIA names (`Drawing studios actions`, `AI assistants actions`, `Browser extension actions`, `Command line actions`, `Web companion actions`, `Document Galaxy actions`). Reduces card grid navigation from 13 repetitive Tab stops down to 6 clean, arrow-navigable stops.
+3. **Suite Hub Desktop Diagnostics Footer single Tab stop:** In `SuiteHubView.xaml`, `UptimeStoragePill` and `MemoryUsagePill` are grouped into `HubFooterCluster` with `XYFocusKeyboardNavigation="Enabled"` and `TabFocusNavigation="Once"`, allowing instant Left/Right arrow switching between engine cache pruning and GC memory cleanup.
+4. **Welcome Tour Pipeline & Finish Decision Clusters single Tab stops:** In `WelcomeTour.xaml`, the 3 welcome pipeline step cards on Page 0 are grouped into `PipelineCardsCluster` (`XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`), and the two final start cards on Page 6 are grouped into `FinishCardsCluster`. Keyboard users can arrow between cards naturally without Tab fatigue.
+5. **Welcome Tour Navigation Stepper Cluster single Tab stop:** In `WelcomeTour.xaml`, `BackButton` and `NextButton` in the footer are grouped into `TourNavCluster` with `XYFocusKeyboardNavigation="Enabled"` and `TabFocusNavigation="Once"`.
+6. **Mermaid Studio Left Tools Cluster single Tab stop & XY Arrow Navigation:** In `MermaidDiagramStudioControl.xaml`, the left toolbar (`TemplatesButton`, `AutoLayoutButton`, `GridSnapToggle`, `DeleteSelectedButton`, `AlignButton`, `UndoToolbarButton`, `RedoToolbarButton`, `DirectionComboBox`, `RoutingComboBox`) is grouped into `DiagramToolsCluster` with `XYFocusKeyboardNavigation="Enabled"` and `TabFocusNavigation="Once"`. Reduces toolbar Tab stops from 9 down to 1 while providing smooth arrow-key tool selection.
+7. **MindMap Galaxy Action Toolbar Cluster single Tab stop & XY Arrow Navigation:** In `MindMapGalaxyWindow.xaml`, the primary action toolbar (`AddChildToolButton`, `AddSiblingToolButton`, `LinkToolButton`, `DeleteToolButton`, `UndoToolButton`, `RedoToolButton`, `ArrangeDropDownButton`, `FocusToggle`, `ConnectionStyleDropDownButton`) is grouped into `GalaxyActionCluster` with `XYFocusKeyboardNavigation="Enabled"` and `TabFocusNavigation="Once"`.
+8. **Version History Timeline Jump Cluster single Tab stop:** In `HistoryWindow.xaml`, `JumpLatestButton` and `JumpOldestButton` inside `TimelineJumpPill` are grouped into `TimelineJumpCluster` with `XYFocusKeyboardNavigation="Enabled"` and `TabFocusNavigation="Once"`.
+9. **Main Window Status Bar Utility Cluster single Tab stop:** In `MainWindow.xaml`, `CursorPosButton` and `StatusShortcutsButton` are grouped into `StatusUtilityCluster` with `XYFocusKeyboardNavigation="Enabled"` and `TabFocusNavigation="Once"`. Completes the 4-stage disciplined status bar cluster hierarchy (`StatusOutputLinks` -> `StatusPrimaryCopyPills` -> `StatusSecondaryCopyPills` -> `StatusUtilityCluster`).
+
+**Implementation Summary**
+- Desktop: `Views/SuiteHubView.xaml` (`StarterTemplatesPanel`, `Card1ActionCluster`..`Card6ActionCluster`, `HubFooterCluster`), `Views/WelcomeTour.xaml` (`PipelineCardsCluster`, `FinishCardsCluster`, `TourNavCluster`), `Views/Mermaid/MermaidDiagramStudioControl.xaml` (`DiagramToolsCluster`), `Views/MindMap/MindMapGalaxyWindow.xaml` (`GalaxyActionCluster`), `Views/History/HistoryWindow.xaml` (`TimelineJumpCluster`), `MainWindow.xaml` (`StatusUtilityCluster`).
+- Tests: `Run294StudioPolishAndKeyboardNavigationTests.cs` (9 xUnit tests verifying XAML `XYFocusKeyboardNavigation` / `TabFocusNavigation` attributes and cluster declarations across all modified views).
+
+**Verified:**
+- `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: 0 errors.
+- Unit tests: `Run294StudioPolishAndKeyboardNavigationTests` (9/9 passed), combined suite `Run29` (60/60 passed).
+- Smoke launch: Launched `Marksmith.exe` (PID 3276), confirmed running healthy after 5s without exit, closed cleanly.
+
+**Next up (Run #295):**
+1. Audit Version History Diff Search & Match Stepper cluster for single Tab stop and navigation.
+2. Audit OCR Studio block reclassification keyboard shortcuts and selection cluster refinement.
+3. Carry forward Block 3's 2 refined ideas as first refinement targets.
+
+**Total user-visible improvements: 9** (3 Suite Hub single Tab-stop XY-navigation clusters across templates, cards, and footer, 2 Welcome Tour clusters across cards and nav, 1 Mermaid studio left tools cluster, 1 MindMap Galaxy action cluster, 1 Version History timeline jump cluster, 1 Main Window status utility cluster).
+
