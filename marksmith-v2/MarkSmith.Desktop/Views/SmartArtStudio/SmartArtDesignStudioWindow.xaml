@@ -178,7 +178,7 @@
                     <!-- Tabs first, then the pills; the pane is a fixed 424 px, so the pills wrap onto a
                          second line rather than squeezing the Outline | Markdown tabs to nothing. -->
                     <ui:WrapRow Grid.Row="0" Margin="6,4,6,4" HorizontalSpacing="6" VerticalSpacing="2">
-                        <SelectorBar x:Name="EditorTabs" SelectionChanged="OnEditorTabsChanged"
+                        <SelectorBar x:Name="EditorTabs" SelectionChanged="OnEditorTabsChanged" XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once" AutomationProperties.Name="Editor view tabs"
                                      DoubleTapped="OnEditorTabsDoubleTapped"
                                      RightTapped="OnEditorTabsRightTapped">
                             <SelectorBarItem x:Name="OutlineTab" Text="Outline" IsSelected="True">
@@ -188,6 +188,7 @@
                                 <SelectorBarItem.Icon><FontIcon Glyph="&#xE943;" /></SelectorBarItem.Icon>
                             </SelectorBarItem>
                         </SelectorBar>
+                        <StackPanel x:Name="OutlineMetricsCluster" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once" AutomationProperties.Name="Outline metrics and tools">
                             <Button x:Name="OutlineStatsPill" MinHeight="0" MinWidth="0" VerticalAlignment="Center"
                                     Padding="8,3" CornerRadius="12"
                                     Background="{ThemeResource SubtleFillColorSecondaryBrush}"
@@ -539,6 +540,7 @@
                                 </Button.Flyout>
                             </Button>
 
+                        </StackPanel>
                             <!-- Outline Real-Time Search & Match Stepper Pill -->
                             <Border x:Name="OutlineSearchPill"
                                     Background="{ThemeResource ControlAltFillColorSecondaryBrush}"
@@ -763,7 +765,7 @@
                             <TextBlock x:Name="PreviewTitleLabel" Text="{Binding PreviewTitle}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                        TextTrimming="CharacterEllipsis" />
                         </HyperlinkButton>
-                        <StackPanel x:Name="PreviewHeaderTools" Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                        <StackPanel x:Name="PreviewHeaderTools" Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center" XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once" AutomationProperties.Name="Preview header tools">
                             <Button x:Name="PaletteButton" Style="{StaticResource SubtleButtonStyle}" Width="28" Height="28" Padding="0"
                                     Click="OnPaletteButtonClick"
                                    

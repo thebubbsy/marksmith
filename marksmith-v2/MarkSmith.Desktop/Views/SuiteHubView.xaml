@@ -30,6 +30,9 @@
                             <TextBlock Text="MarkSmith" FontSize="16" FontWeight="SemiBold" />
                             <!-- Buttons so Tab reaches them: Enter copies, Shift+F10 opens the menu (they were
                                  mouse-only Borders). -->
+                            <StackPanel x:Name="SuiteBadgesCluster" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+                                        XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                        AutomationProperties.Name="Suite status badges">
                             <Button x:Name="VersionBadge" Background="{ThemeResource SubtleFillColorSecondaryBrush}" BorderThickness="0"
                                     CornerRadius="6" Padding="6,1" MinHeight="0" MinWidth="0" VerticalAlignment="Center"
                                     Click="OnVersionInfoClick" RightTapped="OnVersionInfoRightTapped"
@@ -54,6 +57,7 @@
                                     <TextBlock x:Name="HealthStatusText" Text="Engine Ready" FontSize="10.5" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 </StackPanel>
                             </Button>
+                            </StackPanel>
                         </ui:WrapRow>
                         <!-- Wraps rather than clipping: this sits between a fixed-width icon and the
                              Config Folder button, so the space it gets depends on the dialog width. -->
@@ -68,6 +72,9 @@
                                  CornerRadius="6" FontSize="11.5"
                                  TextChanged="OnHubSearchBoxTextChanged" KeyDown="OnHubSearchBoxKeyDown"
                                  ToolTipService.ToolTip="Filter suite components &amp; templates · Esc clears" />
+                        <StackPanel x:Name="HubHeaderToolsCluster" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+                                    XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                    AutomationProperties.Name="Hub header tools">
                         <Button x:Name="ShortcutsHelpButton" Click="OnShortcutsHelpClick" Padding="10,6"
                                 ToolTipService.ToolTip="MarkSmith keyboard shortcuts &amp; cheat sheet (? or F1)"
                                 AutomationProperties.Name="Keyboard shortcuts (? or F1)">
@@ -158,6 +165,7 @@
                                 <TextBlock Text="Settings folder" FontSize="12" />
                             </StackPanel>
                         </Button>
+                        </StackPanel>
                     </StackPanel>
                 </Grid>
             </Border>

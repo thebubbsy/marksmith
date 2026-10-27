@@ -133,7 +133,7 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
-                    <SelectorBar x:Name="LeftTabs" Margin="6,4,6,0" SelectionChanged="OnLeftTabsChanged"
+                    <SelectorBar x:Name="LeftTabs" Margin="6,4,6,0" SelectionChanged="OnLeftTabsChanged" XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once" AutomationProperties.Name="Preset, shape, and picture tabs"
                                  RightTapped="OnLeftTabsRightTapped"
                                  ToolTipService.ToolTip="Switch between Presets, Shapes, and Picture (Right-click for options)">
                         <SelectorBarItem x:Name="PresetsTab" Text="Presets" IsSelected="True">

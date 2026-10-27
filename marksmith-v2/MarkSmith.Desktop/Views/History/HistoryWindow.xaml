@@ -126,30 +126,33 @@
                     </Button>
                 </StackPanel>
 
-                <!-- Take Checkpoint. Stays enabled even when the selected document isn't open, so
-                     its tooltip can still explain why (disabled controls show no tooltip). -->
-                <Button x:Name="TakeCheckpointButton" Grid.Column="3" Click="OnTakeSnapshotClick" Padding="12,6" CornerRadius="6"
-                        VerticalAlignment="Center" ToolTipService.ToolTip="{Binding CheckpointTooltip}"
-                        RightTapped="OnTakeCheckpointButtonRightTapped"
-                        AutomationProperties.Name="Take checkpoint">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xE74E;" FontSize="13" />
-                        <TextBlock Text="Take Checkpoint" FontSize="12" FontWeight="Medium" />
-                    </StackPanel>
-                </Button>
+                <!-- History Actions: Take Checkpoint and Restore -->
+                <StackPanel x:Name="HistoryActionsCluster" Grid.Column="3" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"
+                            XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                            AutomationProperties.Name="History actions">
+                    <Button x:Name="TakeCheckpointButton" Click="OnTakeSnapshotClick" Padding="12,6" CornerRadius="6"
+                            VerticalAlignment="Center" ToolTipService.ToolTip="{Binding CheckpointTooltip}"
+                            RightTapped="OnTakeCheckpointButtonRightTapped"
+                            AutomationProperties.Name="Take checkpoint">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <FontIcon Glyph="&#xE74E;" FontSize="13" />
+                            <TextBlock Text="Take Checkpoint" FontSize="12" FontWeight="Medium" />
+                        </StackPanel>
+                    </Button>
 
-                <!-- Restore Hero Action -->
-                <Button x:Name="RestoreButton" Grid.Column="4" Click="OnRestoreClick" Padding="16,6" CornerRadius="6"
-                        Style="{ThemeResource AccentButtonStyle}" IsEnabled="{Binding HasSelection}"
-                        FontWeight="SemiBold" VerticalAlignment="Center"
-                        RightTapped="OnRestoreButtonRightTapped"
-                        AutomationProperties.Name="Restore to editor"
-                        ToolTipService.ToolTip="Put the selected version's text back in the editor (Ctrl+Enter) · Right-click or Shift+F10 for options">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xE7A7;" FontSize="13" />
-                        <TextBlock Text="Restore to Editor" FontSize="12" />
-                    </StackPanel>
-                </Button>
+                    <!-- Restore Hero Action -->
+                    <Button x:Name="RestoreButton" Click="OnRestoreClick" Padding="16,6" CornerRadius="6"
+                            Style="{ThemeResource AccentButtonStyle}" IsEnabled="{Binding HasSelection}"
+                            FontWeight="SemiBold" VerticalAlignment="Center"
+                            RightTapped="OnRestoreButtonRightTapped"
+                            AutomationProperties.Name="Restore to editor"
+                            ToolTipService.ToolTip="Put the selected version's text back in the editor (Ctrl+Enter) · Right-click or Shift+F10 for options">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <FontIcon Glyph="&#xE7A7;" FontSize="13" />
+                            <TextBlock Text="Restore to Editor" FontSize="12" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
             </Grid>
         </Grid>
 

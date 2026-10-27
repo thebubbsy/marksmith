@@ -273,7 +273,7 @@
                  editing — type Mermaid and the canvas updates, drag on the canvas and the code
                  updates). -->
             <Border Grid.Column="0" Background="#1E1E2E" BorderBrush="#2B2D42" BorderThickness="0,0,1,0">
-                <Pivot x:Name="LeftPanePivot" SelectedIndex="0">
+                <Pivot x:Name="LeftPanePivot" SelectedIndex="0" TabFocusNavigation="Once" AutomationProperties.Name="Left workspace panel tabs">
                     <Pivot.Resources>
                         <!-- Compact pivot headers to match the studio's dark chrome -->
                         <Style TargetType="PivotHeaderItem">
