@@ -949,12 +949,15 @@
                                      ToolTipService.ToolTip="Document title · Double-click to select all, Right-click or Shift+F10 for options" />
 
                             <StackPanel Spacing="6">
-                                <Grid ColumnSpacing="8">
+                                <Grid x:Name="LinkedFileCluster" ColumnSpacing="8"
+                                      XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                      AutomationProperties.Name="Linked file">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBox Grid.Column="0" Header="Linked file" Text="{Binding FilePath, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                    <TextBox x:Name="LinkedFileBox" Grid.Column="0" Header="Linked file" Text="{Binding FilePath, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                             AutomationProperties.Name="Linked file"
                                              PlaceholderText="No file attached" KeyDown="OnInspectorFieldKeyDown" />
                                     <Button Grid.Column="1" Click="OnBrowseForFileClick" VerticalAlignment="Bottom" Width="34" Height="32" Padding="0"
                                             ToolTipService.ToolTip="Choose the document this node stands for" AutomationProperties.Name="Choose a file">
@@ -971,10 +974,13 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="124" />
                                 </Grid.ColumnDefinitions>
-                                <ComboBox Grid.Column="0" Header="Type" HorizontalAlignment="Stretch"
+                                <ComboBox x:Name="NodeTypeCombo" Grid.Column="0" Header="Type" HorizontalAlignment="Stretch"
+                                          AutomationProperties.Name="Node type"
                                           ItemsSource="{Binding ElementName=RootGrid, Path=DataContext.AvailableNodeTypes}"
                                           SelectedItem="{Binding NodeType, Mode=TwoWay}" />
-                                <Grid Grid.Column="1">
+                                <Grid x:Name="NodeIconCluster" Grid.Column="1"
+                                      XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                      AutomationProperties.Name="Node icon">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
@@ -1002,7 +1008,9 @@
 
                             <!-- Colour: lives with the node it recolours. In "Appearance" above, a click
                                  with nothing selected silently did nothing. -->
-                            <StackPanel Spacing="4">
+                            <StackPanel x:Name="NodePaletteCluster" Spacing="4"
+                                        XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                        AutomationProperties.Name="Node color palette">
                                 <TextBlock Text="Colour" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
                                 <ItemsControl ItemsSource="{Binding ElementName=RootGrid, Path=DataContext.PaletteColors}">
                                     <ItemsControl.ItemsPanel>

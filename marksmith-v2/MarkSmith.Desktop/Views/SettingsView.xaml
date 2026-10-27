@@ -399,7 +399,9 @@
                             <controls:SettingsCard.Details>
                                 <!-- Provider fields only while sync is on, as with the PDF password fields. -->
                                 <StackPanel Spacing="10" Visibility="{Binding CloudAutoPublish, Converter={StaticResource SettingsBoolToVisibilityConverter}}">
-                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                    <Grid x:Name="CloudProviderCluster" ColumnDefinitions="*,Auto" ColumnSpacing="8"
+                                          XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                          AutomationProperties.Name="Cloud storage provider">
                                         <ComboBox Header="Provider" AutomationProperties.Name="Cloud storage provider"
                                                   ItemsSource="{Binding CloudProviders}"
                                                   SelectedValuePath="Id"
@@ -468,7 +470,9 @@
                                          were an empty box and an Apply button with nothing to apply. -->
                                     <StackPanel Spacing="10"
                                                 Visibility="{Binding HasHouseStylePrompt, Converter={StaticResource SettingsBoolToVisibilityConverter}}">
-                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                        <Grid x:Name="HouseStylePromptCluster" ColumnDefinitions="*,Auto" ColumnSpacing="8"
+                                              XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                              AutomationProperties.Name="House style prompt">
                                             <TextBox Header="Prompt for your web AI (copy it into any chat)"
                                                      AutomationProperties.Name="Prompt for your web AI"
                                                      Text="{Binding HouseStylePrompt, Mode=OneWay}"
@@ -573,7 +577,9 @@
                                     </StackPanel>
                                 </Grid>
                             </Expander.Header>
-                            <StackPanel Spacing="12" Padding="36,4,0,4">
+                            <StackPanel x:Name="GoogleClientCredentialsCluster" Spacing="12" Padding="36,4,0,4"
+                                        XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                        AutomationProperties.Name="Google OAuth credentials">
                                 <TextBlock Style="{StaticResource SettingsHintStyle}"
                                            Text="Create a &quot;Desktop app&quot; OAuth client in your Google Cloud project (with the Google Docs and Google Drive APIs enabled), then paste its ID and secret here." />
                                 <TextBox x:Name="GoogleClientIdBox" Header="Client ID"
@@ -624,7 +630,9 @@
                         <controls:SettingsCard x:Name="KeyEntryRow" Glyph="&#xE8D7;" Header="License key"
                                                 Description="Paste the key from your purchase email.">
                             <controls:SettingsCard.Details>
-                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                <Grid x:Name="LicenseKeyEntryCluster" ColumnDefinitions="*,Auto" ColumnSpacing="8"
+                                      XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                      AutomationProperties.Name="License key entry">
                                     <TextBox AutomationProperties.Name="License key" x:Name="KeyBox" PlaceholderText="XXXX-XXXX-XXXX-XXXX"
                                              IsSpellCheckEnabled="False" TextChanged="OnKeyBoxTextChanged" KeyDown="OnKeyBoxKeyDown" />
                                     <StackPanel x:Name="LicenseActivationCluster" Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"

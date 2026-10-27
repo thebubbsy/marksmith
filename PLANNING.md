@@ -21738,3 +21738,45 @@ through `ClipboardWriter` with the result reported. No resource lookups, file ac
 3. Carry forward Block 3's 2 refined ideas as first refinement targets.
 
 **Total user-visible improvements: 14** (8 inspector geometry, fill, rotation, line art, palette & settings credential clusters single Tab stops & XY arrow navigation; 2 row action and template clusters single Tab stops; 1 connector style pair cluster; 3 buttons UIA accessible names & element IDs).
+
+
+## 2026-10-28 · Run #305 (07:23–07:45 AEDT) · Antigravity AI Agent
+
+**Agent / Execution Metadata**
+- Model: Antigravity AI Agent (Google DeepMind)
+- Modes: Scheduled Hourly Automation Routine
+- Trigger: Scheduled hourly MarkSmith WinUI 3 Desktop Polish Routine
+- Protocol: AI-Executable 3-Block Cycle + Execution Phase Protocol (Blocks 1–3 generating 2 ideas each with dual refinement passes; Execution Phase refining Block 3 ideas and delivering all 6 refined ideas into production code)
+- Mandate: Milestone Run #305 - Mind Map Galaxy Inspector linked file, node icon, and palette swatches clusters single Tab stops & XY keyboard navigation; Shape Studio quick morph ribbon, transform & aspect ratio ribbon, and shape type combo single Tab stops & XY navigation; Mermaid Diagram Studio status bar cluster single Tab stop & XY navigation; SmartArt Studio outline search & stepper cluster single Tab stop & XY navigation; Settings View Google OAuth credentials, license key entry, and cloud provider clusters single Tab stops & XY navigation; Version History timeline search & match cluster single Tab stop & XY navigation.
+
+**Delivered (user-visible):**
+1. **Mind Map Galaxy Inspector Linked File Cluster Single Tab Stop & Arrow Navigation (Idea 1.1):** In `Views/MindMap/MindMapGalaxyWindow.xaml`, `LinkedFileCluster` (`Grid` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Linked file"`) consolidates the linked file path text box and browse file button into 1 Tab stop with Left/Right arrow key switching.
+2. **Mind Map Galaxy Inspector Linked File Box Element ID & Accessible Name (Idea 1.1):** In `Views/MindMap/MindMapGalaxyWindow.xaml`, `LinkedFileBox` is assigned an explicit element name and labeled with `AutomationProperties.Name="Linked file"`.
+3. **Mind Map Galaxy Inspector Node Type Combo Element ID & Accessible Name (Idea 1.1):** In `Views/MindMap/MindMapGalaxyWindow.xaml`, `NodeTypeCombo` is assigned an explicit element name and labeled with `AutomationProperties.Name="Node type"`.
+4. **Mind Map Galaxy Inspector Node Icon Cluster Single Tab Stop & Arrow Navigation (Idea 1.1):** In `Views/MindMap/MindMapGalaxyWindow.xaml`, `NodeIconCluster` (`Grid` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Node icon"`) encapsulates the icon text input box and the Segoe Fluent / Emoji icon picker button into 1 accessible Tab stop.
+5. **Mind Map Galaxy Inspector Node Palette Swatches Cluster Single Tab Stop & Arrow Navigation (Idea 1.2):** In `Views/MindMap/MindMapGalaxyWindow.xaml`, `NodePaletteCluster` (`StackPanel` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Node color palette"`) consolidates all 8–10 realized palette swatch buttons into 1 Tab stop with Left/Right arrow key switching, eliminating repetitive tabbing through swatches.
+6. **Shape Design Studio Inspector Shape Type Combo Element ID & Accessible Name (Idea 2.1):** In `Views/ShapeStudio/ShapeDesignStudioWindow.xaml`, `ShapeTypeCombo` is assigned an explicit element name and labeled with `AutomationProperties.Name="Shape type"`.
+7. **Shape Design Studio Inspector Quick Morph Ribbon Cluster Single Tab Stop & Arrow Navigation (Idea 2.1):** In `Views/ShapeStudio/ShapeDesignStudioWindow.xaml`, `QuickMorphCluster` (`Grid` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Quick morph ribbon"`) groups the 5 shape morph buttons (rect, roundrect, ellipse, diamond, hexagon) and the corner radius toggle button into 1 unified Tab stop with 2D arrow navigation.
+8. **Shape Design Studio Inspector Transform & Aspect Ratio Ribbon Cluster Single Tab Stop & Arrow Navigation (Idea 2.2):** In `Views/ShapeStudio/ShapeDesignStudioWindow.xaml`, `TransformRibbonCluster` (`Grid` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Transform and aspect ratio ribbon"`) consolidates horizontal mirror, vertical mirror, clockwise/counter-clockwise 90° rotation, and 1:1 square aspect ratio buttons into 1 Tab stop.
+9. **Mermaid Diagram Studio Status Bar Cluster Single Tab Stop & Arrow Navigation (Idea 3.1):** In `Views/Mermaid/MermaidDiagramStudioControl.xaml`, `MermaidStatusBarCluster` (`Grid` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Mermaid status bar"`) encapsulates the diagram status readout and `CanvasSummaryButton` into 1 Tab stop with Left/Right arrow navigation.
+10. **SmartArt Design Studio Outline Search Box Cluster Single Tab Stop & Arrow Navigation (Idea 3.1):** In `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml`, `OutlineSearchBoxCluster` (`StackPanel` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Outline find and match stepper"`) groups `OutlineSearchBox`, match counter, and stepper buttons into 1 accessible Tab stop with Left/Right arrow navigation.
+11. **Settings View Google OAuth Client Credentials Cluster Single Tab Stop & Arrow Navigation (Idea 3.2):** In `Views/SettingsView.xaml`, `GoogleClientCredentialsCluster` (`StackPanel` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Google OAuth credentials"`) unifies `GoogleClientIdBox` and `GoogleSecretBox` into 1 Tab stop with Up/Down arrow navigation.
+12. **Settings View License Key Entry Cluster Single Tab Stop & Arrow Navigation (Idea 3.2):** In `Views/SettingsView.xaml`, `LicenseKeyEntryCluster` (`Grid` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="License key entry"`) encapsulates `KeyBox` and `LicenseActivationCluster` into 1 Tab stop with Left/Right arrow navigation.
+13. **Settings View Cloud Storage Provider Cluster Single Tab Stop & Arrow Navigation (Idea 3.2):** In `Views/SettingsView.xaml`, `CloudProviderCluster` (`Grid` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Cloud storage provider"`) encapsulates cloud provider dropdown and `CloudSyncActionsCluster` into 1 Tab stop with Left/Right arrow navigation.
+14. **Version History Timeline Search and Match Cluster Single Tab Stop & Arrow Navigation (Idea 3.2):** In `Views/History/HistoryWindow.xaml`, `TimelineSearchCluster` (`Grid` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Timeline search and match"`) encapsulates `SearchBox` and `TimelineSearchMatchPill` into 1 Tab stop with Left/Right arrow navigation.
+
+**Implementation Summary**
+- Desktop Surfaces: `Views/MindMap/MindMapGalaxyWindow.xaml` (`LinkedFileCluster`, `LinkedFileBox`, `NodeTypeCombo`, `NodeIconCluster`, `NodePaletteCluster`), `Views/ShapeStudio/ShapeDesignStudioWindow.xaml` (`ShapeTypeCombo`, `QuickMorphCluster`, `TransformRibbonCluster`), `Views/Mermaid/MermaidDiagramStudioControl.xaml` (`MermaidStatusBarCluster`), `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` (`OutlineSearchBoxCluster`), `Views/SettingsView.xaml` (`GoogleClientCredentialsCluster`, `LicenseKeyEntryCluster`, `CloudProviderCluster`), `Views/History/HistoryWindow.xaml` (`TimelineSearchCluster`).
+- Tests: `Run305StudioPolishAndKeyboardNavigationTests.cs` (14 comprehensive xUnit unit tests verifying all XAML cluster configurations, XY focus navigation, Tab focus navigation, and UIA accessible names).
+
+**Verified:**
+- Unit tests: `Run305StudioPolishAndKeyboardNavigationTests` (14/14 passed in 84 ms); full suite across runs 300, 301, 302, 303, 304, 305 (83/83 passed in 340 ms).
+- Build: `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: 0 errors.
+- Smoke launch: Launched `Marksmith.exe` (PID 30172), verified running healthy after 5 seconds (Responding: True), terminated cleanly.
+
+**Next up (Run #306):**
+1. Audit Shape Design Studio canvas ruler and guides contextual menu for single Tab stops and XY keyboard focus navigation.
+2. Audit SmartArt Studio Outline editor drag handles and row action buttons for single Tab stops.
+3. Carry forward Block 3's 2 refined ideas as first refinement targets.
+
+**Total user-visible improvements: 14** (9 inspector geometry, morph, transform, palette, credentials & status clusters single Tab stops & XY arrow navigation; 2 search and stepper clusters single Tab stops; 3 buttons/dropdowns UIA accessible names & element IDs).

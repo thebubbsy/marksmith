@@ -1192,7 +1192,7 @@
 
                             <TextBlock Grid.Row="0" Text="Type" Style="{StaticResource InspectorLabel}" />
                             <StackPanel Grid.Row="0" Grid.Column="1" Spacing="6">
-                                <ComboBox AutomationProperties.Name="Shape type" HorizontalAlignment="Stretch"
+                                <ComboBox x:Name="ShapeTypeCombo" AutomationProperties.Name="Shape type" HorizontalAlignment="Stretch"
                                           SelectedItem="{Binding SelectedShape.Prst, Mode=TwoWay}" ItemsSource="{Binding PaletteItems}">
                                     <ComboBox.ItemTemplate>
                                         <DataTemplate>
@@ -1210,7 +1210,9 @@
                                 <Border x:Name="QuickMorphRibbon" Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
                                         CornerRadius="6" Padding="6,4">
-                                    <Grid ColumnDefinitions="Auto,*,Auto">
+                                    <Grid x:Name="QuickMorphCluster" ColumnDefinitions="Auto,*,Auto"
+                                          XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                          AutomationProperties.Name="Quick morph ribbon">
                                         <TextBlock Text="Morph" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" Margin="0,0,6,0" />
                                         <StackPanel x:Name="MorphShapesCluster" Grid.Column="1" Orientation="Horizontal" Spacing="4"
                                                     XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
@@ -1278,7 +1280,9 @@
                                 <Border x:Name="TransformRibbon" Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
                                         CornerRadius="6" Padding="6,4">
-                                    <Grid ColumnDefinitions="Auto,*,Auto">
+                                    <Grid x:Name="TransformRibbonCluster" ColumnDefinitions="Auto,*,Auto"
+                                          XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                          AutomationProperties.Name="Transform and aspect ratio ribbon">
                                         <TextBlock Text="Flip" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" Margin="0,0,6,0" />
                                         <StackPanel x:Name="TransformActionsCluster" Grid.Column="1" Orientation="Horizontal" Spacing="3"
                                                     XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"

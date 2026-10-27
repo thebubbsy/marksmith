@@ -613,7 +613,9 @@
         <Border Grid.Row="3" Background="#232334" Padding="12,0" VerticalAlignment="Stretch"
                 RightTapped="OnStatusBarRightTapped" DoubleTapped="OnStatusBarDoubleTapped"
                 ToolTipService.ToolTip="Diagram Studio status · Double-click to fit the diagram, right-click for options">
-            <Grid VerticalAlignment="Center">
+            <Grid x:Name="MermaidStatusBarCluster" VerticalAlignment="Center"
+                  XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                  AutomationProperties.Name="Mermaid status bar">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />

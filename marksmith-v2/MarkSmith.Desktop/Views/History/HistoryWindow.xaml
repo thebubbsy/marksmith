@@ -54,7 +54,9 @@
                 </StackPanel>
 
                 <!-- Search Input with Live Match Indicator -->
-                <Grid Grid.Column="1" VerticalAlignment="Center" Margin="0,0,4,0">
+                <Grid x:Name="TimelineSearchCluster" Grid.Column="1" VerticalAlignment="Center" Margin="0,0,4,0"
+                      XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                      AutomationProperties.Name="Timeline search and match">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />

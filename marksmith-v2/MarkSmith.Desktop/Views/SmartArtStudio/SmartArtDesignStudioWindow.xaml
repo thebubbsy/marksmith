@@ -550,7 +550,9 @@
                                     Background="{ThemeResource ControlAltFillColorSecondaryBrush}"
                                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
                                     CornerRadius="12" Padding="4,2" VerticalAlignment="Center">
-                                <StackPanel Orientation="Horizontal" Spacing="2">
+                                <StackPanel x:Name="OutlineSearchBoxCluster" Orientation="Horizontal" Spacing="2"
+                                            XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                            AutomationProperties.Name="Outline find and match stepper">
                                     <FontIcon Glyph="&#xE721;" FontSize="10.5" Margin="4,0,2,0" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                     <TextBox x:Name="OutlineSearchBox" Width="95" Height="24" Padding="4,1" FontSize="11"
                                              PlaceholderText="Find node…" BorderThickness="0" Background="Transparent"
