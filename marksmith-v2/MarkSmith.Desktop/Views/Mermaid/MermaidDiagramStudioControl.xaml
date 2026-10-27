@@ -121,74 +121,78 @@
                         </StackPanel>
                     </Button>
 
-                    <Button x:Name="AutoLayoutButton" Click="OnAutoLayoutClick" ToolTipService.ToolTip="Auto-arrange nodes (Right-click or Shift+F10 for layout options)"
-                            AutomationProperties.Name="Auto-arrange nodes"
-                            RightTapped="OnAutoLayoutButtonRightTapped"
-                            Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Foreground="#EDF2F4">
-                        <FontIcon Glyph="&#xECA5;" FontSize="14" Foreground="#4CC9F0" />
-                    </Button>
+                    <StackPanel x:Name="DiagramCanvasLayoutToolsCluster" Orientation="Horizontal" Spacing="6"
+                                XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                AutomationProperties.Name="Canvas layout and alignment tools">
+                        <Button x:Name="AutoLayoutButton" Click="OnAutoLayoutClick" ToolTipService.ToolTip="Auto-arrange nodes (Right-click or Shift+F10 for layout options)"
+                                AutomationProperties.Name="Auto-arrange nodes"
+                                RightTapped="OnAutoLayoutButtonRightTapped"
+                                Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Foreground="#EDF2F4">
+                            <FontIcon Glyph="&#xECA5;" FontSize="14" Foreground="#4CC9F0" />
+                        </Button>
 
-                    <!-- Snap to grid. A bare switch read "On" with no hint of what was on, so it's a
-                         labelled toggle button in the same family as the rest of the toolbar. -->
-                    <ToggleButton x:Name="GridSnapToggle"
-                                  IsChecked="{Binding IsGridSnapEnabled, Mode=TwoWay}"
-                                  ToolTipService.ToolTip="Snap nodes to a 10 px grid while dragging (Right-click or Shift+F10 for options)"
-                                  AutomationProperties.Name="Snap to grid"
-                                  RightTapped="OnGridSnapToggleRightTapped"
-                                  Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Foreground="#EDF2F4">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <FontIcon Glyph="&#xE80A;" FontSize="14" />
-                            <TextBlock Text="Snap" FontSize="12" />
-                        </StackPanel>
-                    </ToggleButton>
+                        <!-- Snap to grid. A bare switch read "On" with no hint of what was on, so it's a
+                             labelled toggle button in the same family as the rest of the toolbar. -->
+                        <ToggleButton x:Name="GridSnapToggle"
+                                      IsChecked="{Binding IsGridSnapEnabled, Mode=TwoWay}"
+                                      ToolTipService.ToolTip="Snap nodes to a 10 px grid while dragging (Right-click or Shift+F10 for options)"
+                                      AutomationProperties.Name="Snap to grid"
+                                      RightTapped="OnGridSnapToggleRightTapped"
+                                      Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Foreground="#EDF2F4">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon Glyph="&#xE80A;" FontSize="14" />
+                                <TextBlock Text="Snap" FontSize="12" />
+                            </StackPanel>
+                        </ToggleButton>
 
-                    <Button x:Name="DeleteSelectedButton" Click="OnDeleteSelectedClick" ToolTipService.ToolTip="Delete the selection (Del)"
-                            AutomationProperties.Name="Delete selection" IsEnabled="False"
-                            Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Foreground="#EDF2F4">
-                        <FontIcon Glyph="&#xE74D;" FontSize="14" Foreground="#EF476F" />
-                    </Button>
+                        <Button x:Name="DeleteSelectedButton" Click="OnDeleteSelectedClick" ToolTipService.ToolTip="Delete the selection (Del)"
+                                AutomationProperties.Name="Delete selection" IsEnabled="False"
+                                Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Foreground="#EDF2F4">
+                            <FontIcon Glyph="&#xE74D;" FontSize="14" Foreground="#EF476F" />
+                        </Button>
 
-                    <!-- Align & Distribute flyout (draw.io / Whimsical parity). Acts on the
-                         current multi-selection; each op is one undo step. -->
-                    <Button x:Name="AlignButton" ToolTipService.ToolTip="Align &amp; distribute — select two or more nodes first (Right-click or Shift+F10 for options)"
-                            AutomationProperties.Name="Align and distribute" IsEnabled="False"
-                            RightTapped="OnAlignButtonRightTapped"
-                            Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Foreground="#EDF2F4">
-                        <StackPanel Orientation="Horizontal" Spacing="4">
-                            <PathIcon Width="14" Height="14" Data="M0.88,0.88 h1.31 v12.25 h-1.31 Z M3.5,3.06 h8.75 v2.62 h-8.75 Z M3.5,8.31 h5.25 v2.62 h-5.25 Z" Foreground="#4CC9F0" />
-                            <FontIcon Glyph="&#xE70D;" FontSize="9" Foreground="#8D99AE" />
-                        </StackPanel>
-                        <Button.Flyout>
-                            <MenuFlyout Placement="Bottom">
-                                <MenuFlyoutItem Text="Align Left" Click="OnAlignLeftClick">
-                                    <MenuFlyoutItem.Icon><PathIcon Data="M1,1 h1.5 v14 h-1.5 Z M4,3.5 h10 v3 h-10 Z M4,9.5 h6 v3 h-6 Z" /></MenuFlyoutItem.Icon>
-                                </MenuFlyoutItem>
-                                <MenuFlyoutItem Text="Align Center" Click="OnAlignHCenterClick">
-                                    <MenuFlyoutItem.Icon><PathIcon Data="M7.25,1 h1.5 v14 h-1.5 Z M2,3.5 h12 v3 h-12 Z M4,9.5 h8 v3 h-8 Z" /></MenuFlyoutItem.Icon>
-                                </MenuFlyoutItem>
-                                <MenuFlyoutItem Text="Align Right" Click="OnAlignRightClick">
-                                    <MenuFlyoutItem.Icon><PathIcon Data="M13.5,1 h1.5 v14 h-1.5 Z M2,3.5 h10 v3 h-10 Z M6,9.5 h6 v3 h-6 Z" /></MenuFlyoutItem.Icon>
-                                </MenuFlyoutItem>
-                                <MenuFlyoutSeparator />
-                                <MenuFlyoutItem Text="Align Top" Click="OnAlignTopClick">
-                                    <MenuFlyoutItem.Icon><PathIcon Data="M1,1 h14 v1.5 h-14 Z M3.5,4 h3 v10 h-3 Z M9.5,4 h3 v6 h-3 Z" /></MenuFlyoutItem.Icon>
-                                </MenuFlyoutItem>
-                                <MenuFlyoutItem Text="Align Middle" Click="OnAlignVMiddleClick">
-                                    <MenuFlyoutItem.Icon><PathIcon Data="M1,7.25 h14 v1.5 h-14 Z M3.5,2 h3 v12 h-3 Z M9.5,4 h3 v8 h-3 Z" /></MenuFlyoutItem.Icon>
-                                </MenuFlyoutItem>
-                                <MenuFlyoutItem Text="Align Bottom" Click="OnAlignBottomClick">
-                                    <MenuFlyoutItem.Icon><PathIcon Data="M1,13.5 h14 v1.5 h-14 Z M3.5,2 h3 v10 h-3 Z M9.5,6 h3 v6 h-3 Z" /></MenuFlyoutItem.Icon>
-                                </MenuFlyoutItem>
-                                <MenuFlyoutSeparator />
-                                <MenuFlyoutItem Text="Distribute Horizontally" Click="OnDistributeHClick">
-                                    <MenuFlyoutItem.Icon><PathIcon Data="M1,1 h1.5 v14 h-1.5 Z M13.5,1 h1.5 v14 h-1.5 Z M6.5,4 h3 v8 h-3 Z" /></MenuFlyoutItem.Icon>
-                                </MenuFlyoutItem>
-                                <MenuFlyoutItem Text="Distribute Vertically" Click="OnDistributeVClick">
-                                    <MenuFlyoutItem.Icon><PathIcon Data="M1,1 h14 v1.5 h-14 Z M1,13.5 h14 v1.5 h-14 Z M4,6.5 h8 v3 h-8 Z" /></MenuFlyoutItem.Icon>
-                                </MenuFlyoutItem>
-                            </MenuFlyout>
-                        </Button.Flyout>
-                    </Button>
+                        <!-- Align & Distribute flyout (draw.io / Whimsical parity). Acts on the
+                             current multi-selection; each op is one undo step. -->
+                        <Button x:Name="AlignButton" ToolTipService.ToolTip="Align &amp; distribute — select two or more nodes first (Right-click or Shift+F10 for options)"
+                                AutomationProperties.Name="Align and distribute" IsEnabled="False"
+                                RightTapped="OnAlignButtonRightTapped"
+                                Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Foreground="#EDF2F4">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <PathIcon Width="14" Height="14" Data="M0.88,0.88 h1.31 v12.25 h-1.31 Z M3.5,3.06 h8.75 v2.62 h-8.75 Z M3.5,8.31 h5.25 v2.62 h-5.25 Z" Foreground="#4CC9F0" />
+                                <FontIcon Glyph="&#xE70D;" FontSize="9" Foreground="#8D99AE" />
+                            </StackPanel>
+                            <Button.Flyout>
+                                <MenuFlyout Placement="Bottom">
+                                    <MenuFlyoutItem Text="Align Left" Click="OnAlignLeftClick">
+                                        <MenuFlyoutItem.Icon><PathIcon Data="M1,1 h1.5 v14 h-1.5 Z M4,3.5 h10 v3 h-10 Z M4,9.5 h6 v3 h-6 Z" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                    <MenuFlyoutItem Text="Align Center" Click="OnAlignHCenterClick">
+                                        <MenuFlyoutItem.Icon><PathIcon Data="M7.25,1 h1.5 v14 h-1.5 Z M2,3.5 h12 v3 h-12 Z M4,9.5 h8 v3 h-8 Z" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                    <MenuFlyoutItem Text="Align Right" Click="OnAlignRightClick">
+                                        <MenuFlyoutItem.Icon><PathIcon Data="M13.5,1 h1.5 v14 h-1.5 Z M2,3.5 h10 v3 h-10 Z M6,9.5 h6 v3 h-6 Z" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                    <MenuFlyoutSeparator />
+                                    <MenuFlyoutItem Text="Align Top" Click="OnAlignTopClick">
+                                        <MenuFlyoutItem.Icon><PathIcon Data="M1,1 h14 v1.5 h-14 Z M3.5,4 h3 v10 h-3 Z M9.5,4 h3 v6 h-3 Z" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                    <MenuFlyoutItem Text="Align Middle" Click="OnAlignVMiddleClick">
+                                        <MenuFlyoutItem.Icon><PathIcon Data="M1,7.25 h14 v1.5 h-14 Z M3.5,2 h3 v12 h-3 Z M9.5,4 h3 v8 h-3 Z" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                    <MenuFlyoutItem Text="Align Bottom" Click="OnAlignBottomClick">
+                                        <MenuFlyoutItem.Icon><PathIcon Data="M1,13.5 h14 v1.5 h-14 Z M3.5,2 h3 v10 h-3 Z M9.5,6 h3 v6 h-3 Z" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                    <MenuFlyoutSeparator />
+                                    <MenuFlyoutItem Text="Distribute Horizontally" Click="OnDistributeHClick">
+                                        <MenuFlyoutItem.Icon><PathIcon Data="M1,1 h1.5 v14 h-1.5 Z M13.5,1 h1.5 v14 h-1.5 Z M6.5,4 h3 v8 h-3 Z" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                    <MenuFlyoutItem Text="Distribute Vertically" Click="OnDistributeVClick">
+                                        <MenuFlyoutItem.Icon><PathIcon Data="M1,1 h14 v1.5 h-14 Z M1,13.5 h14 v1.5 h-14 Z M4,6.5 h8 v3 h-8 Z" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                </MenuFlyout>
+                            </Button.Flyout>
+                        </Button>
+                    </StackPanel>
 
                     <StackPanel x:Name="MermaidUndoRedoCluster" Orientation="Horizontal" Spacing="4"
                                 XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"

@@ -516,6 +516,8 @@
                                      stay clickable, over the outer half of every anchor dot, so a
                                      press meant to start a connector added a node instead. -->
                                 <Grid x:Name="QuickAddHoverContainer"
+                                      XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                      AutomationProperties.Name="Quick-add connected shapes"
                                       Opacity="{Binding QuickAddOpacity}"
                                       IsHitTestVisible="{Binding ShowAnchors}"
                                       Visibility="{Binding CanQuickAdd, Converter={StaticResource BoolToVisConverter}}">
@@ -623,7 +625,9 @@
                         </TextBox.Resources>
                     </TextBox>
                     <!-- Explicit Commit (✔️) / Cancel (❌) action affordances positioned relative to InPlaceEditorCanvas -->
-                    <StackPanel x:Name="InlineEditActionBar" Orientation="Horizontal" Spacing="4">
+                    <StackPanel x:Name="InlineEditActionBar" Orientation="Horizontal" Spacing="4"
+                                XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                AutomationProperties.Name="Inline edit actions">
                         <Button x:Name="InlineEditCommitButton"
                                 Width="24" Height="24" Padding="0" CornerRadius="4"
                                 IsTabStop="False"

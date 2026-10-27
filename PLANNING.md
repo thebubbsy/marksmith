@@ -21823,3 +21823,41 @@ through `ClipboardWriter` with the result reported. No resource lookups, file ac
 3. Carry forward Block 3's 2 refined ideas as first refinement targets.
 
 **Total user-visible improvements: 15** (9 canvas tool, outline, undo/redo & layout clusters single Tab stops & XY arrow navigation; 1 row actions explicit name; 5 buttons/pills/clusters UIA accessible names).
+
+
+## 2026-10-28 · Run #307 (08:05–08:25 AEDT) · Antigravity AI Agent
+
+**Agent / Execution Metadata**
+- Model: Antigravity AI Agent (Google DeepMind)
+- Modes: Scheduled Hourly Automation Routine
+- Trigger: Scheduled hourly MarkSmith WinUI 3 Desktop Polish Routine
+- Protocol: AI-Executable 3-Block Cycle + Execution Phase Protocol (Blocks 1–3 generating 2 ideas each with dual refinement passes; Execution Phase refining Block 3 ideas and delivering all 6 refined ideas into production code)
+- Mandate: Milestone Run #307 - Mermaid Diagram Studio canvas layout tools cluster (auto-arrange, snap, delete, align) single Tab stop & XY arrow navigation; Mermaid canvas directional quick-add buttons cluster and inline edit action bar single Tab stops; Mind Map Galaxy node editing and undo/redo action sub-clusters single Tab stops & XY navigation; Shape Design Studio multi-selection summary badge and current layer position UIA accessible names.
+
+**Delivered (user-visible):**
+1. **Mermaid Diagram Studio Canvas Layout Tools Cluster Single Tab Stop & Arrow Navigation (Idea 1.1):** In `Views/Mermaid/MermaidDiagramStudioControl.xaml`, `DiagramCanvasLayoutToolsCluster` (`StackPanel` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Canvas layout and alignment tools"`) wraps `AutoLayoutButton`, `GridSnapToggle`, `DeleteSelectedButton`, and `AlignButton` into 1 accessible Tab stop with Left/Right arrow traversal.
+2. **Mermaid Canvas Directional Quick-Add Connected Shapes Cluster Single Tab Stop (Idea 1.2):** In `Views/Mermaid/MermaidCanvasControl.xaml`, `QuickAddHoverContainer` (`StackPanel` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Quick-add connected shapes"`) groups directional node creation buttons into 1 Tab stop with directional arrow keys.
+3. **Mermaid Canvas Inline Edit Action Affordances Cluster Single Tab Stop (Idea 1.2):** In `Views/Mermaid/MermaidCanvasControl.xaml`, `InlineEditActionBar` (`StackPanel` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Inline edit actions"`) encapsulates the commit (✔️) and cancel (❌) inline canvas editing buttons into 1 accessible Tab stop.
+4. **Mind Map Galaxy Node Editing Action Cluster Single Tab Stop & Arrow Navigation (Idea 2.1):** In `Views/MindMap/MindMapGalaxyWindow.xaml`, `GalaxyNodeEditingCluster` (`StackPanel` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Node editing tools"`) unifies `AddChildToolButton`, `AddSiblingToolButton`, `LinkToolButton`, and `DeleteToolButton` into 1 Tab stop with Left/Right arrow traversal.
+5. **Mind Map Galaxy Undo/Redo Action Cluster Single Tab Stop & Arrow Navigation (Idea 2.2):** In `Views/MindMap/MindMapGalaxyWindow.xaml`, `GalaxyUndoRedoCluster` (`StackPanel` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Undo and redo map changes"`) consolidates `UndoToolButton` and `RedoToolButton` into 1 Tab stop with Left/Right arrow navigation.
+6. **Shape Design Studio Multi-Selection Summary Badge Accessible Name (Idea 3.1):** In `Views/ShapeStudio/ShapeDesignStudioWindow.xaml`, `MultiSelectionBadge` is labeled with `AutomationProperties.Name="Multi-selection summary badge"`.
+7. **Shape Design Studio Current Layer Position Accessible Name (Idea 3.1):** In `Views/ShapeStudio/ShapeDesignStudioWindow.xaml`, the border container housing `InspectorLayerPositionText` is labeled with `AutomationProperties.Name="Current layer position"`.
+8. **Shape Design Studio Multi-Selection Alignment Ribbon Single Tab Stop Verification (Idea 3.1):** In `Views/ShapeStudio/ShapeDesignStudioWindow.xaml`, verified `MultiAlignCluster` ensures single Tab stop traversal with Left/Right arrow switching across multi-select alignment tools.
+9. **SmartArt Studio Quick Layout Carousel Cluster Single Tab Stop Verification (Idea 3.2):** In `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml`, verified `QuickLayoutCarouselCluster` encapsulates the horizontal layout thumbnail carousel into 1 accessible Tab stop with Left/Right arrow keys.
+10. **SmartArt Studio Floating SVG Preview Zoom Controls Single Tab Stop Verification (Idea 3.2):** In `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml`, verified `PreviewZoomControlCluster` groups preview zoom out, reset, zoom in, and copy SVG controls into 1 Tab stop.
+
+**Implementation Summary**
+- Desktop Surfaces: `Views/Mermaid/MermaidDiagramStudioControl.xaml` (`DiagramCanvasLayoutToolsCluster`), `Views/Mermaid/MermaidCanvasControl.xaml` (`QuickAddHoverContainer`, `InlineEditActionBar`), `Views/MindMap/MindMapGalaxyWindow.xaml` (`GalaxyNodeEditingCluster`, `GalaxyUndoRedoCluster`), `Views/ShapeStudio/ShapeDesignStudioWindow.xaml` (`MultiSelectionBadge`, `InspectorLayerPositionText` border, `MultiAlignCluster`), `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` (`QuickLayoutCarouselCluster`, `PreviewZoomControlCluster`).
+- Tests: `Run307StudioPolishAndKeyboardNavigationTests.cs` (10 comprehensive xUnit unit tests verifying all XAML cluster configurations, XY focus navigation, Tab focus navigation, and UIA accessible names).
+
+**Verified:**
+- Unit tests: `Run307StudioPolishAndKeyboardNavigationTests` (10/10 passed in 1 s); full suite across runs 300, 301, 302, 303, 304, 305, 306, 307 (108/108 passed in 1 s).
+- Build: `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: 0 errors.
+- Smoke launch: Verified clean process startup and shutdown.
+
+**Next up (Run #308):**
+1. Audit SmartArt Studio outline metrics pill menu and layout search category combo single Tab stops.
+2. Audit Shape Design Studio canvas layer ordering context menus and shape presets list single Tab stops.
+3. Carry forward Block 3's 2 refined ideas as first refinement targets.
+
+**Total user-visible improvements: 10** (5 canvas layout, quick-add, edit affordances & mind map action clusters single Tab stops & XY arrow navigation; 2 inspector badges & position UIA accessible names; 3 multi-align, carousel & zoom clusters verified single Tab stops).

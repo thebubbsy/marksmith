@@ -1073,6 +1073,7 @@
                                             CornerRadius="4" Padding="6,2"
                                             DoubleTapped="OnMultiSelectionBadgeDoubleTapped"
                                             RightTapped="OnMultiSelectionBadgeRightTapped"
+                                            AutomationProperties.Name="Multi-selection summary badge"
                                             ToolTipService.ToolTip="Selection group · Double-click to auto-align &amp; distribute, Right-click or Shift+F10 for group options">
                                         <TextBlock x:Name="MultiSelectionBadgeText" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                     </Border>
@@ -1287,7 +1288,8 @@
                                                 <FontIcon Glyph="&#xE74B;" FontSize="11" />
                                             </Button>
                                         </StackPanel>
-                                        <Border Grid.Column="2" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="4" Padding="6,2" VerticalAlignment="Center">
+                                        <Border Grid.Column="2" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="4" Padding="6,2" VerticalAlignment="Center"
+                                                AutomationProperties.Name="Current layer position">
                                             <TextBlock x:Name="InspectorLayerPositionText" Text="Layer 1 of 1" FontSize="10.5" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                         </Border>
                                     </Grid>
