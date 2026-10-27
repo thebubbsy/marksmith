@@ -553,6 +553,7 @@
                             <TextBlock Text="Recolours every node and connector." FontSize="11" Foreground="#8D99AE" TextWrapping="Wrap" />
                             <Button x:Name="PresetCatppuccin" Tag="Catppuccin Slate" Click="OnPalettePresetClick"
                                      HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                     AutomationProperties.Name="Catppuccin Slate style preset"
                                      Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Padding="8,6">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <Rectangle Width="16" Height="16" RadiusX="3" RadiusY="3" Fill="#313244" Stroke="#89B4FA" />
@@ -561,6 +562,7 @@
                             </Button>
                             <Button x:Name="PresetNord" Tag="Nord Ocean" Click="OnPalettePresetClick"
                                      HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                     AutomationProperties.Name="Nord Ocean style preset"
                                      Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Padding="8,6">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <Rectangle Width="16" Height="16" RadiusX="3" RadiusY="3" Fill="#2E3440" Stroke="#88C0D0" />
@@ -569,6 +571,7 @@
                             </Button>
                             <Button x:Name="PresetEmerald" Tag="Emerald Corporate" Click="OnPalettePresetClick"
                                      HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                     AutomationProperties.Name="Emerald Corporate style preset"
                                      Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Padding="8,6">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <Rectangle Width="16" Height="16" RadiusX="3" RadiusY="3" Fill="#062E23" Stroke="#34D399" />
@@ -577,6 +580,7 @@
                             </Button>
                             <Button x:Name="PresetMono" Tag="Monochrome Print" Click="OnPalettePresetClick"
                                      HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                     AutomationProperties.Name="Monochrome Print style preset"
                                      Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Padding="8,6">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <Rectangle Width="16" Height="16" RadiusX="3" RadiusY="3" Fill="#FFFFFF" Stroke="#1F2937" />
@@ -608,6 +612,7 @@
                 <Button x:Name="CanvasSummaryButton" Grid.Column="1" Height="22" Padding="6,0" MinWidth="0"
                         VerticalAlignment="Center" Background="Transparent" BorderThickness="0"
                         Click="OnCanvasSummaryClick" RightTapped="OnStatusBarRightTapped"
+                        AutomationProperties.Name="Diagram canvas summary"
                         AutomationProperties.HelpText="Copies the diagram summary. Shift+F10 for status bar options."
                         ToolTipService.ToolTip="Diagram summary · Click to copy, right-click or Shift+F10 for options">
                     <!-- Not a live region: it changes with every edit, and the status line already reads out each one. -->

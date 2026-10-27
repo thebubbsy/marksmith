@@ -21517,3 +21517,51 @@ through `ClipboardWriter` with the result reported. No resource lookups, file ac
 3. Carry forward Block 3's 2 refined ideas as first refinement targets.
 
 **Total user-visible improvements: 29** (6 Main Window clusters across editor strip, preview zoom, portal dials, style header tools, file actions, and output folder actions; 3 Main Window UIA names across rescan button, primary copy pills, and secondary copy pills; 1 Settings View navigation UIA name; 23 Shape Studio ribbon buttons across multi-align, morph, layer ordering, and transform).
+
+## 2026-10-28 · Run #300 (03:00–03:30 AEDT) · Antigravity AI Agent
+
+**Agent / Execution Metadata**
+- Model: Antigravity AI Agent (Google DeepMind)
+- Modes: Scheduled Hourly Automation Routine
+- Trigger: Scheduled hourly MarkSmith WinUI 3 Desktop Polish Routine
+- Mandate: Milestone Run #300 - Settings View cloud sync, copy prompt, house style, and license activation action clusters single Tab stops & XY arrow navigation; OCR Experience Overlay telemetry cluster, overlay header actions, and final markdown actions clusters single Tab stops & XY arrow navigation; Mermaid Diagram Studio style preset buttons and canvas summary button complete UI Automation (UIA) accessible names; Suite Hub starter document template cards complete UI Automation (UIA) accessible names.
+
+**Delivered (user-visible):**
+1. **Settings View Cloud Sync Actions Cluster Single Tab Stop & Arrow Navigation:** In Views/SettingsView.xaml, CloudSyncActionsCluster (XYFocusKeyboardNavigation="Enabled", TabFocusNavigation="Once", AutomationProperties.Name="Cloud sync actions") encapsulates RescanCloudButton, providing single Tab stop isolation and seamless directional navigation in the cloud synchronization card.
+2. **Settings View Copy Prompt Actions Cluster Single Tab Stop & Arrow Navigation:** In Views/SettingsView.xaml, CopyPromptActionsCluster (XYFocusKeyboardNavigation="Enabled", TabFocusNavigation="Once", AutomationProperties.Name="Copy prompt actions") encapsulates CopyPromptButton, streamlining prompt configuration keyboard traversal into 1 Tab stop.
+3. **Settings View House Style Actions Cluster Single Tab Stop & Arrow Navigation:** In Views/SettingsView.xaml, HouseStyleActionsCluster (XYFocusKeyboardNavigation="Enabled", TabFocusNavigation="Once", AutomationProperties.Name="House style actions") encapsulates ApplyThemeButton, enabling fluid arrow-key interaction with house style theming in 1 Tab stop.
+4. **Settings View License Activation Cluster Single Tab Stop & Arrow Navigation:** In Views/SettingsView.xaml, LicenseActivationCluster (x:Name="LicenseActivationCluster", XYFocusKeyboardNavigation="Enabled", TabFocusNavigation="Once", AutomationProperties.Name="License activation actions") encapsulates ActivateButton and LicenseActionRing, unifying the license submission flow into a single Tab stop.
+5. **OCR Overlay Telemetry Cluster Accessible Name:** In Controls/OcrExperienceOverlay.xaml, OcrTelemetryCluster (x:Name="OcrTelemetryCluster", AutomationProperties.Name="OCR telemetry counters") provides immediate screen reader context for real-time recognized words, characters, and confidence score metrics.
+6. **OCR Overlay Header Actions Cluster Single Tab Stop & Arrow Navigation:** In Controls/OcrExperienceOverlay.xaml, OcrOverlayHeaderActionsCluster (XYFocusKeyboardNavigation="Enabled", TabFocusNavigation="Once", AutomationProperties.Name="OCR overlay actions") encapsulates SkipButton, allowing users to dismiss or navigate the overlay header with single Tab stop precision.
+7. **OCR Overlay Final Markdown Actions Cluster Single Tab Stop & Arrow Navigation:** In Controls/OcrExperienceOverlay.xaml, FinalMarkdownActionsCluster (XYFocusKeyboardNavigation="Enabled", TabFocusNavigation="Once", AutomationProperties.Name="Final markdown actions") encapsulates CopyFinalMarkdownButton, ensuring high-efficiency keyboard export of digitized OCR markdown in 1 Tab stop.
+8. **Mermaid Studio Catppuccin Slate Preset Accessible Name:** In Views/Mermaid/MermaidDiagramStudioControl.xaml, PresetCatppuccin is labeled with AutomationProperties.Name="Catppuccin Slate style preset".
+9. **Mermaid Studio Nord Ocean Preset Accessible Name:** In Views/Mermaid/MermaidDiagramStudioControl.xaml, PresetNord is labeled with AutomationProperties.Name="Nord Ocean style preset".
+10. **Mermaid Studio Emerald Corporate Preset Accessible Name:** In Views/Mermaid/MermaidDiagramStudioControl.xaml, PresetEmerald is labeled with AutomationProperties.Name="Emerald Corporate style preset".
+11. **Mermaid Studio Monochrome Print Preset Accessible Name:** In Views/Mermaid/MermaidDiagramStudioControl.xaml, PresetMono is labeled with AutomationProperties.Name="Monochrome Print style preset".
+12. **Mermaid Studio Diagram Canvas Summary Accessible Name:** In Views/Mermaid/MermaidDiagramStudioControl.xaml, CanvasSummaryButton is labeled with AutomationProperties.Name="Diagram canvas summary".
+13. **Suite Hub Meeting Notes Template Accessible Name:** In Views/SuiteHubView.xaml, TemplateMeetingNotesBtn is labeled with AutomationProperties.Name="Meeting Notes template".
+14. **Suite Hub Technical Spec Template Accessible Name:** In Views/SuiteHubView.xaml, TemplateTechSpecBtn is labeled with AutomationProperties.Name="Technical Spec template".
+15. **Suite Hub SmartArt Showcase Template Accessible Name:** In Views/SuiteHubView.xaml, TemplateSmartArtBtn is labeled with AutomationProperties.Name="SmartArt Showcase template".
+16. **Suite Hub MindMap Note Template Accessible Name:** In Views/SuiteHubView.xaml, TemplateMindMapBtn is labeled with AutomationProperties.Name="MindMap Note template".
+17. **Suite Hub ADR Spec Template Accessible Name:** In Views/SuiteHubView.xaml, TemplateAdrBtn is labeled with AutomationProperties.Name="ADR Spec template".
+18. **Suite Hub Release Notes Template Accessible Name:** In Views/SuiteHubView.xaml, TemplateReleaseNotesBtn is labeled with AutomationProperties.Name="Release Notes template".
+19. **Suite Hub Incident Postmortem Template Accessible Name:** In Views/SuiteHubView.xaml, TemplatePostmortemBtn is labeled with AutomationProperties.Name="Incident Postmortem template".
+20. **Suite Hub RFC Proposal Template Accessible Name:** In Views/SuiteHubView.xaml, TemplateRfcBtn is labeled with AutomationProperties.Name="RFC Proposal template".
+21. **Suite Hub PRD Document Template Accessible Name:** In Views/SuiteHubView.xaml, TemplatePrdBtn is labeled with AutomationProperties.Name="PRD Document template".
+22. **Suite Hub REST API Spec Template Accessible Name:** In Views/SuiteHubView.xaml, TemplateApiDocBtn is labeled with AutomationProperties.Name="REST API Spec template".
+
+**Implementation Summary**
+- Desktop Surfaces: Views/SettingsView.xaml (CloudSyncActionsCluster, CopyPromptActionsCluster, HouseStyleActionsCluster, LicenseActivationCluster), Controls/OcrExperienceOverlay.xaml (OcrTelemetryCluster, OcrOverlayHeaderActionsCluster, FinalMarkdownActionsCluster), Views/Mermaid/MermaidDiagramStudioControl.xaml (PresetCatppuccin, PresetNord, PresetEmerald, PresetMono, CanvasSummaryButton), Views/SuiteHubView.xaml (TemplateMeetingNotesBtn, TemplateTechSpecBtn, TemplateSmartArtBtn, TemplateMindMapBtn, TemplateAdrBtn, TemplateReleaseNotesBtn, TemplatePostmortemBtn, TemplateRfcBtn, TemplatePrdBtn, TemplateApiDocBtn).
+- Tests: Run300StudioPolishAndKeyboardNavigationTests.cs (10 xUnit tests asserting all XAML cluster configurations, XYFocusKeyboardNavigation, TabFocusNavigation, and AutomationProperties.Name).
+
+**Verified:**
+- dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64: 0 errors.
+- Unit tests: Run300StudioPolishAndKeyboardNavigationTests (10/10 passed), combined suite Run29 (124/124 passed).
+- Smoke launch: Launched Marksmith.exe (PID 30648), confirmed running healthy after 5s (Running: True, Responding: True), closed cleanly.
+
+**Next up (Run #301):**
+1. Audit Image Insert Control aspect ratio and format chips for arrow key navigation and single Tab stops.
+2. Audit MindMap Galaxy toolbar action buttons for single Tab stops and XY keyboard focus navigation.
+3. Carry forward Block 3's 2 refined ideas as first refinement targets.
+
+**Total user-visible improvements: 22** (4 Settings View action clusters single Tab stops & XY arrow navigation; 3 OCR Experience Overlay action & telemetry clusters; 5 Mermaid Diagram Studio style preset & canvas summary UIA names; 10 Suite Hub starter document template cards UIA names).

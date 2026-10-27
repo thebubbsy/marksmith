@@ -403,16 +403,20 @@
                                                   DisplayMemberPath="DisplayName"
                                                   PlaceholderText="Select a cloud drive…"
                                                   HorizontalAlignment="Stretch" />
-                                        <Button x:Name="RescanCloudButton" Grid.Column="1" Click="OnRescanCloud" VerticalAlignment="Bottom"
-                                                ToolTipService.ToolTip="Look for cloud sync folders on this PC again · Right-click or Shift+F10 for options"
-                                                AutomationProperties.Name="Rescan for cloud drives"
-                                                RightTapped="OnRescanCloudButtonRightTapped">
-                                            <FontIcon x:Name="RescanCloudIcon" Glyph="&#xE72C;" FontSize="14" RenderTransformOrigin="0.5,0.5">
-                                                <FontIcon.RenderTransform>
-                                                    <RotateTransform x:Name="RescanCloudRotate" Angle="0" />
-                                                </FontIcon.RenderTransform>
-                                            </FontIcon>
-                                        </Button>
+                                        <StackPanel x:Name="CloudSyncActionsCluster" Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Bottom"
+                                                    XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                                    AutomationProperties.Name="Cloud sync actions">
+                                            <Button x:Name="RescanCloudButton" Click="OnRescanCloud" VerticalAlignment="Bottom"
+                                                    ToolTipService.ToolTip="Look for cloud sync folders on this PC again · Right-click or Shift+F10 for options"
+                                                    AutomationProperties.Name="Rescan for cloud drives"
+                                                    RightTapped="OnRescanCloudButtonRightTapped">
+                                                <FontIcon x:Name="RescanCloudIcon" Glyph="&#xE72C;" FontSize="14" RenderTransformOrigin="0.5,0.5">
+                                                    <FontIcon.RenderTransform>
+                                                        <RotateTransform x:Name="RescanCloudRotate" Angle="0" />
+                                                    </FontIcon.RenderTransform>
+                                                </FontIcon>
+                                            </Button>
+                                        </StackPanel>
                                     </Grid>
                                     <TextBlock x:Name="CloudRescanStatusText" Style="{StaticResource SettingsHintStyle}"
                                                Visibility="Collapsed" AutomationProperties.LiveSetting="Polite" />
@@ -464,11 +468,15 @@
                                                      Text="{Binding HouseStylePrompt, Mode=OneWay}"
                                                      IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True"
                                                      MaxHeight="140" FontSize="12" IsSpellCheckEnabled="False" />
-                                            <Button x:Name="CopyPromptButton" Grid.Column="1" VerticalAlignment="Bottom" Click="OnCopyHouseStylePromptClick"
-                                                    ToolTipService.ToolTip="Copy the prompt · Right-click or Shift+F10 for options" AutomationProperties.Name="Copy the prompt"
-                                                    RightTapped="OnCopyPromptButtonRightTapped">
-                                                <FontIcon x:Name="CopyPromptIcon" Glyph="&#xE8C8;" FontSize="14" />
-                                            </Button>
+                                            <StackPanel x:Name="CopyPromptActionsCluster" Grid.Column="1" VerticalAlignment="Bottom"
+                                                        XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                                        AutomationProperties.Name="Copy prompt actions">
+                                                <Button x:Name="CopyPromptButton" Click="OnCopyHouseStylePromptClick"
+                                                        ToolTipService.ToolTip="Copy the prompt · Right-click or Shift+F10 for options" AutomationProperties.Name="Copy the prompt"
+                                                        RightTapped="OnCopyPromptButtonRightTapped">
+                                                    <FontIcon x:Name="CopyPromptIcon" Glyph="&#xE8C8;" FontSize="14" />
+                                                </Button>
+                                            </StackPanel>
                                         </Grid>
                                         <TextBox x:Name="HouseStyleReplyBox" Header="The AI's reply (JSON)"
                                                  AutomationProperties.Name="The AI's reply (JSON)"
@@ -478,11 +486,15 @@
                                                  TextChanged="OnHouseStyleReplyChanged"
                                                  KeyDown="OnHouseStyleReplyKeyDown"
                                                  PlaceholderText="Paste the JSON your web AI returned, then Apply theme (Ctrl+Enter)" />
-                                        <Button x:Name="ApplyThemeButton" Content="Apply theme" Click="OnApplyHouseStyleJsonClick"
-                                                AutomationProperties.Name="Apply house style theme"
-                                                ToolTipService.ToolTip="Apply the pasted JSON theme (Ctrl+Enter) · Right-click or Shift+F10 for options"
-                                                HorizontalAlignment="Left" IsEnabled="False"
-                                                RightTapped="OnApplyThemeButtonRightTapped" />
+                                        <StackPanel x:Name="HouseStyleActionsCluster" Orientation="Horizontal" Spacing="8"
+                                                    XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                                    AutomationProperties.Name="House style actions">
+                                            <Button x:Name="ApplyThemeButton" Content="Apply theme" Click="OnApplyHouseStyleJsonClick"
+                                                    AutomationProperties.Name="Apply house style theme"
+                                                    ToolTipService.ToolTip="Apply the pasted JSON theme (Ctrl+Enter) · Right-click or Shift+F10 for options"
+                                                    HorizontalAlignment="Left" IsEnabled="False"
+                                                    RightTapped="OnApplyThemeButtonRightTapped" />
+                                        </StackPanel>
                                     </StackPanel>
                                 </StackPanel>
                             </controls:SettingsCard.Details>
@@ -609,7 +621,9 @@
                                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                                     <TextBox AutomationProperties.Name="License key" x:Name="KeyBox" PlaceholderText="XXXX-XXXX-XXXX-XXXX"
                                              IsSpellCheckEnabled="False" TextChanged="OnKeyBoxTextChanged" KeyDown="OnKeyBoxKeyDown" />
-                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                    <StackPanel x:Name="LicenseActivationCluster" Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"
+                                                XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                                AutomationProperties.Name="License activation actions">
                                         <ProgressRing x:Name="LicenseActionRing" IsActive="False" Width="16" Height="16" Visibility="Collapsed" />
                                         <Button x:Name="ActivateButton" Content="Activate" Click="OnActivateLicense" IsEnabled="False"
                                                 AutomationProperties.Name="Activate license key"
