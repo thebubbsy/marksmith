@@ -921,7 +921,9 @@
                                         </DropDownButton.Flyout>
                                     </DropDownButton>
                                 </StackPanel>
-                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                <StackPanel x:Name="EditorStripStatusCluster" Grid.Column="1" Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                                AutomationProperties.Name="Editor strip status">
                                     <!-- Markdown lint: live issue count; the flyout lists issues and jumps to them. -->
                                     <Button x:Name="LintButton" Height="24" Padding="6,0"
                                             AutomationProperties.Name="Markdown issues"
@@ -1157,7 +1159,9 @@
                     </StackPanel>
 
 
-                    <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center" Margin="0,4,0,10">
+                    <StackPanel x:Name="BottomCommandStripCluster" Grid.Row="1" Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center" Margin="0,4,0,10"
+                                XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                AutomationProperties.Name="Bottom command strip">
                         <Button x:Name="CopyHtmlButton" ToolTipService.ToolTip="Copy the rendered HTML to the clipboard (Right-click or Shift+F10 for copy options)" Height="32" Width="32" Padding="0"
                                 Click="OnCopyHtmlClick" VerticalAlignment="Center"
                                 RightTapped="OnCopyHtmlButtonRightTapped"
@@ -1181,7 +1185,9 @@
                              icon buttons instead of hiding under the cluster dropdowns. Populated in
                              code-behind so the handlers live in one place. -->
                         <StackPanel x:Name="EditingExpandedPanel" Orientation="Horizontal" Spacing="2"
-                                    Visibility="Collapsed" VerticalAlignment="Center">
+                                    Visibility="Collapsed" VerticalAlignment="Center"
+                                    XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                    AutomationProperties.Name="Expanded editing tools">
                             <Border Width="1" Height="16" Background="{ThemeResource CardStrokeColorDefaultBrush}"
                                     Margin="4,0" VerticalAlignment="Center" />
                         </StackPanel>

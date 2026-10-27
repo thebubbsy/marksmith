@@ -589,10 +589,10 @@
                                     AutomationProperties.Name="Outline actions toolbar"
                                     RightTapped="OnOutlineToolbarRightTapped"
                                     ToolTipService.ToolTip="Outline actions (Right-click for options)">
-                            <Button Command="{Binding AddChildCommand}" Click="OnToolbarAddNodeClick" RightTapped="OnOutlineToolbarRightTapped" Height="32" Padding="7,0" ToolTipService.ToolTip="Add a child under the selected item (Insert, Right-click for options)">
+                            <Button x:Name="OutlineAddChildButton" Command="{Binding AddChildCommand}" Click="OnToolbarAddNodeClick" RightTapped="OnOutlineToolbarRightTapped" Height="32" Padding="7,0" AutomationProperties.Name="Add child item" ToolTipService.ToolTip="Add a child under the selected item (Insert, Right-click for options)">
                                 <StackPanel Orientation="Horizontal" Spacing="4"><FontIcon Glyph="&#xE710;" FontSize="13" /><TextBlock Text="Child" /></StackPanel>
                             </Button>
-                            <Button Command="{Binding AddSiblingCommand}" Click="OnToolbarAddNodeClick" RightTapped="OnOutlineToolbarRightTapped" Height="32" Padding="7,0" ToolTipService.ToolTip="Add an item after the selected one, at the same level (Enter, Right-click for options)">
+                            <Button x:Name="OutlineAddSiblingButton" Command="{Binding AddSiblingCommand}" Click="OnToolbarAddNodeClick" RightTapped="OnOutlineToolbarRightTapped" Height="32" Padding="7,0" AutomationProperties.Name="Add sibling item" ToolTipService.ToolTip="Add an item after the selected one, at the same level (Enter, Right-click for options)">
                                 <StackPanel Orientation="Horizontal" Spacing="4"><FontIcon Glyph="&#xE710;" FontSize="13" /><TextBlock Text="Sibling" /></StackPanel>
                             </Button>
                             <Rectangle Width="1" Height="20" Margin="2,0" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" VerticalAlignment="Center" />

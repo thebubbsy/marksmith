@@ -412,7 +412,9 @@
                         <ui:WrapRow x:Name="ToolStrip" HorizontalSpacing="4" VerticalSpacing="4" VerticalAlignment="Center"
                                     Background="Transparent" IsHitTestVisible="True"
                                     RightTapped="OnToolStripRightTapped"
-                                    ToolTipService.ToolTip="Canvas tools (Right-click for options)">
+                                    ToolTipService.ToolTip="Canvas tools (Right-click for options)"
+                                    XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                    AutomationProperties.Name="Canvas tools">
                             <Button x:Name="ToolUndoButton" Style="{StaticResource ToolIconButton}" Command="{Binding UndoCommand}" AutomationProperties.Name="Undo" RightTapped="OnToolStripRightTapped" ToolTipService.ToolTip="Undo (Ctrl+Z, Right-click or Shift+F10 for options)">
                                 <FontIcon Glyph="&#xE7A7;" FontSize="14" />
                             </Button>
@@ -458,7 +460,9 @@
                         </ui:WrapRow>
 
                         <!-- Grid Snap & Colour scheme controls -->
-                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <StackPanel x:Name="CanvasHelpersCluster" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+                                    XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                    AutomationProperties.Name="Canvas helpers and geometry">
                             <Button x:Name="GridSnapButton" Style="{StaticResource ToolIconButton}" Padding="8,4"
                                     Click="OnGridSnapButtonClick"
                                     RightTapped="OnGridSnapButtonRightTapped"

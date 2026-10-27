@@ -377,13 +377,15 @@
                             </ComboBox>
 
                             <!-- Per-node Fill / Stroke color pickers -->
-                            <Grid ColumnSpacing="8">
+                            <Grid x:Name="NodeColorPickersCluster" ColumnSpacing="8"
+                                      XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                      AutomationProperties.Name="Node color pickers">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
 
-                                <Button Grid.Column="0" HorizontalAlignment="Stretch" Padding="8,6"
+                                <Button x:Name="NodeFillColorButton" Grid.Column="0" HorizontalAlignment="Stretch" Padding="8,6"
                                         Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1"
                                         AutomationProperties.Name="Node fill color"
                                         ToolTipService.ToolTip="Node fill color">
@@ -406,7 +408,7 @@
                                     </Button.Flyout>
                                 </Button>
 
-                                <Button Grid.Column="1" HorizontalAlignment="Stretch" Padding="8,6"
+                                <Button x:Name="NodeBorderColorButton" Grid.Column="1" HorizontalAlignment="Stretch" Padding="8,6"
                                         Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1"
                                         AutomationProperties.Name="Node border color"
                                         ToolTipService.ToolTip="Node border color">

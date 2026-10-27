@@ -671,6 +671,7 @@
                                     Background="{ThemeResource ControlAltFillColorSecondaryBrush}"
                                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
                                     CornerRadius="6" Padding="4,2" VerticalAlignment="Center"
+                                    AutomationProperties.Name="Find in diff controls"
                                     Visibility="{Binding HasDiffStats, Converter={StaticResource BoolToVis}}">
                                 <StackPanel Orientation="Horizontal" Spacing="4">
                                     <FontIcon Glyph="&#xE721;" FontSize="11" Margin="4,0,2,0" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />

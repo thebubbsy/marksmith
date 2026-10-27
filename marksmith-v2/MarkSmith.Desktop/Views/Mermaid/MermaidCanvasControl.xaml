@@ -671,7 +671,8 @@
                 RightTapped="OnZoomResetRightTapped"
                 ToolTipService.ToolTip="Zoom controls · Click the level for 100%, right-click for zoom presets">
             <StackPanel x:Name="ZoomControlCluster" Orientation="Horizontal"
-                        XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once">
+                        XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                        AutomationProperties.Name="Mermaid canvas zoom controls">
                 <Button x:Name="ZoomOutButton" Width="32" Height="32" Padding="0" Click="OnZoomOutClick" RightTapped="OnZoomResetRightTapped" Background="Transparent" Foreground="#EDF2F4" BorderThickness="0" ToolTipService.ToolTip="Zoom out (Ctrl+-, or Ctrl+wheel) · Right-click or Shift+F10 for zoom presets" AutomationProperties.Name="Zoom out"><FontIcon Glyph="&#xE738;" FontSize="12" /></Button>
                 <!-- The level doubles as "back to 100%", the way most editors do it. No DoubleTapped here
                      or on the panel: two quick clicks on Zoom in bubbled up as a double-tap and snapped
