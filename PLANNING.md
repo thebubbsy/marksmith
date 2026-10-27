@@ -21222,3 +21222,37 @@ through `ClipboardWriter` with the result reported. No resource lookups, file ac
 3. Carry forward Block 3's 2 refined ideas as first refinement targets.
 
 **Total user-visible improvements: 7** (3 studio single Tab-stop XY-navigation clusters across Mermaid and OCR, 1 status bar secondary copy cluster single Tab stop, 1 diagram shortcut isolation guard, 1 contextual palette shape copy action with menu accelerator, 1 tag-strip 2-stage Escape navigation flow).
+
+## 2026-10-27 · Run #293 (21:05–21:35 AEDT) · Antigravity AI Agent
+
+**Agent / Execution Metadata**
+- Model: Antigravity AI Agent (Google DeepMind)
+- Modes: Scheduled Hourly Automation Routine
+- Trigger: Scheduled hourly MarkSmith WinUI 3 Desktop Polish Routine
+- Mandate: Shape Studio action bar & status bar clusters single Tab stops, Shape Studio F2 label editor isolation & contextual preset copy (Ctrl+C), SmartArt Studio preview zoom HUD & action clusters single Tab stops, Main Window primary copy pills cluster & status output links cluster single Tab stops, and Theme Builder swatch matrix XY-navigation.
+
+**Delivered (user-visible):**
+1. **Shape Studio Action Cluster single Tab stop & XY Arrow Navigation:** In `ShapeDesignStudioWindow.xaml`, `ClearCanvasButton`, `ExportDropDownButton`, and `InsertIntoDocumentButton` are grouped into `ShapeStudioActionCluster` with `XYFocusKeyboardNavigation="Enabled"` and `TabFocusNavigation="Once"`. Keyboard users can fluidly arrow across top-level studio actions while traversing the entire right action bar in 1 Tab stop.
+2. **Shape Studio Status Cluster single Tab stop & XY Arrow Navigation:** In `ShapeDesignStudioWindow.xaml`, `SelectionSummaryButton` and `ZoomButton` are grouped into `ShapeStudioStatusCluster` with `XYFocusKeyboardNavigation="Enabled"` and `TabFocusNavigation="Once"`. Arrow keys glide between the selection actions menu and the zoom level flyout, while reducing status bar keyboard traversal to a single stop. Furthermore, `ChoiceKeys.FocusIsInChoiceControl` now recognizes focus in the status cluster, preventing accidental canvas shape mutations.
+3. **Shape Studio F2 Label Editor Shortcut Isolation:** In `ShapeDesignStudioWindow.xaml.cs`, `case VirtualKey.F2 when !inChoice && ViewModel.SelectedShape is { IsLine: false }:` now verifies `!inChoice`, preventing F2 from accidentally opening the canvas label editor while the user is browsing diagram presets, shape palettes, or property sliders.
+4. **Shape Studio Diagram Preset Contextual Copy (Ctrl+C) & Menu Accelerator:** In `ShapeDesignStudioWindow.xaml.cs`, `OnRootPreviewKeyDown` now contextually checks `FocusedPresetItem()` on `Ctrl+C`, copying the focused diagram preset's name to the clipboard via `CopyAndReport` instead of falling back to copying the canvas markdown. Additionally, `OnPresetListRightTapped` adds an explicit "Copy preset name" menu item with `KeyboardAcceleratorTextOverride="Ctrl+C"`.
+5. **SmartArt Studio Preview Zoom Cluster single Tab stop & XY Arrow Navigation:** In `SmartArtDesignStudioWindow.xaml`, `PreviewZoomOutBtn`, `PreviewZoomResetBtn`, `PreviewZoomInBtn`, and `PreviewZoomFitBtn` inside `PreviewZoomHudPill` are grouped into `PreviewZoomControlCluster` with `XYFocusKeyboardNavigation="Enabled"` and `TabFocusNavigation="Once"`. Users can smoothly cycle between zoom out, reset, zoom in, and fit to width with arrow keys, and `ChoiceKeys.cs` automatically recognizes focus within the zoom cluster as a choice control.
+6. **SmartArt Studio Action Cluster single Tab stop & XY Arrow Navigation:** In `SmartArtDesignStudioWindow.xaml`, `UndoStudioButton`, `RedoStudioButton`, and `InsertIntoDocumentButton` are grouped into `SmartArtActionCluster` with `XYFocusKeyboardNavigation="Enabled"` and `TabFocusNavigation="Once"`, enabling Left/Right arrow cycling between Undo, Redo, and Insert into document in 1 single Tab stop.
+7. **Main Window Status Bar Primary Copy Pills Cluster single Tab stop:** In `MainWindow.xaml`, `StatusCopyMarkdownButton`, `StatusCopyTocButton`, and `StatusCopyLinksButton` are grouped into `StatusPrimaryCopyPills` with `XYFocusKeyboardNavigation="Enabled"` and `TabFocusNavigation="Once"`. Users can smoothly traverse the primary clipboard tools with arrow keys while bypassing 3 sequential Tab stops in 1 keystroke.
+8. **Main Window Status Output Links Cluster & Theme Builder Swatch Matrix XY-Navigation:** In `MainWindow.xaml`, `StatusOutputLinks` (`StatusOpenOutputButton` and `StatusShowOutputFolderButton`) now features `XYFocusKeyboardNavigation="Enabled"` and `TabFocusNavigation="Once"`. In `MainWindow.xaml.cs` (`OnCreateThemeClick`), the Theme Builder swatch container `rows` is configured with `XYFocusKeyboardNavigation = XYFocusKeyboardNavigationMode.Enabled` and `TabFocusNavigation = KeyboardNavigationMode.Cycle`, allowing Up/Down arrow navigation across all 8 theme color swatches.
+
+**Implementation Summary**
+- Desktop: `Views/ShapeStudio/ShapeDesignStudioWindow.xaml` (`ShapeStudioActionCluster` and `ShapeStudioStatusCluster` with `XYFocusKeyboardNavigation="Enabled"` and `TabFocusNavigation="Once"`), `Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs` (added `FocusedPresetItem()` helper; gated F2 with `!inChoice`; contextual preset copy on Ctrl+C; added "Copy preset name" to `OnPresetListRightTapped`), `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` (`SmartArtActionCluster` and `PreviewZoomControlCluster` with `XYFocusKeyboardNavigation="Enabled"` and `TabFocusNavigation="Once"`), `MainWindow.xaml` (`StatusPrimaryCopyPills` and `StatusOutputLinks` with `XYFocusKeyboardNavigation="Enabled"` and `TabFocusNavigation="Once"`), `MainWindow.xaml.cs` (`OnCreateThemeClick` sets `rows.XYFocusKeyboardNavigation` and `rows.TabFocusNavigation`).
+- Tests: `Run293StudioPolishAndKeyboardNavigationTests.cs` (8 xUnit tests covering shortcut isolation guards, contextual preset copy contracts, and XAML `XYFocusKeyboardNavigation` / `TabFocusNavigation` contracts across Shape Studio, SmartArt Studio, and Main Window).
+
+**Verified:**
+- `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: 0 errors.
+- Unit tests: `Run293StudioPolishAndKeyboardNavigationTests` (8/8 passed), combined suite `Run29` (51/51 passed).
+- Smoke launch: Launched `Marksmith.exe` (PID 23024), confirmed running healthy after 5s without exit, closed cleanly.
+
+**Next up (Run #294):**
+1. Audit Welcome Tour and Suite Hub cards for single Tab stops and directional arrow navigation.
+2. Live-verify the status bar Primary to Secondary copy pills keyboard traversal under high DPI scaling.
+3. Carry forward Block 3's 2 refined ideas as first refinement targets.
+
+**Total user-visible improvements: 8** (3 studio single Tab-stop XY-navigation clusters across Shape and SmartArt, 2 main window status clusters with single Tab stops, 1 shape studio F2 shortcut isolation guard, 1 contextual preset copy action with menu accelerator, 1 theme builder swatch matrix arrow navigation flow).

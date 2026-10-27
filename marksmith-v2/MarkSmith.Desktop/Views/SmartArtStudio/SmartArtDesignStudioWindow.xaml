@@ -57,7 +57,8 @@
                                FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
                 </StackPanel>
             </StackPanel>
-            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+            <StackPanel x:Name="SmartArtActionCluster" Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+                        XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once">
                 <Button x:Name="UndoStudioButton" Style="{StaticResource ToolIconButton}" Command="{Binding UndoCommand}" IsEnabled="{Binding CanUndo}"
                         AutomationProperties.Name="Undo" ToolTipService.ToolTip="Undo (Ctrl+Z, Right-click or Shift+F10 for options)"
                         RightTapped="OnUndoButtonRightTapped"><FontIcon Glyph="&#xE7A7;" FontSize="14" /></Button>
@@ -1084,7 +1085,8 @@
                                 BorderThickness="1" CornerRadius="8" Padding="4,2"
                                 IsHitTestVisible="True"
                                 ToolTipService.ToolTip="Preview zoom controls (Click/Double-click to reset, Right-click for presets)">
-                            <StackPanel Orientation="Horizontal" Spacing="2">
+                            <StackPanel x:Name="PreviewZoomControlCluster" Orientation="Horizontal" Spacing="2"
+                                        XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once">
                                 <Button x:Name="PreviewZoomOutBtn" Style="{StaticResource SubtleButtonStyle}" Width="28" Height="28" Padding="0"
                                         Click="OnPreviewZoomOutClick" ToolTipService.ToolTip="Zoom out (Ctrl+−)" AutomationProperties.Name="Zoom out preview">
                                     <FontIcon Glyph="&#xE71F;" FontSize="11" />

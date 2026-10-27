@@ -1758,7 +1758,12 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         static string Hex(Windows.UI.Color c) => $"#{c.R:x2}{c.G:x2}{c.B:x2}";
 
         var pickers = new ColorPicker[elements.Length];
-        var rows = new StackPanel { Spacing = 8 };
+        var rows = new StackPanel
+        {
+            Spacing = 8,
+            XYFocusKeyboardNavigation = XYFocusKeyboardNavigationMode.Enabled,
+            TabFocusNavigation = KeyboardNavigationMode.Cycle,
+        };
         rows.Children.Add(nameBox);
         for (int i = 0; i < elements.Length; i++)
         {

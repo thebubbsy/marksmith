@@ -2249,6 +2249,7 @@
                     <!-- Shown only while the status line is announcing a finished export (the
                          Windows toast is easy to miss, or switched off entirely). -->
                     <StackPanel x:Name="StatusOutputLinks" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center"
+                                XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
                                 Visibility="{Binding HasStatusOutput, Converter={StaticResource BoolToVisibilityConverter}}"
                                 IsHitTestVisible="True"
                                 RightTapped="OnStatusOutputLinksRightTapped"
@@ -2309,7 +2310,9 @@
                                    Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
                     </HyperlinkButton>
                     <Border Width="1" Height="12" Background="{ThemeResource CardStrokeColorDefaultBrush}" VerticalAlignment="Center" />
-                    <HyperlinkButton x:Name="StatusCopyMarkdownButton"
+                    <StackPanel x:Name="StatusPrimaryCopyPills" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center"
+                                XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once">
+                        <HyperlinkButton x:Name="StatusCopyMarkdownButton"
                                      Click="OnStatusCopyMarkdownButtonClick"
                                      RightTapped="OnStatusCopyMarkdownButtonRightTapped"
                                      Padding="5,1" FontSize="11.5" Opacity="0.85"
@@ -2344,6 +2347,7 @@
                             <TextBlock x:Name="StatusCopyLinksText" Text="Copy Links" />
                         </StackPanel>
                     </HyperlinkButton>
+                    </StackPanel>
                     <Border Width="1" Height="12" Background="{ThemeResource CardStrokeColorDefaultBrush}" VerticalAlignment="Center" />
                     <!-- The eight secondary copy pills fold into the "More" menu below when the window
                          is too narrow for the whole row (UpdateStatusBarOverflow), instead of running

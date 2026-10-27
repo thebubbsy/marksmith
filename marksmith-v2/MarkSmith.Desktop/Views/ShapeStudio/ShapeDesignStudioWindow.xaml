@@ -1,4 +1,4 @@
-﻿<Window
+<Window
     x:Class="MarkSmith.Views.ShapeStudio.ShapeDesignStudioWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -69,7 +69,8 @@
                                FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
                 </StackPanel>
             </StackPanel>
-            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <StackPanel x:Name="ShapeStudioActionCluster" Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"
+                        XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once">
                 <Button x:Name="ClearCanvasButton" Click="OnClearClick" IsEnabled="{Binding HasShapes}"
                         RightTapped="OnClearCanvasButtonRightTapped"
                         ToolTipService.ToolTip="Remove every shape from the canvas (Ctrl+Z brings them back, Right-click or Shift+F10 for options)">
@@ -1485,53 +1486,55 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <TextBlock x:Name="StatusBarText" Text="{Binding StatusMessage}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
                        RightTapped="OnStatusBarRightTapped" DoubleTapped="OnStatusBarDoubleTapped" />
-            <!-- A button so the keyboard reaches the selection menu; hidden while the canvas is empty
-                 (the summary is blank then). Its double-click copy is the menu's first item. -->
-            <HyperlinkButton x:Name="SelectionSummaryButton" Grid.Column="1" Padding="4,0" Margin="0,-2" MinHeight="0" VerticalAlignment="Center"
-                             Click="OnSelectionSummaryButtonClick" RightTapped="OnSelectionSummaryRightTapped"
-                             DoubleTapped="OnSelectionSummaryButtonDoubleTapped"
-                             AutomationProperties.HelpText="Opens copy, select and arrange options for the selection."
-                             ToolTipService.ToolTip="Selection summary · Click, right-click or Shift+F10 for selection actions">
-                <TextBlock x:Name="SelectionSummaryText" Text="{Binding SelectionSummary}" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
-            </HyperlinkButton>
-            <!-- Zoom: Ctrl+scroll and pinch always worked but nothing showed the level or offered
-                 a way back. Presets now open fitted to the canvas. -->
-            <DropDownButton x:Name="ZoomButton" Grid.Column="2" Padding="8,0" Height="24" MinWidth="70" FontSize="12"
-                            Margin="0,-4" AutomationProperties.Name="Zoom"
-                            ToolTipService.ToolTip="Zoom — Ctrl+scroll to zoom, Ctrl+0 to fit, right-click or Shift+F10 for preset stops"
-                            RightTapped="OnZoomButtonRightTapped">
-                <TextBlock x:Name="ZoomText" Text="100%" FontSize="12" />
-                <DropDownButton.Flyout>
-                    <MenuFlyout Placement="TopEdgeAlignedRight">
-                        <MenuFlyoutItem Text="Fit diagram" Click="OnZoomFitClick" KeyboardAcceleratorTextOverride="Ctrl+0">
-                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE9A6;" /></MenuFlyoutItem.Icon>
-                        </MenuFlyoutItem>
-                        <MenuFlyoutItem Text="Actual size (100%)" Click="OnZoomActualClick" KeyboardAcceleratorTextOverride="Ctrl+1">
-                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE71E;" /></MenuFlyoutItem.Icon>
-                        </MenuFlyoutItem>
-                        <MenuFlyoutSeparator />
-                        <MenuFlyoutItem Text="Zoom in" Click="OnZoomInClick" KeyboardAcceleratorTextOverride="Ctrl+=">
-                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8A3;" /></MenuFlyoutItem.Icon>
-                        </MenuFlyoutItem>
-                        <MenuFlyoutItem Text="Zoom out" Click="OnZoomOutClick" KeyboardAcceleratorTextOverride="Ctrl+−">
-                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE71F;" /></MenuFlyoutItem.Icon>
-                        </MenuFlyoutItem>
-                        <MenuFlyoutSeparator />
-                        <MenuFlyoutSubItem Text="Preset zoom levels">
-                            <MenuFlyoutSubItem.Icon><FontIcon Glyph="&#xE71E;" /></MenuFlyoutSubItem.Icon>
-                            <MenuFlyoutItem Text="50%" Click="OnZoom50Click" />
-                            <MenuFlyoutItem Text="75%" Click="OnZoom75Click" />
-                            <MenuFlyoutItem Text="100%" Click="OnZoom100Click" />
-                            <MenuFlyoutItem Text="150%" Click="OnZoom150Click" />
-                            <MenuFlyoutItem Text="200%" Click="OnZoom200Click" />
-                        </MenuFlyoutSubItem>
-                    </MenuFlyout>
-                </DropDownButton.Flyout>
-            </DropDownButton>
+            <StackPanel x:Name="ShapeStudioStatusCluster" Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"
+                        XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once">
+                <!-- A button so the keyboard reaches the selection menu; hidden while the canvas is empty
+                     (the summary is blank then). Its double-click copy is the menu's first item. -->
+                <HyperlinkButton x:Name="SelectionSummaryButton" Padding="4,0" Margin="0,-2" MinHeight="0" VerticalAlignment="Center"
+                                 Click="OnSelectionSummaryButtonClick" RightTapped="OnSelectionSummaryRightTapped"
+                                 DoubleTapped="OnSelectionSummaryButtonDoubleTapped"
+                                 AutomationProperties.HelpText="Opens copy, select and arrange options for the selection."
+                                 ToolTipService.ToolTip="Selection summary · Click, right-click or Shift+F10 for selection actions">
+                    <TextBlock x:Name="SelectionSummaryText" Text="{Binding SelectionSummary}" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                </HyperlinkButton>
+                <!-- Zoom: Ctrl+scroll and pinch always worked but nothing showed the level or offered
+                     a way back. Presets now open fitted to the canvas. -->
+                <DropDownButton x:Name="ZoomButton" Padding="8,0" Height="24" MinWidth="70" FontSize="12"
+                                Margin="0,-4" AutomationProperties.Name="Zoom"
+                                ToolTipService.ToolTip="Zoom — Ctrl+scroll to zoom, Ctrl+0 to fit, right-click or Shift+F10 for preset stops"
+                                RightTapped="OnZoomButtonRightTapped">
+                    <TextBlock x:Name="ZoomText" Text="100%" FontSize="12" />
+                    <DropDownButton.Flyout>
+                        <MenuFlyout Placement="TopEdgeAlignedRight">
+                            <MenuFlyoutItem Text="Fit diagram" Click="OnZoomFitClick" KeyboardAcceleratorTextOverride="Ctrl+0">
+                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE9A6;" /></MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                            <MenuFlyoutItem Text="Actual size (100%)" Click="OnZoomActualClick" KeyboardAcceleratorTextOverride="Ctrl+1">
+                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE71E;" /></MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                            <MenuFlyoutSeparator />
+                            <MenuFlyoutItem Text="Zoom in" Click="OnZoomInClick" KeyboardAcceleratorTextOverride="Ctrl+=">
+                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8A3;" /></MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                            <MenuFlyoutItem Text="Zoom out" Click="OnZoomOutClick" KeyboardAcceleratorTextOverride="Ctrl+−">
+                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE71F;" /></MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                            <MenuFlyoutSeparator />
+                            <MenuFlyoutSubItem Text="Preset zoom levels">
+                                <MenuFlyoutSubItem.Icon><FontIcon Glyph="&#xE71E;" /></MenuFlyoutSubItem.Icon>
+                                <MenuFlyoutItem Text="50%" Click="OnZoom50Click" />
+                                <MenuFlyoutItem Text="75%" Click="OnZoom75Click" />
+                                <MenuFlyoutItem Text="100%" Click="OnZoom100Click" />
+                                <MenuFlyoutItem Text="150%" Click="OnZoom150Click" />
+                                <MenuFlyoutItem Text="200%" Click="OnZoom200Click" />
+                            </MenuFlyoutSubItem>
+                        </MenuFlyout>
+                    </DropDownButton.Flyout>
+                </DropDownButton>
+            </StackPanel>
         </Grid>
     </Grid>
 </Window>

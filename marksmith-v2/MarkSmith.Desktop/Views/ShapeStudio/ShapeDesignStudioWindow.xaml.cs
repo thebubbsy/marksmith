@@ -702,6 +702,20 @@ namespace MarkSmith.Views.ShapeStudio
             flyout.ShowAt(PaletteButton, KeyboardContextMenu.PointIn(e, PaletteButton));
         }
 
+        private DiagramPreset? FocusedPresetItem()
+        {
+            if (this.RootGrid.XamlRoot is null) return null;
+            for (var cur = FocusManager.GetFocusedElement(this.RootGrid.XamlRoot) as DependencyObject;
+                 cur is not null;
+                 cur = cur is UIElement ? VisualTreeHelper.GetParent(cur) : null)
+            {
+                if (cur is ListViewItem { Content: DiagramPreset item }) return item;
+                if (cur is FrameworkElement { DataContext: DiagramPreset dc }) return dc;
+                if (ReferenceEquals(cur, RootGrid)) break;
+            }
+            return null;
+        }
+
         // ---- keyboard ----
         // Del delete · Ctrl+D duplicate · Ctrl+A select all · Ctrl+Z / Ctrl+Y undo/redo · Esc cancels the
         // armed tool, then the selection · arrows nudge 1 px (Shift: 10 px) while the canvas has focus.
@@ -745,6 +759,13 @@ namespace MarkSmith.Views.ShapeStudio
 
             if (ctrl && e.Key == VirtualKey.C && !shift)
             {
+                if (FocusedPresetItem() is { } preset)
+                {
+                    CopyAndReport(preset.Name, $"Copied preset \"{preset.Name}\" to clipboard.");
+                    e.Handled = true;
+                    return;
+                }
+                if (inChoice) return;
                 OnCopyMarkdownClick(this, new RoutedEventArgs());
                 e.Handled = true;
                 return;
@@ -844,7 +865,7 @@ namespace MarkSmith.Views.ShapeStudio
                     ViewModel.StatusMessage = "Nothing to reorder: select a shape on the canvas first.";
                     e.Handled = true;
                     return;
-                case VirtualKey.F2 when ViewModel.SelectedShape is { IsLine: false }:
+                case VirtualKey.F2 when !inChoice && ViewModel.SelectedShape is { IsLine: false }:
                     FocusLabelEditor();
                     e.Handled = true;
                     return;
@@ -4994,6 +5015,15 @@ namespace MarkSmith.Views.ShapeStudio
             e.Handled = true;
             var flyout = new MenuFlyout();
             bool any = ViewModel.HasShapes;
+
+            flyout.Items.Add(ShapeMenuItem("Copy preset name", "\uE8C8", () =>
+            {
+                var preset = FocusedPresetItem() ?? ViewModel.FilteredPresets.FirstOrDefault();
+                if (preset is not null)
+                {
+                    CopyAndReport(preset.Name, $"Copied preset \"{preset.Name}\" to clipboard.");
+                }
+            }, "Ctrl+C"));
 
             flyout.Items.Add(ShapeMenuItem("Apply first preset", "\uE710", () =>
             {
