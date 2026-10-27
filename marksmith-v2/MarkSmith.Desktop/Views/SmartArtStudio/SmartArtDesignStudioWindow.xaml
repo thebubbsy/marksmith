@@ -661,32 +661,36 @@
                                                          DoubleTapped="OnRenameTextBoxDoubleTapped" Loaded="OnRenameTextBoxLoaded"
                                                          FontSize="13" Padding="6,3" MinHeight="28"
                                                          ToolTipService.ToolTip="Item text (Enter to commit · Esc to cancel · Double-click to select all · Right-click or Shift+F10 for casing options)" />
-                                                <Button Grid.Column="2" Click="OnRowAddChildClick" Style="{StaticResource SubtleButtonStyle}" Width="30" Height="28" Padding="0" Margin="4,0,0,0"
-                                                        Visibility="{Binding IsEditing, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}"
-                                                        RightTapped="OnRowRightTapped"
-                                                        AutomationProperties.Name="Add child" ToolTipService.ToolTip="Add child (Insert · Right-click for options)" VerticalAlignment="Center">
-                                                    <FontIcon Glyph="&#xE710;" FontSize="12" />
-                                                </Button>
-                                                <Button Grid.Column="3" Click="OnRowDeleteClick" Style="{StaticResource SubtleButtonStyle}" Width="30" Height="28" Padding="0"
-                                                        Visibility="{Binding IsEditing, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}"
-                                                        RightTapped="OnRowRightTapped"
-                                                        AutomationProperties.Name="Delete item" ToolTipService.ToolTip="Delete (Del · Right-click for options)" VerticalAlignment="Center">
-                                                    <FontIcon Glyph="&#xE74D;" FontSize="12" />
-                                                </Button>
-                                                <Button Grid.Column="2" Click="OnRowCommitRenameClick" Style="{StaticResource SubtleButtonStyle}" Width="30" Height="28" Padding="0" Margin="4,0,0,0"
-                                                        AllowFocusOnInteraction="False" IsTabStop="False"
-                                                        Visibility="{Binding IsEditing, Converter={StaticResource BoolToVisibilityConverter}}"
-                                                        RightTapped="OnRowRightTapped"
-                                                        AutomationProperties.Name="Commit rename" ToolTipService.ToolTip="Commit rename (Enter · Right-click for item options)" VerticalAlignment="Center">
-                                                    <FontIcon Glyph="&#xE73E;" FontSize="12" Foreground="{ThemeResource SystemFillColorSuccessBrush}" />
-                                                </Button>
-                                                <Button Grid.Column="3" Click="OnRowCancelRenameClick" Style="{StaticResource SubtleButtonStyle}" Width="30" Height="28" Padding="0"
-                                                        AllowFocusOnInteraction="False" IsTabStop="False"
-                                                        Visibility="{Binding IsEditing, Converter={StaticResource BoolToVisibilityConverter}}"
-                                                        RightTapped="OnRowRightTapped"
-                                                        AutomationProperties.Name="Cancel rename" ToolTipService.ToolTip="Cancel rename (Esc · Right-click for item options)" VerticalAlignment="Center">
-                                                    <FontIcon Glyph="&#xE711;" FontSize="12" Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
-                                                </Button>
+                                                <StackPanel Grid.Column="2" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="2"
+                                                            XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                                            AutomationProperties.Name="Outline row actions">
+                                                    <Button Click="OnRowAddChildClick" Style="{StaticResource SubtleButtonStyle}" Width="30" Height="28" Padding="0" Margin="4,0,0,0"
+                                                            Visibility="{Binding IsEditing, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}"
+                                                            RightTapped="OnRowRightTapped"
+                                                            AutomationProperties.Name="Add child" ToolTipService.ToolTip="Add child (Insert · Right-click for options)" VerticalAlignment="Center">
+                                                        <FontIcon Glyph="&#xE710;" FontSize="12" />
+                                                    </Button>
+                                                    <Button Click="OnRowDeleteClick" Style="{StaticResource SubtleButtonStyle}" Width="30" Height="28" Padding="0"
+                                                            Visibility="{Binding IsEditing, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}"
+                                                            RightTapped="OnRowRightTapped"
+                                                            AutomationProperties.Name="Delete item" ToolTipService.ToolTip="Delete (Del · Right-click for options)" VerticalAlignment="Center">
+                                                        <FontIcon Glyph="&#xE74D;" FontSize="12" />
+                                                    </Button>
+                                                    <Button Click="OnRowCommitRenameClick" Style="{StaticResource SubtleButtonStyle}" Width="30" Height="28" Padding="0" Margin="4,0,0,0"
+                                                            AllowFocusOnInteraction="False" IsTabStop="False"
+                                                            Visibility="{Binding IsEditing, Converter={StaticResource BoolToVisibilityConverter}}"
+                                                            RightTapped="OnRowRightTapped"
+                                                            AutomationProperties.Name="Commit rename" ToolTipService.ToolTip="Commit rename (Enter · Right-click for item options)" VerticalAlignment="Center">
+                                                        <FontIcon Glyph="&#xE73E;" FontSize="12" Foreground="{ThemeResource SystemFillColorSuccessBrush}" />
+                                                    </Button>
+                                                    <Button Click="OnRowCancelRenameClick" Style="{StaticResource SubtleButtonStyle}" Width="30" Height="28" Padding="0"
+                                                            AllowFocusOnInteraction="False" IsTabStop="False"
+                                                            Visibility="{Binding IsEditing, Converter={StaticResource BoolToVisibilityConverter}}"
+                                                            RightTapped="OnRowRightTapped"
+                                                            AutomationProperties.Name="Cancel rename" ToolTipService.ToolTip="Cancel rename (Esc · Right-click for item options)" VerticalAlignment="Center">
+                                                        <FontIcon Glyph="&#xE711;" FontSize="12" Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
+                                                    </Button>
+                                                </StackPanel>
                                             </Grid>
                                         </Border>
                                     </DataTemplate>
@@ -807,7 +811,9 @@
                                             </ListView>
                                             <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" Margin="0,4" />
                                             <TextBlock Text="Custom accent override" FontWeight="SemiBold" FontSize="12" />
-                                            <Grid ColumnSpacing="6">
+                                            <Grid x:Name="CustomPaletteCluster" ColumnSpacing="6"
+                                                  XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                                  AutomationProperties.Name="Custom accent palette actions">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="Auto" />

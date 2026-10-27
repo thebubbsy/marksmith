@@ -248,7 +248,9 @@
                                                Description="Text repeated at the top and bottom of every page. Tokens: {title}, {page}, {pages}, {date}.">
                             <controls:SettingsCard.Details>
                                 <Grid x:Name="PdfBandsGrid" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="16">
-                                    <StackPanel Spacing="10" VerticalAlignment="Center" MinWidth="180">
+                                    <StackPanel x:Name="PdfHeaderFooterInputsCluster" Spacing="10" VerticalAlignment="Center" MinWidth="180"
+                                                XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                                AutomationProperties.Name="PDF header and footer templates">
                                         <TextBox Header="Header" AutomationProperties.Name="PDF header template"
                                                  Text="{Binding PdfHeaderTemplate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                  PlaceholderText="e.g. {title} — {date}" IsSpellCheckEnabled="False" />
@@ -305,7 +307,9 @@
                             <ToggleSwitch Style="{StaticResource SettingsToggleStyle}" AutomationProperties.Name="PDF password protection"
                                           IsOn="{Binding PdfEncrypt, Mode=TwoWay}" />
                             <controls:SettingsCard.Details>
-                                <StackPanel Spacing="10" Visibility="{Binding PdfEncrypt, Converter={StaticResource SettingsBoolToVisibilityConverter}}">
+                                <StackPanel x:Name="PdfPasswordsCluster" Spacing="10" Visibility="{Binding PdfEncrypt, Converter={StaticResource SettingsBoolToVisibilityConverter}}"
+                                            XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                            AutomationProperties.Name="PDF passwords">
                                     <PasswordBox x:Name="PdfUserPasswordBox" Header="Open password (required to view)"
                                                  AutomationProperties.Name="Open password (required to view)"
                                                  Password="{Binding PdfUserPassword, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
@@ -428,7 +432,9 @@
                                         <TextBox x:Name="WebDavEndpointBox" Header="WebDAV endpoint" AutomationProperties.Name="WebDAV endpoint"
                                                  Text="{Binding WebDavEndpoint, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                  PlaceholderText="https://dav.example.com/remote.php/dav/files/user/" IsSpellCheckEnabled="False" />
-                                        <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                                        <Grid x:Name="WebDavCredentialsCluster" ColumnDefinitions="*,*" ColumnSpacing="12"
+                                              XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                              AutomationProperties.Name="WebDAV credentials">
                                             <TextBox Header="Username" AutomationProperties.Name="WebDAV username"
                                                      Text="{Binding WebDavUser, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                      PlaceholderText="user@example.com" IsSpellCheckEnabled="False" />

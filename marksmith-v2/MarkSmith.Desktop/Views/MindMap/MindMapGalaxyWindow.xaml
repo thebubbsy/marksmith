@@ -1052,7 +1052,7 @@
                             <StackPanel x:Name="SelectedNodeActionsCluster" Spacing="6"
                                         XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
                                         AutomationProperties.Name="Selected node document actions">
-                                <Button Click="OnOpenSelectedDocumentClick" IsEnabled="{Binding HasFile}" HorizontalAlignment="Stretch" Style="{StaticResource AccentButtonStyle}" Padding="10,6"
+                                <Button x:Name="OpenSelectedDocButton" Click="OnOpenSelectedDocumentClick" IsEnabled="{Binding HasFile}" HorizontalAlignment="Stretch" Style="{StaticResource AccentButtonStyle}" Padding="10,6"
                                         ToolTipService.ToolTip="Open the linked file in the editor (double-click the node)"
                                         AutomationProperties.Name="Open in editor">
                                     <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
@@ -1060,7 +1060,7 @@
                                         <TextBlock Text="Open in editor" FontSize="12" />
                                     </StackPanel>
                                 </Button>
-                                <Button Click="OnOpenVersionHistoryClick" IsEnabled="{Binding HasFile}" HorizontalAlignment="Stretch" Padding="10,6"
+                                <Button x:Name="OpenVersionHistoryButton" Click="OnOpenVersionHistoryClick" IsEnabled="{Binding HasFile}" HorizontalAlignment="Stretch" Padding="10,6"
                                         ToolTipService.ToolTip="Every saved version of the linked file, with what changed"
                                         AutomationProperties.Name="Version history">
                                     <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">

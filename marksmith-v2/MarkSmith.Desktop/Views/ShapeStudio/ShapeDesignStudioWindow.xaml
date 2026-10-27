@@ -1314,7 +1314,9 @@
                             <TextBlock Grid.Row="1" Text="Position" Style="{StaticResource InspectorLabel}" />
                             <!-- Visible X/Y (W/H) captions: the placeholders vanished as soon as the boxes held
                                  numbers, leaving two unexplained values side by side. -->
-                            <Grid Grid.Row="1" Grid.Column="1" ColumnSpacing="5">
+                            <Grid x:Name="ShapePositionCluster" Grid.Row="1" Grid.Column="1" ColumnSpacing="5"
+                                  XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                  AutomationProperties.Name="Shape position">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
@@ -1334,7 +1336,9 @@
                             <TextBlock Grid.Row="2" Text="Size" Style="{StaticResource InspectorLabel}" />
                             <!-- Visible X/Y (W/H) captions: the placeholders vanished as soon as the boxes held
                                  numbers, leaving two unexplained values side by side. -->
-                            <Grid Grid.Row="2" Grid.Column="1" ColumnSpacing="5">
+                            <Grid x:Name="ShapeDimensionsCluster" Grid.Row="2" Grid.Column="1" ColumnSpacing="5"
+                                  XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                  AutomationProperties.Name="Shape dimensions">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
@@ -1352,7 +1356,9 @@
                             </Grid>
 
                             <TextBlock Grid.Row="3" Text="{Binding SelectedShape.ColourLabel}" Style="{StaticResource InspectorLabel}" />
-                            <Grid Grid.Row="3" Grid.Column="1" ColumnSpacing="8">
+                            <Grid x:Name="ShapeFillCluster" Grid.Row="3" Grid.Column="1" ColumnSpacing="8"
+                                  XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                  AutomationProperties.Name="Shape fill color">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
@@ -1409,7 +1415,9 @@
                             <!-- Lines only: connectors kept whatever weight their preset gave them. -->
                             <TextBlock Grid.Row="4" Text="Weight" Style="{StaticResource InspectorLabel}"
                                        Visibility="{Binding SelectedShape.IsLine, Converter={StaticResource BoolToVis}}" />
-                            <Grid Grid.Row="4" Grid.Column="1" ColumnSpacing="6"
+                            <Grid x:Name="ShapeStrokeWeightCluster" Grid.Row="4" Grid.Column="1" ColumnSpacing="6"
+                                  XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                  AutomationProperties.Name="Line weight"
                                   Visibility="{Binding SelectedShape.IsLine, Converter={StaticResource BoolToVis}}">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
@@ -1424,7 +1432,9 @@
                             </Grid>
 
                             <TextBlock Grid.Row="5" Text="Rotation" Style="{StaticResource InspectorLabel}" />
-                            <Grid Grid.Row="5" Grid.Column="1" ColumnSpacing="6">
+                            <Grid x:Name="ShapeRotationCluster" Grid.Row="5" Grid.Column="1" ColumnSpacing="6"
+                                  XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                  AutomationProperties.Name="Shape rotation">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="38" />

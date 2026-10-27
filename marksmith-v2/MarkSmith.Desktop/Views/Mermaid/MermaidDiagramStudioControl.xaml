@@ -507,23 +507,31 @@
                                      PlaceholderText="No label" />
                             <!-- Each Mermaid grammar has its own connector vocabulary; only the one
                                  for the current diagram type is shown (UpdateSelectionChrome). -->
-                            <ComboBox x:Name="ConnectorLineCombo" Header="Line" SelectedValuePath="Tag" HorizontalAlignment="Stretch"
-                                      AutomationProperties.Name="Connector line style"
-                                      KeyDown="OnInspectorInputKeyDown"
-                                      SelectedValue="{Binding SelectedConnector.LineStyle, Mode=TwoWay}">
-                                <ComboBoxItem Content="Solid" Tag="Solid" />
-                                <ComboBoxItem Content="Dashed" Tag="Dashed" />
-                                <ComboBoxItem Content="Thick" Tag="Thick" />
-                            </ComboBox>
-                            <ComboBox x:Name="ConnectorHeadCombo" Header="Arrow head" SelectedValuePath="Tag" HorizontalAlignment="Stretch"
-                                      AutomationProperties.Name="Connector arrow head"
-                                      KeyDown="OnInspectorInputKeyDown"
-                                      SelectedValue="{Binding SelectedConnector.EndHead, Mode=TwoWay}">
-                                <ComboBoxItem Content="Arrow" Tag="Normal" />
-                                <ComboBoxItem Content="None" Tag="None" />
-                                <ComboBoxItem Content="Circle" Tag="Circle" />
-                                <ComboBoxItem Content="Cross" Tag="Cross" />
-                            </ComboBox>
+                            <Grid x:Name="ConnectorStylePropertiesCluster" ColumnSpacing="8"
+                                  XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                  AutomationProperties.Name="Connector line and arrow head styles">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <ComboBox x:Name="ConnectorLineCombo" Header="Line" SelectedValuePath="Tag" HorizontalAlignment="Stretch"
+                                          AutomationProperties.Name="Connector line style"
+                                          KeyDown="OnInspectorInputKeyDown"
+                                          SelectedValue="{Binding SelectedConnector.LineStyle, Mode=TwoWay}">
+                                    <ComboBoxItem Content="Solid" Tag="Solid" />
+                                    <ComboBoxItem Content="Dashed" Tag="Dashed" />
+                                    <ComboBoxItem Content="Thick" Tag="Thick" />
+                                </ComboBox>
+                                <ComboBox Grid.Column="1" x:Name="ConnectorHeadCombo" Header="Arrow head" SelectedValuePath="Tag" HorizontalAlignment="Stretch"
+                                          AutomationProperties.Name="Connector arrow head"
+                                          KeyDown="OnInspectorInputKeyDown"
+                                          SelectedValue="{Binding SelectedConnector.EndHead, Mode=TwoWay}">
+                                    <ComboBoxItem Content="Arrow" Tag="Normal" />
+                                    <ComboBoxItem Content="None" Tag="None" />
+                                    <ComboBoxItem Content="Circle" Tag="Circle" />
+                                    <ComboBoxItem Content="Cross" Tag="Cross" />
+                                </ComboBox>
+                            </Grid>
                             <ComboBox x:Name="ConnectorMessageCombo" Header="Message" SelectedValuePath="Tag" HorizontalAlignment="Stretch"
                                       AutomationProperties.Name="Sequence message type"
                                       KeyDown="OnInspectorInputKeyDown"

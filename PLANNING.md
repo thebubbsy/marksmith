@@ -21696,3 +21696,45 @@ through `ClipboardWriter` with the result reported. No resource lookups, file ac
 3. Carry forward Block 3's 2 refined ideas as first refinement targets.
 
 **Total user-visible improvements: 14** (10 action, mosaic, line art, carousel, status & diff search clusters single Tab stops & XY arrow navigation; 2 inspector geometry clusters single Tab stops; 1 diagram presets list single Tab stop; 1 button UIA accessible name).
+
+
+## 2026-10-28 · Run #304 (07:00–07:45 AEDT) · Antigravity AI Agent
+
+**Agent / Execution Metadata**
+- Model: Antigravity AI Agent (Google DeepMind)
+- Modes: Scheduled Hourly Automation Routine
+- Trigger: Scheduled hourly MarkSmith WinUI 3 Desktop Polish Routine
+- Protocol: AI-Executable 3-Block Cycle + Execution Phase Protocol (Blocks 1–3 generating 2 ideas each with dual refinement passes; Execution Phase refining Block 3 ideas and delivering all 6 refined ideas into production code)
+- Mandate: Milestone Run #304 - Shape Design Studio Inspector geometry clusters (position X/Y, dimensions W/H), styling clusters (fill color, stroke weight, rotation) single Tab stops & XY keyboard navigation; SmartArt Design Studio outline row actions cluster and custom accent palette cluster single Tab stops & XY navigation; Mermaid Diagram Studio inspector connector line & arrow head styles cluster single Tab stop & XY navigation; Settings View PDF templates, PDF passwords, and WebDAV credentials clusters single Tab stops & XY navigation; Main Window find close button & Mind Map Galaxy selected node document action buttons explicit element IDs & accessible names.
+
+**Delivered (user-visible):**
+1. **Shape Design Studio Inspector Shape Position Cluster Single Tab Stop & Arrow Navigation (Idea 1.1):** In `Views/ShapeStudio/ShapeDesignStudioWindow.xaml`, `ShapePositionCluster` (`Grid` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Shape position"`) consolidates X and Y coordinate number boxes into 1 Tab stop with Left/Right arrow key switching.
+2. **Shape Design Studio Inspector Shape Dimensions Cluster Single Tab Stop & Arrow Navigation (Idea 1.1):** In `Views/ShapeStudio/ShapeDesignStudioWindow.xaml`, `ShapeDimensionsCluster` (`Grid` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Shape dimensions"`) consolidates Width and Height number boxes into 1 Tab stop with Left/Right arrow key switching.
+3. **Shape Design Studio Inspector Shape Fill Color Cluster Single Tab Stop & Arrow Navigation (Idea 1.2):** In `Views/ShapeStudio/ShapeDesignStudioWindow.xaml`, `ShapeFillCluster` (`Grid` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Shape fill color"`) unifies the fill color swatch picker button and the hexadecimal value text box into 1 Tab stop with directional arrow keys.
+4. **Shape Design Studio Inspector Line Weight Cluster Single Tab Stop & Arrow Navigation (Idea 1.2):** In `Views/ShapeStudio/ShapeDesignStudioWindow.xaml`, `ShapeStrokeWeightCluster` (`Grid` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Line weight"`) groups line stroke weight number box and unit readout into 1 Tab stop.
+5. **Shape Design Studio Inspector Shape Rotation Cluster Single Tab Stop & Arrow Navigation (Idea 1.2):** In `Views/ShapeStudio/ShapeDesignStudioWindow.xaml`, `ShapeRotationCluster` (`Grid` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Shape rotation"`) consolidates angle slider, angle readout button, and 0° reset button into 1 accessible Tab stop with directional navigation.
+6. **SmartArt Design Studio Custom Accent Palette Cluster Single Tab Stop & Arrow Navigation (Idea 2.1):** In `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml`, `CustomPaletteCluster` (`Grid` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Custom accent palette actions"`) consolidates hex color text box, preview swatch, apply button, and reset button into 1 Tab stop with directional arrow keys.
+7. **SmartArt Design Studio Outline Row Actions Cluster Single Tab Stop & Arrow Navigation (Idea 2.2):** In `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml`, `OutlineRowActionsCluster` (`StackPanel` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Outline row actions"`) groups row add child, delete item, commit rename, and cancel rename action buttons into 1 Tab stop per row with Left/Right arrow keys.
+8. **Mermaid Diagram Studio Inspector Connector Line & Arrow Head Styles Cluster Single Tab Stop & Arrow Navigation (Idea 3.1):** In `Views/Mermaid/MermaidDiagramStudioControl.xaml`, `ConnectorStylePropertiesCluster` (`Grid` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Connector line and arrow head styles"`) unifies connector line style and arrow head style dropdowns into 1 Tab stop with 2D Left/Right arrow switching while halving vertical space overhead.
+9. **Settings View PDF Header and Footer Templates Cluster Single Tab Stop & Arrow Navigation (Idea 3.2):** In `Views/SettingsView.xaml`, `PdfHeaderFooterInputsCluster` (`StackPanel` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="PDF header and footer templates"`) groups header and footer text template boxes into 1 Tab stop.
+10. **Settings View PDF Passwords Cluster Single Tab Stop & Arrow Navigation (Idea 3.2):** In `Views/SettingsView.xaml`, `PdfPasswordsCluster` (`StackPanel` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="PDF passwords"`) unifies open password and permissions password input fields into 1 Tab stop.
+11. **Settings View WebDAV Credentials Cluster Single Tab Stop & Arrow Navigation (Idea 3.2):** In `Views/SettingsView.xaml`, `WebDavCredentialsCluster` (`Grid` with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="WebDAV credentials"`) encapsulates WebDAV username and token/password fields into 1 Tab stop with Left/Right arrow key switching.
+12. **Main Window Find Bar Close Button Element ID & Accessible Name (Idea 3.2):** In `MainWindow.xaml`, `FindCloseButton` is assigned an explicit element name and labeled with `AutomationProperties.Name="Close find"`.
+13. **Mind Map Galaxy Selected Node Open in Editor Button Element ID & Accessible Name (Idea 3.2):** In `Views/MindMap/MindMapGalaxyWindow.xaml`, `OpenSelectedDocButton` is assigned an explicit element name and labeled with `AutomationProperties.Name="Open in editor"`.
+14. **Mind Map Galaxy Selected Node Version History Button Element ID & Accessible Name (Idea 3.2):** In `Views/MindMap/MindMapGalaxyWindow.xaml`, `OpenVersionHistoryButton` is assigned an explicit element name and labeled with `AutomationProperties.Name="Version history"`.
+
+**Implementation Summary**
+- Desktop Surfaces: `Views/ShapeStudio/ShapeDesignStudioWindow.xaml` (`ShapePositionCluster`, `ShapeDimensionsCluster`, `ShapeFillCluster`, `ShapeStrokeWeightCluster`, `ShapeRotationCluster`), `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` (`CustomPaletteCluster`, `OutlineRowActionsCluster`), `Views/Mermaid/MermaidDiagramStudioControl.xaml` (`ConnectorStylePropertiesCluster`), `Views/SettingsView.xaml` (`PdfHeaderFooterInputsCluster`, `PdfPasswordsCluster`, `WebDavCredentialsCluster`), `MainWindow.xaml` (`FindCloseButton`), `Views/MindMap/MindMapGalaxyWindow.xaml` (`OpenSelectedDocButton`, `OpenVersionHistoryButton`).
+- Tests: `Run304StudioPolishAndKeyboardNavigationTests.cs` (14 comprehensive xUnit unit tests verifying all XAML cluster configurations, XY focus navigation, Tab focus navigation, and UIA accessible names).
+
+**Verified:**
+- Unit tests: `Run304StudioPolishAndKeyboardNavigationTests` (14/14 passed in 102 ms); full suite across runs 300, 301, 302, 303, 304 (69/69 passed in 558 ms).
+- Build: `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: 0 errors.
+- Smoke launch: Launched `Marksmith.exe` (PID 26992), verified running healthy after 5 seconds (Responding: True), terminated cleanly.
+
+**Next up (Run #305):**
+1. Audit Shape Design Studio canvas ruler and guides contextual menu for single Tab stops and XY keyboard focus navigation.
+2. Audit Mind Map Galaxy tag filtering search input and tag chips cluster for single Tab stops and 2D arrow navigation.
+3. Carry forward Block 3's 2 refined ideas as first refinement targets.
+
+**Total user-visible improvements: 14** (8 inspector geometry, fill, rotation, line art, palette & settings credential clusters single Tab stops & XY arrow navigation; 2 row action and template clusters single Tab stops; 1 connector style pair cluster; 3 buttons UIA accessible names & element IDs).

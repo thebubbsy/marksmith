@@ -764,7 +764,7 @@
                                                     <FontIcon Glyph="&#xE70D;" FontSize="12" />
                                                 </Button>
                                             </StackPanel>
-                                            <Button Grid.Column="7" Width="32" Height="30" Padding="0" Click="OnFindCloseClick"
+                                            <Button x:Name="FindCloseButton" Grid.Column="7" Width="32" Height="30" Padding="0" Click="OnFindCloseClick"
                                                     AutomationProperties.Name="Close find"
                                                     ToolTipService.ToolTip="Close (Esc)">
                                                 <FontIcon Glyph="&#xE711;" FontSize="12" />
