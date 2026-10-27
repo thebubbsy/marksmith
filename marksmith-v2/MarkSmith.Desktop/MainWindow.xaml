@@ -125,6 +125,8 @@
             <!-- Issue #6: primary quick actions surfaced in the title bar's empty right half.
                  Right margin clears the system caption buttons (min/max/close overlay). -->
             <StackPanel x:Name="TitleBarActions" Grid.Column="1" Orientation="Horizontal" Spacing="4"
+                        XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                        AutomationProperties.Name="Title bar actions"
                         VerticalAlignment="Center" Margin="0,0,150,0">
                 <!-- The command palette's visible entry point: it used to be reachable only by
                      Ctrl+K, which nothing on screen mentioned. The "Search" label steps aside when
@@ -628,6 +630,8 @@
                         </ToggleButton>
                         </StackPanel>
                         <SelectorBar x:Name="CenterViewSelector" SelectionChanged="OnCenterViewSelectorChanged"
+                                     XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                     AutomationProperties.Name="Editor view layout"
                                      RightTapped="OnCenterViewSelectorRightTapped"
                                      ToolTipService.ToolTip="Switch between Code (Ctrl+1), Split (Ctrl+2), and Preview (Ctrl+3) — Right-click or Shift+F10 for view options">
                             <SelectorBarItem x:Name="ViewCodeTab" Text="Code" IsSelected="True"
@@ -2294,7 +2298,10 @@
                 </StackPanel>
                 <StackPanel x:Name="StatusRightPanel" Grid.Column="1" Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right"
                             VerticalAlignment="Center" Margin="16,5" SizeChanged="OnStatusRightPanelSizeChanged">
-                    <HyperlinkButton x:Name="StatusSplitSyncButton" Click="OnStatusSplitSyncButtonClick"
+                    <StackPanel x:Name="StatusViewInfoCluster" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center"
+                                XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                AutomationProperties.Name="View and document status">
+                        <HyperlinkButton x:Name="StatusSplitSyncButton" Click="OnStatusSplitSyncButtonClick"
                                      RightTapped="OnStatusSplitSyncButtonRightTapped"
                                      Padding="4,1" FontSize="11.5" Opacity="0.85" Visibility="Collapsed"
                                      ToolTipService.ToolTip="Split View sync: Linked scrolling &amp; highlighting (Click to toggle, Right-click or Shift+F10 for options)"
@@ -2327,6 +2334,7 @@
                         <TextBlock x:Name="WordCountText" Text="{Binding WordCountText}" FontSize="11.5" Opacity="0.7"
                                    Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
                     </HyperlinkButton>
+                    </StackPanel>
                     <Border Width="1" Height="12" Background="{ThemeResource CardStrokeColorDefaultBrush}" VerticalAlignment="Center" />
                     <StackPanel x:Name="StatusPrimaryCopyPills" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center"
                                 XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once">

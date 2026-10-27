@@ -158,7 +158,7 @@
                             </StackPanel>
                         </Border>
                         <StackPanel x:Name="ZoomControlCluster" Orientation="Horizontal" Spacing="2"
-                                    XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once">
+                                    XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once" AutomationProperties.Name="Galaxy zoom controls">
                             <Button x:Name="ZoomOutButton" Click="OnZoomOutClick" RightTapped="OnZoomResetRightTapped" ToolTipService.ToolTip="Zoom out (Ctrl+−, Right-click or Shift+F10 for zoom presets)" AutomationProperties.Name="Zoom out" Width="32" Height="32" Padding="0"><FontIcon Glyph="&#xE71F;" FontSize="13" /></Button>
                             <Button x:Name="ZoomResetButton" Click="OnZoomResetClick" RightTapped="OnZoomResetRightTapped" Content="{Binding ZoomLevelText}" MinWidth="52" Height="32" Padding="6,0" FontSize="12"
                                     Background="Transparent" BorderThickness="0"
@@ -750,8 +750,7 @@
                             CornerRadius="20" Padding="8,4" HorizontalAlignment="Center"
                             Visibility="{Binding HasTags, Converter={StaticResource BoolToVis}}">
                         <ScrollViewer HorizontalScrollBarVisibility="Auto" HorizontalScrollMode="Auto" VerticalScrollBarVisibility="Disabled" VerticalScrollMode="Disabled">
-                            <StackPanel Orientation="Horizontal" Spacing="4" PreviewKeyDown="OnTagPillsPreviewKeyDown"
-                                        XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once">
+                            <StackPanel x:Name="GalaxyTagPillsCluster" Orientation="Horizontal" Spacing="4" PreviewKeyDown="OnTagPillsPreviewKeyDown" XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once" AutomationProperties.Name="Filter tag pills">
                                 <FontIcon Glyph="&#xE8EC;" FontSize="12" VerticalAlignment="Center" Margin="4,0,4,0" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 <Button x:Name="AllTagsPill" Click="OnAllTagsClick" Padding="10,3" CornerRadius="12" FontSize="11"
                                         Content="All tags" ToolTipService.ToolTip="Show every node (Esc clears filter) · Right-click or Shift+F10 for options"

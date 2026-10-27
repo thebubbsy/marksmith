@@ -1,4 +1,4 @@
-﻿<UserControl
+<UserControl
     x:Class="MarkSmith.Views.SettingsView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -318,7 +318,9 @@
                                                  ToolTipService.ToolTip="If you restrict permissions below but leave both passwords blank, a random permissions password is generated automatically." />
                                     <StackPanel Spacing="2">
                                         <TextBlock Text="Readers may" Style="{StaticResource SettingsHintStyle}" />
-                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <StackPanel x:Name="PdfPermissionsCluster" Orientation="Horizontal" Spacing="4"
+                                                    XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                                    AutomationProperties.Name="Reader permissions">
                                             <CheckBox Content="Print" AutomationProperties.Name="Allow printing"
                                                       ToolTipService.ToolTip="Allow readers to print the exported PDF"
                                                       IsChecked="{Binding PdfAllowPrinting, Mode=TwoWay}" />
@@ -504,25 +506,31 @@
                                     <TextBlock x:Name="GoogleCodeText" FontFamily="Cascadia Mono, Consolas" FontSize="20" FontWeight="SemiBold"
                                                IsTextSelectionEnabled="True" VerticalAlignment="Center" CharacterSpacing="80"
                                                AutomationProperties.Name="Google sign-in code" />
-                                    <Button Click="OnCopyGoogleCodeClick" VerticalAlignment="Center"
-                                            ToolTipService.ToolTip="Copy the code" AutomationProperties.Name="Copy the sign-in code">
-                                        <FontIcon x:Name="CopyGoogleCodeIcon" Glyph="&#xE8C8;" FontSize="14" />
-                                    </Button>
-                                    <Button Click="OnOpenGoogleVerifyClick" Style="{StaticResource AccentButtonStyle}" VerticalAlignment="Center"
-                                            AutomationProperties.Name="Open Google sign-in page"
-                                            ToolTipService.ToolTip="Opens Google's device sign-in page in your browser">
-                                        <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <TextBlock Text="Open sign-in page" />
-                                            <FontIcon Glyph="&#xE8A7;" FontSize="12" />
-                                        </StackPanel>
-                                    </Button>
+                                    <StackPanel x:Name="GoogleSignInActionsCluster" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"
+                                                XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                                AutomationProperties.Name="Google sign-in actions">
+                                        <Button Click="OnCopyGoogleCodeClick" VerticalAlignment="Center"
+                                                ToolTipService.ToolTip="Copy the code" AutomationProperties.Name="Copy the sign-in code">
+                                            <FontIcon x:Name="CopyGoogleCodeIcon" Glyph="&#xE8C8;" FontSize="14" />
+                                        </Button>
+                                        <Button Click="OnOpenGoogleVerifyClick" Style="{StaticResource AccentButtonStyle}" VerticalAlignment="Center"
+                                                AutomationProperties.Name="Open Google sign-in page"
+                                                ToolTipService.ToolTip="Opens Google's device sign-in page in your browser">
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <TextBlock Text="Open sign-in page" />
+                                                <FontIcon Glyph="&#xE8A7;" FontSize="12" />
+                                            </StackPanel>
+                                        </Button>
+                                    </StackPanel>
                                 </StackPanel>
                             </InfoBar.Content>
                         </InfoBar>
                         <controls:SettingsCard Glyph="&#xE77B;" Header="Google account"
                                                Description="Sign-in shows a short code — approve it in your browser and you're connected. MarkSmith only creates documents and the images inside them; nothing else in your Drive is touched.">
                             <!-- One button for the state you're in: Sign out only once connected, Sign in only before. -->
-                            <StackPanel Orientation="Horizontal" Spacing="8">
+                            <StackPanel x:Name="GoogleAccountActionsCluster" Orientation="Horizontal" Spacing="8"
+                                        XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                        AutomationProperties.Name="Google account actions">
                                 <Button Content="Sign out" Command="{Binding SignOutGoogleCommand}"
                                         AutomationProperties.Name="Sign out of Google"
                                         Visibility="{Binding IsGoogleConnected, Converter={StaticResource SettingsBoolToVisibilityConverter}}"
@@ -654,7 +662,9 @@
                         <InfoBar x:Name="PluginWarningsBar" IsOpen="False" Severity="Warning" IsClosable="True"
                                  Title="Some plugin folders were skipped" Margin="0,4,0,0"
                                  AutomationProperties.LiveSetting="Polite" />
-                        <StackPanel Orientation="Horizontal" Spacing="16" Margin="-12,8,0,0">
+                        <StackPanel x:Name="PluginsLinksCluster" Orientation="Horizontal" Spacing="16" Margin="-12,8,0,0"
+                                    XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                    AutomationProperties.Name="Plugins footer links">
                             <HyperlinkButton NavigateUri="https://github.com/thebubbsy/MarkSmith-plugins"
                                              AutomationProperties.Name="Browse more plugins &amp; write your own"
                                              ToolTipService.ToolTip="github.com/thebubbsy/MarkSmith-plugins">
@@ -706,7 +716,9 @@
                                         <TextBlock x:Name="VersionText" Text="" Style="{StaticResource SettingsHintStyle}" />
                                     </Button>
                                 </StackPanel>
-                                <StackPanel x:Name="AboutCheckPanel" Grid.Column="2" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                <StackPanel x:Name="AboutCheckPanel" Grid.Column="2" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center"
+                                            XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                            AutomationProperties.Name="About update actions">
                                     <ProgressRing x:Name="CheckRing" IsActive="False" Width="18" Height="18" Visibility="Collapsed" />
                                     <Button x:Name="CheckButton" Click="OnCheckForUpdates"
                                             AutomationProperties.Name="Check for updates"

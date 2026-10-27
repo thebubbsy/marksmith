@@ -1,4 +1,4 @@
-﻿<Window
+<Window
     x:Class="MarkSmith.Views.History.HistoryWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -584,7 +584,8 @@
                                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
                                     CornerRadius="6" Padding="2" VerticalAlignment="Center">
                                 <StackPanel x:Name="DiffModeSegment" Orientation="Horizontal" Spacing="2"
-                                            XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once">
+                                            XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                            AutomationProperties.Name="Diff view modes">
                                     <StackPanel.Resources>
                                         <Style TargetType="ToggleButton" BasedOn="{StaticResource DefaultToggleButtonStyle}">
                                             <Setter Property="Padding" Value="10,3,10,4" />
@@ -636,7 +637,8 @@
                                     </MenuFlyout>
                                 </Border.ContextFlyout>
                                 <StackPanel x:Name="DiffChangeStepperControls" Orientation="Horizontal" Spacing="2"
-                                            XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once">
+                                            XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                            AutomationProperties.Name="Change hunk navigation">
                                     <Button x:Name="PrevChangeButton" Click="OnPrevChangeButtonClick" Style="{StaticResource SubtleButtonStyle}"
                                             Width="24" Height="24" Padding="0"
                                             ToolTipService.ToolTip="Previous change hunk (Shift+F7)" AutomationProperties.Name="Previous change">
@@ -699,6 +701,7 @@
                             <!-- Diff Delta Meters Cluster -->
                             <StackPanel x:Name="DiffMetersCluster" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
                                         XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                        AutomationProperties.Name="Diff meters"
                                         Visibility="{Binding HasDiffStats, Converter={StaticResource BoolToVis}}">
                                 <!-- Delta Meter -->
                                 <!-- Buttons, not Borders, so Tab reaches the meters: Enter copies, Shift+F10 opens the menu. -->

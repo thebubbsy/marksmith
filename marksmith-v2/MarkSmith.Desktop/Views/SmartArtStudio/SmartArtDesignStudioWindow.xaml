@@ -58,7 +58,8 @@
                 </StackPanel>
             </StackPanel>
             <StackPanel x:Name="SmartArtActionCluster" Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
-                        XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once">
+                        XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                        AutomationProperties.Name="SmartArt studio actions">
                 <Button x:Name="UndoStudioButton" Style="{StaticResource ToolIconButton}" Command="{Binding UndoCommand}" IsEnabled="{Binding CanUndo}"
                         AutomationProperties.Name="Undo" ToolTipService.ToolTip="Undo (Ctrl+Z, Right-click or Shift+F10 for options)"
                         RightTapped="OnUndoButtonRightTapped"><FontIcon Glyph="&#xE7A7;" FontSize="14" /></Button>
@@ -840,7 +841,7 @@
                                             <!-- Toggles, so the active mode stays pressed (and reads "checked") on the button itself.
                                                  Arrow keys move between the three modes; Tab passes them in one stop. -->
                                             <StackPanel x:Name="HarmonyModeSegment" Orientation="Horizontal" Spacing="4"
-                                                        XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once">
+                                                        XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once" AutomationProperties.Name="Palette harmony modes">
                                                 <ToggleButton x:Name="HarmonyMonoBtn" Padding="8,3" Height="26" MinWidth="0" IsChecked="True"
                                                         AutomationProperties.Name="Monochromatic harmony"
                                                         Click="OnHarmonyMonoClick" ToolTipService.ToolTip="Monochromatic harmony (stepped lightness)">
@@ -1094,7 +1095,7 @@
                                 IsHitTestVisible="True"
                                 ToolTipService.ToolTip="Preview zoom controls (Click/Double-click to reset, Right-click for presets)">
                             <StackPanel x:Name="PreviewZoomControlCluster" Orientation="Horizontal" Spacing="2"
-                                        XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once">
+                                        XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once" AutomationProperties.Name="Preview zoom controls">
                                 <Button x:Name="PreviewZoomOutBtn" Style="{StaticResource SubtleButtonStyle}" Width="28" Height="28" Padding="0"
                                         Click="OnPreviewZoomOutClick" ToolTipService.ToolTip="Zoom out (Ctrl+−)" AutomationProperties.Name="Zoom out preview">
                                     <FontIcon Glyph="&#xE71F;" FontSize="11" />

@@ -21405,3 +21405,51 @@ through `ClipboardWriter` with the result reported. No resource lookups, file ac
 3. Carry forward Block 3's 2 refined ideas as first refinement targets.
 
 **Total user-visible improvements: 15** (1 Shape Studio preset tabs cluster; 2 Mermaid Studio tabs & palette categories clusters; 3 SmartArt Studio preview tools, editor tabs, and outline metrics clusters; 2 MindMap Galaxy search stepper & preview actions clusters; 2 Suite Hub status badges & header tools clusters; 1 Version History actions cluster; 4 Main Window center view toggles, find options, find stepper, and replace actions clusters).
+## 2026-10-28 · Run #298 (01:05–01:35 AEDT) · Antigravity AI Agent
+
+**Agent / Execution Metadata**
+- Model: Antigravity AI Agent (Google DeepMind)
+- Modes: Scheduled Hourly Automation Routine
+- Trigger: Scheduled hourly MarkSmith WinUI 3 Desktop Polish Routine
+- Mandate: Title bar actions cluster & center view layout selector single Tab stop & XY arrow navigation; Status view info cluster single Tab stop; Settings View PDF permissions, Google sign-in/account, plugins footer links, and update panel clusters single Tab stop & XY arrow navigation; Extension Setup View browser pages and folder actions clusters single Tab stop & XY arrow navigation; Complete UI Automation (UIA) accessible names across clusters and controls in History Window, OCR Inspection Studio, SmartArt Studio, Shape Studio, Mermaid Studio, and MindMap Galaxy.
+
+**Delivered (user-visible):**
+1. **Main Window Title Bar Actions Cluster Single Tab Stop & Arrow Navigation:** In MainWindow.xaml, CommandPaletteButton, ExportPdfTitleButton, ExportDocxTitleButton, ImportDocumentTitleButton, DiagramStudioTitleButton, SuiteHubButton, SettingsTitleButton, and FocusModeToggle inside TitleBarActions are configured with XYFocusKeyboardNavigation="Enabled", TabFocusNavigation="Once", and AutomationProperties.Name="Title bar actions". Keyboard users can traverse all top-level document and studio actions with Left/Right arrow keys in 1 single Tab stop.
+2. **Main Window Center View Layout Selector Single Tab Stop & Arrow Navigation:** In MainWindow.xaml, CenterViewSelector (SelectorBar for Code, Split, Preview) is configured with XYFocusKeyboardNavigation="Enabled", TabFocusNavigation="Once", and AutomationProperties.Name="Editor view layout". Arrow keys seamlessly cycle layout modes in a single Tab stop.
+3. **Main Window Status View & Document Metrics Info Cluster Single Tab Stop & Arrow Navigation:** In MainWindow.xaml, StatusSplitSyncButton, StatusSectionBreadcrumbButton, and WordCountButton in StatusRightPanel are grouped into StatusViewInfoCluster (XYFocusKeyboardNavigation="Enabled", TabFocusNavigation="Once", AutomationProperties.Name="View and document status").
+4. **Settings View PDF Reader Permissions Cluster Single Tab Stop & Arrow Navigation:** In Views/SettingsView.xaml, the security checkboxes (Print, Copy text, Edit) inside the PDF Export card are unified into PdfPermissionsCluster (XYFocusKeyboardNavigation="Enabled", TabFocusNavigation="Once", AutomationProperties.Name="Reader permissions"). Compresses 3 individual checkbox Tab stops into 1 clean arrow-stepped stop.
+5. **Settings View Google Sign-In Actions Cluster Single Tab Stop & Arrow Navigation:** In Views/SettingsView.xaml, CopyDeviceCodeButton and OpenVerifyUrlButton inside the Google Drive card are grouped into GoogleSignInActionsCluster (XYFocusKeyboardNavigation="Enabled", TabFocusNavigation="Once", AutomationProperties.Name="Google sign-in actions").
+6. **Settings View Google Account Actions Cluster Single Tab Stop & Arrow Navigation:** In Views/SettingsView.xaml, DisconnectGoogleButton and GoogleDriveStatusButton are grouped into GoogleAccountActionsCluster (XYFocusKeyboardNavigation="Enabled", TabFocusNavigation="Once", AutomationProperties.Name="Google account actions").
+7. **Settings View Plugins Footer Links Cluster Single Tab Stop & Arrow Navigation:** In Views/SettingsView.xaml, OpenPluginsFolderButton and OpenCommunityRepoButton in the Plugins tab footer are grouped into PluginsLinksCluster (XYFocusKeyboardNavigation="Enabled", TabFocusNavigation="Once", AutomationProperties.Name="Plugins footer links").
+8. **Settings View About Check & Update Panel Single Tab Stop & Arrow Navigation:** In Views/SettingsView.xaml, CheckUpdateButton and ReleaseNotesButton inside AboutCheckPanel are configured with XYFocusKeyboardNavigation="Enabled", TabFocusNavigation="Once", and AutomationProperties.Name="About update actions".
+9. **Extension Setup View Browser Pages Panel Single Tab Stop & Arrow Navigation:** In Views/ExtensionSetupView.xaml, BrowserPagesPanel hosting Chrome, Edge, and Firefox webstore links is configured with XYFocusKeyboardNavigation="Enabled", TabFocusNavigation="Once", and AutomationProperties.Name="Browser extensions pages".
+10. **Extension Setup View Folder Actions Cluster Single Tab Stop & Arrow Navigation:** In Views/ExtensionSetupView.xaml, CopyFolderButton and OpenFolderButton are grouped into ExtensionFolderActionsCluster (XYFocusKeyboardNavigation="Enabled", TabFocusNavigation="Once", AutomationProperties.Name="Extension folder actions").
+11. **Version History Diff Modes Segment Accessible Name:** In Views/History/HistoryWindow.xaml, DiffModeSegment (Segmented control for Split, Unified, Side-by-Side) is labeled with AutomationProperties.Name="Diff view modes", providing immediate screen reader context.
+12. **Version History Change Hunk Stepper Accessible Name:** In Views/History/HistoryWindow.xaml, DiffChangeStepperControls is labeled with AutomationProperties.Name="Change hunk navigation".
+13. **Version History Diff Meters Cluster Accessible Name:** In Views/History/HistoryWindow.xaml, DiffMetersCluster is labeled with AutomationProperties.Name="Diff meters".
+14. **OCR Studio Page Navigation Cluster Accessible Name:** In Views/Ocr/OcrInspectionStudioWindow.xaml, PageNavigationCluster is labeled with AutomationProperties.Name="Page navigation".
+15. **OCR Studio Action Buttons Cluster Accessible Name:** In Views/Ocr/OcrInspectionStudioWindow.xaml, CtaActionCluster is labeled with AutomationProperties.Name="Studio call to action buttons".
+16. **SmartArt Studio Actions Cluster Accessible Name:** In Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml, SmartArtActionCluster is labeled with AutomationProperties.Name="SmartArt studio actions".
+17. **SmartArt Studio Palette Harmony Modes Accessible Name:** In Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml, HarmonyModeSegment is labeled with AutomationProperties.Name="Palette harmony modes".
+18. **SmartArt Studio Preview Zoom Controls Accessible Name:** In Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml, PreviewZoomControlCluster is labeled with AutomationProperties.Name="Preview zoom controls".
+19. **Shape Studio Actions Cluster Accessible Name:** In Views/ShapeStudio/ShapeDesignStudioWindow.xaml, ShapeStudioActionCluster is labeled with AutomationProperties.Name="Shape studio actions".
+20. **Shape Studio Status Actions Cluster Accessible Name:** In Views/ShapeStudio/ShapeDesignStudioWindow.xaml, ShapeStudioStatusCluster is labeled with AutomationProperties.Name="Shape studio status actions".
+21. **Mermaid Studio Diagram Actions Cluster Accessible Name:** In Views/Mermaid/MermaidDiagramStudioControl.xaml, DiagramActionCluster is labeled with AutomationProperties.Name="Diagram studio actions".
+22. **MindMap Galaxy Zoom Controls Cluster Accessible Name:** In Views/MindMap/MindMapGalaxyWindow.xaml, ZoomControlCluster is labeled with AutomationProperties.Name="Galaxy zoom controls".
+23. **MindMap Galaxy Tag Pills Filter Cluster Accessible Name:** In Views/MindMap/MindMapGalaxyWindow.xaml, GalaxyTagPillsCluster is labeled with AutomationProperties.Name="Filter tag pills".
+
+**Implementation Summary**
+- Desktop Surfaces: MainWindow.xaml (TitleBarActions, CenterViewSelector, StatusViewInfoCluster), Views/SettingsView.xaml (PdfPermissionsCluster, GoogleSignInActionsCluster, GoogleAccountActionsCluster, PluginsLinksCluster, AboutCheckPanel), Views/ExtensionSetupView.xaml (BrowserPagesPanel, ExtensionFolderActionsCluster), Views/History/HistoryWindow.xaml (DiffModeSegment, DiffChangeStepperControls, DiffMetersCluster), Views/Ocr/OcrInspectionStudioWindow.xaml (PageNavigationCluster, CtaActionCluster), Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml (SmartArtActionCluster, HarmonyModeSegment, PreviewZoomControlCluster), Views/ShapeStudio/ShapeDesignStudioWindow.xaml (ShapeStudioActionCluster, ShapeStudioStatusCluster), Views/Mermaid/MermaidDiagramStudioControl.xaml (DiagramActionCluster), Views/MindMap/MindMapGalaxyWindow.xaml (ZoomControlCluster, GalaxyTagPillsCluster).
+- Tests: Run298StudioPolishAndKeyboardNavigationTests.cs (16 xUnit tests asserting all XAML cluster configurations, XYFocusKeyboardNavigation, TabFocusNavigation, and AutomationProperties.Name).
+
+**Verified:**
+- dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64: 0 errors.
+- Unit tests: Run298StudioPolishAndKeyboardNavigationTests (16/16 passed), combined suite Run29 (110/110 passed).
+- Smoke launch: Launched Marksmith.exe (PID 28396), confirmed running healthy after 5s (Responding: True), closed cleanly.
+
+**Next up (Run #299):**
+1. Audit Image Insert Control aspect ratio and format chips for arrow key navigation.
+2. Audit Settings View advanced section controls and logging toggles for single Tab stops.
+3. Carry forward Block 3's 2 refined ideas as first refinement targets.
+
+**Total user-visible improvements: 23** (3 Main Window title bar, view selector, and status info clusters; 5 Settings View PDF permissions, Google sign-in/account, plugins links, and about check clusters; 2 Extension Setup View browser pages and folder actions clusters; 3 Version History diff modes, change stepper, and diff meters UIA names; 2 OCR Inspection Studio page navigation and CTA clusters UIA names; 3 SmartArt Studio actions, harmony modes, and zoom controls UIA names; 2 Shape Studio actions and status clusters UIA names; 1 Mermaid Studio diagram actions cluster UIA name; 2 MindMap Galaxy zoom controls and tag filter pills clusters UIA names).

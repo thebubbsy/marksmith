@@ -70,7 +70,8 @@
                 </StackPanel>
             </StackPanel>
             <StackPanel x:Name="ShapeStudioActionCluster" Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"
-                        XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once">
+                        XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                        AutomationProperties.Name="Shape studio actions">
                 <Button x:Name="ClearCanvasButton" Click="OnClearClick" IsEnabled="{Binding HasShapes}"
                         RightTapped="OnClearCanvasButtonRightTapped"
                         ToolTipService.ToolTip="Remove every shape from the canvas (Ctrl+Z brings them back, Right-click or Shift+F10 for options)">
@@ -1498,7 +1499,8 @@
             <TextBlock x:Name="StatusBarText" Text="{Binding StatusMessage}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
                        RightTapped="OnStatusBarRightTapped" DoubleTapped="OnStatusBarDoubleTapped" />
             <StackPanel x:Name="ShapeStudioStatusCluster" Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"
-                        XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once">
+                        XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                        AutomationProperties.Name="Shape studio status actions">
                 <!-- A button so the keyboard reaches the selection menu; hidden while the canvas is empty
                      (the summary is blank then). Its double-click copy is the menu's first item. -->
                 <HyperlinkButton x:Name="SelectionSummaryButton" Padding="4,0" Margin="0,-2" MinHeight="0" VerticalAlignment="Center"
