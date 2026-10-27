@@ -73,7 +73,7 @@
          (headers shrunk to 15px to fit) and every toggle sat mid-card. The host sizes Root to the
          window (SettingsView.FitTo) so the dialog never outgrows a small screen. -->
     <Grid x:Name="Root" Width="820" Height="560" SizeChanged="OnRootSizeChanged">
-        <NavigationView x:Name="Nav"
+        <NavigationView x:Name="Nav" AutomationProperties.Name="Settings navigation"
                         PaneDisplayMode="Left"
                         OpenPaneLength="188"
                         IsBackButtonVisible="Collapsed"

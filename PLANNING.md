@@ -21453,3 +21453,67 @@ through `ClipboardWriter` with the result reported. No resource lookups, file ac
 3. Carry forward Block 3's 2 refined ideas as first refinement targets.
 
 **Total user-visible improvements: 23** (3 Main Window title bar, view selector, and status info clusters; 5 Settings View PDF permissions, Google sign-in/account, plugins links, and about check clusters; 2 Extension Setup View browser pages and folder actions clusters; 3 Version History diff modes, change stepper, and diff meters UIA names; 2 OCR Inspection Studio page navigation and CTA clusters UIA names; 3 SmartArt Studio actions, harmony modes, and zoom controls UIA names; 2 Shape Studio actions and status clusters UIA names; 1 Mermaid Studio diagram actions cluster UIA name; 2 MindMap Galaxy zoom controls and tag filter pills clusters UIA names).
+
+
+## 2026-10-28 · Run #299 (02:05–02:35 AEDT) · Antigravity AI Agent
+
+**Agent / Execution Metadata**
+- Model: Antigravity AI Agent (Google DeepMind)
+- Modes: Scheduled Hourly Automation Routine
+- Trigger: Scheduled hourly MarkSmith WinUI 3 Desktop Polish Routine
+- Mandate: Editor strip tools, preview zoom controls, looking glass portal dials, style header tools, selected file actions, and output folder actions clusters single Tab stops & XY arrow navigation; Rescan button and status bar copy pill clusters UI Automation (UIA) accessible names; Settings View navigation accessible name; Shape Studio multi-selection alignment, quick morph shapes, layer ordering, and transform action ribbon buttons complete UI Automation (UIA) accessible names.
+
+**Delivered (user-visible):**
+1. **Main Window Editor Strip Tools Cluster Single Tab Stop & Arrow Navigation:** In `MainWindow.xaml`, `EditorStripTools` (hosting 7 primary editor strip commands: Open In, Copy Path, Format Table, Format Math, Insert Callout, Focus Mode, Close Document) is configured with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, and `AutomationProperties.Name="Editor strip tools"`. Keyboard users can traverse all editor strip utilities with Left/Right arrow keys in 1 single Tab stop instead of 7 consecutive Tab presses.
+2. **Main Window Preview Zoom Controls Cluster Single Tab Stop & Arrow Navigation:** In `MainWindow.xaml`, `PreviewZoomControlsCluster` (Zoom Out, Reset 100%, Zoom In) is configured with `x:Name="PreviewZoomControlsCluster"`, `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, and `AutomationProperties.Name="Preview zoom controls"`. Keyboard users can fluidly adjust live preview zoom with Left/Right arrow keys in a single Tab stop.
+3. **Main Window Looking Glass Portal Controls Cluster Single Tab Stop & Arrow Navigation:** In `MainWindow.xaml`, `PortalControlsRow` (Scale dial, Lens/portal size dial, Invert toggle) is configured with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, and `AutomationProperties.Name="Looking Glass portal dials"`. Allows arrow navigation across looking glass inspection parameters in 1 Tab stop.
+4. **Main Window Style & Export Header Tools Cluster Single Tab Stop & Arrow Navigation:** In `MainWindow.xaml`, `StyleHeaderToolsCluster` (Outline toggle and More export menu) is configured with `x:Name="StyleHeaderToolsCluster"`, `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, and `AutomationProperties.Name="Style and export header tools"`. Traverses preview header options with arrow keys in a single Tab stop.
+5. **Main Window Selected File Actions Cluster Single Tab Stop & Arrow Navigation:** In `MainWindow.xaml`, `PinFileButton` and `HistoryButton` are unified under `FileActionsCluster` (`XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Selected file actions"`), enabling quick arrow navigation between file pinning and file revision history in 1 Tab stop.
+6. **Main Window Output Folder Actions Cluster Single Tab Stop & Arrow Navigation:** In `MainWindow.xaml`, `BrowseFolderButton` and `OpenOutputButton` are grouped into `OutputFolderActionsCluster` (`XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Output folder actions"`), enabling arrow-key traversal between browsing for a directory and opening it in File Explorer in 1 Tab stop.
+7. **Main Window Rescan Markdown Files Accessible Name:** In `MainWindow.xaml`, `RescanButton` is labeled with `AutomationProperties.Name="Rescan Markdown files"`, providing immediate screen reader clarity when refreshing workspace file lists.
+8. **Main Window Primary Status Bar Copy Pills Cluster Accessible Name:** In `MainWindow.xaml`, `StatusPrimaryCopyPills` is labeled with `AutomationProperties.Name="Primary copy actions"`, providing context for the fast copy actions cluster.
+9. **Main Window Secondary Status Bar Copy Pills Cluster Accessible Name:** In `MainWindow.xaml`, `StatusSecondaryCopyPills` is labeled with `AutomationProperties.Name="Secondary copy actions"`, providing context for the extended copy actions cluster.
+10. **Settings View Navigation Accessible Name:** In `Views/SettingsView.xaml`, `NavigationView x:Name="Nav"` is labeled with `AutomationProperties.Name="Settings navigation"`.
+11. **Shape Studio Multi-Align & Distribute Ribbon Accessible Names (8 buttons):** In `Views/ShapeStudio/ShapeDesignStudioWindow.xaml`, all 8 buttons in `MultiAlignCluster` now have explicit accessible names:
+    - `MultiAlignLeftBtn`: `AutomationProperties.Name="Align left edges"`
+    - `MultiAlignCenterBtn`: `AutomationProperties.Name="Align horizontal center"`
+    - `MultiAlignRightBtn`: `AutomationProperties.Name="Align right edges"`
+    - `MultiAlignTopBtn`: `AutomationProperties.Name="Align top edges"`
+    - `MultiAlignMiddleBtn`: `AutomationProperties.Name="Align vertical middle"`
+    - `MultiAlignBottomBtn`: `AutomationProperties.Name="Align bottom edges"`
+    - `MultiDistributeHBtn`: `AutomationProperties.Name="Distribute horizontally"`
+    - `MultiDistributeVBtn`: `AutomationProperties.Name="Distribute vertically"`
+12. **Shape Studio Quick Morph Shapes Ribbon Accessible Names (6 buttons):** In `Views/ShapeStudio/ShapeDesignStudioWindow.xaml`:
+    - `MorphRectBtn`: `AutomationProperties.Name="Convert to rectangle"`
+    - `MorphRoundRectBtn`: `AutomationProperties.Name="Convert to rounded rectangle"`
+    - `MorphEllipseBtn`: `AutomationProperties.Name="Convert to ellipse"`
+    - `MorphDiamondBtn`: `AutomationProperties.Name="Convert to decision diamond"`
+    - `MorphHexagonBtn`: `AutomationProperties.Name="Convert to hexagon"`
+    - `CornerRadiusToggleBtn`: `AutomationProperties.Name="Toggle corner radius"`
+13. **Shape Studio Layer Ordering Actions Ribbon Accessible Names (4 buttons):** In `Views/ShapeStudio/ShapeDesignStudioWindow.xaml`:
+    - `InspectorBringToFrontBtn`: `AutomationProperties.Name="Bring to front"`
+    - `InspectorBringForwardBtn`: `AutomationProperties.Name="Bring forward"`
+    - `InspectorSendBackwardBtn`: `AutomationProperties.Name="Send backward"`
+    - `InspectorSendToBackBtn`: `AutomationProperties.Name="Send to back"`
+14. **Shape Studio Transform, Flip & Aspect Actions Ribbon Accessible Names (5 buttons):** In `Views/ShapeStudio/ShapeDesignStudioWindow.xaml`:
+    - `InspectorFlipHBtn`: `AutomationProperties.Name="Flip horizontal"`
+    - `InspectorFlipVBtn`: `AutomationProperties.Name="Flip vertical"`
+    - `InspectorRotateCwBtn`: `AutomationProperties.Name="Rotate 90 degrees clockwise"`
+    - `InspectorRotateCcwBtn`: `AutomationProperties.Name="Rotate 90 degrees counter-clockwise"`
+    - `InspectorSquareAspectBtn`: `AutomationProperties.Name="Make square 1:1 aspect ratio"`
+
+**Implementation Summary**
+- Desktop Surfaces: `MainWindow.xaml` (`EditorStripTools`, `PreviewZoomControlsCluster`, `PortalControlsRow`, `StyleHeaderToolsCluster`, `FileActionsCluster`, `OutputFolderActionsCluster`, `RescanButton`, `StatusPrimaryCopyPills`, `StatusSecondaryCopyPills`), `Views/SettingsView.xaml` (`Nav`), `Views/ShapeStudio/ShapeDesignStudioWindow.xaml` (`MultiAlignCluster`, `MorphShapesCluster`, `LayerActionsCluster`, `TransformActionsCluster`, `InspectorSquareAspectBtn`).
+- Tests: `Run299StudioPolishAndKeyboardNavigationTests.cs` (14 xUnit tests asserting all XAML cluster configurations, `XYFocusKeyboardNavigation`, `TabFocusNavigation`, and `AutomationProperties.Name`).
+
+**Verified:**
+- `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: 0 errors.
+- Unit tests: `Run299StudioPolishAndKeyboardNavigationTests` (14/14 passed), combined suite `Run29` (124/124 passed).
+- Smoke launch: Launched `Marksmith.exe` (PID 7580), confirmed running healthy after 5s (`Running: True`, `Responding: True`), closed cleanly.
+
+**Next up (Run #300):**
+1. Audit Image Insert Control aspect ratio and format chips for arrow key navigation.
+2. Audit Settings View advanced section controls and logging toggles for single Tab stops.
+3. Carry forward Block 3's 2 refined ideas as first refinement targets.
+
+**Total user-visible improvements: 29** (6 Main Window clusters across editor strip, preview zoom, portal dials, style header tools, file actions, and output folder actions; 3 Main Window UIA names across rescan button, primary copy pills, and secondary copy pills; 1 Settings View navigation UIA name; 23 Shape Studio ribbon buttons across multi-align, morph, layer ordering, and transform).

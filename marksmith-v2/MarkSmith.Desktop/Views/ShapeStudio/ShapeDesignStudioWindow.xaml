@@ -1050,51 +1050,51 @@
                                         <StackPanel x:Name="MultiAlignCluster" Orientation="Horizontal" Spacing="2"
                                                     XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
                                                     AutomationProperties.Name="Multi-selection alignment ribbon">
-                                            <Button x:Name="MultiAlignLeftBtn" Width="26" Height="26" Padding="0"
+                                            <Button x:Name="MultiAlignLeftBtn" AutomationProperties.Name="Align left edges" Width="26" Height="26" Padding="0"
                                                     Style="{StaticResource DefaultButtonStyle}" Background="Transparent" BorderThickness="0"
                                                     Click="OnMultiAlignLeftClick"
                                                     ToolTipService.ToolTip="Align left edges (Alt+Shift+L)">
                                                 <FontIcon Glyph="&#xE8E4;" FontSize="11" />
                                             </Button>
-                                            <Button x:Name="MultiAlignCenterBtn" Width="26" Height="26" Padding="0"
+                                            <Button x:Name="MultiAlignCenterBtn" AutomationProperties.Name="Align horizontal center" Width="26" Height="26" Padding="0"
                                                     Style="{StaticResource DefaultButtonStyle}" Background="Transparent" BorderThickness="0"
                                                     Click="OnMultiAlignCenterClick"
                                                     ToolTipService.ToolTip="Align horizontal center (Alt+Shift+C)">
                                                 <FontIcon Glyph="&#xE8E3;" FontSize="11" />
                                             </Button>
-                                            <Button x:Name="MultiAlignRightBtn" Width="26" Height="26" Padding="0"
+                                            <Button x:Name="MultiAlignRightBtn" AutomationProperties.Name="Align right edges" Width="26" Height="26" Padding="0"
                                                     Style="{StaticResource DefaultButtonStyle}" Background="Transparent" BorderThickness="0"
                                                     Click="OnMultiAlignRightClick"
                                                     ToolTipService.ToolTip="Align right edges (Alt+Shift+R)">
                                                 <FontIcon Glyph="&#xE8E2;" FontSize="11" />
                                             </Button>
                                             <Border Width="1" Height="14" Background="{ThemeResource DividerStrokeColorDefaultBrush}" Margin="2,0" />
-                                            <Button x:Name="MultiAlignTopBtn" Width="26" Height="26" Padding="0"
+                                            <Button x:Name="MultiAlignTopBtn" AutomationProperties.Name="Align top edges" Width="26" Height="26" Padding="0"
                                                     Style="{StaticResource DefaultButtonStyle}" Background="Transparent" BorderThickness="0"
                                                     Click="OnMultiAlignTopClick"
                                                     ToolTipService.ToolTip="Align top edges (Alt+Shift+T)">
                                                 <FontIcon Glyph="&#xE74A;" FontSize="11" />
                                             </Button>
-                                            <Button x:Name="MultiAlignMiddleBtn" Width="26" Height="26" Padding="0"
+                                            <Button x:Name="MultiAlignMiddleBtn" AutomationProperties.Name="Align vertical middle" Width="26" Height="26" Padding="0"
                                                     Style="{StaticResource DefaultButtonStyle}" Background="Transparent" BorderThickness="0"
                                                     Click="OnMultiAlignMiddleClick"
                                                     ToolTipService.ToolTip="Align vertical middle (Alt+Shift+M)">
                                                 <FontIcon Glyph="&#xE8E3;" FontSize="11" />
                                             </Button>
-                                            <Button x:Name="MultiAlignBottomBtn" Width="26" Height="26" Padding="0"
+                                            <Button x:Name="MultiAlignBottomBtn" AutomationProperties.Name="Align bottom edges" Width="26" Height="26" Padding="0"
                                                     Style="{StaticResource DefaultButtonStyle}" Background="Transparent" BorderThickness="0"
                                                     Click="OnMultiAlignBottomClick"
                                                     ToolTipService.ToolTip="Align bottom edges (Alt+Shift+B)">
                                                 <FontIcon Glyph="&#xE74B;" FontSize="11" />
                                             </Button>
                                             <Border Width="1" Height="14" Background="{ThemeResource DividerStrokeColorDefaultBrush}" Margin="2,0" />
-                                            <Button x:Name="MultiDistributeHBtn" Width="26" Height="26" Padding="0"
+                                            <Button x:Name="MultiDistributeHBtn" AutomationProperties.Name="Distribute horizontally" Width="26" Height="26" Padding="0"
                                                     Style="{StaticResource DefaultButtonStyle}" Background="Transparent" BorderThickness="0"
                                                     Click="OnMultiDistributeHClick"
                                                     ToolTipService.ToolTip="Distribute horizontally with equal spacing (3+ shapes)">
                                                 <FontIcon Glyph="&#xE8D3;" FontSize="11" />
                                             </Button>
-                                            <Button x:Name="MultiDistributeVBtn" Width="26" Height="26" Padding="0"
+                                            <Button x:Name="MultiDistributeVBtn" AutomationProperties.Name="Distribute vertically" Width="26" Height="26" Padding="0"
                                                     Style="{StaticResource DefaultButtonStyle}" Background="Transparent" BorderThickness="0"
                                                     Click="OnMultiDistributeVClick"
                                                     ToolTipService.ToolTip="Distribute vertically with equal spacing (3+ shapes)">
@@ -1195,28 +1195,28 @@
                                         <StackPanel x:Name="MorphShapesCluster" Grid.Column="1" Orientation="Horizontal" Spacing="4"
                                                     XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
                                                     AutomationProperties.Name="Quick morph shapes">
-                                            <Button x:Name="MorphRectBtn" Style="{StaticResource SubtleButtonStyle}" Padding="6,2" Height="24"
+                                            <Button x:Name="MorphRectBtn" AutomationProperties.Name="Convert to rectangle" Style="{StaticResource SubtleButtonStyle}" Padding="6,2" Height="24"
                                                     Click="OnMorphRectClick" ToolTipService.ToolTip="Convert to Rectangle (rect)">
                                                 <FontIcon Glyph="&#xE7C3;" FontSize="11" />
                                             </Button>
-                                            <Button x:Name="MorphRoundRectBtn" Style="{StaticResource SubtleButtonStyle}" Padding="6,2" Height="24"
+                                            <Button x:Name="MorphRoundRectBtn" AutomationProperties.Name="Convert to rounded rectangle" Style="{StaticResource SubtleButtonStyle}" Padding="6,2" Height="24"
                                                     Click="OnMorphRoundRectClick" ToolTipService.ToolTip="Convert to Rounded Rectangle (roundrect)">
                                                 <FontIcon Glyph="&#xE944;" FontSize="11" />
                                             </Button>
-                                            <Button x:Name="MorphEllipseBtn" Style="{StaticResource SubtleButtonStyle}" Padding="6,2" Height="24"
+                                            <Button x:Name="MorphEllipseBtn" AutomationProperties.Name="Convert to ellipse" Style="{StaticResource SubtleButtonStyle}" Padding="6,2" Height="24"
                                                     Click="OnMorphEllipseClick" ToolTipService.ToolTip="Convert to Ellipse (ellipse)">
                                                 <FontIcon Glyph="&#xEA3B;" FontSize="11" />
                                             </Button>
-                                            <Button x:Name="MorphDiamondBtn" Style="{StaticResource SubtleButtonStyle}" Padding="6,2" Height="24"
+                                            <Button x:Name="MorphDiamondBtn" AutomationProperties.Name="Convert to decision diamond" Style="{StaticResource SubtleButtonStyle}" Padding="6,2" Height="24"
                                                     Click="OnMorphDiamondClick" ToolTipService.ToolTip="Convert to Decision Diamond (diamond)">
                                                 <FontIcon Glyph="&#xE734;" FontSize="11" />
                                             </Button>
-                                            <Button x:Name="MorphHexagonBtn" Style="{StaticResource SubtleButtonStyle}" Padding="6,2" Height="24"
+                                            <Button x:Name="MorphHexagonBtn" AutomationProperties.Name="Convert to hexagon" Style="{StaticResource SubtleButtonStyle}" Padding="6,2" Height="24"
                                                     Click="OnMorphHexagonClick" ToolTipService.ToolTip="Convert to Hexagon (hexagon)">
                                                 <FontIcon Glyph="&#xE8B9;" FontSize="11" />
                                             </Button>
                                         </StackPanel>
-                                        <Button Grid.Column="2" x:Name="CornerRadiusToggleBtn" Style="{StaticResource SubtleButtonStyle}" Padding="6,2" Height="24"
+                                        <Button Grid.Column="2" x:Name="CornerRadiusToggleBtn" AutomationProperties.Name="Toggle corner radius" Style="{StaticResource SubtleButtonStyle}" Padding="6,2" Height="24"
                                                 Click="OnCornerRadiusToggleClick" ToolTipService.ToolTip="Toggle between Sharp (0px) and Rounded corners (roundrect)">
                                             <StackPanel Orientation="Horizontal" Spacing="3">
                                                 <FontIcon Glyph="&#xEB9F;" FontSize="10" />
@@ -1233,19 +1233,19 @@
                                         <StackPanel x:Name="LayerActionsCluster" Grid.Column="1" Orientation="Horizontal" Spacing="3"
                                                     XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
                                                     AutomationProperties.Name="Layer ordering actions">
-                                            <Button x:Name="InspectorBringToFrontBtn" Style="{StaticResource SubtleButtonStyle}" Padding="6,2" Height="24"
+                                            <Button x:Name="InspectorBringToFrontBtn" AutomationProperties.Name="Bring to front" Style="{StaticResource SubtleButtonStyle}" Padding="6,2" Height="24"
                                                     Click="OnInspectorBringToFrontClick" ToolTipService.ToolTip="Bring to front (Ctrl+Shift+])">
                                                 <FontIcon Glyph="&#xE74A;" FontSize="11" />
                                             </Button>
-                                            <Button x:Name="InspectorBringForwardBtn" Style="{StaticResource SubtleButtonStyle}" Padding="6,2" Height="24"
+                                            <Button x:Name="InspectorBringForwardBtn" AutomationProperties.Name="Bring forward" Style="{StaticResource SubtleButtonStyle}" Padding="6,2" Height="24"
                                                     Click="OnInspectorBringForwardClick" ToolTipService.ToolTip="Bring forward (Ctrl+])">
                                                 <FontIcon Glyph="&#xE70E;" FontSize="11" />
                                             </Button>
-                                            <Button x:Name="InspectorSendBackwardBtn" Style="{StaticResource SubtleButtonStyle}" Padding="6,2" Height="24"
+                                            <Button x:Name="InspectorSendBackwardBtn" AutomationProperties.Name="Send backward" Style="{StaticResource SubtleButtonStyle}" Padding="6,2" Height="24"
                                                     Click="OnInspectorSendBackwardClick" ToolTipService.ToolTip="Send backward (Ctrl+[)">
                                                 <FontIcon Glyph="&#xE70D;" FontSize="11" />
                                             </Button>
-                                            <Button x:Name="InspectorSendToBackBtn" Style="{StaticResource SubtleButtonStyle}" Padding="6,2" Height="24"
+                                            <Button x:Name="InspectorSendToBackBtn" AutomationProperties.Name="Send to back" Style="{StaticResource SubtleButtonStyle}" Padding="6,2" Height="24"
                                                     Click="OnInspectorSendToBackClick" ToolTipService.ToolTip="Send to back (Ctrl+Shift+[)">
                                                 <FontIcon Glyph="&#xE74B;" FontSize="11" />
                                             </Button>
@@ -1263,24 +1263,24 @@
                                         <StackPanel x:Name="TransformActionsCluster" Grid.Column="1" Orientation="Horizontal" Spacing="3"
                                                     XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
                                                     AutomationProperties.Name="Transform and flip actions">
-                                            <Button x:Name="InspectorFlipHBtn" Style="{StaticResource SubtleButtonStyle}" Padding="6,2" Height="24"
+                                            <Button x:Name="InspectorFlipHBtn" AutomationProperties.Name="Flip horizontal" Style="{StaticResource SubtleButtonStyle}" Padding="6,2" Height="24"
                                                     Click="OnInspectorFlipHClick" ToolTipService.ToolTip="Flip shape horizontally (Mirror)">
                                                 <FontIcon Glyph="&#xE8E2;" FontSize="11" />
                                             </Button>
-                                            <Button x:Name="InspectorFlipVBtn" Style="{StaticResource SubtleButtonStyle}" Padding="6,2" Height="24"
+                                            <Button x:Name="InspectorFlipVBtn" AutomationProperties.Name="Flip vertical" Style="{StaticResource SubtleButtonStyle}" Padding="6,2" Height="24"
                                                     Click="OnInspectorFlipVClick" ToolTipService.ToolTip="Flip shape vertically (Mirror)">
                                                 <FontIcon Glyph="&#xE8E1;" FontSize="11" />
                                             </Button>
-                                            <Button x:Name="InspectorRotateCwBtn" Style="{StaticResource SubtleButtonStyle}" Padding="6,2" Height="24"
+                                            <Button x:Name="InspectorRotateCwBtn" AutomationProperties.Name="Rotate 90 degrees clockwise" Style="{StaticResource SubtleButtonStyle}" Padding="6,2" Height="24"
                                                     Click="OnInspectorRotateCwClick" ToolTipService.ToolTip="Rotate 90° clockwise (Alt+Shift+Right)">
                                                 <FontIcon Glyph="&#xE7AD;" FontSize="11" />
                                             </Button>
-                                            <Button x:Name="InspectorRotateCcwBtn" Style="{StaticResource SubtleButtonStyle}" Padding="6,2" Height="24"
+                                            <Button x:Name="InspectorRotateCcwBtn" AutomationProperties.Name="Rotate 90 degrees counter-clockwise" Style="{StaticResource SubtleButtonStyle}" Padding="6,2" Height="24"
                                                     Click="OnInspectorRotateCcwClick" ToolTipService.ToolTip="Rotate 90° counter-clockwise (Alt+Shift+Left)">
                                                 <FontIcon Glyph="&#xE7A7;" FontSize="11" />
                                             </Button>
                                         </StackPanel>
-                                        <Button Grid.Column="2" x:Name="InspectorSquareAspectBtn" Style="{StaticResource SubtleButtonStyle}" Padding="6,2" Height="24"
+                                        <Button Grid.Column="2" x:Name="InspectorSquareAspectBtn" AutomationProperties.Name="Make square 1:1 aspect ratio" Style="{StaticResource SubtleButtonStyle}" Padding="6,2" Height="24"
                                                 Click="OnInspectorSquareAspectClick" ToolTipService.ToolTip="Make square 1:1 aspect ratio">
                                             <StackPanel Orientation="Horizontal" Spacing="3">
                                                 <FontIcon Glyph="&#xE739;" FontSize="10" />

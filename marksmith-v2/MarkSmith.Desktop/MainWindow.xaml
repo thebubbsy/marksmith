@@ -313,32 +313,35 @@
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <TextBox x:Name="InputFileTextBox" Grid.Column="0" Header="Selected file" Text="{Binding InputFilePath, Mode=TwoWay}"
                                          PlaceholderText="No file selected" IsSpellCheckEnabled="False"
                                          ToolTipService.ToolTip="{Binding InputFilePath}"
                                          TextChanged="OnInputFileTextBoxTextChanged" KeyDown="OnInputFileTextBoxKeyDown" />
-                                <Button Grid.Column="2" VerticalAlignment="Bottom" Click="OnOpenHistoryClick" Padding="10,4"
-                                        AutomationProperties.Name="Version history"
-                                        ToolTipService.ToolTip="Version history: every saved version of this file (and of unsaved text), with what changed in each">
-                                    <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <FontIcon Glyph="&#xE823;" FontSize="14" />
-                                        <TextBlock Text="History" FontSize="13" />
-                                    </StackPanel>
-                                </Button>
-                                <Button x:Name="PinFileButton" Grid.Column="1" VerticalAlignment="Bottom"
-                                        Click="OnTogglePinFileClick" RightTapped="OnPinFileButtonRightTapped"
-                                        IsEnabled="{Binding HasInputFile}"
-                                        AutomationProperties.Name="Pin this file"
-                                        ToolTipService.ToolTip="Pin this file to the top of the file list (Right-click or Shift+F10 for file options)">
-                                    <Grid>
-                                        <FontIcon Glyph="&#xE735;" FontSize="14" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
-                                                  Visibility="{Binding IsCurrentFilePinned, Converter={StaticResource BoolToVisibilityConverter}}" />
-                                        <FontIcon Glyph="&#xE734;" FontSize="14"
-                                                  Visibility="{Binding IsCurrentFilePinned, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}" />
-                                    </Grid>
-                                </Button>
+                                <StackPanel x:Name="FileActionsCluster" Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Bottom"
+                                            XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                            AutomationProperties.Name="Selected file actions">
+                                    <Button x:Name="PinFileButton" VerticalAlignment="Bottom"
+                                            Click="OnTogglePinFileClick" RightTapped="OnPinFileButtonRightTapped"
+                                            IsEnabled="{Binding HasInputFile}"
+                                            AutomationProperties.Name="Pin this file"
+                                            ToolTipService.ToolTip="Pin this file to the top of the file list (Right-click or Shift+F10 for file options)">
+                                        <Grid>
+                                            <FontIcon Glyph="&#xE735;" FontSize="14" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                                                      Visibility="{Binding IsCurrentFilePinned, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                            <FontIcon Glyph="&#xE734;" FontSize="14"
+                                                      Visibility="{Binding IsCurrentFilePinned, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}" />
+                                        </Grid>
+                                    </Button>
+                                    <Button x:Name="HistoryButton" VerticalAlignment="Bottom" Click="OnOpenHistoryClick" Padding="10,4"
+                                            AutomationProperties.Name="Version history"
+                                            ToolTipService.ToolTip="Version history: every saved version of this file (and of unsaved text), with what changed in each">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <FontIcon Glyph="&#xE823;" FontSize="14" />
+                                            <TextBlock Text="History" FontSize="13" />
+                                        </StackPanel>
+                                    </Button>
+                                </StackPanel>
                             </Grid>
 
                             <Grid>
@@ -348,7 +351,7 @@
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" Text="Recent &amp; found .md files" VerticalAlignment="Bottom"
                                            Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.8" />
-                                <HyperlinkButton x:Name="RescanButton" Grid.Column="1" Click="OnRescanMarkdownClick" Padding="4,0"
+                                <HyperlinkButton x:Name="RescanButton" Grid.Column="1" Click="OnRescanMarkdownClick" Padding="4,0" AutomationProperties.Name="Rescan Markdown files"
                                                  ToolTipService.ToolTip="Rescan your PC for recent Markdown files">
                                     <StackPanel Orientation="Horizontal" Spacing="4">
                                         <FontIcon Glyph="&#xE72C;" FontSize="12" />
@@ -860,7 +863,9 @@
                                 </Grid.ColumnDefinitions>
                                 <!-- Editor font-size zoom (persisted): A− / A+ buttons plus Ctrl+wheel in the
                                      editor. The % readout is relative to the 13px default. -->
-                                <StackPanel x:Name="EditorStripTools" Orientation="Horizontal" Spacing="4" HorizontalAlignment="Left" VerticalAlignment="Center">
+                                <StackPanel x:Name="EditorStripTools" Orientation="Horizontal" Spacing="4" HorizontalAlignment="Left" VerticalAlignment="Center"
+                                            XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                            AutomationProperties.Name="Editor strip tools">
                                     <!-- Find used to be reachable only by Ctrl+F / Ctrl+H. -->
                                     <Button x:Name="EditorFindButton" Width="28" Height="24" Padding="0" Click="OnEditorFindClick"
                                             RightTapped="OnEditorFindButtonRightTapped"
@@ -1038,7 +1043,9 @@
                                     </Grid>
                                     <!-- Preview zoom (persisted): the WebView also honors the browser's native Ctrl+wheel;
                                          the readout stays in sync via a light poll in code-behind. -->
-                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                                    <StackPanel x:Name="PreviewZoomControlsCluster" Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center"
+                                                XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                                AutomationProperties.Name="Preview zoom controls">
                                         <ToggleButton x:Name="PreviewFitToggle" Width="24" Height="22" Padding="0"
                                                       ToolTipService.ToolTip="Fit page width — the page fills the preview and follows it as you resize (zooming turns this off, Right-click or Shift+F10 for options)"
                                                       AutomationProperties.Name="Fit page width"
@@ -1093,6 +1100,8 @@
                          scales the active shape live on every tick. -->
                     <!-- ISS-004: portal shape + size + glass/surround blur controls -->
                     <StackPanel x:Name="PortalControlsRow" Grid.Row="0" Orientation="Horizontal" Spacing="6"
+                                XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                AutomationProperties.Name="Looking Glass portal dials"
                                 HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,2,0,6"
                                 Visibility="Collapsed">
                         <FontIcon Glyph="&#xE7B3;" FontSize="13" VerticalAlignment="Center" Opacity="0.7"
@@ -1401,7 +1410,9 @@
                             <TextBlock Text="Finish the document" Style="{StaticResource StepCaptionStyle}" />
                         </StackPanel>
                     </StackPanel>
-                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <StackPanel x:Name="StyleHeaderToolsCluster" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                AutomationProperties.Name="Style and export header tools">
                         <!-- The old row of four (history / tour / shortcuts / settings) overlapped the
                              step header at narrow widths, so everything lives in one ⋯ menu now — the
                              tip jar too (it used to float in the title bar). The history ListView keeps
@@ -2101,7 +2112,6 @@
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
                     <!-- Code replaces this tooltip (UpdateOutputFolderToolTip) with the full path, then the menu hint. -->
@@ -2111,20 +2121,25 @@
                              AutomationProperties.Name="Output folder"
                              ToolTipService.ToolTip="Output folder · Right-click or Shift+F10 to open it in File Explorer, copy or change it" />
 
-                    <Button Grid.Column="1" VerticalAlignment="Stretch" Click="OnBrowseFolderClick"
-                            ToolTipService.ToolTip="Choose output folder">
-                        <FontIcon Glyph="&#xE8B7;" FontSize="14" />
-                    </Button>
+                    <StackPanel x:Name="OutputFolderActionsCluster" Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Stretch"
+                                XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                AutomationProperties.Name="Output folder actions">
+                        <Button x:Name="BrowseFolderButton" VerticalAlignment="Stretch" Click="OnBrowseFolderClick"
+                                AutomationProperties.Name="Choose output folder"
+                                ToolTipService.ToolTip="Choose output folder">
+                            <FontIcon Glyph="&#xE8B7;" FontSize="14" />
+                        </Button>
 
-                    <Button Grid.Column="2" VerticalAlignment="Stretch" Click="OnOpenOutputClick"
-                            IsEnabled="{Binding HasOutput}" ToolTipService.ToolTip="Open last output"
-                            AutomationProperties.Name="Open output">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <FontIcon Glyph="&#xE8E5;" FontSize="14" />
-                            <!-- Hidden when the pane is narrow (code-behind) so the folder path keeps room. -->
-                            <TextBlock x:Name="OpenOutputLabel" Text="Open output" />
-                        </StackPanel>
-                    </Button>
+                        <Button x:Name="OpenOutputButton" VerticalAlignment="Stretch" Click="OnOpenOutputClick"
+                                IsEnabled="{Binding HasOutput}" ToolTipService.ToolTip="Open last output"
+                                AutomationProperties.Name="Open output">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon Glyph="&#xE8E5;" FontSize="14" />
+                                <!-- Hidden when the pane is narrow (code-behind) so the folder path keeps room. -->
+                                <TextBlock x:Name="OpenOutputLabel" Text="Open output" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
                 </Grid>
 
                 <!-- The primary export fills the row; Cancel and the busy ring only take space while
@@ -2337,6 +2352,7 @@
                     </StackPanel>
                     <Border Width="1" Height="12" Background="{ThemeResource CardStrokeColorDefaultBrush}" VerticalAlignment="Center" />
                     <StackPanel x:Name="StatusPrimaryCopyPills" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center"
+                                AutomationProperties.Name="Primary copy actions"
                                 XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once">
                         <HyperlinkButton x:Name="StatusCopyMarkdownButton"
                                      Click="OnStatusCopyMarkdownButtonClick"
@@ -2379,6 +2395,7 @@
                          is too narrow for the whole row (UpdateStatusBarOverflow), instead of running
                          under the status message on the left. -->
                     <StackPanel x:Name="StatusSecondaryCopyPills" Orientation="Horizontal" Spacing="10"
+                                AutomationProperties.Name="Secondary copy actions"
                                 XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once">
                         <HyperlinkButton x:Name="StatusCopyCodeButton"
                                          Click="OnStatusCopyCodeButtonClick"
