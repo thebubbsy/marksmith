@@ -21188,3 +21188,37 @@ through `ClipboardWriter` with the result reported. No resource lookups, file ac
 3. Carry forward Block 3's 2 refined ideas as first refinement targets.
 
 **Total user-visible improvements: 6** (2 shortcut isolation guards across History and SmartArt, 1 contextual layout copy action, 2 studio single Tab-stop XY-navigation clusters, 1 canvas focus hardening guard).
+
+
+## 2026-10-27 · Run #292 (20:05–20:30 AEDT) · Antigravity AI Agent
+
+**Agent / Execution Metadata**
+- Model: Antigravity AI Agent (Google DeepMind)
+- Modes: Scheduled Hourly Automation Routine
+- Trigger: Scheduled hourly MarkSmith WinUI 3 Desktop Polish Routine
+- Mandate: Diagram Studio canvas zoom overlay cluster & action cluster single Tab stops, Diagram Studio copy/paste/rename shortcut isolation, Shape Palette contextual copy (Ctrl+C) & menu parity, MindMap Galaxy tag-strip Escape disambiguation, OCR Studio page stepper & CTA XY-navigation clusters, and Main Window status bar secondary copy pills cluster.
+
+**Delivered (user-visible):**
+1. **Mermaid Canvas Overlay Zoom Control Cluster single Tab stop & XY Arrow Navigation:** In `MermaidCanvasControl.xaml`, `ZoomOutButton`, `ZoomResetButton`, `ZoomInButton`, and `ZoomFitButton` are grouped in `ZoomControlCluster` with `XYFocusKeyboardNavigation="Enabled"` and `TabFocusNavigation="Once"`. The cluster allows rapid Left/Right arrow cycling across zoom operations while bypassing the entire 4-button overlay in 1 Tab stop. Furthermore, `ChoiceKeys.FocusIsInChoiceControl` now recognizes focus inside the zoom overlay, preventing accidental canvas node manipulation.
+2. **Mermaid Diagram Studio Action Cluster single Tab stop & XY Arrow Navigation:** In `MermaidDiagramStudioControl.xaml`, `ExportSvgButton`, `CopySvgButton`, and `SyncToMarkdownButton` are grouped in `DiagramActionCluster` with `XYFocusKeyboardNavigation="Enabled"` and `TabFocusNavigation="Once"`. Users can smoothly cycle between export, copy, and markdown sync with arrow keys while traversing the entire right action bar in 1 Tab stop.
+3. **Mermaid Diagram Studio Shortcut Isolation for Copy, Paste, and In-Place Edit:** In `MermaidDiagramStudioControl.xaml.cs`, `OnCopyAcceleratorInvoked` (Ctrl+C), `OnPasteAcceleratorInvoked` (Ctrl+V), and `OnRenameAcceleratorInvoked` (F2) are now guarded by `if (ChoiceKeys.FocusIsInChoiceControl(XamlRoot, CanvasContainer)) return;`. This stops canvas shape copying, canvas pasting, and in-place node renaming from triggering when focus is inside the shape palette, category pills, or property sliders.
+4. **Mermaid Shape Palette Item Contextual Copy & Shortcut Announcement:** In `NodePaletteControl.xaml.cs`, pressing `Ctrl+C` while focused on a shape in `PaletteListView` now contextually copies the shape's display name to the clipboard via `ClipboardWriter.TrySetTextAsync(item.DisplayName)` and announces it via `LiveAnnounce.RaiseIfChanged`, instead of falling back to copying unrelated canvas nodes. Additionally, `ShowPaletteItemContextMenu` now includes an explicit "Copy shape name" menu item with `KeyboardAcceleratorTextOverride="Ctrl+C"`.
+5. **MindMap Galaxy Tag-Filter Strip 2-Stage Escape Navigation:** In `MindMapGalaxyWindow.xaml.cs`, `OnTagPillsPreviewKeyDown` now disambiguates Escape when `ViewModel.SelectedTagFilter` is null by focusing `GalaxyCanvas` (`GalaxyCanvas.Focus(FocusState.Programmatic); e.Handled = true;`). This provides a smooth 2-stage Escape workflow (first Escape clears the active tag filter, second Escape returns to the canvas) and stops the key from bubbling up to root where it would inadvertently clear the search query or disable focus mode.
+6. **OCR Inspection Studio Page Navigation & CTA Clusters single Tab stop:** In `OcrInspectionStudioWindow.xaml`, `PageNavigationCluster` (`PrevPageButton`, `PageIndicatorBorder`, `NextPageButton`) and `CtaActionCluster` (`DiscardButton`, `ImportCtaButton`) are configured with `XYFocusKeyboardNavigation="Enabled"` and `TabFocusNavigation="Once"`. Keyboard users can arrow between previous/next pages and cancel/import actions while reducing Tab stops across the inspection studio header and ribbon.
+7. **Main Window Status Secondary Copy Pills single Tab stop & XY Arrow Navigation:** In `MainWindow.xaml`, `StatusSecondaryCopyPills` (`StatusCopyCodeButton`, `StatusCopyTablesButton`, `StatusCopyTasksButton`, `StatusCopyMathButton`, `StatusCopyFootnotesButton`, `StatusCopyDiagramsButton`, `StatusCopyFrontmatterButton`, `StatusCopyHtmlButton`, `StatusCopyTextButton`) now features `XYFocusKeyboardNavigation="Enabled"` and `TabFocusNavigation="Once"`. Users can fluidly cycle through all secondary clipboard copy tools using Left/Right arrow keys while reducing keyboard navigation across the status bar from 9 repetitive Tab stops to 1 single keystroke.
+
+**Implementation Summary**
+- Desktop: `Views/Mermaid/MermaidCanvasControl.xaml` (`ZoomControlCluster` with `XYFocusKeyboardNavigation="Enabled"` and `TabFocusNavigation="Once"`), `Views/Mermaid/MermaidDiagramStudioControl.xaml` (`DiagramActionCluster` with `XYFocusKeyboardNavigation="Enabled"` and `TabFocusNavigation="Once"`), `Views/Mermaid/MermaidDiagramStudioControl.xaml.cs` (gated `OnCopyAcceleratorInvoked`, `OnPasteAcceleratorInvoked`, `OnRenameAcceleratorInvoked` with `ChoiceKeys.FocusIsInChoiceControl`), `Views/Mermaid/NodePaletteControl.xaml.cs` (`ShowPaletteItemContextMenu` added "Copy shape name" with Ctrl+C override; `OnPaletteListViewKeyDown` handles Ctrl+C for shape copy and live announce), `Views/MindMap/MindMapGalaxyWindow.xaml.cs` (`OnTagPillsPreviewKeyDown` focuses `GalaxyCanvas` when tag filter is null), `Views/Ocr/OcrInspectionStudioWindow.xaml` (`PageNavigationCluster` and `CtaActionCluster` with `XYFocusKeyboardNavigation="Enabled"` and `TabFocusNavigation="Once"`), `MainWindow.xaml` (`StatusSecondaryCopyPills` with `XYFocusKeyboardNavigation="Enabled"` and `TabFocusNavigation="Once"`), `Views/History/HistoryWindow.xaml.cs` (removed duplicate `inChoice` variable declaration).
+- Tests: `Run292StudioPolishAndKeyboardNavigationTests.cs` (7 xUnit tests covering shortcut `ChoiceKeys` guards, context menu item and keydown copy contracts, and XAML `XYFocusKeyboardNavigation` / `TabFocusNavigation` contracts across Mermaid Canvas, Diagram Studio, Node Palette, MindMap Galaxy, OCR Studio, and Main Window).
+
+**Verified:**
+- `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: 0 errors.
+- Unit tests: `Run292StudioPolishAndKeyboardNavigationTests` (7/7 passed), combined suite `Run292|Run291|Run290` (24/24 passed).
+- Smoke launch: Launched `Marksmith.exe`, confirmed running healthy after 5s without exit, closed cleanly.
+
+**Next up (Run #293):**
+1. Audit Theme Builder and remaining Insert dialogs for single Tab stops and arrow navigation.
+2. Live-verify the status bar secondary copy pills unfold handover on narrow viewport transitions.
+3. Carry forward Block 3's 2 refined ideas as first refinement targets.
+
+**Total user-visible improvements: 7** (3 studio single Tab-stop XY-navigation clusters across Mermaid and OCR, 1 status bar secondary copy cluster single Tab stop, 1 diagram shortcut isolation guard, 1 contextual palette shape copy action with menu accelerator, 1 tag-strip 2-stage Escape navigation flow).

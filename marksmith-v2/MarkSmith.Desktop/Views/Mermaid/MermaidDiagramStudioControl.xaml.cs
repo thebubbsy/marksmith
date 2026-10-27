@@ -646,6 +646,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
     {
         if (MenuOwnsKeys()) return;
         if (IsEditingText()) return;
+        if (ChoiceKeys.FocusIsInChoiceControl(XamlRoot, CanvasContainer)) return;
         ViewModel?.CopySelected();
         args.Handled = true;
     }
@@ -670,6 +671,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
     {
         if (MenuOwnsKeys()) return;
         if (IsEditingText()) return;
+        if (ChoiceKeys.FocusIsInChoiceControl(XamlRoot, CanvasContainer)) return;
         ViewModel?.PasteClipboard();
         args.Handled = true;
     }
@@ -687,6 +689,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
     {
         if (MenuOwnsKeys()) return;
         if (IsEditingText()) return;
+        if (ChoiceKeys.FocusIsInChoiceControl(XamlRoot, CanvasContainer)) return;
         if (_canvas.StartSelectedInPlaceEdit()) args.Handled = true;
     }
 

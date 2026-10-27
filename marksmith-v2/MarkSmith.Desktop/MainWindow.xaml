@@ -2348,7 +2348,8 @@
                     <!-- The eight secondary copy pills fold into the "More" menu below when the window
                          is too narrow for the whole row (UpdateStatusBarOverflow), instead of running
                          under the status message on the left. -->
-                    <StackPanel x:Name="StatusSecondaryCopyPills" Orientation="Horizontal" Spacing="10">
+                    <StackPanel x:Name="StatusSecondaryCopyPills" Orientation="Horizontal" Spacing="10"
+                                XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once">
                         <HyperlinkButton x:Name="StatusCopyCodeButton"
                                          Click="OnStatusCopyCodeButtonClick"
                                          RightTapped="OnStatusCopyCodeButtonRightTapped"

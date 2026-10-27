@@ -7092,6 +7092,11 @@ namespace MarkSmith.Views.MindMap
                     AllTagsPill?.Focus(FocusState.Programmatic);
                     e.Handled = true;
                 }
+                else
+                {
+                    GalaxyCanvas.Focus(FocusState.Programmatic);
+                    e.Handled = true;
+                }
             }
         }
 

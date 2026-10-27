@@ -92,6 +92,19 @@ public sealed partial class NodePaletteControl : UserControl
         addItem.Click += (_, _) => ShapeRequested?.Invoke(this, item);
         flyout.Items.Add(addItem);
 
+        var copyNameItem = new MenuFlyoutItem
+        {
+            Text = "Copy shape name",
+            Icon = new FontIcon { Glyph = "\uE8C8" },
+            KeyboardAcceleratorTextOverride = "Ctrl+C"
+        };
+        copyNameItem.Click += async (_, _) =>
+        {
+            await Services.ClipboardWriter.TrySetTextAsync(item.DisplayName);
+            Services.LiveAnnounce.RaiseIfChanged(PaletteCountText, $"Copied shape name \"{item.DisplayName}\" to clipboard.");
+        };
+        flyout.Items.Add(copyNameItem);
+
         if (DataContext is ViewModels.Mermaid.MermaidStudioViewModel { SelectedNode: { CanQuickAdd: true } selected } vm)
         {
             var connectItem = new MenuFlyoutItem
@@ -252,6 +265,18 @@ public sealed partial class NodePaletteControl : UserControl
 
         var shift = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Shift)
             .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+        var ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control)
+            .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+        if (ctrl && !shift && e.Key == Windows.System.VirtualKey.C)
+        {
+            if (e.OriginalSource is Microsoft.UI.Xaml.FrameworkElement { DataContext: ViewModels.Mermaid.MermaidPaletteItem item })
+            {
+                _ = Services.ClipboardWriter.TrySetTextAsync(item.DisplayName);
+                Services.LiveAnnounce.RaiseIfChanged(PaletteCountText, $"Copied shape name \"{item.DisplayName}\" to clipboard.");
+                e.Handled = true;
+                return;
+            }
+        }
         if (e.Key == Windows.System.VirtualKey.Application || (e.Key == Windows.System.VirtualKey.F10 && shift))
         {
             if (e.OriginalSource is Microsoft.UI.Xaml.FrameworkElement { DataContext: ViewModels.Mermaid.MermaidPaletteItem ctxItem } fe)

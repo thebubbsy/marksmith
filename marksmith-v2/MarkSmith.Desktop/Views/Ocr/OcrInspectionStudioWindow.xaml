@@ -46,8 +46,9 @@
             </StackPanel>
 
             <!-- Center: Interactive Page Flicking Controls -->
-            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8"
-                        HorizontalAlignment="Center" VerticalAlignment="Center">
+            <StackPanel x:Name="PageNavigationCluster" Grid.Column="1" Orientation="Horizontal" Spacing="8"
+                        HorizontalAlignment="Center" VerticalAlignment="Center"
+                        XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once">
                 <Button x:Name="PrevPageButton" Click="OnPrevPageClick"
                         Padding="8,4" CornerRadius="4"
                         AutomationProperties.Name="Previous page"
@@ -127,7 +128,8 @@
                 </StackPanel>
 
                 <!-- Prominent Call-To-Action (CTA) Buttons -->
-                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                <StackPanel x:Name="CtaActionCluster" Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center"
+                            XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once">
                     <Button x:Name="DiscardButton" Click="OnDiscardClick"
                             Padding="12,7" CornerRadius="6"
                             AutomationProperties.Name="Cancel and discard"
