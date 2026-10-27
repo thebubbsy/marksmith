@@ -546,7 +546,9 @@
                              and connector lines; the active choice is persisted as an %%{init}%%
                              directive on sync. -->
                         <Rectangle Height="1" Fill="#2B2D42" />
-                        <StackPanel Spacing="8">
+                        <StackPanel x:Name="DiagramStylePresetsCluster" Spacing="8"
+                                    XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                    AutomationProperties.Name="Style presets">
                             <TextBlock Text="Style presets" Style="{StaticResource InspectorSectionStyle}" />
                             <TextBlock Text="Recolours every node and connector." FontSize="11" Foreground="#8D99AE" TextWrapping="Wrap" />
                             <Button x:Name="PresetCatppuccin" Tag="Catppuccin Slate" Click="OnPalettePresetClick"

@@ -1046,7 +1046,9 @@
                                             CornerRadius="6" Padding="4,2" Visibility="Collapsed"
                                             IsHitTestVisible="True"
                                             ToolTipService.ToolTip="Selection align &amp; distribute ribbon · Click icons to arrange shapes">
-                                        <StackPanel Orientation="Horizontal" Spacing="2">
+                                        <StackPanel x:Name="MultiAlignCluster" Orientation="Horizontal" Spacing="2"
+                                                    XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                                    AutomationProperties.Name="Multi-selection alignment ribbon">
                                             <Button x:Name="MultiAlignLeftBtn" Width="26" Height="26" Padding="0"
                                                     Style="{StaticResource DefaultButtonStyle}" Background="Transparent" BorderThickness="0"
                                                     Click="OnMultiAlignLeftClick"
@@ -1189,7 +1191,9 @@
                                         CornerRadius="6" Padding="6,4">
                                     <Grid ColumnDefinitions="Auto,*,Auto">
                                         <TextBlock Text="Morph" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                                        <StackPanel x:Name="MorphShapesCluster" Grid.Column="1" Orientation="Horizontal" Spacing="4"
+                                                    XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                                    AutomationProperties.Name="Quick morph shapes">
                                             <Button x:Name="MorphRectBtn" Style="{StaticResource SubtleButtonStyle}" Padding="6,2" Height="24"
                                                     Click="OnMorphRectClick" ToolTipService.ToolTip="Convert to Rectangle (rect)">
                                                 <FontIcon Glyph="&#xE7C3;" FontSize="11" />
@@ -1225,7 +1229,9 @@
                                         CornerRadius="6" Padding="6,4">
                                     <Grid ColumnDefinitions="Auto,*,Auto">
                                         <TextBlock Text="Layer" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="3">
+                                        <StackPanel x:Name="LayerActionsCluster" Grid.Column="1" Orientation="Horizontal" Spacing="3"
+                                                    XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                                    AutomationProperties.Name="Layer ordering actions">
                                             <Button x:Name="InspectorBringToFrontBtn" Style="{StaticResource SubtleButtonStyle}" Padding="6,2" Height="24"
                                                     Click="OnInspectorBringToFrontClick" ToolTipService.ToolTip="Bring to front (Ctrl+Shift+])">
                                                 <FontIcon Glyph="&#xE74A;" FontSize="11" />
@@ -1253,7 +1259,9 @@
                                         CornerRadius="6" Padding="6,4">
                                     <Grid ColumnDefinitions="Auto,*,Auto">
                                         <TextBlock Text="Flip" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="3">
+                                        <StackPanel x:Name="TransformActionsCluster" Grid.Column="1" Orientation="Horizontal" Spacing="3"
+                                                    XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                                    AutomationProperties.Name="Transform and flip actions">
                                             <Button x:Name="InspectorFlipHBtn" Style="{StaticResource SubtleButtonStyle}" Padding="6,2" Height="24"
                                                     Click="OnInspectorFlipHClick" ToolTipService.ToolTip="Flip shape horizontally (Mirror)">
                                                 <FontIcon Glyph="&#xE8E2;" FontSize="11" />

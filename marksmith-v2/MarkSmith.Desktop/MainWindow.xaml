@@ -1156,7 +1156,9 @@
                             <Border Width="1" Height="16" Background="{ThemeResource CardStrokeColorDefaultBrush}"
                                     Margin="4,0" VerticalAlignment="Center" />
                         </StackPanel>
-                        <StackPanel x:Name="EditingClustersPanel" Orientation="Horizontal" Spacing="4">
+                        <StackPanel x:Name="EditingClustersPanel" Orientation="Horizontal" Spacing="4"
+                                    XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                    AutomationProperties.Name="Editing tool clusters">
                             <Border Width="1" Height="16" Background="{ThemeResource CardStrokeColorDefaultBrush}" Margin="4,0" VerticalAlignment="Center" />
 
                             <DropDownButton AutomationProperties.Name="Text style" ToolTipService.ToolTip="Text style: bold, italic, strikethrough, headings" Height="32" Padding="8,0">

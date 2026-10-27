@@ -555,16 +555,20 @@
                                     <TextBlock x:Name="OutlineMatchCountLabel" Text="" FontSize="10" VerticalAlignment="Center" Margin="2,0"
                                                AutomationProperties.LiveSetting="Polite"
                                                Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
-                                    <Button x:Name="OutlinePrevMatchButton" Click="OnOutlinePrevMatchClick" Style="{StaticResource SubtleButtonStyle}"
-                                            Width="20" Height="20" Padding="0" ToolTipService.ToolTip="Previous matching node (Shift+F3)"
-                                            AutomationProperties.Name="Previous matching node">
-                                        <FontIcon Glyph="&#xE70E;" FontSize="9" />
-                                    </Button>
-                                    <Button x:Name="OutlineNextMatchButton" Click="OnOutlineNextMatchClick" Style="{StaticResource SubtleButtonStyle}"
-                                            Width="20" Height="20" Padding="0" ToolTipService.ToolTip="Next matching node (F3 or Enter)"
-                                            AutomationProperties.Name="Next matching node">
-                                        <FontIcon Glyph="&#xE70D;" FontSize="9" />
-                                    </Button>
+                                    <StackPanel x:Name="OutlineMatchStepperCluster" Orientation="Horizontal" Spacing="2"
+                                                XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                                AutomationProperties.Name="Search match navigation">
+                                        <Button x:Name="OutlinePrevMatchButton" Click="OnOutlinePrevMatchClick" Style="{StaticResource SubtleButtonStyle}"
+                                                Width="20" Height="20" Padding="0" ToolTipService.ToolTip="Previous matching node (Shift+F3)"
+                                                AutomationProperties.Name="Previous matching node">
+                                            <FontIcon Glyph="&#xE70E;" FontSize="9" />
+                                        </Button>
+                                        <Button x:Name="OutlineNextMatchButton" Click="OnOutlineNextMatchClick" Style="{StaticResource SubtleButtonStyle}"
+                                                Width="20" Height="20" Padding="0" ToolTipService.ToolTip="Next matching node (F3 or Enter)"
+                                                AutomationProperties.Name="Next matching node">
+                                            <FontIcon Glyph="&#xE70D;" FontSize="9" />
+                                        </Button>
+                                    </StackPanel>
                                 </StackPanel>
                             </Border>
                     </ui:WrapRow>
@@ -578,6 +582,8 @@
 
                         <ui:WrapRow x:Name="OutlineToolbar" HorizontalSpacing="2" VerticalSpacing="4"
                                     Background="Transparent" IsHitTestVisible="True"
+                                    XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                    AutomationProperties.Name="Outline actions toolbar"
                                     RightTapped="OnOutlineToolbarRightTapped"
                                     ToolTipService.ToolTip="Outline actions (Right-click for options)">
                             <Button Command="{Binding AddChildCommand}" Click="OnToolbarAddNodeClick" RightTapped="OnOutlineToolbarRightTapped" Height="32" Padding="7,0" ToolTipService.ToolTip="Add a child under the selected item (Insert, Right-click for options)">

@@ -21326,3 +21326,40 @@ through `ClipboardWriter` with the result reported. No resource lookups, file ac
 3. Carry forward Block 3's 2 refined ideas as first refinement targets.
 
 **Total user-visible improvements: 9** (3 Version History clusters across timeline filter, diff search stepper, and view options; 2 OCR Inspection Studio clusters across reclassification and markdown preview; 2 OCR interaction polish enhancements across Escape deselection and polite shortcut feedback; 2 Settings View clusters across license actions and related links).
+
+
+## 2026-10-27 · Run #296 (23:05–23:30 AEDT) · Antigravity AI Agent
+
+**Agent / Execution Metadata**
+- Model: Antigravity AI Agent (Google DeepMind)
+- Modes: Scheduled Hourly Automation Routine
+- Trigger: Scheduled hourly MarkSmith WinUI 3 Desktop Polish Routine
+- Mandate: Shape Studio quick morph shapes, layer ordering, and transform action clusters single Tab stops & XY arrow navigation; Shape Studio multi-selection alignment ribbon single Tab stop; Mermaid Studio diagram style presets cluster single Tab stop; SmartArt Studio outline actions toolbar & search match stepper clusters single Tab stops; MindMap Galaxy link actions & status counts clusters single Tab stops; Main Window markdown editing tool clusters single Tab stop.
+
+**Delivered (user-visible):**
+1. **Shape Studio Quick Morph Shapes Cluster single Tab stop & XY Arrow Navigation:** In `ShapeDesignStudioWindow.xaml`, the morph buttons (`MorphRectBtn`, `MorphRoundRectBtn`, `MorphEllipseBtn`, `MorphDiamondBtn`, `MorphHexagonBtn`) inside `QuickMorphRibbon` are unified under `MorphShapesCluster` (`XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Quick morph shapes"`). Keyboard users can fluidly morph shapes with Left/Right arrow keys in 1 single Tab stop.
+2. **Shape Studio Layer Ordering Actions Cluster single Tab stop & XY Arrow Navigation:** In `ShapeDesignStudioWindow.xaml`, `InspectorBringToFrontBtn`, `InspectorBringForwardBtn`, `InspectorSendBackwardBtn`, and `InspectorSendToBackBtn` inside `LayerRibbon` are grouped into `LayerActionsCluster` (`XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Layer ordering actions"`). Reduces layer z-order adjustment from 4 Tab stops down to 1 arrow-navigated stop.
+3. **Shape Studio Transform & Flip Actions Cluster single Tab stop & XY Arrow Navigation:** In `ShapeDesignStudioWindow.xaml`, `InspectorFlipHBtn`, `InspectorFlipVBtn`, `InspectorRotateCwBtn`, and `InspectorRotateCcwBtn` inside `TransformRibbon` are grouped into `TransformActionsCluster` (`XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Transform and flip actions"`). Flip and rotation controls are navigable with Left/Right arrow in 1 single Tab stop.
+4. **Shape Studio Multi-Selection Alignment Ribbon single Tab stop & XY Arrow Navigation:** In `ShapeDesignStudioWindow.xaml`, `MultiAlignRibbon`'s 8 align & distribute buttons are grouped into `MultiAlignCluster` (`XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Multi-selection alignment ribbon"`). Multi-shape arrangement is compressed from 8 repetitive Tab stops down to 1 single Tab stop with Left/Right arrow keys.
+5. **Mermaid Studio Diagram Style Presets Cluster single Tab stop & Up/Down Arrow Navigation:** In `MermaidDiagramStudioControl.xaml`, the 4 style presets (`PresetCatppuccin`, `PresetNord`, `PresetEmerald`, `PresetMono`) in the right inspector are grouped under `DiagramStylePresetsCluster` (`XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Style presets"`). Keyboard users can cycle through full-diagram color schemes in 1 single Tab stop with Up/Down arrow keys.
+6. **SmartArt Studio Outline Actions Toolbar single Tab stop & XY Arrow Navigation:** In `SmartArtDesignStudioWindow.xaml`, `OutlineToolbar` (Child, Sibling, Rename, Duplicate, Delete, Move Up, Move Down, Promote, Demote) is configured with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, and `AutomationProperties.Name="Outline actions toolbar"`. Reduces 9 consecutive Tab stops across outline buttons down to 1 fluid arrow-stepped stop.
+7. **SmartArt Studio Outline Search Match Stepper Cluster single Tab stop:** In `SmartArtDesignStudioWindow.xaml`, `OutlinePrevMatchButton` and `OutlineNextMatchButton` inside `OutlineSearchPill` are grouped into `OutlineMatchStepperCluster` (`XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Search match navigation"`), keeping text search entry clean while turning match navigation into 1 smooth arrow-stepped Tab stop.
+8. **MindMap Galaxy Link Actions Cluster single Tab stop & Arrow Navigation:** In `MindMapGalaxyWindow.xaml`, `ReverseLinkButton` and `DeleteLinkButton` are unified under `LinkActionsCluster` (`XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Link actions"`), allowing fluid arrow-key toggling between link reversal and deletion.
+9. **MindMap Galaxy Status Counts Cluster single Tab stop & Arrow Navigation:** In `MindMapGalaxyWindow.xaml`, `NodesCountButton` and `LinksCountButton` in the status bar are grouped into `GalaxyStatusCluster` (`XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, `AutomationProperties.Name="Galaxy status counts"`), enabling rapid arrow traversal between node summary and connection options.
+10. **Main Window Markdown Editing Tool Clusters single Tab stop & Arrow Navigation:** In `MainWindow.xaml`, `EditingClustersPanel` (`Text style`, `Lists`, `Insert`, `Tools`) is configured with `XYFocusKeyboardNavigation="Enabled"`, `TabFocusNavigation="Once"`, and `AutomationProperties.Name="Editing tool clusters"`. Users navigating the primary editing toolbar can arrow across all 4 cluster menus in 1 single Tab stop.
+
+**Implementation Summary**
+- Desktop: `Views/ShapeStudio/ShapeDesignStudioWindow.xaml` (`MorphShapesCluster`, `LayerActionsCluster`, `TransformActionsCluster`, `MultiAlignCluster`), `Views/Mermaid/MermaidDiagramStudioControl.xaml` (`DiagramStylePresetsCluster`), `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml` (`OutlineToolbar`, `OutlineMatchStepperCluster`), `Views/MindMap/MindMapGalaxyWindow.xaml` (`LinkActionsCluster`, `GalaxyStatusCluster`), `MainWindow.xaml` (`EditingClustersPanel`).
+- Tests: `Run296StudioPolishAndKeyboardNavigationTests.cs` (10 xUnit tests verifying XAML clusters, `XYFocusKeyboardNavigation`, `TabFocusNavigation`, and UIA names).
+
+**Verified:**
+- `dotnet build marksmith-v2\MarkSmith.Desktop\MarkSmith.Desktop.csproj -c Debug -p:Platform=x64`: 0 errors.
+- Unit tests: `Run296StudioPolishAndKeyboardNavigationTests` (10/10 passed), combined suite `Run29` (79/79 passed).
+- Smoke launch: Launched `Marksmith.exe` (PID 3272), confirmed running healthy after 4s without exit, closed cleanly.
+
+**Next up (Run #297):**
+1. Audit Shape Studio preset category and palette grid for directional navigation.
+2. Audit Mermaid Studio left tab strip (Palette, Code, Preview) for single Tab stop traversal.
+3. Carry forward Block 3's 2 refined ideas as first refinement targets.
+
+**Total user-visible improvements: 10** (4 Shape Studio clusters across quick morph, layer ordering, transform, and multi-align; 1 Mermaid Studio style presets cluster; 2 SmartArt Studio clusters across outline toolbar and search match stepper; 2 MindMap Galaxy clusters across link actions and status counts; 1 Main Window editing tool clusters toolbar).

@@ -1079,7 +1079,9 @@
                                                Style="{StaticResource InspectorCaption}" />
                                 </StackPanel>
                             </StackPanel>
-                            <Grid ColumnSpacing="8">
+                            <Grid x:Name="LinkActionsCluster" ColumnSpacing="8"
+                                  XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                                  AutomationProperties.Name="Link actions">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="*" />
@@ -1120,7 +1122,9 @@
                 <TextBlock x:Name="StatusBarText" Text="{Binding StatusMessage}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center"
                            TextTrimming="CharacterEllipsis" AutomationProperties.LiveSetting="Polite"
                            RightTapped="OnStatusBarRightTapped" DoubleTapped="OnStatusBarDoubleTapped" />
-                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                <StackPanel x:Name="GalaxyStatusCluster" Grid.Column="1" Orientation="Horizontal" Spacing="6"
+                            XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                            AutomationProperties.Name="Galaxy status counts">
                     <HyperlinkButton x:Name="NodesCountButton" Padding="4,0" MinHeight="0" VerticalAlignment="Center"
                                      Click="OnNodesCountClick" RightTapped="OnNodesCountRightTapped"
                                      AutomationProperties.Name="{Binding NodesCountText}"
