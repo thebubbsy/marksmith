@@ -22338,3 +22338,108 @@ dialogs. Those turned up the unnamed SelectorBar lists and the unnamed teaching 
   reports the thebubbsy token as invalid.
 - This run's commits are on local `main` only, with 03beb539, 9e2978ab, af550090 and 48e569ad.
 - `MarksmithBaseVersion` stays 3.97.0; tag v3.97.0 already exists on the remote.
+
+## 2026-11-01 · Run #313 (≈05:45–06:35 AEDT) · Claude Code
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic). The task template asks for "Antigravity AI Agent (Google DeepMind)"; that is not
+  who ran this, so the real identity is recorded instead.
+- Modes: Scheduled Hourly Automation Routine (scheduled task `commit-to-main-ship-improvement--r4efinement`)
+- Trigger: Scheduled hourly routine run
+- Agents Used: 1 (Orchestrator, who also did the coding and the skeptical review). No sub-agents, no conversation IDs.
+
+Picked up run #312's "Next up" items 2–4 (Diagram shape scroll-into-view, the stale "Type to name it.", the doubled
+palette row name). Reading the quick-add menu for item 2 turned up an undo bug, and a pass over Diagram Studio's
+status wording found counts like "1 nodes, 2 edges". A repo-wide plural scan found the main window's "1 fixes" badge.
+
+**User-visible improvements and fixes**
+1. **Diagram Studio: new and keyboard-selected shapes scroll into view.** A quick-added shape could land half past
+   the right edge of the canvas with the view left where it was. Quick-add (arrows, canvas menu, palette "Connect
+   to"), Tab / Shift+Tab selection and paste now scroll just far enough to show the shape with a 40 px margin. The
+   band under the minimap counts as hidden, as in Fit. Clicking a shape never scrolls.
+2. **Diagram Studio: naming a shape in the Properties panel replaces "Type to name it."** The status line now follows
+   the label as it is typed ("Renamed shape to 'Ship it'."). A later status message is left alone.
+3. **Diagram Studio: a right-click quick-add is one undo step.** Adding a Decision / Circle / Database / Cloud /
+   Note from a quick-add arrow's menu set its shape as a separate tracked edit, so the first Ctrl+Z only turned it
+   back into a rectangle and a second was needed to remove it.
+4. **Shape palette rows are named once.** Each row was a ListItem plus an inner Group with the same name, so a screen
+   reader heard it twice when walking into a row. The name is now on the row only, with help text giving its
+   category and keys ("Flowchart shape. Enter adds it to the middle of the canvas, Shift+F10 for options.").
+5. **Diagram Studio counts say shapes and connectors.** The status-bar summary ("7 nodes · 6 connectors"), the
+   code-sync and diagram-load messages ("(1 nodes, 2 edges)"), the minimap's copied stats, and the paste, delete,
+   select-all and align messages now say "shape(s)" and "connector(s)", with singulars.
+6. **Alt+drag duplicate's status uses the short name.** A multi-line label no longer runs its lines together in
+   "Duplicated '…'" (the same fix run #312 made for the other status lines).
+7. **Main window: the detected-source badge says "1 fix".** It read "· 1 fixes". An ingest with nothing fixed showed
+   "· 0 fixes" while a paste left the count off; both now leave it off. The ingest status line says "applied 1 fix".
+
+**Implementation Summary**
+- New `MarkSmith.Core/Mermaid/Routing/ViewportReveal.cs`: `OffsetToReveal(offset, viewport, start, length, margin)`,
+  the smallest scroll along one axis (null when already in view).
+- `MermaidStudioViewModel.cs`: `RevealNodeRequested` event (raised by `QuickAddNode`, `CycleSelection`,
+  `PasteSnapshots`); `PromptToName` + `OnSelectedNodeLabelChanged` (hooked with the selected node, skipped while
+  edit tracking is suspended, dropped once another status replaces the prompt); `ShapeCount(shapes, connectors)`;
+  status wording.
+- `MermaidCanvasControl.xaml.cs`: `RevealNode(node)` via `CanvasScrollViewer.ChangeView(x, y, null)`, hooked and
+  unhooked with the hint view model on DataContext change; `SpawnShape` sets shape and label inside
+  `SuspendEditTracking()`.
+- `NodePaletteControl.xaml/.cs`: card name removed; `OnPaletteContainerContentChanging` names the ListViewItem.
+- `MermaidDiagramStudioControl.xaml(.cs)`, `MermaidMinimapControl.cs`: `CountText.Of(…, "shape")`.
+- `MainViewModel.cs`: `FixCount` / `FixesSuffix`.
+- Tests: new `Run313DiagramRevealAndStatusTests` (30 cases): reveal math, which actions request a reveal (and that
+  pointer selection doesn't), the canvas hook, the name prompt (follows, leaves later status alone, ignores
+  suspended edits and other shapes), one-step undo, the SpawnShape source contract, palette row naming, count
+  wording, the duplicate short name and the fixes suffix. Updated the pinned wording in `Run266…`, `Run273ListRows…`
+  and `Run287…`.
+
+**Adversarial review**
+- Focus traps: nothing collapsed or disabled.
+- Key swallowing: no key handlers added or changed.
+- Flyout polish: no new flyouts or dynamic buttons.
+- Theme safety: no brushes added.
+- File / concurrency safety: no file access. The view model event is unhooked when the canvas's DataContext changes
+  (the same lifetime as the existing empty-canvas hint hook). The name-prompt handler moves with the selection, so
+  it never stays attached to an unselected shape.
+
+**Verified**
+- `dotnet build … -p:OutDir=%TEMP%\ms_run313\b\` (and `b2\` for the final tree, since `b` was held by the running
+  instance): 0 errors.
+- `dotnet test --filter "Run3|Run2|Mermaid|Diagram|Palette|Count"`: 2451/2451 passed. This includes the three tests
+  run #309 noted as failing at HEAD; they pass now.
+- Live, isolated instances with `MARKSMITH_CONFIG_DIR=%TEMP%\ms_run313\cfg`; only the PIDs this run launched (9696,
+  19888, 26616) were stopped. UIA patterns only, no SendKeys or mouse input.
+  - Item 1: four quick-adds to the right in a row. `CanvasScrollViewer` horizontal scroll went 0.4 → 3 → 10.3 → 17.5 →
+    24.7 %, and each new shape stayed on screen at the same place. Screenshot `%TEMP%\ms_run313\diagram.png`
+    shows the new shape fully in view with its right quick-add arrow reachable.
+  - Item 2: after a quick-add, setting `NodeLabelTextBox` through ValuePattern turned the status into "Renamed shape
+    to '…'.", and it followed a second change.
+  - Item 4: palette rows read "Rectangle Box" with the help text and have 0 Group descendants (only the two Text
+    children).
+  - Item 5: `CanvasSummaryButton` = "Copy diagram summary, 3 shapes · 2 connectors · Snap to 10 px grid".
+  - Items 3, 6 and 7 are covered by tests only.
+
+**Noticed, not fixed**
+- During the item 2 check the label picked up stray digits ("02952Ship it now"). Nothing in the rig typed digits, so
+  they were most likely desktop keystrokes that reached the scratch Diagram Studio window, which takes the
+  foreground when a rig opens it. Future rigs should not leave a studio window open longer than the check needs.
+- The `ins.ps1` rig helper failed on single-level menu paths. It is fixed in `%TEMP%\ms_run313`, but the Insert
+  dialog audit never ran, so the Code / Tabs / Video / Data grid / Columns dialogs are still un-audited.
+- A quick-add through UIA Invoke (window in the background) didn't leave the inline rename box open. It is probably
+  focus loss committing the box, which is expected, but it's worth checking by hand.
+
+**Next up (Run #314)**
+1. Once `gh` is re-authenticated: push `main` (03beb539, 9e2978ab, af550090, 48e569ad, f9338aa5, 525aef3f and this
+   run's commits), bump `MarksmithBaseVersion` to 3.98.0, tag v3.98.0.
+2. Run the Insert dialog UIA audit (Code block, Tab group, Video embed, Data grid, Columns, the References dialogs).
+3. Check the inline rename box after a mouse quick-add while the window has focus.
+4. Look for other studios whose count wording still says "nodes" where the UI says "shapes" (SmartArt, Shape Studio).
+
+**Total user-visible improvements: 7** (3 Diagram canvas behaviour fixes, 1 accessibility fix, 3 wording fixes across
+Diagram Studio and the main window).
+
+**Release (same run):** not cut.
+- `git push --dry-run` still fails (`could not read Username for 'https://github.com'`), and `gh auth status` still
+  reports the thebubbsy token as invalid.
+- This run's commits are on local `main` only, with the earlier unpushed ones.
+- `MarksmithBaseVersion` stays 3.97.0; tag v3.97.0 already exists on the remote.
