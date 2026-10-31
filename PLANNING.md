@@ -22443,3 +22443,86 @@ Diagram Studio and the main window).
   reports the thebubbsy token as invalid.
 - This run's commits are on local `main` only, with the earlier unpushed ones.
 - `MarksmithBaseVersion` stays 3.97.0; tag v3.97.0 already exists on the remote.
+
+## 2026-11-01 · Run #314 (≈06:45–07:25 AEDT) · Claude Code
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic). The task template asks for "Antigravity AI Agent (Google DeepMind)"; that is not
+  who ran this, so the real identity is recorded instead.
+- Modes: Scheduled Hourly Automation Routine (scheduled task `commit-to-main-ship-improvement--r4efinement`)
+- Trigger: Scheduled hourly routine run
+- Agents Used: 1 (Orchestrator, who also did the coding and the skeptical review). No sub-agents, no conversation IDs.
+
+Picked up run #313's "Next up" item 2: a live UIA audit of the Insert dialogs (Code block, Tab group, Video embed,
+Data grid, Columns, Random tile map), walked from the focused element up to the dialog's Popup. A screenshot taken
+while checking the line tools showed the status bar reading "1 words".
+
+**User-visible improvements and fixes**
+1. **Insert dialogs: the "Inserts" card reads its snippet once.** The scroller around the snippet took its name from
+   the snippet, so a screen reader read the whole block twice: once for the scroller, then "Inserts: …" for the
+   text inside it. The scroller is now raw-view only. This applies to all of the Insert dialogs.
+2. **Insert dialogs: the card names its keys.** Ctrl+Enter, Ctrl+Shift+C and Shift+F10 were only in the "Inserts"
+   label's mouse tooltip. They are now the card's help text.
+3. **Workflow / Timeline / Tab group / Data grid / Chart: the edit box carries its count.** The "3 tabs" or
+   "2 points" badge sits beside the heading, out of reach from inside the box. It is now the box's help text, and it
+   updates as lines are typed.
+4. **Video embed: the card says "Nothing yet" until a link is pasted.** It used to show a made-up
+   `watch?v=EXAMPLE_ID` block that Copy would copy, while Insert stayed disabled. Quick insert still uses the
+   builder's placeholder.
+5. **Sort lines / Remove duplicate lines on one line ask for more lines.** With the caret on a line (or a one-line
+   selection) they said "Nothing to change: the selection is already like that." Sort now says "Select two or more
+   lines to sort." and dedupe says "Select two or more lines to look for duplicates."
+6. **Line transforms on the caret's line say "this line".** An unchanged UPPERCASE / lowercase / Title Case with no
+   selection said "the selection is already like that"; it now says "this line is already like that".
+7. **Status bar says "1 word".** The word count read "1 words · < 1 min read", and the stats breakdown said
+   "1 words · 1 characters". Both now use `CountText`.
+
+**Implementation Summary**
+- `Views/InsertDialogControls.cs`: `previewScroller` with `AccessibilityView.Raw`; `PreviewCardHelp` const as the
+  card's help text; `SetHelpText(_box, _count.Text)` in `LinesInsertControl` and `ChartInsertControl`;
+  `EmbedInsertControl.Snippet` is empty while the URL is empty.
+- `MainWindow.xaml.cs`: `TransformSelection(..., string? needsLines = null)` checks `LineCount(segment) < 2` before
+  transforming; `caretLine` picks the "this line" wording; `SortNeedsLines` const; dedupe message.
+- `MarkSmith.Core/Services/DocumentStatsService.cs`: `SummaryText` and `DetailText` use `CountText.Of`.
+- Tests: new `Run314InsertDialogAndLineToolsTests` (20 cases): raw scroller, card help keys, count help text order,
+  empty embed snippet (and the builder's fallback kept), empty-card copy/focus order, the one-line sort and dedupe
+  messages, "this line" wording, `LineCount` with trailing breaks, and "1 word" / "1 character". Run261's
+  `TransformSelection` lookup now matches the new signature.
+- Build: `MarkSmith.Desktop` Debug x64 to `%TEMP%\ms_run314\b\`, 0 errors. Targeted tests (Run314, Run261,
+  InsertDialog*, InsertSnippetBuilder*, DocumentStats*): 117 passed, 0 failed.
+- Live UIA on the scratch build (PID-tracked, `MARKSMITH_CONFIG_DIR=%TEMP%\ms_run314\cfg`, stopped at the end):
+  in the control view the preview card holds Inserts / Copy / "Inserts: …" with no scroller pane, and its help text
+  is the key list. Video embed shows "Inserts nothing yet" with Copy and Insert disabled. The Tab group box's help
+  text is "2 tabs". Sort A to Z on "zeta" says "Select two or more lines to sort.", and a three-line selection still
+  sorts ("Sorted 3 lines A to Z."). Dedupe on one line asks for more lines. UPPERCASE on "ZETA" says "this line".
+  `WordCountText` reads "1 word · < 1 min read". PrintWindow screenshots confirm the dialog and the status bar.
+- Skeptical review: Copy is still disabled only after `FocusFirstField()` moves focus off it. No key handlers
+  changed. The new early return puts focus back in the editor, like the other early returns. No raw resource
+  lookups were added.
+- Rig: `%TEMP%\ms_run314\dlgaudit.ps1` finds the open ContentDialog by walking up from `FocusedElement` to the
+  `Popup` window (the dialog isn't under `Pop-upHost`), and `sort.ps1` sets the editor text via ValuePattern, can
+  select everything via TextPattern (`SELALL=1`), and walks the Tools menu. `ins.ps1` was fixed for single-item
+  paths (it walked `[0..-1]`). A fresh cfg shows the Welcome tour, so copy a previous run's `settings.json`.
+
+**Noticed, not fixed**
+- The Code block card shows an empty fence as "```", a blank line, then "```". That is what gets inserted (the
+  caret lands on the blank line), but it reads oddly.
+- The SmartArt view model's audit strings still say "1 nodes" / "1 words" in places (for example "Hierarchy: {total}
+  nodes"). It is unclear which of them reach the UI.
+
+**Next up (Run #315)**
+1. Once `gh` is re-authenticated: push `main` (03beb539, 9e2978ab, af550090, 48e569ad, f9338aa5, 525aef3f, b1bea4e6,
+   7115f9c2 and this run's commits), bump `MarksmithBaseVersion` to 3.98.0, tag v3.98.0.
+2. Run the same dialog audit on Image, Link, Bibliography and SmartArt Insert, plus the AI context metadata dialog.
+3. Find which SmartArt audit summaries are shown, and fix their plurals.
+4. Check the inline rename box after a mouse quick-add (still open from run #313).
+
+**Total user-visible improvements: 7** (3 accessibility fixes across all the Insert dialogs, 1 Insert preview fix,
+3 wording fixes in the editor line tools and the status bar).
+
+**Release (same run):** not cut.
+- `git push origin main` still fails (`could not read Username for 'https://github.com'`), and `gh auth status`
+  still reports the thebubbsy token as invalid.
+- This run's commits are on local `main` only, with the earlier unpushed ones.
+- `MarksmithBaseVersion` stays 3.97.0; tag v3.97.0 already exists on the remote.
