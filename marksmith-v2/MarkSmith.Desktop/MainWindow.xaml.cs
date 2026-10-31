@@ -221,6 +221,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // Screen readers hear the status message ("Exported to …") and the Find bar's match count.
         Services.LiveAnnounce.Track(StatusMsgText);
         Services.LiveAnnounce.Track(FindCountText, FindCountButton);
+        // The editor-view tabs' inner list was an unnamed "list" to screen readers.
+        Services.SelectorBarNames.NameInnerList(CenterViewSelector);
 
         Title = "MarkSmith";
         // Unpackaged app: the exe icon covers Explorer/taskbar, but the title bar needs an
@@ -821,6 +823,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         MoreMenuTip.Title = title;
         MoreMenuTip.Subtitle = subtitle;
+        // The tip's window had no accessible name, so Narrator announced an unnamed window.
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(MoreMenuTip, title);
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(MoreMenuTip, subtitle);
         MoreMenuTip.IsOpen = true;
         _moreMenuTipTimer ??= DispatcherQueue.CreateTimer();
         _moreMenuTipTimer.Stop();

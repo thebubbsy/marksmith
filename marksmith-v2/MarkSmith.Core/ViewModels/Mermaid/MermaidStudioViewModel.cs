@@ -258,8 +258,20 @@ public partial class MermaidStudioViewModel : ObservableObject
     /// <summary>The name a status message uses for a node: its label (first line), else its id.</summary>
     public static string DisplayName(DiagramNodeViewModel node)
     {
-        var label = (node.LabelText ?? string.Empty).Replace("\r", string.Empty).Split('\n')[0].Trim();
+        var label = (node.LabelText ?? string.Empty).Replace("\r\n", "\n").Replace('\r', '\n').Split('\n')[0].Trim();
         return label.Length > 0 ? label : node.Id;
+    }
+
+    /// <summary>
+    /// What a screen reader calls a connector on the canvas: "Connector from Start to Check,
+    /// labelled Valid, selected". Connectors had no name at all; only their label text was exposed.
+    /// </summary>
+    public string ConnectorAccessibleName(DiagramConnectorViewModel connector)
+    {
+        var name = $"Connector from {DisplayNameOf(connector.SourceNodeId)} to {DisplayNameOf(connector.TargetNodeId)}";
+        var label = (connector.Label ?? string.Empty).Replace("\r\n", " ").Replace('\r', ' ').Replace('\n', ' ').Trim();
+        if (label.Length > 0) name += $", labelled {label}";
+        return connector.IsSelected ? name + ", selected" : name;
     }
 
     private string DisplayNameOf(string nodeId) =>

@@ -18,6 +18,7 @@ public partial class DiagramNodeViewModel : ObservableObject
     private string _id = Guid.NewGuid().ToString("N")[..8];
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AccessibleName))]
     private string _labelText = "New Node";
 
     [ObservableProperty]
@@ -25,6 +26,7 @@ public partial class DiagramNodeViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(BoxCornerRadius))]
+    [NotifyPropertyChangedFor(nameof(AccessibleName))]
     private string _shape = "Rectangle";
 
     [ObservableProperty]
@@ -91,6 +93,7 @@ public partial class DiagramNodeViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(ShowAnchors))]
     [NotifyPropertyChangedFor(nameof(QuickAddOpacity))]
     [NotifyPropertyChangedFor(nameof(HoverGlowOpacity))]
+    [NotifyPropertyChangedFor(nameof(AccessibleName))]
     private bool _isSelected;
 
     /// <summary>True while the pointer hovers the node — drives the hover glow and reveals
@@ -114,6 +117,39 @@ public partial class DiagramNodeViewModel : ObservableObject
 
     /// <summary>Smooth opacity for the node hover ring (fades in on hover when not already selected).</summary>
     public double HoverGlowOpacity => IsHovered && !IsSelected ? 1.0 : 0.0;
+
+    /// <summary>
+    /// What a screen reader calls the node on the canvas: "Check input, Diamond, selected". The node
+    /// box had no name, so the canvas read as a list of unnamed quick-add groups.
+    /// </summary>
+    public string AccessibleName
+    {
+        get
+        {
+            var label = (LabelText ?? string.Empty).Replace("\r\n", "\n").Replace('\r', '\n').Split('\n')[0].Trim();
+            var name = Shape switch
+            {
+                "Start" => "Start point",
+                "End" => "End point",
+                _ => (label.Length > 0 ? label : Id) + ", " + FriendlyShapeName(Shape),
+            };
+            return IsSelected ? name + ", selected" : name;
+        }
+    }
+
+    /// <summary>"RoundedRectangle" → "Rounded rectangle".</summary>
+    public static string FriendlyShapeName(string? shape)
+    {
+        if (string.IsNullOrWhiteSpace(shape)) return "Shape";
+        var sb = new System.Text.StringBuilder(shape.Length + 4);
+        for (int i = 0; i < shape.Length; i++)
+        {
+            char c = shape[i];
+            if (i > 0 && char.IsUpper(c) && !char.IsUpper(shape[i - 1])) sb.Append(' ').Append(char.ToLowerInvariant(c));
+            else sb.Append(c);
+        }
+        return sb.ToString();
+    }
 
     /// <summary>A 28 px start/end dot is too small to carry four arrows around it.</summary>
     public bool CanQuickAdd => !IsPseudoState;

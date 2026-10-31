@@ -18,7 +18,11 @@
     </UserControl.Resources>
 
     <Grid x:Name="CanvasRootGrid" Background="#1E1E2E">
+        <!-- The canvas is where keyboard focus sits while shapes are edited; it read as an
+             unnamed "pane". -->
         <ScrollViewer x:Name="CanvasScrollViewer"
+                      AutomationProperties.Name="Diagram canvas"
+                      AutomationProperties.HelpText="Tab selects the next shape. Arrow keys move it, F2 renames it, Delete removes it, Shift+F10 opens its menu."
                       HorizontalScrollBarVisibility="Hidden"
                       VerticalScrollBarVisibility="Hidden"
                       ZoomMode="Enabled"
@@ -201,7 +205,8 @@
                             <!-- Everything a connector draws comes from DiagramConnectorViewModel /
                                  Core ConnectorAppearance: dash, weight, the marker on each end (the
                                  three Mermaid grammars store these differently), selection and hover. -->
-                            <Canvas PointerEntered="OnConnectorPointerEntered" PointerExited="OnConnectorPointerExited">
+                            <Canvas PointerEntered="OnConnectorPointerEntered" PointerExited="OnConnectorPointerExited"
+                                    Loaded="OnConnectorTemplateLoaded" Unloaded="OnConnectorTemplateUnloaded">
                                 <!-- Soft halo: hover and selection feedback -->
                                 <Path Data="{Binding PathData}"
                                       Stroke="#4CC9F0"

@@ -68,6 +68,8 @@ namespace MarkSmith.Views.SmartArtStudio
             this.InitializeComponent();
             // A long status line is cut off at the window edge; hovering it shows the whole message.
             TrimmedTextToolTip.Attach(StatusBarText);
+            // The editor view tabs' inner list was an unnamed "list" to screen readers.
+            SelectorBarNames.NameInnerList(EditorTabs);
             // The custom accent's verdict ("Valid hex color · Enter applies it", "Applied #…") was
             // marked live but never raised; it now reads out once typing settles.
             LiveAnnounce.Track(CustomPaletteStatusText);

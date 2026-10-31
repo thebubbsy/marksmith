@@ -717,7 +717,11 @@ public sealed partial class MermaidCanvasControl : UserControl
         var root = (FrameworkElement)sender;
         HoverPolish.Apply(root);
         SetCursor(root, Microsoft.UI.Input.InputSystemCursorShape.SizeAll);
-        if (root.DataContext is DiagramNodeViewModel node) ApplyZIndex(node);
+        if (root.DataContext is DiagramNodeViewModel node)
+        {
+            ApplyZIndex(node);
+            TrackNodeName(root, node);
+        }
 
         foreach (var child in Descendants(root))
         {
@@ -747,6 +751,77 @@ public sealed partial class MermaidCanvasControl : UserControl
                     break;
             }
         }
+    }
+
+    // Node boxes had no accessible name, so the canvas read to a screen reader as a run of unnamed
+    // quick-add groups; connectors had only their label text. Names ("Check input, Diamond,
+    // selected", "Connector from Start to Check, labelled Valid") are pushed from the view models:
+    // x:Bind doesn't compile in this template and a {Binding} on AutomationProperties.Name has
+    // silently failed elsewhere (History). One handler per element, replaced if Loaded re-runs.
+    private sealed record NameHook(System.ComponentModel.INotifyPropertyChanged Source, System.ComponentModel.PropertyChangedEventHandler Handler);
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<FrameworkElement, NameHook> NameHooks = new();
+    private readonly HashSet<FrameworkElement> _connectorRoots = new();
+
+    private void TrackNodeName(FrameworkElement root, DiagramNodeViewModel node)
+    {
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(root, node.AccessibleName);
+        HookName(root, node, e =>
+        {
+            if (e.PropertyName != nameof(DiagramNodeViewModel.AccessibleName)) return;
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(root, node.AccessibleName);
+            // A renamed shape renames the connectors that say "from"/"to" it.
+            foreach (var c in _connectorRoots)
+                if (c.DataContext is DiagramConnectorViewModel conn && (conn.SourceNodeId == node.Id || conn.TargetNodeId == node.Id))
+                    NameConnector(c, conn);
+        });
+    }
+
+    private void OnConnectorTemplateLoaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: DiagramConnectorViewModel conn } root) return;
+        _connectorRoots.Add(root);
+        NameConnector(root, conn);
+        HookName(root, conn, args =>
+        {
+            if (args.PropertyName is nameof(DiagramConnectorViewModel.Label) or nameof(DiagramConnectorViewModel.IsSelected)
+                or nameof(DiagramConnectorViewModel.SourceNodeId) or nameof(DiagramConnectorViewModel.TargetNodeId))
+                NameConnector(root, conn);
+        });
+    }
+
+    private void OnConnectorTemplateUnloaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement root) return;
+        _connectorRoots.Remove(root);
+        UnhookName(root);
+    }
+
+    private void NameConnector(FrameworkElement root, DiagramConnectorViewModel conn)
+    {
+        if (ViewModel is { } vm)
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(root, vm.ConnectorAccessibleName(conn));
+    }
+
+    private static void HookName(FrameworkElement root, System.ComponentModel.INotifyPropertyChanged source, Action<System.ComponentModel.PropertyChangedEventArgs> onChanged)
+    {
+        UnhookName(root);
+        System.ComponentModel.PropertyChangedEventHandler handler = (_, e) => onChanged(e);
+        source.PropertyChanged += handler;
+        NameHooks.AddOrUpdate(root, new NameHook(source, handler));
+        root.Unloaded -= OnNameHookUnloaded;
+        root.Unloaded += OnNameHookUnloaded;
+    }
+
+    private static void OnNameHookUnloaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement root) UnhookName(root);
+    }
+
+    private static void UnhookName(FrameworkElement root)
+    {
+        if (!NameHooks.TryGetValue(root, out var hook)) return;
+        hook.Source.PropertyChanged -= hook.Handler;
+        NameHooks.Remove(root);
     }
 
     private static void ConfigureResizeCorner(Grid handle)
