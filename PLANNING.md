@@ -22033,3 +22033,115 @@ instead.
   landed.
 - This commit is on local `main` only.
 - Next release: re-authenticate `gh`, push `main`, bump `MarksmithBaseVersion` to 3.98.0, then tag v3.98.0.
+
+
+## 2026-11-01 · Run #310 (≈02:55–03:20 AEDT) · Claude Code
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic). The task template asks for "Antigravity AI Agent (Google DeepMind)"; that is not
+  who ran this, so the real identity is recorded instead.
+- Modes: Scheduled Hourly Automation Routine (scheduled task `commit-to-main-ship-improvement--r4efinement`)
+- Trigger: Scheduled hourly routine run
+- Agents Used: 1 (Orchestrator, who also did the coding and the skeptical review). No sub-agents, no conversation IDs.
+
+Picked up run #309's "Next up": its three failing tests, and the other flyouts' filter-to-list focus gaps. Lint and
+Recent exports have no filter box, so the gap there is the opening focus. Each flyout focused its list with
+`FocusState.Programmatic`, which draws no focus ring.
+
+**User-visible improvements and fixes**
+1. **Suite Hub: the version, plan and health badges wrap one by one again.** An Antigravity run had wrapped them in a
+   one-line `StackPanel` ("SuiteBadgesCluster") inside the header's `WrapRow`, which brought back the squeezed last badge
+   that run #235 fixed. The cluster is now a `WrapRow` itself and keeps its single tab stop and arrow-key moves. Live
+   check: the badges measure 79, 58 and 87 px wide on their own line under "MarkSmith" (screenshot
+   `suitehub_narrow.png`).
+2. **Markdown issues flyout opened from the keyboard rings the first issue.** Enter or Space on the issues chip now
+   focuses the list with `FocusState.Keyboard`, so arrow-key users can see which issue they are on. A mouse open still
+   draws no ring. The opener's focus state is read in a new `Opening` handler, before the flyout takes focus.
+3. **Recent exports flyout:** the same fix, for opens from the ⋯ menu item picked with the keys, the ⋯ right-click
+   menu, or the command palette (which passes the window and counts as keyboard). The state resets after each open.
+4. **Document outline flyout:** the same fix when it opens straight to the list (no filter box). The filter box
+   keeps Programmatic focus, since a text box shows its caret either way.
+5. **Version History "Try again" no longer throws keyboard focus away.** The button disables itself while the load
+   runs and hides with its error panel once the load works. Either way WinUI sent focus to the window's first tab
+   stop. `FocusRescue.Attach` now puts it on the documents list's Refresh button.
+6. **Version History "Try again" has an accessible name and tooltip:** "Try loading version history again", with the
+   tooltip "Load the version history again (F5)". It had neither, and its name was just "Try again".
+7. **Mermaid shape palette category pills say what they do:** "Show only Flowchart shapes · Right-click or Shift+F10
+   for options" (and "Show every shape" on All). All 8 pills had no tooltip, though each has a menu.
+
+**Tests checked against intent (not counted as improvements)**
+- `Run238…OcrStudio_DiscardEscAndX_GoThroughTheGuard_AfterReclassifying`: the first Esc now deselects the element
+  ("Press Esc again to exit."), and the second discards. That change was intended, so the contract now expects it.
+- `Run248…StatusBarButtons_DoNotLetADoubleClickReachTheStatusBarCopy(Shape, …)`: the button moved into
+  `ShapeStudioStatusCluster`, and its own `DoubleTapped` handler still sets `Handled`. Behaviour is unchanged, so the
+  contract now looks up the status bar through the button's ancestors.
+- `Run235…Header_badges_wrap…`: this one was a real regression, fixed in item 1. `Run297`'s cluster contract now
+  expects `ui:WrapRow`.
+
+**Implementation Summary**
+- `MainWindow.xaml`: `Opening` handlers on `LintFlyout` and `OutlineFlyout`.
+- `MainWindow.xaml.cs`:
+  - new `RingIfKeyboard(opener)`;
+  - `_historyListOpenFocus` / `_tocListOpenFocus` / `_lintListOpenFocus`;
+  - `OnLintFlyoutOpening`, `OnOutlineFlyoutOpening`;
+  - the opened handlers focus with the captured state;
+  - `OnExportHistoryMenuClick` captures it.
+- `Views/SuiteHubView.xaml`: `SuiteBadgesCluster` is a `ui:WrapRow`.
+- `Views/History/HistoryWindow.xaml`: the button gets the name `RetryLoadButton`, plus its accessible name and tooltip.
+  `HistoryWindow.xaml.cs` adds `FocusRescue.Attach(() => DocumentsRefreshButton, RetryLoadButton)`.
+- `Views/Mermaid/NodePaletteControl.xaml`: tooltips on the 8 category pills.
+- Tests:
+  - new `Run310FlyoutFocusRingsAndBadgeWrapTests` (10 cases);
+  - updated `Run238`, `Run248` and `Run297` contracts, as above.
+
+**Adversarial review**
+- Focus traps: nothing new is collapsed or disabled. Item 5 removes a trap. `FocusRescue` only acts when focus was
+  really lost, meaning it went to null, to a disabled control, or to the first tab stop.
+- Key swallowing: no key handlers were added or changed.
+- Flyout polish: the existing `HoverPolish.Apply` calls in the opened handlers are untouched. The `Opening` handlers
+  only read `FocusState`.
+- Theme safety: no brush or resource lookups were added.
+- File and concurrency safety: no file access was added.
+- Stale state: the export state resets after each open, so a keyboard open followed later by a mouse open doesn't
+  ring. Lint and Outline re-read their state on every `Opening`.
+
+**Verified**
+- `dotnet build … -p:OutDir=%TEMP%\ms_run310\b\`: 0 errors.
+- `dotnet test --filter "Run310|Run235|Run238|Run248|Run297|Run263|Run309|SuiteHub|History|Lint|Palette"`: 897/897
+  passed. That includes the three contracts that failed at the start of the run.
+- Live checks used an isolated instance, PID 12692, with `MARKSMITH_CONFIG_DIR=%TEMP%\ms_run310\cfg`. Only that PID was
+  stopped.
+  - The workstation was locked (LogonUI running). Keys were posted with `PostMessage` to the instance's own
+    `InputSiteWindowClass` hwnd after checking its owner PID.
+  - Item 1: the badge rectangles listed above, plus the PrintWindow screenshot.
+  - Item 2: after a UIA `SetFocus` on the issues chip and a posted Space, the focused item was "Line 1: Trailing
+    whitespace".
+  - The focus ring itself can't be seen through UIA, and PrintWindow doesn't capture popups.
+  - Items 3–7 are covered by source contracts only. The scratch config has no exports, and no load error could be
+    forced.
+
+**Noticed, not fixed**
+- The main window's minimum width is 1120 px, so the Suite Hub badge wrap can't be pushed further live.
+- The scratch config copied from run #309 brought an `autosave_recovery.md` with it, so the Recover dialog opened at
+  launch. Future rigs should delete that file first.
+- Push and release are still blocked. See the release note below.
+
+**Next up (Run #311)**
+1. Once `gh` is re-authenticated: push `main` (03beb539 and this run), bump `MarksmithBaseVersion` to 3.98.0, then tag
+   v3.98.0.
+2. Check the other surfaces' list flyouts for the same Programmatic-focus-on-open gap: the Mermaid templates flyout,
+   the SmartArt layout picker, and Theme presets.
+3. Live-verify item 3 by seeding the scratch config with export history, then opening it from the command palette.
+4. Live-check the Google and licence card menus (left over from run #309) with a real right-click while the desktop
+   is unlocked.
+
+**Total user-visible improvements: 7** (1 regression restored, 3 keyboard focus-ring fixes, 1 focus trap fixed,
+2 accessibility/tooltip additions).
+
+**Release (same run):** not cut.
+- `git push` still fails (`could not read Username for 'https://github.com'`), and `gh auth status` still reports the
+  thebubbsy token as invalid.
+- Commits 03beb539 (#309) and this run's are on local `main` only.
+- `MarksmithBaseVersion` stays 3.97.0, and tag v3.97.0 already exists on the remote.
+- The next run with working credentials should push, bump to 3.98.0, and tag v3.98.0.
