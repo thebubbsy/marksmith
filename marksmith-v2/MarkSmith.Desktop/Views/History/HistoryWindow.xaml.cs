@@ -103,6 +103,9 @@ public sealed partial class HistoryWindow : Window
         _vm.PropertyChanged += OnVmPropertyChanged;
         // "3 matches" was marked live in XAML but never raised while typing a search.
         LiveAnnounce.Track(TimelineSearchMatchText);
+        // Try again disables itself while loading and hides with its error panel once the load works,
+        // which threw keyboard focus to the window's first tab stop; it lands on the list's Refresh.
+        FocusRescue.Attach(() => DocumentsRefreshButton, RetryLoadButton);
 
         _preview = PreviewWeb;
         _ = InitializeWebViewAsync();

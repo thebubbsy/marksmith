@@ -933,7 +933,7 @@
                                             <TextBlock x:Name="LintCountText" Text="No issues" FontSize="11" VerticalAlignment="Center" />
                                         </StackPanel>
                                         <Button.Flyout>
-                                            <Flyout x:Name="LintFlyout" Placement="Top" Opened="OnLintFlyoutOpened">
+                                            <Flyout x:Name="LintFlyout" Placement="Top" Opening="OnLintFlyoutOpening" Opened="OnLintFlyoutOpened">
                                                 <Grid Width="340" RowSpacing="8">
                                                     <Grid.RowDefinitions>
                                                         <RowDefinition Height="Auto" />
@@ -1432,7 +1432,7 @@
                                 ToolTipService.ToolTip="Document outline (H1–H6, Right-click or Shift+F10 for outline options)">
                             <FontIcon Glyph="&#xE8A4;" FontSize="14" />
                             <Button.Flyout>
-                                <Flyout x:Name="OutlineFlyout" Placement="BottomEdgeAlignedRight" Opened="OnOutlineFlyoutOpened">
+                                <Flyout x:Name="OutlineFlyout" Placement="BottomEdgeAlignedRight" Opening="OnOutlineFlyoutOpening" Opened="OnOutlineFlyoutOpened">
                                     <Grid RowSpacing="8" Width="340">
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto" />

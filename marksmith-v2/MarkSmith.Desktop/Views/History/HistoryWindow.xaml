@@ -217,7 +217,9 @@
                                   Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
                         <TextBlock Text="{Binding LoadError}" TextWrapping="Wrap" FontSize="12"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" IsTextSelectionEnabled="True" />
-                        <Button Content="Try again" Command="{Binding LoadCommand}" Padding="12,5" />
+                        <Button x:Name="RetryLoadButton" Content="Try again" Command="{Binding LoadCommand}" Padding="12,5"
+                                AutomationProperties.Name="Try loading version history again"
+                                ToolTipService.ToolTip="Load the version history again (F5)" />
                     </StackPanel>
 
                     <ScrollViewer x:Name="FilesScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto">

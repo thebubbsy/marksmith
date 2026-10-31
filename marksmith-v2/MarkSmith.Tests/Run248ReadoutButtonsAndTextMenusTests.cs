@@ -111,9 +111,10 @@ public class Run248ReadoutButtonsAndTextMenusTests
     [InlineData("Shape", "SelectionSummaryButton", "OnSelectionSummaryButtonDoubleTapped")]
     public void StatusBarButtons_DoNotLetADoubleClickReachTheStatusBarCopy(string studio, string button, string handler)
     {
-        // Both sit in a status bar whose DoubleTapped copies the status line.
+        // Both sit in a status bar whose DoubleTapped copies the status line (Shape's inside a
+        // status actions cluster, so look up the ancestors).
         var b = Named(Stem(studio), button);
-        Assert.Equal("OnStatusBarDoubleTapped", (string?)b.Parent!.Attribute("DoubleTapped"));
+        Assert.Contains(b.Ancestors(), a => (string?)a.Attribute("DoubleTapped") == "OnStatusBarDoubleTapped");
         Assert.Equal(handler, (string?)b.Attribute("DoubleTapped"));
         Assert.Contains("e.Handled = true", Method(Read(Stem(studio) + ".xaml.cs"), handler));
     }

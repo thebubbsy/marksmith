@@ -30,7 +30,8 @@
                             <TextBlock Text="MarkSmith" FontSize="16" FontWeight="SemiBold" />
                             <!-- Buttons so Tab reaches them: Enter copies, Shift+F10 opens the menu (they were
                                  mouse-only Borders). -->
-                            <StackPanel x:Name="SuiteBadgesCluster" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+                            <!-- A WrapRow too: as a one-line StackPanel the three badges were squeezed as one block again. -->
+                            <ui:WrapRow x:Name="SuiteBadgesCluster" HorizontalSpacing="6" VerticalSpacing="4" VerticalAlignment="Center"
                                         XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
                                         AutomationProperties.Name="Suite status badges">
                             <Button x:Name="VersionBadge" Background="{ThemeResource SubtleFillColorSecondaryBrush}" BorderThickness="0"
@@ -57,7 +58,7 @@
                                     <TextBlock x:Name="HealthStatusText" Text="Engine Ready" FontSize="10.5" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 </StackPanel>
                             </Button>
-                            </StackPanel>
+                            </ui:WrapRow>
                         </ui:WrapRow>
                         <!-- Wraps rather than clipping: this sits between a fixed-width icon and the
                              Config Folder button, so the space it gets depends on the dialog width. -->

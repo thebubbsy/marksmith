@@ -139,7 +139,7 @@ public class Run297StudioPolishAndKeyboardNavigationTests
         Assert.True(File.Exists(xamlPath), $"File exists: {xamlPath}");
         var content = File.ReadAllText(xamlPath);
 
-        var match = Regex.Match(content, @"<StackPanel\s+x:Name=""SuiteBadgesCluster""[^>]*>", RegexOptions.Singleline);
+        var match = Regex.Match(content, @"<ui:WrapRow\s+x:Name=""SuiteBadgesCluster""[^>]*>", RegexOptions.Singleline);
         Assert.True(match.Success, "SuiteBadgesCluster declaration should exist in SuiteHubView.xaml");
         Assert.Contains(@"XYFocusKeyboardNavigation=""Enabled""", match.Value);
         Assert.Contains(@"TabFocusNavigation=""Once""", match.Value);

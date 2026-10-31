@@ -92,8 +92,10 @@ public class Run238CloseGuardAndKeyboardHintsTests
         Assert.Contains("_requestClose = CloseGuard.Attach(this,", code);
         Assert.Contains("_session.TotalReclassifications > 0 && !_decisionTcs.Task.IsCompleted", code);
         Assert.Contains("private void OnDiscardClick(object sender, RoutedEventArgs e) => _requestClose();", code);
-        // Esc still routes to the same discard path.
-        Assert.Matches(@"VirtualKey\.Escape && !inputFocused\)\s*\{\s*e\.Handled = true;\s*OnDiscardClick\(", code);
+        // Esc still routes to the same discard path, once nothing is selected (the first Esc
+        // deselects the element, as the status line says).
+        Assert.Matches(@"VirtualKey\.Escape && !inputFocused\)\s*\{\s*e\.Handled = true;\s*if \(_selectedElement is not null\)[\s\S]{0,400}?else\s*\{\s*OnDiscardClick\(", code);
+        Assert.Contains("Press Esc again to exit.", code);
         // "Insert and close" completes the import without a second Close().
         var insert = code.IndexOf("() => { CompleteImport(); return true; }", StringComparison.Ordinal);
         Assert.True(insert > 0);

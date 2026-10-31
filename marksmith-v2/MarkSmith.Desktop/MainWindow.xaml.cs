@@ -1080,8 +1080,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     // "Export history" moved into the ⋯ menu but kept its rich ListView flyout: the menu item
     // re-opens it as the button's attached flyout (enqueued so the closing menu doesn't eat it).
+    // Programmatic focus draws no focus ring, so a list flyout opened from the keyboard (Enter or Space
+    // on its button, a menu item picked with the keys, the command palette) left arrow-key users unable
+    // to see which row they were on. Read before the flyout takes focus.
+    private static FocusState RingIfKeyboard(object? opener) =>
+        opener is Control { FocusState: FocusState.Keyboard } ? FocusState.Keyboard : FocusState.Programmatic;
+
+    private FocusState _historyListOpenFocus = FocusState.Programmatic;
+    private FocusState _tocListOpenFocus = FocusState.Programmatic;
+    private FocusState _lintListOpenFocus = FocusState.Programmatic;
+
     private void OnExportHistoryMenuClick(object sender, RoutedEventArgs e)
     {
+        // The command palette passes the window: it is driven from the keyboard.
+        _historyListOpenFocus = ReferenceEquals(sender, this) ? FocusState.Keyboard : RingIfKeyboard(sender);
         UpdateExportHistoryFlyoutState();
         DispatcherQueue.TryEnqueue(() =>
             Microsoft.UI.Xaml.Controls.Primitives.FlyoutBase.ShowAttachedFlyout(MoreMenuButton));
@@ -1094,8 +1106,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         UpdateExportHistoryFlyoutState();
         if (ViewModel.History.Count > 0)
         {
-            HistoryList?.Focus(FocusState.Programmatic);
+            HistoryList?.Focus(_historyListOpenFocus);
         }
+        _historyListOpenFocus = FocusState.Programmatic;
         MarkMissingExportFiles();
     }
 
@@ -3223,6 +3236,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         try { await core.ExecuteScriptAsync(js); } catch { /* best-effort */ }
     }
 
+    private void OnOutlineFlyoutOpening(object? sender, object e) => _tocListOpenFocus = RingIfKeyboard(OutlineButton);
+
     private void OnOutlineFlyoutOpened(object? sender, object e)
     {
         // Flyout content lives in the popup root, outside the window-wide HoverPolish walk.
@@ -3235,7 +3250,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
         else if (TocList is not null && TocList.Visibility == Visibility.Visible)
         {
-            TocList.Focus(FocusState.Programmatic);
+            TocList.Focus(_tocListOpenFocus);
         }
     }
 
@@ -11194,12 +11209,14 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (LintFlyoutCountText is not null) LintFlyoutCountText.Text = _lintIssues.Count == 0 ? string.Empty : $"({_lintIssues.Count})";
     }
 
+    private void OnLintFlyoutOpening(object? sender, object e) => _lintListOpenFocus = RingIfKeyboard(LintButton);
+
     private void OnLintFlyoutOpened(object? sender, object e)
     {
         if (CopyAllLintButton is not null) Services.HoverPolish.Apply(CopyAllLintButton);
         if (_lintIssues.Count > 0)
         {
-            LintList?.Focus(FocusState.Programmatic);
+            LintList?.Focus(_lintListOpenFocus);
         }
     }
 

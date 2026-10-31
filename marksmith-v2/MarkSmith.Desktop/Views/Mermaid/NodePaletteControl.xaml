@@ -44,21 +44,21 @@
              group in one stop, like any other set of choices. -->
         <VariableSizedWrapGrid x:Name="PaletteCategoriesCluster" Grid.Row="1" Orientation="Horizontal" ItemWidth="78" ItemHeight="32" AutomationProperties.Name="Palette categories"
                                XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once">
-            <ToggleButton x:Name="CatAll" Content="All" IsChecked="True" Click="OnCategoryPillClick" RightTapped="OnCategoryPillRightTapped" Padding="6,4" Margin="0,0,6,6"
+            <ToggleButton x:Name="CatAll" Content="All" ToolTipService.ToolTip="Show every shape · Right-click or Shift+F10 for options" IsChecked="True" Click="OnCategoryPillClick" RightTapped="OnCategoryPillRightTapped" Padding="6,4" Margin="0,0,6,6"
                           HorizontalAlignment="Stretch" CornerRadius="12" FontSize="11" />
-            <ToggleButton x:Name="CatFlowchart" Content="Flowchart" Click="OnCategoryPillClick" RightTapped="OnCategoryPillRightTapped" Padding="6,4" Margin="0,0,6,6"
+            <ToggleButton x:Name="CatFlowchart" Content="Flowchart" ToolTipService.ToolTip="Show only Flowchart shapes · Right-click or Shift+F10 for options" Click="OnCategoryPillClick" RightTapped="OnCategoryPillRightTapped" Padding="6,4" Margin="0,0,6,6"
                           HorizontalAlignment="Stretch" CornerRadius="12" FontSize="11" />
-            <ToggleButton x:Name="CatSequence" Content="Sequence" Click="OnCategoryPillClick" RightTapped="OnCategoryPillRightTapped" Padding="6,4" Margin="0,0,6,6"
+            <ToggleButton x:Name="CatSequence" Content="Sequence" ToolTipService.ToolTip="Show only Sequence shapes · Right-click or Shift+F10 for options" Click="OnCategoryPillClick" RightTapped="OnCategoryPillRightTapped" Padding="6,4" Margin="0,0,6,6"
                           HorizontalAlignment="Stretch" CornerRadius="12" FontSize="11" />
-            <ToggleButton x:Name="CatClass" Content="Class" Click="OnCategoryPillClick" RightTapped="OnCategoryPillRightTapped" Padding="6,4" Margin="0,0,6,6"
+            <ToggleButton x:Name="CatClass" Content="Class" ToolTipService.ToolTip="Show only Class shapes · Right-click or Shift+F10 for options" Click="OnCategoryPillClick" RightTapped="OnCategoryPillRightTapped" Padding="6,4" Margin="0,0,6,6"
                           HorizontalAlignment="Stretch" CornerRadius="12" FontSize="11" />
-            <ToggleButton x:Name="CatState" Content="State" Click="OnCategoryPillClick" RightTapped="OnCategoryPillRightTapped" Padding="6,4" Margin="0,0,6,6"
+            <ToggleButton x:Name="CatState" Content="State" ToolTipService.ToolTip="Show only State shapes · Right-click or Shift+F10 for options" Click="OnCategoryPillClick" RightTapped="OnCategoryPillRightTapped" Padding="6,4" Margin="0,0,6,6"
                           HorizontalAlignment="Stretch" CornerRadius="12" FontSize="11" />
-            <ToggleButton x:Name="CatGantt" Content="Gantt" Click="OnCategoryPillClick" RightTapped="OnCategoryPillRightTapped" Padding="6,4" Margin="0,0,6,6"
+            <ToggleButton x:Name="CatGantt" Content="Gantt" ToolTipService.ToolTip="Show only Gantt shapes · Right-click or Shift+F10 for options" Click="OnCategoryPillClick" RightTapped="OnCategoryPillRightTapped" Padding="6,4" Margin="0,0,6,6"
                           HorizontalAlignment="Stretch" CornerRadius="12" FontSize="11" />
-            <ToggleButton x:Name="CatER" Content="ER" Click="OnCategoryPillClick" RightTapped="OnCategoryPillRightTapped" Padding="6,4" Margin="0,0,6,6"
+            <ToggleButton x:Name="CatER" Content="ER" ToolTipService.ToolTip="Show only ER shapes · Right-click or Shift+F10 for options" Click="OnCategoryPillClick" RightTapped="OnCategoryPillRightTapped" Padding="6,4" Margin="0,0,6,6"
                           HorizontalAlignment="Stretch" CornerRadius="12" FontSize="11" />
-            <ToggleButton x:Name="CatMindmap" Content="Mindmap" Click="OnCategoryPillClick" RightTapped="OnCategoryPillRightTapped" Padding="6,4" Margin="0,0,6,6"
+            <ToggleButton x:Name="CatMindmap" Content="Mindmap" ToolTipService.ToolTip="Show only Mindmap shapes · Right-click or Shift+F10 for options" Click="OnCategoryPillClick" RightTapped="OnCategoryPillRightTapped" Padding="6,4" Margin="0,0,6,6"
                           HorizontalAlignment="Stretch" CornerRadius="12" FontSize="11" />
         </VariableSizedWrapGrid>
 
