@@ -22236,3 +22236,105 @@ Delete button.
   reports the thebubbsy token as invalid.
 - This run's commit is on local `main` only, with 03beb539, 9e2978ab and af550090.
 - `MarksmithBaseVersion` stays 3.97.0; tag v3.97.0 already exists on the remote.
+
+## 2026-11-01 · Run #312 (≈05:00–05:25 AEDT) · Claude Code
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic). The task template asks for "Antigravity AI Agent (Google DeepMind)"; that is not
+  who ran this, so the real identity is recorded instead.
+- Modes: Scheduled Hourly Automation Routine (scheduled task `commit-to-main-ship-improvement--r4efinement`)
+- Trigger: Scheduled hourly routine run
+- Agents Used: 1 (Orchestrator, who also did the coding and the skeptical review). No sub-agents, no conversation IDs.
+
+Picked up run #311's "Next up" item 3 (Diagram Studio canvas nodes have no accessible name). Then ran a live UIA
+audit (`audit.ps1`: every interactive element with an empty Name, or a Name that is a type name) over the main
+window, Diagram / SmartArt / Shape Studio, Version History, the theme dialog and the Table, Link and Chart Insert
+dialogs. Those turned up the unnamed SelectorBar lists and the unnamed teaching tip. Everything else came back clean.
+
+**User-visible improvements and fixes**
+1. **Diagram Studio: shapes on the canvas have names.** A screen reader now hears "Check Conditions, Rhombus" or
+   "Start Process, Rounded rectangle", with ", selected" on the selected shape. Start/end dots are "Start point" /
+   "End point". Before, a shape was an unnamed box and only its "Quick-add connected shapes" group could be reached.
+   The name follows the shape: renaming, changing its shape or selecting it updates it.
+2. **Diagram Studio: connectors have names.** "Connector from Start Process to Check Conditions, labelled
+   Initialize". Before, only the label text was exposed. Renaming a shape also renames the connectors that name it.
+3. **Diagram Studio: the canvas is named.** Keyboard focus sits on the canvas while shapes are edited. It read as an
+   unnamed "pane"; it is now "Diagram canvas", with help text listing its keys (Tab, arrow keys, F2, Delete, Shift+F10).
+4. **Tab bars name their list.** The main window's editor-view switch (Code / Split / Preview), Shape Studio's
+   Presets / Shapes / Pictures tabs and SmartArt Studio's editor tabs each held an unnamed inner "list"; it now carries
+   the bar's name.
+5. **The "⋯ menu" tip is named.** The teaching tip that points at the ⋯ menu (after the tour, and the third-launch
+   note) opened as an unnamed window; its title is now its name and its text its help text.
+6. **Multi-line shape labels stop at the line break in status messages.** A WinUI TextBox stores a typed line break
+   as a bare `\r`, and the studio's short name dropped it, so "Selected 'Check input'" read "Selected 'Check
+   inputsecond line'". Any kind of line break now ends the short name (used by the status bar, Tab selection and
+   the new accessible names).
+
+**Implementation Summary**
+- `MarkSmith.Core/ViewModels/Mermaid/DiagramNodeViewModel.cs`: `AccessibleName` (raised with `LabelText`, `Shape`,
+  `IsSelected`) and `FriendlyShapeName` ("RoundedRectangle" → "Rounded rectangle").
+- `MarkSmith.Core/ViewModels/Mermaid/MermaidStudioViewModel.cs`: `ConnectorAccessibleName(connector)`; `DisplayName`
+  treats `\r`, `\n` and `\r\n` alike.
+- `Views/Mermaid/MermaidCanvasControl.xaml`: `CanvasScrollViewer` name + help text; connector template `Loaded` /
+  `Unloaded`.
+- `Views/Mermaid/MermaidCanvasControl.xaml.cs`: `TrackNodeName` (from `OnNodeTemplateLoaded`) and
+  `OnConnectorTemplateLoaded` push the names from the view models. One `PropertyChanged` hook per element is kept in
+  a `ConditionalWeakTable`, replaced if `Loaded` runs again and removed on `Unloaded`. A node's rename walks
+  `_connectorRoots` to rename the connectors that name it. `{x:Bind}` on the template broke the XAML compiler
+  (WMC9999, no message) and `{Binding}` on `AutomationProperties.Name` has failed silently before (run #227), so the
+  names are set from code.
+- New `Services/SelectorBarNames.cs`: `NameInnerList(bar)` names the bar's `ItemsView` after the bar on `Loaded`
+  (only when it has no name). Called from `MainWindow`, `ShapeDesignStudioWindow`, `SmartArtDesignStudioWindow`.
+- `MainWindow.xaml.cs` `ShowMoreMenuTip`: `AutomationProperties.SetName/SetHelpText` on `MoreMenuTip`.
+- Tests: new `Run312DiagramCanvasNamesTests` (22 cases): names and their change notifications, the line-break fix,
+  connector names, the canvas name and help, the hook lifecycle contract, every SelectorBar in the app covered, and
+  the tip name.
+
+**Adversarial review**
+- Focus traps: nothing is collapsed or disabled.
+- Key swallowing: no key handlers added or changed.
+- Flyout polish: no flyouts or dynamic buttons added.
+- Theme safety: no brushes added.
+- File / concurrency safety: no file access. Handlers are detached on `Unloaded` and a second `Loaded` replaces the
+  first hook, so a re-realised node can't stack handlers or keep a dead element alive.
+
+**Verified**
+- `dotnet build … -p:OutDir=%TEMP%\ms_run312\b\`: 0 errors.
+- `dotnet test --filter "Run312|Run311|Mermaid|BareCarriage|Diagram|SmartArt|Shape"`: 1811/1811 passed.
+- Live, isolated instance with `MARKSMITH_CONFIG_DIR=%TEMP%\ms_run312\cfg`; only the PIDs this run launched (23148
+  baseline, 4456, 24140) were stopped. No SendKeys or mouse input; UIA patterns only.
+  - Baseline: the audit found `PART_ItemsView` unnamed in all three tab bars and `MoreMenuTip` with an empty name.
+  - Items 1–3: `CanvasScrollViewer` = "Diagram canvas" with the help text; shapes "Start Process, Rounded rectangle",
+    "Check Conditions, Rhombus", "Success Action, Rectangle"; connectors "Connector from Start Process to Check
+    Conditions, labelled Initialize" and "… to Success Action, labelled Valid". Quick-add (Invoke) gave "New Node,
+    Rectangle, selected" and "Connector from Success Action to New Node"; setting `NodeLabelTextBox` to "Ship it"
+    (ValuePattern) turned them into "Ship it, Rectangle, selected" and "Connector from Success Action to Ship it".
+  - Item 4: the lists now read "Editor view layout", "Editor view tabs", "Preset, shape, and picture tabs"; the
+    audit is clean in all three windows.
+  - Item 5: with `HasSeenCoffeeReminder` reset in the scratch config, `MoreMenuTip` Name = "Enjoying MarkSmith?" and
+    HelpText = the note.
+  - Screenshot `%TEMP%\ms_run312\diagram.png`: canvas renders as before.
+
+**Noticed, not fixed**
+- A quick-added shape can land half off the right edge of the visible canvas; the view doesn't scroll to it.
+- After renaming a quick-added shape in the Properties panel, the status bar still says "Type to name it."
+- Diagram palette rows expose a ListItem and an inner Group with the same name, so a screen reader can hear the
+  name twice when it walks into a row.
+- UIA `SetFocus` on `CanvasScrollViewer` throws "cannot receive focus", so the canvas can't be focused from
+  automation; Tab cycling couldn't be driven key-free.
+
+**Next up (Run #313)**
+1. Once `gh` is re-authenticated: push `main` (03beb539, 9e2978ab, af550090, 48e569ad and this run's commits), bump
+   `MarksmithBaseVersion` to 3.98.0, tag v3.98.0.
+2. Scroll a quick-added (or pasted) Diagram shape into view when it lands outside the viewport.
+3. Clear the "Type to name it." status once the shape has been named.
+4. Flatten the duplicate Group inside Diagram palette rows (check the ListViewItem keeps its name first).
+
+**Total user-visible improvements: 6** (5 accessibility names across 4 surfaces, 1 status-text fix).
+
+**Release (same run):** not cut.
+- `git push --dry-run` still fails (`could not read Username for 'https://github.com'`), and `gh auth status` still
+  reports the thebubbsy token as invalid.
+- This run's commits are on local `main` only, with 03beb539, 9e2978ab, af550090 and 48e569ad.
+- `MarksmithBaseVersion` stays 3.97.0; tag v3.97.0 already exists on the remote.
