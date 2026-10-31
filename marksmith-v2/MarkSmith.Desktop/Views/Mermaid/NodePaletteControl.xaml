@@ -73,8 +73,12 @@
                   KeyDown="OnPaletteListViewKeyDown"
                   CanDragItems="True"
                   DragItemsStarting="OnPaletteDragItemsStarting"
+                  ContainerContentChanging="OnPaletteContainerContentChanging"
                   XYFocusKeyboardNavigation="Enabled"
                   TabFocusNavigation="Once">
+            <!-- The row is named on its ListViewItem (OnPaletteContainerContentChanging). A name on the
+                 card as well gave it a Group of its own, so a screen reader walking into a row heard
+                 the shape's name twice. -->
             <ListView.ItemTemplate>
                 <DataTemplate>
                     <Border Background="#2B2D42"
@@ -83,7 +87,6 @@
                             CornerRadius="6"
                             Padding="10,8"
                             Margin="0,3"
-                            AutomationProperties.Name="{Binding DisplayName}"
                             PointerEntered="OnRowPointerEntered"
                             PointerExited="OnRowPointerExited"
                             PointerCanceled="OnRowPointerExited"

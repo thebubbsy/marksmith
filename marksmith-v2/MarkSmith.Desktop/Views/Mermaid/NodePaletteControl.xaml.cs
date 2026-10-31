@@ -20,6 +20,16 @@ public sealed partial class NodePaletteControl : UserControl
         SearchTextBox.SelectAll();
     }
 
+    // A row reads as "Decision", with its category and keys as help text, once: the name used to
+    // sit on the card inside the row too, which exposed it again as an inner Group.
+    private void OnPaletteContainerContentChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
+    {
+        if (args.InRecycleQueue || args.Item is not ViewModels.Mermaid.MermaidPaletteItem item) return;
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(args.ItemContainer, item.DisplayName);
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(args.ItemContainer,
+            $"{item.Category} shape. Enter adds it to the middle of the canvas, Shift+F10 for options.");
+    }
+
     // Row hover: the card's own border lights up in the studio cyan (the ListViewItem's hover fill
     // sits behind the card, so on its own a row gave no sign it was clickable).
     private static readonly Microsoft.UI.Xaml.Media.SolidColorBrush RowRestBorder = new(Windows.UI.Color.FromArgb(255, 0x3D, 0x40, 0x5B));

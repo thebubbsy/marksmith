@@ -54,8 +54,44 @@ public partial class MermaidStudioViewModel : ObservableObject
     {
         if (oldValue is not null) oldValue.PropertyChanging -= OnTrackedItemChanging;
         if (newValue is not null) newValue.PropertyChanging += OnTrackedItemChanging;
+        if (oldValue is not null) oldValue.PropertyChanged -= OnSelectedNodeLabelChanged;
+        if (newValue is not null) newValue.PropertyChanged += OnSelectedNodeLabelChanged;
         _openEditKey = null;
     }
+
+    // ---- "Type to name it." follows the naming ----
+    // A quick-added shape asks to be named. Naming it on the canvas replaced that line, but naming
+    // it in the Properties panel left "Type to name it." showing after the shape had a name. The
+    // prompt is remembered with its shape, and while the status line still shows it (or the
+    // rename line it turned into), each change to that shape's label rewrites it.
+    private DiagramNodeViewModel? _namePromptNode;
+    private string? _namePromptStatus;
+
+    private void PromptToName(DiagramNodeViewModel node, string status)
+    {
+        StatusText = status;
+        _namePromptNode = node;
+        _namePromptStatus = status;
+    }
+
+    private void OnSelectedNodeLabelChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(DiagramNodeViewModel.LabelText) || _editTrackingSuspended > 0) return;
+        if (sender is not DiagramNodeViewModel node || !ReferenceEquals(node, _namePromptNode)) return;
+        if (!string.Equals(StatusText, _namePromptStatus, StringComparison.Ordinal)) { _namePromptNode = null; return; }
+        _namePromptStatus = $"Renamed shape to '{DisplayName(node)}'.";
+        StatusText = _namePromptStatus;
+    }
+
+    /// <summary>"1 shape, 2 connectors": the status line names things as the studio does
+    /// everywhere else. It read "(1 nodes, 2 edges)" after loading or syncing a diagram.</summary>
+    public static string ShapeCount(int shapes, int connectors) =>
+        $"{shapes} {(shapes == 1 ? "shape" : "shapes")}, {connectors} {(connectors == 1 ? "connector" : "connectors")}";
+
+    /// <summary>A shape was added or selected from the keyboard (quick-add, Tab, paste) and may sit
+    /// outside the visible part of the canvas: the view scrolls it into sight. Not raised for
+    /// pointer selection, where the shape is already under the pointer.</summary>
+    public event EventHandler<DiagramNodeViewModel>? RevealNodeRequested;
 
     // ---- Properties-panel edits are undo steps ----
     // The panel binds straight to the selected node or connector, so its edits never went through
@@ -440,7 +476,7 @@ public partial class MermaidStudioViewModel : ObservableObject
             // generated baseline (which embeds the matching `%%{init}%%`) lines up exactly.
             RestoreStudioStateFromDirectives();
             _savedCode = GenerateMermaidCode(); // baseline for unsaved-change detection
-            StatusText = $"Loaded {SelectedDiagramType} diagram ({Nodes.Count} nodes, {Connectors.Count} edges).";
+            StatusText = $"Loaded {SelectedDiagramType} diagram ({ShapeCount(Nodes.Count, Connectors.Count)}).";
             DiagramLoaded?.Invoke(this, EventArgs.Empty);
         }
         else
@@ -489,7 +525,7 @@ public partial class MermaidStudioViewModel : ObservableObject
         }
 
         UpdateAllConnectors();
-        StatusText = $"Canvas synced from code ({Nodes.Count} nodes, {Connectors.Count} edges).";
+        StatusText = $"Canvas synced from code ({ShapeCount(Nodes.Count, Connectors.Count)}).";
         return true;
     }
 
@@ -1865,7 +1901,8 @@ public partial class MermaidStudioViewModel : ObservableObject
         Nodes.Add(newNode);
         AddConnectorCore(sourceNode.Id, sourceAnchor, newNode.Id, targetAnchor);
         SelectNode(newNode, false);
-        StatusText = $"Added a shape connected to '{DisplayName(sourceNode)}'. Type to name it.";
+        PromptToName(newNode, $"Added a shape connected to '{DisplayName(sourceNode)}'. Type to name it.");
+        RevealNodeRequested?.Invoke(this, newNode);
         return newNode;
     }
 
@@ -1885,9 +1922,10 @@ public partial class MermaidStudioViewModel : ObservableObject
         added.LabelText = item.DefaultText;
         if (added.IsPseudoState) added.Width = added.Height = 28;
         UpdateConnectedConnectors(added);
-        StatusText = added.IsPseudoState
-            ? $"Added {item.DisplayName} connected to '{DisplayName(sourceNode)}'."
-            : $"Added {item.DisplayName} connected to '{DisplayName(sourceNode)}'. Type to rename it.";
+        if (added.IsPseudoState)
+            StatusText = $"Added {item.DisplayName} connected to '{DisplayName(sourceNode)}'.";
+        else
+            PromptToName(added, $"Added {item.DisplayName} connected to '{DisplayName(sourceNode)}'. Type to rename it.");
         return added;
     }
 
@@ -2020,7 +2058,7 @@ public partial class MermaidStudioViewModel : ObservableObject
             SelectedNode = null;
             StatusText = nodesToDelete.Count == 1
                 ? $"Deleted '{DisplayName(nodesToDelete[0])}'."
-                : $"Deleted {nodesToDelete.Count} nodes.";
+                : $"Deleted {nodesToDelete.Count} shapes.";
         }
         else if (SelectedConnector != null)
         {
@@ -2065,7 +2103,7 @@ public partial class MermaidStudioViewModel : ObservableObject
         SelectedConnector = null;
         StatusText = SelectedNodes.Count == 1
             ? $"Selected '{DisplayName(SelectedNode!)}'."
-            : $"Selected all {SelectedNodes.Count} nodes.";
+            : $"Selected all {SelectedNodes.Count} shapes.";
     }
 
     [RelayCommand]
@@ -2099,6 +2137,7 @@ public partial class MermaidStudioViewModel : ObservableObject
         var next = Nodes[nextIdx];
         SelectNode(next, false);
         StatusText = $"Selected '{DisplayName(next)}' ({nextIdx + 1} of {Nodes.Count}).";
+        RevealNodeRequested?.Invoke(this, next);
         return next;
     }
 
@@ -2299,7 +2338,7 @@ public partial class MermaidStudioViewModel : ObservableObject
         };
         Nodes.Add(node);
         SelectNode(node, false);
-        StatusText = $"Duplicated '{source.LabelText}' — drag to place.";
+        StatusText = $"Duplicated '{DisplayName(source)}' — drag to place.";
         return node;
     }
 
@@ -2383,9 +2422,10 @@ public partial class MermaidStudioViewModel : ObservableObject
             SelectedNodes.Add(n);
         }
         SelectedNode = created.LastOrDefault();
+        if (SelectedNode is { } pastedLast) RevealNodeRequested?.Invoke(this, pastedLast);
         StatusText = created.Count == 1
             ? $"Pasted '{DisplayName(created[0])}'."
-            : $"Pasted {created.Count} nodes.";
+            : $"Pasted {created.Count} shapes.";
     }
 
     // Collision-free node id: node_N where N is the first free integer.
@@ -2410,7 +2450,7 @@ public partial class MermaidStudioViewModel : ObservableObject
     private bool TryBeginAlign(out List<DiagramNodeViewModel> sel)
     {
         sel = SelectedNodes.ToList();
-        if (sel.Count < 2) { StatusText = "Select at least two nodes to align."; return false; }
+        if (sel.Count < 2) { StatusText = "Select at least two shapes to align."; return false; }
         SnapshotForUndo();
         return true;
     }

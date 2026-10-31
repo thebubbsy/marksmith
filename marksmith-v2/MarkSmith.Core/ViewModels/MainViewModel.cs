@@ -1632,9 +1632,7 @@ private readonly MarkdownExportService _mdExport = new();
             if (better)
             {
                 LastClassification = classification;
-                DetectedSourceText = classification.AppliedFixes.Count > 0
-                    ? $"{classification.SourceName} · {classification.Confidence}% · {classification.AppliedFixes.Count} fixes"
-                    : $"{classification.SourceName} · {classification.Confidence}%";
+                DetectedSourceText = $"{classification.SourceName} · {classification.Confidence}%{FixesSuffix(classification.AppliedFixes.Count)}";
             }
         }
 
@@ -1647,6 +1645,12 @@ private readonly MarkdownExportService _mdExport = new();
         }
         return markdown;
     }
+
+    // The detected-source badge read "· 1 fixes", and an ingest with nothing to fix still showed
+    // "· 0 fixes" while a paste left the count off. One fix is singular, and none is not shown.
+    public static string FixCount(int n) => n == 1 ? "1 fix" : $"{n} fixes";
+
+    public static string FixesSuffix(int n) => n > 0 ? $" · {FixCount(n)}" : "";
 
     // Entry point for all automated ingest paths (clipboard watcher, watched folder, REST API).
     // Classifies the text, optionally normalizes assistant-specific quirks, applies any source
@@ -1706,7 +1710,7 @@ private readonly MarkdownExportService _mdExport = new();
         LastClassification = classification;
         DetectedSourceText = classification.Source == LlmSource.Generic
             ? $"Ingested from {origin}"
-            : $"{classification.SourceDescription} · {classification.Confidence}% · {classification.AppliedFixes.Count} fixes";
+            : $"{classification.SourceDescription} · {classification.Confidence}%{FixesSuffix(classification.AppliedFixes.Count)}";
 
         _editorUndo.BreakBurst(); // an ingest must undo as its own step
         DetachFromOpenFile();
@@ -1715,7 +1719,7 @@ private readonly MarkdownExportService _mdExport = new();
         StatusText = classification.Source == LlmSource.Generic
             ? $"Ingested Markdown from {origin}."
             : $"Ingested from {origin} — detected {classification.SourceDescription} formatting" +
-              (classification.AppliedFixes.Count > 0 ? $", applied {classification.AppliedFixes.Count} fixes." : ".");
+              (classification.AppliedFixes.Count > 0 ? $", applied {FixCount(classification.AppliedFixes.Count)}." : ".");
         StatusSeverity = StatusSeverity.Success;
     }
 

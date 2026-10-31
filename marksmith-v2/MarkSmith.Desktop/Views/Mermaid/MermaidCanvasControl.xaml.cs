@@ -108,9 +108,30 @@ public sealed partial class MermaidCanvasControl : UserControl
     private void WatchNodesForEmptyHint()
     {
         if (_hintVm != null) _hintVm.PropertyChanged -= OnHintVmPropertyChanged;
+        if (_hintVm != null) _hintVm.RevealNodeRequested -= OnRevealNodeRequested;
         _hintVm = ViewModel;
         if (_hintVm != null) _hintVm.PropertyChanged += OnHintVmPropertyChanged;
+        if (_hintVm != null) _hintVm.RevealNodeRequested += OnRevealNodeRequested;
         WatchNodeCollection();
+    }
+
+    private void OnRevealNodeRequested(object? sender, DiagramNodeViewModel node) => RevealNode(node);
+
+    /// <summary>Scrolls just far enough to show <paramref name="node"/>. A quick-added shape could
+    /// land half past the right edge, and Tab or paste could select a shape out of sight, with
+    /// the view left where it was. The band under the minimap counts as hidden, as in Fit.</summary>
+    public void RevealNode(DiagramNodeViewModel node)
+    {
+        double zoom = Math.Max(0.01, CanvasScrollViewer.ZoomFactor);
+        const double margin = 40;
+        double vpH = CanvasScrollViewer.ViewportHeight
+            - (MinimapControl.Visibility == Visibility.Visible ? MinimapControl.ActualHeight + 20 : 0);
+        var x = MarkSmith.Core.Mermaid.Routing.ViewportReveal.OffsetToReveal(
+            CanvasScrollViewer.HorizontalOffset, CanvasScrollViewer.ViewportWidth, node.X * zoom, node.Width * zoom, margin);
+        var y = MarkSmith.Core.Mermaid.Routing.ViewportReveal.OffsetToReveal(
+            CanvasScrollViewer.VerticalOffset, vpH, node.Y * zoom, node.Height * zoom, margin);
+        if (x is null && y is null) return;
+        CanvasScrollViewer.ChangeView(x, y, null);
     }
 
     private void OnHintVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -598,6 +619,10 @@ public sealed partial class MermaidCanvasControl : UserControl
             var newNode = ViewModel.QuickAddNode(nodeVM, dirTag);
             if (newNode != null)
             {
+                // QuickAddNode took the undo snapshot; the shape and label set here belong to that
+                // step. They were tracked as a panel edit, so Ctrl+Z only turned a new Decision
+                // back into a rectangle and a second Ctrl+Z was needed to remove it.
+                using var _ = ViewModel.SuspendEditTracking();
                 if (!string.IsNullOrEmpty(shapeType))
                 {
                     newNode.Shape = shapeType;

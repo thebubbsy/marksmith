@@ -125,8 +125,8 @@ public class Run273ListRowsKeepFocusAndCountsReadRightTests
     [InlineData("Views/Ocr/OcrInspectionStudioWindow.xaml.cs", "WordCountBadgeText.Text = CountText.Of(page.Words.Count, \"word\");")]
     [InlineData("Views/Ocr/OcrInspectionStudioWindow.xaml.cs", "Assembled {CountText.Of(page.Words.Count, \"word\")} into {CountText.Of(page.Elements.Count, \"block\")}.")]
     [InlineData("Views/Ocr/OcrInspectionStudioWindow.xaml.cs", "$\"Element {elem.Id}, {elem.KindDisplayName}, {CountText.Of(elem.WordCount, \"word\")}\"")]
-    [InlineData("Views/Mermaid/MermaidDiagramStudioControl.xaml.cs", "{CountText.Of(ViewModel.Nodes.Count, \"node\")}, {CountText.Of(ViewModel.Connectors.Count, \"edge\")}")]
-    [InlineData("Views/Mermaid/MermaidMinimapControl.cs", "CountText.Of(vm.Nodes.Count, \"node\")")]
+    [InlineData("Views/Mermaid/MermaidDiagramStudioControl.xaml.cs", "{CountText.Of(ViewModel.Nodes.Count, \"shape\")}, {CountText.Of(ViewModel.Connectors.Count, \"connector\")}")]
+    [InlineData("Views/Mermaid/MermaidMinimapControl.cs", "CountText.Of(vm.Nodes.Count, \"shape\")")]
     public void CountMessages_UseCountText(string file, string expected)
     {
         Assert.Contains(expected, Read(file));

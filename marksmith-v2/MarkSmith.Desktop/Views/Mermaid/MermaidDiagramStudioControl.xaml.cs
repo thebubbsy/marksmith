@@ -915,7 +915,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
         _lastPushedCode = CodePaneText();
         RefreshPreview();
         ShowCodeStatus(ok
-            ? $"{doneText} \u00b7 {CountText.Of(ViewModel.Nodes.Count, "node")}, {CountText.Of(ViewModel.Connectors.Count, "edge")}"
+            ? $"{doneText} \u00b7 {CountText.Of(ViewModel.Nodes.Count, "shape")}, {CountText.Of(ViewModel.Connectors.Count, "connector")}"
             : "\u26a0 Mermaid syntax error \u2014 fix the highlighted code", assertive: !ok);
     }
 
@@ -1253,7 +1253,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
             Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(CanvasSummaryButton, "Copy diagram summary");
             return;
         }
-        var parts = new List<string> { CountText.Of(vm.Nodes.Count, "node"), CountText.Of(vm.Connectors.Count, "connector") };
+        var parts = new List<string> { CountText.Of(vm.Nodes.Count, "shape"), CountText.Of(vm.Connectors.Count, "connector") };
         if (selectedNodes > 1) parts.Add($"{selectedNodes} selected");
         parts.Add(vm.IsGridSnapEnabled ? "Snap to 10 px grid" : "Snap off");
         CanvasSummaryText.Text = string.Join("  ·  ", parts);

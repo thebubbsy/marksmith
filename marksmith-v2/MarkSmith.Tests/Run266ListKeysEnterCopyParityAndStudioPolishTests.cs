@@ -141,7 +141,7 @@ public class Run266ListKeysEnterCopyParityAndStudioPolishTests
 
         vm.DeleteSelected();
 
-        Assert.Equal("Deleted 2 nodes.", vm.StatusText);
+        Assert.Equal("Deleted 2 shapes.", vm.StatusText); // run #313: "shapes", as the studio says elsewhere
         Assert.Empty(vm.Nodes);
     }
 
@@ -189,7 +189,7 @@ public class Run266ListKeysEnterCopyParityAndStudioPolishTests
 
         vm.SelectAll();
 
-        Assert.Equal("Selected all 2 nodes.", vm.StatusText);
+        Assert.Equal("Selected all 2 shapes.", vm.StatusText); // run #313
     }
 
     [Fact]

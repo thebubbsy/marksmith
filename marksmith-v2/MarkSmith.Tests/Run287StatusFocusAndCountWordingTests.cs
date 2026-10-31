@@ -110,6 +110,6 @@ public class Run287StatusFocusAndCountWordingTests
     {
         var src = Read("MarkSmith.Desktop/Views/Mermaid/MermaidDiagramStudioControl.xaml.cs");
         Assert.DoesNotContain("$\"{n} {one}s\"", src);
-        Assert.Contains("CountText.Of(vm.Nodes.Count, \"node\"), CountText.Of(vm.Connectors.Count, \"connector\")", src);
+        Assert.Contains("CountText.Of(vm.Nodes.Count, \"shape\"), CountText.Of(vm.Connectors.Count, \"connector\")", src); // run #313: "shape"
     }
 }
