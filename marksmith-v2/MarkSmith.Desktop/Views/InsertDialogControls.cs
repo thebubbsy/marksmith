@@ -31,6 +31,9 @@ public abstract class InsertDialogBody : UserControl
 {
     public const double BodyWidth = 460;
 
+    /// <summary>Help text on the "Inserts" card: the keys that act on the snippet.</summary>
+    public const string PreviewCardHelp = "Ctrl+Enter inserts it, Ctrl+Shift+C copies it, Shift+F10 for more.";
+
     private readonly StackPanel _fields = new() { Spacing = 12 };
     private readonly TextBlock _preview;
     private readonly TextBlock _problem;
@@ -110,6 +113,11 @@ public abstract class InsertDialogBody : UserControl
             PopulateSnippetContextMenu(previewContextFlyout);
         };
 
+        // The scroller took its name from the snippet it holds, so a screen reader read the whole
+        // snippet twice: once for the scroller, once for the "Inserts: …" text inside it.
+        var previewScroller = new ScrollViewer { Content = _preview, MaxHeight = 132, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+        AutomationProperties.SetAccessibilityView(previewScroller, AccessibilityView.Raw);
+
         var previewCard = new Border
         {
             BorderThickness = new Thickness(1),
@@ -122,11 +130,13 @@ public abstract class InsertDialogBody : UserControl
                 Children =
                 {
                     previewHeader,
-                    new ScrollViewer { Content = _preview, MaxHeight = 132, VerticalScrollBarVisibility = ScrollBarVisibility.Auto },
+                    previewScroller,
                 },
             },
         }.Themed(Border.BorderBrushProperty, "CardStrokeColorDefaultBrush").Themed(Border.BackgroundProperty, "CardBackgroundFillColorDefaultBrush");
         AutomationProperties.SetName(previewCard, "Generated Markdown preview");
+        // The keys were only in the "Inserts" label's tooltip, which keyboard focus never reaches.
+        AutomationProperties.SetHelpText(previewCard, PreviewCardHelp);
 
         Content = new StackPanel
         {
@@ -475,6 +485,8 @@ public sealed class LinesInsertControl : InsertDialogBody
             var lines = Lines;
             // A data grid's first line is its header: "label,value / Q1,10 / Q2,25" is 2 rows, not 3.
             _count.Text = Services.InsertCountText.Lines(lines.Count, _noun, _headerFirst);
+            // The count sits beside the heading, out of reach from inside the box; say it there too.
+            AutomationProperties.SetHelpText(_box, _count.Text);
             if (lines.Count < _minimum)
                 return Services.InsertCountText.Shortfall(_minimum, _noun, _headerFirst);
             if (_lineIsValid is not null)
@@ -534,6 +546,7 @@ public sealed class ChartInsertControl : InsertDialogBody
             var lines = Lines;
             var points = lines.Count(IsPoint);
             _count.Text = $"{points} point{(points == 1 ? "" : "s")}";
+            AutomationProperties.SetHelpText(_box, _count.Text);
             if (points == 0) return "Add at least one row like Q1,10 — a label, a comma, then a number.";
             // A first line that isn't data is read as a header row, the same rule the renderers use.
             var bad = lines.Select((l, i) => (l, i)).Skip(1).Where(x => !IsPoint(x.l)).Select(x => x.i + 1).ToList();
@@ -721,7 +734,9 @@ public sealed class EmbedInsertControl : InsertDialogBody
 
     public string Provider => Providers[Math.Max(0, _provider.SelectedIndex)];
     public string Url => _url.Text.Trim();
-    public override string Snippet => Snippets.Embed(Provider, Url);
+    // No link yet: the card says "Nothing yet". The builder's EXAMPLE_ID fallback made the card
+    // (and its Copy button) offer a block that Insert, disabled until a link is pasted, never adds.
+    public override string Snippet => Url.Length == 0 ? "" : Snippets.Embed(Provider, Url);
 
     protected override string? Problem
     {

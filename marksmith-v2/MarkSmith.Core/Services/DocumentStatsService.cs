@@ -284,7 +284,8 @@ public readonly record struct DocumentStats
     }
 
     // Compact one-liner for the status bar, e.g. "1,204 words · 5 min read".
-    public string SummaryText => $"{Words:N0} words · {ReadingTimeText} read";
+    // "1 word", not "1 words", for a one-word document.
+    public string SummaryText => $"{CountText.Of(Words, "word")} · {ReadingTimeText} read";
 
     // Richer breakdown for a tooltip/flyout — only the structural elements that are actually present.
     public string DetailText
@@ -292,7 +293,7 @@ public readonly record struct DocumentStats
         get
         {
             var sb = new StringBuilder();
-            sb.Append($"{Words:N0} words · {Characters:N0} characters ({CharactersNoSpaces:N0} without spaces)\n");
+            sb.Append($"{CountText.Of(Words, "word")} · {CountText.Of(Characters, "character")} ({CharactersNoSpaces:N0} without spaces)\n");
             sb.Append($"{LinesText} · Estimated reading time: {ReadingTimeText}");
             AppendCount(sb, "heading", Headings);
             AppendCount(sb, "code block", CodeBlocks);

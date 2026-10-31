@@ -15421,7 +15421,10 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
 
     // Apply a transform to the current selection, or to the current line when nothing is selected.
     // `done` names what changed for the status line ("Sorted 4 lines A to Z.").
-    private void TransformSelection(Func<string, string> transform, Func<string, string, string>? done = null)
+    // needsLines: what to say when the text holds one line only (sort and dedupe need two or more,
+    // and one line used to come back as "Nothing to change: the selection is already like that.").
+    private void TransformSelection(Func<string, string> transform, Func<string, string, string>? done = null,
+        string? needsLines = null)
     {
         var tb = PasteTextBox;
         var text = EditorText();
@@ -15432,7 +15435,8 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         }
         var selStart = Math.Clamp(tb.SelectionStart, 0, text.Length);
         var selLen = Math.Clamp(tb.SelectionLength, 0, text.Length - selStart);
-        if (selLen == 0)
+        bool caretLine = selLen == 0;
+        if (caretLine)
         {
             var (ls, le) = CurrentLineRange(text, selStart);
             selStart = ls;
@@ -15444,12 +15448,21 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             return;
         }
         var segment = text.Substring(selStart, selLen);
+        if (needsLines is not null && LineCount(segment) < 2)
+        {
+            tb.Focus(FocusState.Programmatic);
+            AnnounceStatus(needsLines);
+            return;
+        }
         var transformed = transform(segment);
         if (transformed == segment)
         {
-            // Nothing changed: leave the text (and the undo history) alone and say so.
+            // Nothing changed: leave the text (and the undo history) alone and say so. With no
+            // selection the caret's line was used, so there is no "selection" to talk about.
             tb.Focus(FocusState.Programmatic);
-            AnnounceStatus("Nothing to change: the selection is already like that.");
+            AnnounceStatus(caretLine
+                ? "Nothing to change: this line is already like that."
+                : "Nothing to change: the selection is already like that.");
             return;
         }
         ApplyEditorTextEdit(text.Remove(selStart, selLen).Insert(selStart, transformed), selStart, transformed.Length);
@@ -15510,17 +15523,19 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
     // blank line); see EditorLineTools.
     private void OnSortLinesAscClick(object sender, RoutedEventArgs e) =>
         TransformSelection(s => MarkSmith.Services.Editor.EditorLineTools.SortLines(s),
-            (before, _) => $"Sorted {LineCount(before):N0} lines A to Z.");
+            (before, _) => $"Sorted {LineCount(before):N0} lines A to Z.", SortNeedsLines);
     private void OnSortLinesDescClick(object sender, RoutedEventArgs e) =>
         TransformSelection(s => MarkSmith.Services.Editor.EditorLineTools.SortLines(s, descending: true),
-            (before, _) => $"Sorted {LineCount(before):N0} lines Z to A.");
+            (before, _) => $"Sorted {LineCount(before):N0} lines Z to A.", SortNeedsLines);
     private void OnDedupeLinesClick(object sender, RoutedEventArgs e) =>
         TransformSelection(s => MarkSmith.Services.Editor.EditorLineTools.DedupeLines(s).Text,
             (before, _) =>
             {
                 var removed = MarkSmith.Services.Editor.EditorLineTools.DedupeLines(before).Removed;
                 return $"Removed {removed:N0} duplicate line{(removed == 1 ? "" : "s")}.";
-            });
+            }, "Select two or more lines to look for duplicates.");
+
+    private const string SortNeedsLines = "Select two or more lines to sort.";
 
     // ---- Line operations (Alt+Up/Down to move, Ctrl+D to duplicate) ----
 

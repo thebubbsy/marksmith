@@ -221,7 +221,7 @@ public class Run261ReplaceCapturesAndLineToolsTests
         Assert.Contains("SyncDocumentFromEditor();", helper);
         Assert.Contains("sv.ChangeView(null, offset, null, disableAnimation: true)", helper);
 
-        var transform = Method(code, "private void TransformSelection(Func<string, string> transform, Func<string, string, string>? done = null)");
+        var transform = Method(code, "private void TransformSelection(Func<string, string> transform, Func<string, string, string>? done = null,");
         Assert.Contains("ApplyEditorTextEdit(", transform);
         Assert.Contains("transformed == segment", transform);
         Assert.DoesNotContain("tb.Text =", transform);
