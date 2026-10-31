@@ -22526,3 +22526,84 @@ while checking the line tools showed the status bar reading "1 words".
   still reports the thebubbsy token as invalid.
 - This run's commits are on local `main` only, with the earlier unpushed ones.
 - `MarksmithBaseVersion` stays 3.97.0; tag v3.97.0 already exists on the remote.
+
+## 2026-11-01 · Run #315 (≈07:30–08:20 AEDT) · Claude Code
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running the scheduled routine in the Claude desktop app
+- Modes: Scheduled Hourly Automation Routine
+- Trigger: Scheduled hourly routine run
+- Agents Used: 1 (Orchestrator, who also did the coding and the skeptical review). No sub-agents, no conversation IDs.
+
+Picked up run #314's "Next up" items 2 and 3: a live UIA audit of the Image, Link, Bibliography and SmartArt
+Insert dialogs, and the plurals in SmartArt Studio's audit summaries. "AI context metadata" turned out not to be
+a dialog: it inserts its block directly, so there was nothing to audit.
+
+**User-visible improvements and fixes**
+1. **Insert dialogs: field tooltips are now help text.** Link's "(optional)", Image's "Ctrl+O, Alt+B" on Browse,
+   the SmartArt indent keys and every other field or button explanation were only in mouse tooltips, so the
+   live audit showed an empty help text on every field. A field that has no help text of its own now gets its
+   tooltip's words when the dialog opens. This applies to all of the Insert dialogs.
+2. **Bibliography: the four fields explain themselves.** Author, Title, Year and Citation id had no tooltip at all.
+   Each now says what goes there and what an empty field becomes (and, through item 1, so does its help text).
+3. **Bibliography: an empty year is this year.** The Year box's placeholder shows the current year, but the
+   inserted block used a fixed `2026`, which would disagree with it from January. Both now use this year.
+4. **SmartArt Insert: the outline box carries its count.** The "4 shapes" / "2 shapes · 1 sub-point" badge beside
+   the heading is now at the start of the box's help text, before the indent keys, and updates while typing.
+5. **SmartArt Insert: menu items that would do nothing are disabled.** "Reset all indentations" is disabled when no
+   line is indented, and "Copy outline text" (in both the indent and the Examples menus) when the outline is empty.
+6. **SmartArt Studio: audit and report lines use the right noun.** 121 counts such as "1 nodes", "1 lines",
+   "1 words" and "1 children" now go through `CountText` ("1 node", "1 child"). The line-length audit says
+   "1 line exceeds 40 chars", agreeing with its count.
+7. **Image Insert: copying a web address says so.** "Copy image path or URL" showed "Copied image path" for a web
+   address too; it now says "Copied image address".
+
+**Implementation Summary**
+- `Views/InsertDialogControls.cs`: new `InsertDialogBody.HelpFromToolTips(UIElement)` walks the fields (Panel
+  children and Border children) and copies a string tooltip into an empty `AutomationProperties.HelpText`; it runs
+  in `Loaded` after `Refresh()`, so a count help text already set wins. `ReferencesInsertControl` gets four tooltips.
+- `Views/SmartArtInsertControl.cs`: `OutlineHelp` const; `Problem` sets `"{count}. {OutlineHelp}"` as the box's
+  help text; `ShowIndentContextMenu` enables Reset only when a line starts with whitespace; both "Copy outline text"
+  items are enabled only for a non-blank outline.
+- `Views/ImageInsertControl.cs`: `CopySourceItem` picks "Copied image address" for `IsWeb(Source)`.
+- `MarkSmith.Core/Services/InsertSnippetBuilder.cs`: `References` falls back to `DateTime.Now.Year`.
+- `MarkSmith.Core/ViewModels/SmartArtStudio/SmartArtDesignStudioViewModel.cs`: `using MarkSmith.Services;` and a
+  scripted sweep of `{n} nouns` to `CountText.Of(n, "noun")` (irregular "child/children", "branch/branches",
+  "entry/entries"). Lines that already branch on `n == 1` and "a vs b words" pairs were left alone.
+  Phrases that only appear above a threshold ("stages exceed … 7") keep their plural verbs.
+- Tests: new `Run315InsertHelpAndSmartArtCountsTests` (12 cases): one-item hierarchy / depth / line-length
+  summaries, the "exceeds" agreement, a guard regex against raw plurals in the SmartArt VM, irregular plurals,
+  the tooltip-to-help walk and its order after `Refresh`, the Bibliography tooltips and this-year fallback,
+  the SmartArt count help text and menu enablement, and the image copy wording.
+- Skeptical review: no control is disabled or hidden while focused (the menu items are created disabled); no
+  key handlers were added; the walk sets help text only and never touches a template part; CountText's `N0`
+  formatting is the same as other status lines.
+- Build: `MarkSmith.Desktop` Debug x64 to `%TEMP%\ms_run315\b\` (baseline to `\base\`), 0 errors.
+  Tests: Run315 + SmartArt* + InsertSnippet* + InsertDialog* + Run314 + CountText: 712 passed after one test fix
+  (the hierarchy test first called the wrong summary); Run26*/Run27*/Run28*/Run3*: 949 passed, 0 failed.
+- Live UIA on the scratch build (PID-tracked, `MARKSMITH_CONFIG_DIR=%TEMP%\ms_run315\cfg`, stopped at the end):
+  baseline audit showed empty help text on every Bibliography, Link and Image field. After the change, Author /
+  Title / Year / Citation id, Link text / URL, File or web address / Alt text and Browse all carry their help text.
+  SmartArt Insert's Outline help read "4 shapes. One item per line…", then "2 shapes · 1 sub-point. …" after
+  setting a three-line outline through ValuePattern, then "1 shape. …".
+- Rig note: when the scratch window isn't in the foreground, `AutomationElement.FocusedElement` belongs to another
+  app and `dlgaudit.ps1` walks the main window. `%TEMP%\ms_run315\dlg2.ps1` finds the open Insert dialog by its
+  Popup name instead.
+
+**Next up (Run #316)**
+1. Once `gh` is re-authenticated: push `main` (now 11 commits ahead of origin, including e5035fe2 and this entry),
+   bump `MarksmithBaseVersion` to 3.98.0, tag v3.98.0.
+2. Live-check a SmartArt Studio audit line in the status bar (the VM functions are unit-tested; the studio's
+   menu path wasn't driven this run).
+3. Image Insert's Browse button reads its inner "Browse…" text as an extra child; mark the content raw.
+4. Check the inline rename box after a mouse quick-add (still open from run #313).
+
+**Total user-visible improvements: 7** (1 accessibility fix across all the Insert dialogs, 3 Bibliography and
+SmartArt Insert accessibility/state fixes, 1 snippet fix, 2 wording fixes).
+
+**Release (same run):** not cut.
+- `git push origin main` still fails (`could not read Username for 'https://github.com'`), and `gh auth status`
+  still reports the thebubbsy token as invalid.
+- This run's commits are on local `main` only, with the earlier unpushed ones.
+- `MarksmithBaseVersion` stays 3.97.0; tag v3.97.0 already exists on the remote.
