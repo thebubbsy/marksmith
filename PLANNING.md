@@ -21911,3 +21911,125 @@ Reviewed: the Run #307 entry above — picked up the next priority items: audite
 3. Carry forward Block 3's 2 refined ideas as first refinement targets.
 
 **Total user-visible improvements: 10** (5 studio header, palette, presets & galaxy tool subclusters single Tab stops & XY arrow navigation; 2 thumbnail borders UIA raw accessibility view; 1 shape context menu layer ordering submenu consolidation; 2 search filter & list clusters verified single Tab stops).
+
+## 2026-11-01 · Run #309 (01:55–03:10 AEDT) · Claude Code
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), desktop app. This is not the Antigravity agent, so the task template's
+  "Antigravity AI Agent (Google DeepMind)" identity line does not apply to this run.
+- Modes: Scheduled hourly automation routine (`commit-to-main-ship-improvement--r4efinement`)
+- Trigger: Scheduled hourly routine run (no live user input)
+- Agents Used: 1 (this session acted as orchestrator, coding worker and skeptical reviewer; no subagents)
+
+This run started from run #291's "Next up" #3: window keys that reach past a combo or slider in Theme Builder and
+the Insert dialogs. Nothing there needed fixing. Insert dialogs already gate Enter on combos and buttons, the image
+control only has text boxes, and there is no separate Theme Builder window. The Settings rows turned up real bugs
+instead.
+
+**Delivered (user-visible):**
+1. **Settings ▸ Automation ▸ Company template: the right-click / Shift+F10 menu's button item now works.** It used to
+   read "Run action" and do nothing, because card menus called the button's `Command` and this button uses `Click`.
+   It now reads "Import company template" and opens the .dotx picker. In the baseline build the picker never opened.
+2. **Card and side-panel menus list every button in a row's button cluster**, using each button's accessible name and
+   icon. This covers Google account (Sign in with Google / Sign out of Google), the licence card (Buy MarkSmith Pro,
+   Start free trial, Remove license) and a plugin's Install / Remove. Each item goes through the button's automation
+   peer, so buttons wired with Click and with Command both run. `SettingsCard` and `OptionRow` share the new helper
+   `Controls/ActionMenuItems.cs`.
+3. **Plugin cards have one menu.** Each card had a `ContextFlyout` (Copy plugin ID, Open plugins folder) as well as its
+   own menu. With the keyboard only the flyout appeared, so Install/Remove and Copy setting name were missing (checked
+   live on the baseline). There is now one menu: Install/Remove, Copy plugin ID (shows `Ctrl+C`), Open plugins folder,
+   Copy setting name, Copy setting description. This uses the new `SettingsCard.ExtraMenuItems`. Ctrl+C and the menu
+   item share `CopyPluginIdAsync`.
+4. **Plugin status reads "Installed" after a download.** `Progress<T>` reports could land after the install finished
+   and leave "Downloading… 100%" beside the green tick (seen live with PlantUML). Late reports are now dropped once
+   `installing` is false. Re-checked live with D2, which showed "D2 Diagrams: Installed".
+5. **Shift+F10 / Menu key inside a Settings card text box** (the template reply box, the password fields) no longer
+   opens the card's menu over the box's own Cut / Copy / Paste menu. This matches the right-click path, which already
+   skipped text inputs.
+6. **Settings card toggle and check menu items** now show `Space` and an on/off state icon, like the side panel's option
+   rows. They used to show a power glyph and a fixed tick. The option row's "Copy description" item also gets its own
+   icon instead of reusing the copy-name one.
+7. **Outline flyout: Down from the filter box shows the keyboard focus ring on the heading.** It now uses
+   `FocusState.Keyboard`; Programmatic focus showed no visual.
+8. **Outline flyout: Up on the first heading returns to the filter box**, as in the command palette. In the baseline
+   (checked live) focus stayed on the first heading, and only Shift+Tab reached the filter. The filter tooltip now
+   mentions this.
+
+**Implementation Summary**
+- Desktop:
+  - New `Controls/ActionMenuItems.cs` (`For`, `Buttons`, `Label`, and `Invoke` through the automation peer).
+  - `Controls/SettingsCard.xaml.cs`: text-box guard in `OnCardKeyDown`, Space and state icons on the toggle and
+    check items, `ActionMenuItems`, `ExtraMenuItems`.
+  - `Controls/OptionRow.xaml.cs`: `ActionMenuItems`, own icon for Copy description.
+  - `Views/SettingsView.xaml.cs`: the plugin card's `ExtraMenuItems` replaces its `ContextFlyout`; new
+    `CopyPluginIdAsync`; progress updates gated on `installing`.
+  - `MainWindow.xaml.cs`: keyboard focus in `OnTocFilterKeyDown`; new handled-too `OnTocListUpToFilter`.
+  - `MainWindow.xaml`: TocFilterBox tooltip.
+- Tests:
+  - New `Run309CardMenusAndOutlineKeysTests` (11 source contracts).
+  - `Run243HonestStudioCopiesTests` now expects one checked `TrySetTextAsync(plugin.Id)` and two
+    `await CopyPluginIdAsync();` calls.
+
+**Adversarial review:**
+- Nothing is collapsed or disabled.
+- The new Up handler only acts on an unmodified Up, on the first row of a list that holds no text input, while the
+  filter is visible.
+- The card key handler now returns early inside text boxes, so it swallows fewer keys than before.
+- When a menu item runs, it re-checks the button's `IsEnabled` and `Visibility` (either can change while the menu is
+  open) before invoking it through `IInvokeProvider`. Hidden Install or Remove buttons are never listed.
+- Running Remove from the menu still goes through `HandOver`, which checks `FocusRescue.StillOn` and does not steal
+  focus.
+- No resource lookups or file access were added. The progress-race fix only reads and writes UI-thread state.
+
+**Verified:**
+- `dotnet build … -p:OutDir=%TEMP%\ms_run309\b2\`: 0 errors.
+- Tests:
+  - `Run309|Run273|Settings|OptionRow|Toc|Outline|Plugin`: 367/367.
+  - `Run309|Run243`: 37/37.
+  - Broad `Run2|Run30|MainWindow|Settings`: 1818/1822. The other 3 failures also fail on untouched HEAD c468d4fa,
+    checked in a clean worktree (see Noticed).
+- Live checks used isolated instances with a scratch `MARKSMITH_CONFIG_DIR`: PID 22536 (fix build), PID 20624 (clean
+  baseline) and PID 24560 (final build). Only these were stopped.
+  - Keys were posted with `PostMessage` to the instance's own `InputSiteWindowClass` hwnd, after checking its owner PID
+    and setting focus with UIA `SetFocus`.
+  - The workstation locked partway through, so later focus checks read each element's `HasKeyboardFocus` instead of
+    the global focused element.
+  - Items 1, 3, 4 and 8 behaved as described, each compared against the baseline build.
+  - PrintWindow screenshots are in `%TEMP%\ms_run309` (`plugin_menu.png`, `plugin_installed.png`). PrintWindow does
+    not capture popup menus.
+- Not live-verified:
+  - Item 2's Google and licence card menus. They need a real mouse right-click, because on Shift+F10 the buttons' own
+    bridged menus open instead.
+  - Items 5–7 (focus visual, text-box menu, icons).
+  - Source contracts cover all of these.
+
+**Noticed, not fixed:**
+- Three tests already fail at HEAD, after the Antigravity runs:
+  - `Run235…Header_badges_wrap_instead_of_squeezing_the_last_one`: SuiteHub's header badges are in a StackPanel again,
+    not `WrapRow`.
+  - `Run238…OcrStudio_DiscardEscAndX_GoThroughTheGuard_AfterReclassifying`.
+  - `Run248…StatusBarButtons_DoNotLetADoubleClickReachTheStatusBarCopy(Shape, SelectionSummaryButton)`.
+  - Each looks like a real regression worth restoring.
+- In the first live pass, PlantUML's Install button read "Installing…" right after a UIA `SetFocus`, and 90 MB was
+  downloaded into the scratch config. It did not happen again with D2 on either build, so the cause is unknown. Future
+  rigs should avoid focusing Install buttons.
+- The `gh` token is invalid and git's credential manager cannot prompt here. This run's commit could not be pushed and
+  no release was cut (see Release below).
+
+**Next up (Run #310):**
+1. Fix the three test failures above, or confirm each change was intended.
+2. Live-verify the Google and licence card menus with a real right-click while the desktop is unlocked.
+3. Check the other flyouts' filter-to-list moves (Export history, Lint) for the same gaps: no focus ring after
+   programmatic focus, and no Up back to the filter.
+
+**Total user-visible improvements: 8** (2 broken menu actions fixed, 1 duplicate menu merged, 1 stale status fixed,
+1 menu-key conflict fixed, 1 menu consistency pass, 2 Outline keyboard fixes).
+
+**Release (same run):** not cut.
+- `git push` failed (`could not read Username for 'https://github.com'`), and `gh auth status` reports that the token
+  for thebubbsy is invalid.
+- Tag v3.97.0 already exists on the remote, but `MarksmithBaseVersion` is still 3.97.0: run #291's bump to 3.98.0 never
+  landed.
+- This commit is on local `main` only.
+- Next release: re-authenticate `gh`, push `main`, bump `MarksmithBaseVersion` to 3.98.0, then tag v3.98.0.

@@ -175,21 +175,11 @@ public sealed partial class OptionRow : UserControl
             menu.Items.Add(openComboItem);
             menu.Items.Add(new MenuFlyoutSeparator());
         }
-        else if (Action is Button { IsEnabled: true } actionBtn)
+        else
         {
-            var btnText = actionBtn.Content is string s && !string.IsNullOrWhiteSpace(s) ? s : "Run action";
-            var runItem = new MenuFlyoutItem
-            {
-                Text = btnText,
-                Icon = new FontIcon { Glyph = "\uE768" }
-            };
-            runItem.Click += (_, _) =>
-            {
-                if (actionBtn.Command?.CanExecute(actionBtn.CommandParameter) ?? true)
-                    actionBtn.Command?.Execute(actionBtn.CommandParameter);
-            };
-            menu.Items.Add(runItem);
-            menu.Items.Add(new MenuFlyoutSeparator());
+            var any = false;
+            foreach (var item in ActionMenuItems.For(Action)) { menu.Items.Add(item); any = true; }
+            if (any) menu.Items.Add(new MenuFlyoutSeparator());
         }
 
         if (!string.IsNullOrWhiteSpace(Header))
@@ -208,7 +198,7 @@ public sealed partial class OptionRow : UserControl
             var copyDescItem = new MenuFlyoutItem
             {
                 Text = "Copy description",
-                Icon = new FontIcon { Glyph = "\uE8C8" }
+                Icon = new FontIcon { Glyph = "\uE8FD" }
             };
             copyDescItem.Click += (_, _) => MarkSmith.Services.CopyFeedback.CopyWithBubble(this, Description, "Copied description");
             menu.Items.Add(copyDescItem);

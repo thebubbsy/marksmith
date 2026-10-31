@@ -659,6 +659,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         ExtensionTip.IsOpen = ViewModel.ShowExtensionTip;
         HistoryList.ItemsSource = ViewModel.History; // Flyout popups don't inherit DataContext
         TocList.ItemsSource = ViewModel.TocEntries; // Outline flyout (Task 17) — same reason
+        // Handled-too: the list keeps Up on its first row to itself, which left the filter box
+        // reachable only by Shift+Tab after Down had moved into the headings.
+        TocList.AddHandler(UIElement.KeyDownEvent, new Microsoft.UI.Xaml.Input.KeyEventHandler(OnTocListUpToFilter), true);
         ViewModel.TocEntries.CollectionChanged += (_, _) => UpdateOutlineEmptyState();
         UpdateOutlineEmptyState();
         ViewModel.RefreshToc();
@@ -3258,7 +3261,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             if (TocList is not null && TocList.Visibility == Visibility.Visible)
             {
                 e.Handled = true;
-                TocList.Focus(FocusState.Programmatic);
+                // Keyboard, not Programmatic: the heading the arrow landed on shows its focus ring.
+                TocList.Focus(FocusState.Keyboard);
             }
         }
         else if (e.Key == Windows.System.VirtualKey.Enter)
@@ -3283,6 +3287,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 e.Handled = true;
             }
         }
+    }
+
+    // Up on the first heading goes back to the filter box Down came from, as in the command palette.
+    private void OnTocListUpToFilter(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        if (e.Key != Windows.System.VirtualKey.Up) return;
+        if (TocFilterBox is null || TocFilterBox.Visibility != Visibility.Visible || TocList is null) return;
+        foreach (var key in new[] { Windows.System.VirtualKey.Control, Windows.System.VirtualKey.Shift, Windows.System.VirtualKey.Menu })
+            if (Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(key).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down)) return;
+        var entry = FindListItemFromSource<Services.TocEntry>(e.OriginalSource as DependencyObject);
+        if (entry is null || TocList.Items.Count == 0 || !ReferenceEquals(TocList.Items[0], entry)) return;
+        e.Handled = true;
+        TocFilterBox.Focus(FocusState.Keyboard);
+        TocFilterBox.SelectAll();
     }
 
     private void OnTocListRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)

@@ -1294,13 +1294,16 @@ public sealed partial class SettingsView : UserControl
 
             // Install downloads tens of MB in a tight loop that reports progress far faster than
             // the UI needs — throttle to whole-percent updates so this doesn't flood the dispatcher.
+            // Progress<T> posts its reports, so the last ones can land after the install has
+            // finished and left "Downloading… 100%" over "Installed"; once the install is over
+            // they are dropped.
             var lastPercent = -1;
             var progress = new Progress<double>(p =>
             {
                 var percent = (int)(p * 100);
-                if (percent == lastPercent) return;
+                if (percent == lastPercent || !installing) return;
                 lastPercent = percent;
-                DispatcherQueue.TryEnqueue(() => SetStatus($"Downloading… {percent}%"));
+                DispatcherQueue.TryEnqueue(() => { if (installing) SetStatus($"Downloading… {percent}%"); });
             });
 
             var ok = false;
@@ -1370,13 +1373,7 @@ public sealed partial class SettingsView : UserControl
             Details = details,
         };
 
-        var flyout = new MenuFlyout();
-        var copyIdItem = new MenuFlyoutItem
-        {
-            Text = $"Copy plugin ID ({plugin.Id})",
-            Icon = new FontIcon { Glyph = "\uE8C8" }
-        };
-        copyIdItem.Click += async (_, _) =>
+        async Task CopyPluginIdAsync()
         {
             if (await ClipboardWriter.TrySetTextAsync(plugin.Id) is string copyError)
             {
@@ -1384,18 +1381,28 @@ public sealed partial class SettingsView : UserControl
                 return;
             }
             SetStatus($"Copied plugin ID \u201C{plugin.Id}\u201D");
-        };
-        flyout.Items.Add(copyIdItem);
+        }
 
-        var openFolderItem = new MenuFlyoutItem
+        // Part of the card's own menu (Install / Remove, Copy setting name), not a separate
+        // ContextFlyout competing with it for the same right-click.
+        card.ExtraMenuItems = () =>
         {
-            Text = "Open plugins folder",
-            Icon = new FontIcon { Glyph = "\uE838" }
-        };
-        openFolderItem.Click += (s, e) => OnOpenPluginsFolderClick(s, e);
-        flyout.Items.Add(openFolderItem);
+            var copyIdItem = new MenuFlyoutItem
+            {
+                Text = $"Copy plugin ID ({plugin.Id})",
+                KeyboardAcceleratorTextOverride = "Ctrl+C",
+                Icon = new FontIcon { Glyph = "\uE8C8" }
+            };
+            copyIdItem.Click += async (_, _) => await CopyPluginIdAsync();
 
-        card.ContextFlyout = flyout;
+            var openFolderItem = new MenuFlyoutItem
+            {
+                Text = "Open plugins folder",
+                Icon = new FontIcon { Glyph = "\uE838" }
+            };
+            openFolderItem.Click += (s, e) => OnOpenPluginsFolderClick(s, e);
+            return new MenuFlyoutItemBase[] { copyIdItem, openFolderItem };
+        };
         card.KeyDown += async (s, e) =>
         {
             var ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control)
@@ -1408,12 +1415,7 @@ public sealed partial class SettingsView : UserControl
             if (e.Key == Windows.System.VirtualKey.C && ctrl && !shift && !alt)
             {
                 e.Handled = true;
-                if (await ClipboardWriter.TrySetTextAsync(plugin.Id) is string copyError)
-            {
-                SetStatus($"Couldn't copy the plugin ID. {copyError}", failed: true);
-                return;
-            }
-                SetStatus($"Copied plugin ID \u201C{plugin.Id}\u201D");
+                await CopyPluginIdAsync();
             }
         };
 

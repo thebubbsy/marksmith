@@ -166,7 +166,9 @@ public class Run243HonestStudioCopiesTests
         var settings = Read(Path.Combine("Views", "SettingsView.xaml.cs"));
         Assert.Contains("CopyFeedback.CopyWithBubble(target, key, \"Copied license key\")", settings);
         Assert.Contains("ApplyButtonTick(b, error)", Method(settings, "OnCopyPluginsFolderPathClick"));
-        Assert.Equal(2, Regex.Matches(settings, @"TrySetTextAsync\(plugin\.Id\) is string copyError").Count);
+        // Run #309: the menu item and Ctrl+C share one checked copy (CopyPluginIdAsync).
+        Assert.Single(Regex.Matches(settings, @"TrySetTextAsync\(plugin\.Id\) is string copyError"));
+        Assert.Equal(2, Regex.Matches(settings, @"await CopyPluginIdAsync\(\);").Count);
         Assert.Contains("success: error is null", Read(Path.Combine("Views", "SuiteHubView.xaml.cs")));
     }
 

@@ -1458,7 +1458,7 @@
                                                  FontSize="12" Visibility="Collapsed"
                                                  TextChanged="OnTocFilterTextChanged"
                                                  PreviewKeyDown="OnTocFilterKeyDown"
-                                                 ToolTipService.ToolTip="Filter headings. Down moves to the list, Esc clears, Right-click or Shift+F10 for options"
+                                                 ToolTipService.ToolTip="Filter headings. Down moves to the list (Up on its first heading comes back), Esc clears, Right-click or Shift+F10 for options"
                                                  AutomationProperties.Name="Filter document outline headings" />
                                         <TextBlock x:Name="TocEmptyText" Grid.Row="2" TextWrapping="Wrap" FontSize="12"
                                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"

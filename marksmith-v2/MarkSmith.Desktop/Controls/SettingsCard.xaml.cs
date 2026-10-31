@@ -38,6 +38,9 @@ public sealed partial class SettingsCard : UserControl
     public object? Action { get => GetValue(ActionProperty); set => SetValue(ActionProperty, value); }
     /// <summary>Extra fields shown under the header row, aligned with the title.</summary>
     public UIElement? Details { get => (UIElement?)GetValue(DetailsProperty); set => SetValue(DetailsProperty, value); }
+    /// <summary>Builds extra items for this card's right-click / Shift+F10 menu, each time it opens;
+    /// they follow the card's own items. Set from code.</summary>
+    public System.Func<System.Collections.Generic.IEnumerable<MenuFlyoutItemBase>>? ExtraMenuItems { get; set; }
 
     private long _detailsVisibilityToken;
     private UIElement? _watchedDetails;
@@ -147,6 +150,10 @@ public sealed partial class SettingsCard : UserControl
 
         if (e.Key == VirtualKey.Application || (shift && !ctrl && !alt && e.Key == VirtualKey.F10))
         {
+            // As with a right-click: in a text box (the template prompt, a password) the key opens
+            // the box's own Cut / Copy / Paste menu, and the card's would have opened over it.
+            if (IsInsideTextInput(XamlRoot is null ? null : FocusManager.GetFocusedElement(XamlRoot) as DependencyObject))
+                return;
             ShowCardContextMenu(null);
             e.Handled = true;
         }
@@ -161,7 +168,8 @@ public sealed partial class SettingsCard : UserControl
             var item = new MenuFlyoutItem
             {
                 Text = toggle.IsOn ? "Turn off" : "Turn on",
-                Icon = new FontIcon { Glyph = "\uE7E8" }
+                KeyboardAcceleratorTextOverride = "Space",
+                Icon = new FontIcon { Glyph = toggle.IsOn ? "\uE73A" : "\uE739" }
             };
             item.Click += (_, _) => toggle.IsOn = !toggle.IsOn;
             menu.Items.Add(item);
@@ -171,7 +179,8 @@ public sealed partial class SettingsCard : UserControl
             var item = new MenuFlyoutItem
             {
                 Text = check.IsChecked == true ? "Uncheck" : "Check",
-                Icon = new FontIcon { Glyph = "\uE73E" }
+                KeyboardAcceleratorTextOverride = "Space",
+                Icon = new FontIcon { Glyph = check.IsChecked == true ? "\uE73A" : "\uE739" }
             };
             item.Click += (_, _) => check.IsChecked = !(check.IsChecked ?? false);
             menu.Items.Add(item);
@@ -190,20 +199,22 @@ public sealed partial class SettingsCard : UserControl
             };
             menu.Items.Add(item);
         }
-        else if (Action is Button { IsEnabled: true } actionBtn)
+        else
         {
-            var btnText = actionBtn.Content is string s && !string.IsNullOrWhiteSpace(s) ? s : "Run action";
-            var item = new MenuFlyoutItem
+            foreach (var item in ActionMenuItems.For(Action)) menu.Items.Add(item);
+        }
+
+        // Items the page adds for this card (a plugin's "Copy plugin ID"), in the same menu rather
+        // than a ContextFlyout that opened alongside it.
+        if (ExtraMenuItems?.Invoke() is { } extra)
+        {
+            var first = true;
+            foreach (var item in extra)
             {
-                Text = btnText,
-                Icon = new FontIcon { Glyph = "\uE768" }
-            };
-            item.Click += (_, _) =>
-            {
-                if (actionBtn.Command?.CanExecute(actionBtn.CommandParameter) ?? true)
-                    actionBtn.Command?.Execute(actionBtn.CommandParameter);
-            };
-            menu.Items.Add(item);
+                if (first && menu.Items.Count > 0) menu.Items.Add(new MenuFlyoutSeparator());
+                first = false;
+                menu.Items.Add(item);
+            }
         }
 
         if (!string.IsNullOrWhiteSpace(Header))
