@@ -1600,15 +1600,17 @@
                                         </DataTemplate>
                                     </ComboBox.ItemTemplate>
                                 </ComboBox>
-                                <Button Grid.Column="1" VerticalAlignment="Bottom" Click="OnSavePresetClick"
+                                <Button x:Name="SavePresetButton" Grid.Column="1" VerticalAlignment="Bottom" Click="OnSavePresetClick"
                                         AutomationProperties.Name="Save as preset"
                                         ToolTipService.ToolTip="Save the current look (theme, layout, cleanup, formatting, diagrams and branding) as a preset">
                                     <FontIcon Glyph="&#xE74E;" FontSize="14" />
                                 </Button>
-                                <Button Grid.Column="2" VerticalAlignment="Bottom" Click="OnDeletePresetClick"
+                                <!-- Asks first (there is no undo), and hands focus to Save before the
+                                     delete disables it. -->
+                                <Button x:Name="DeletePresetButton" Grid.Column="2" VerticalAlignment="Bottom" Click="OnDeletePresetClick"
                                         IsEnabled="{Binding HasActivePreset}"
                                         AutomationProperties.Name="Delete preset"
-                                        ToolTipService.ToolTip="Delete the selected preset (your current settings stay as they are)">
+                                        ToolTipService.ToolTip="Delete the selected preset after asking (your current settings stay as they are)">
                                     <FontIcon Glyph="&#xE74D;" FontSize="14" />
                                 </Button>
                             </Grid>

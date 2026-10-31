@@ -401,7 +401,11 @@
                                 <Button x:Name="NodeFillColorButton" Grid.Column="0" HorizontalAlignment="Stretch" Padding="8,6"
                                         Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1"
                                         AutomationProperties.Name="Node fill color"
-                                        ToolTipService.ToolTip="Node fill color">
+                                        AutomationProperties.HelpText="{Binding SelectedNode.FillColor}">
+                                    <!-- Says the colour in use (as the theme editor's swatches do); Narrator reads it as help text. -->
+                                    <ToolTipService.ToolTip>
+                                        <TextBlock><Run Text="Node fill color · " /><Run Text="{Binding SelectedNode.FillColor}" /><Run Text=" · click to change" /></TextBlock>
+                                    </ToolTipService.ToolTip>
                                     <StackPanel Orientation="Horizontal" Spacing="8">
                                         <Rectangle Width="16" Height="16" RadiusX="3" RadiusY="3"
                                                    Fill="{Binding SelectedNode.FillColor, Converter={StaticResource HexToBrush}}"
@@ -410,13 +414,23 @@
                                     </StackPanel>
                                     <Button.Flyout>
                                         <Flyout Placement="Left">
-                                            <ColorPicker Color="{Binding SelectedNode.FillColor, Mode=TwoWay, Converter={StaticResource HexToColor}}"
-                                                         ColorSpectrumShape="Ring"
-                                                         IsAlphaEnabled="False"
-                                                         IsColorSliderVisible="True"
-                                                         IsColorChannelTextInputVisible="False"
-                                                         IsHexInputVisible="True"
-                                                         IsMoreButtonVisible="False" />
+                                            <!-- Titled, so the open picker says which colour it changes. -->
+                                            <StackPanel Spacing="8">
+                                                <Grid>
+                                                    <TextBlock Text="Node fill colour" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                                    <TextBlock Text="{Binding SelectedNode.FillColor}" FontSize="11.5" FontFamily="Consolas"
+                                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                               HorizontalAlignment="Right" VerticalAlignment="Center" />
+                                                </Grid>
+                                                <ColorPicker AutomationProperties.Name="Node fill colour"
+                                                             Color="{Binding SelectedNode.FillColor, Mode=TwoWay, Converter={StaticResource HexToColor}}"
+                                                             ColorSpectrumShape="Ring"
+                                                             IsAlphaEnabled="False"
+                                                             IsColorSliderVisible="True"
+                                                             IsColorChannelTextInputVisible="False"
+                                                             IsHexInputVisible="True"
+                                                             IsMoreButtonVisible="False" />
+                                            </StackPanel>
                                         </Flyout>
                                     </Button.Flyout>
                                 </Button>
@@ -424,7 +438,11 @@
                                 <Button x:Name="NodeBorderColorButton" Grid.Column="1" HorizontalAlignment="Stretch" Padding="8,6"
                                         Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1"
                                         AutomationProperties.Name="Node border color"
-                                        ToolTipService.ToolTip="Node border color">
+                                        AutomationProperties.HelpText="{Binding SelectedNode.StrokeColor}">
+                                    <!-- Says the colour in use (as the theme editor's swatches do); Narrator reads it as help text. -->
+                                    <ToolTipService.ToolTip>
+                                        <TextBlock><Run Text="Node border color · " /><Run Text="{Binding SelectedNode.StrokeColor}" /><Run Text=" · click to change" /></TextBlock>
+                                    </ToolTipService.ToolTip>
                                     <StackPanel Orientation="Horizontal" Spacing="8">
                                         <Rectangle Width="16" Height="16" RadiusX="3" RadiusY="3"
                                                    Fill="{Binding SelectedNode.StrokeColor, Converter={StaticResource HexToBrush}}"
@@ -433,13 +451,23 @@
                                     </StackPanel>
                                     <Button.Flyout>
                                         <Flyout Placement="Left">
-                                            <ColorPicker Color="{Binding SelectedNode.StrokeColor, Mode=TwoWay, Converter={StaticResource HexToColor}}"
-                                                         ColorSpectrumShape="Ring"
-                                                         IsAlphaEnabled="False"
-                                                         IsColorSliderVisible="True"
-                                                         IsColorChannelTextInputVisible="False"
-                                                         IsHexInputVisible="True"
-                                                         IsMoreButtonVisible="False" />
+                                            <!-- Titled, so the open picker says which colour it changes. -->
+                                            <StackPanel Spacing="8">
+                                                <Grid>
+                                                    <TextBlock Text="Node border colour" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                                    <TextBlock Text="{Binding SelectedNode.StrokeColor}" FontSize="11.5" FontFamily="Consolas"
+                                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                               HorizontalAlignment="Right" VerticalAlignment="Center" />
+                                                </Grid>
+                                                <ColorPicker AutomationProperties.Name="Node border colour"
+                                                             Color="{Binding SelectedNode.StrokeColor, Mode=TwoWay, Converter={StaticResource HexToColor}}"
+                                                             ColorSpectrumShape="Ring"
+                                                             IsAlphaEnabled="False"
+                                                             IsColorSliderVisible="True"
+                                                             IsColorChannelTextInputVisible="False"
+                                                             IsHexInputVisible="True"
+                                                             IsMoreButtonVisible="False" />
+                                            </StackPanel>
                                         </Flyout>
                                     </Button.Flyout>
                                 </Button>

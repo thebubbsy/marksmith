@@ -22145,3 +22145,94 @@ Recent exports have no filter box, so the gap there is the opening focus. Each f
 - Commits 03beb539 (#309) and this run's are on local `main` only.
 - `MarksmithBaseVersion` stays 3.97.0, and tag v3.97.0 already exists on the remote.
 - The next run with working credentials should push, bump to 3.98.0, and tag v3.98.0.
+
+## 2026-11-01 · Run #311 (≈04:00–04:25 AEDT) · Claude Code
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic). The task template asks for "Antigravity AI Agent (Google DeepMind)"; that is not
+  who ran this, so the real identity is recorded instead.
+- Modes: Scheduled Hourly Automation Routine (scheduled task `commit-to-main-ship-improvement--r4efinement`)
+- Trigger: Scheduled hourly routine run
+- Agents Used: 1 (Orchestrator, who also did the coding and the skeptical review). No sub-agents, no conversation IDs.
+
+Picked up run #310's "Next up" item 2 (list flyouts in the other surfaces that open with Programmatic focus). Only the
+SmartArt and Shape Studio colour-scheme flyouts hold a list; Mermaid has no templates list flyout and Theme presets
+is a ComboBox. A button audit of the Desktop XAML then turned up the Mermaid node colour buttons and the preset
+Delete button.
+
+**User-visible improvements and fixes**
+1. **Settings ▸ Preset: Delete asks first.** The preset went on the first press, with no undo. It now opens the
+   app's confirm bubble ("Delete preset “Name”?", "Only the preset is removed. Your current settings stay as they
+   are.") with Cancel focused, so Enter or Esc straight away keeps it. The tooltip says it asks.
+2. **Settings ▸ Preset: deleting no longer throws keyboard focus away.** Deleting clears the active preset, which
+   disables the Delete button while it holds focus; WinUI sent focus to the window's first tab stop. Focus now moves
+   to "Save as preset" first (with a ring only if the button had keyboard focus).
+3. **SmartArt Studio colour palette flyout opens on the palette in use,** scrolled into view, with a keyboard focus
+   ring when opened from the keyboard (Enter/Space on the palette button). A mouse open still draws no ring.
+4. **Shape Studio colour-scheme flyout:** the same, for the scheme drop-down button.
+5. **Diagram (Mermaid) Studio: the node Fill and Border buttons say the colour in use.** The tooltip reads "Node fill
+   color · #FFFFFF · click to change" (it was just "Node fill color"), and Narrator reads the hex as help text.
+6. **Diagram Studio colour pickers are titled.** The Fill / Border flyouts were an anonymous colour ring; they now
+   head with "Node fill colour" / "Node border colour" and the current hex (as Shape Studio's fill flyout does), and
+   the picker has that accessible name.
+
+**Implementation Summary**
+- New `Services/FlyoutListFocus.cs`: `Attach(flyout, list, opener)` reads the opener's focus state in `Opening`, and
+  after `Opened` (enqueued) scrolls the selected item (or the first) into view and focuses its row with that state.
+  Skips if the flyout has closed (`XamlRoot` null).
+- `SmartArtDesignStudioWindow.xaml.cs`, `ShapeDesignStudioWindow.xaml.cs`: `FlyoutListFocus.Attach(PaletteFlyout,
+  PaletteList, PaletteButton)`.
+- `MainWindow.xaml`: `SavePresetButton` / `DeletePresetButton` named; Delete tooltip updated.
+  `MainWindow.xaml.cs`: `OnDeletePresetClick` is async, captures the button's focus state, asks through
+  `ConfirmFlyout.AskAsync`, re-checks the preset still exists, moves focus to Save, then deletes.
+- `Views/Mermaid/MermaidDiagramStudioControl.xaml`: `AutomationProperties.HelpText` bound to the node colour, element
+  tooltips with a bound `Run`, and a titled `StackPanel` (title + hex) above each `ColorPicker`, which is now named.
+- Tests: new `Run311PresetDeleteAndStudioColourFlyoutTests` (9 cases). `Run301`'s Mermaid name contract still holds.
+
+**Adversarial review**
+- Focus traps: item 2 removes one. Nothing new is collapsed or disabled. `FlyoutListFocus` only focuses inside the
+  flyout that just opened, and not at all once it has closed.
+- Key swallowing: no key handlers added or changed.
+- Flyout polish: SmartArt's `HoverPolish.AttachOnOpen(PaletteFlyout)` is untouched; Shape's palette flyout holds no
+  buttons. The confirm bubble applies `HoverPolish` itself.
+- Theme safety: the new Mermaid flyout header uses the default foreground and `{ThemeResource
+  TextFillColorSecondaryBrush}`; no code lookups added.
+- File / concurrency safety: no file access added. The delete re-checks `Presets.Contains(preset)` after the await.
+
+**Verified**
+- `dotnet build … -p:OutDir=%TEMP%\ms_run311\b\`: 0 errors.
+- `dotnet test --filter "Run311|Run301|Run310|Preset|Palette|Mermaid"`: 877/877 passed.
+- Live, isolated instance PID 20284 with `MARKSMITH_CONFIG_DIR=%TEMP%\ms_run311\cfg` (seeded `presets.json` with two
+  presets); only that PID was stopped. Desktop was unlocked, but keys were posted to the instance's own
+  `InputSiteWindowClass` hwnd (owner PID checked), never SendKeys.
+  - Items 1–2: selected "Run311 Test", UIA `SetFocus` + Invoke on Delete → bubble heading "Delete preset “Run311
+    Test”?" with focus on Cancel; invoked Delete → focus on `SavePresetButton`, Delete disabled, `presets.json` kept
+    only "Second look".
+  - Items 3–4: Space on each palette button → focus on the selected row ("Office Blue"); after picking the last row
+    ("Monochrome Dark" / "Slate Monochrome") and reopening, focus landed on that last row. The ring itself can't be
+    read through UIA and PrintWindow doesn't capture popups.
+  - Items 5–6: after quick-adding a node, `NodeFillColorButton` HelpText = `#FFFFFF`, `NodeBorderColorButton` =
+    `#8D99AE`; opening Fill showed the "Node fill colour" text, the `#FFFFFF` text and a "Node fill colour" group.
+    The tooltip text itself was not hovered live (no mouse moves on the user's desktop).
+
+**Noticed, not fixed**
+- Diagram Studio canvas nodes aren't exposed to UIA (only their quick-add groups), so a node can only be selected
+  from automation through quick-add.
+- Push and release are still blocked (see below).
+
+**Next up (Run #312)**
+1. Once `gh` is re-authenticated: push `main` (03beb539, 9e2978ab, af550090 and this run), bump
+   `MarksmithBaseVersion` to 3.98.0, tag v3.98.0.
+2. Hover-check the Mermaid Fill/Border tooltips while the desktop is free, to confirm the bound hex shows.
+3. Give Diagram Studio canvas nodes an automation peer / name so screen readers can reach them.
+4. Other immediate-delete actions: audit for any remaining one-press deletes without undo or confirm.
+
+**Total user-visible improvements: 6** (1 confirm-before-delete, 1 focus trap fixed, 2 flyout keyboard-focus fixes,
+2 accessibility/tooltip additions).
+
+**Release (same run):** not cut.
+- `git push --dry-run` still fails (`could not read Username for 'https://github.com'`), and `gh auth status` still
+  reports the thebubbsy token as invalid.
+- This run's commit is on local `main` only, with 03beb539, 9e2978ab and af550090.
+- `MarksmithBaseVersion` stays 3.97.0; tag v3.97.0 already exists on the remote.

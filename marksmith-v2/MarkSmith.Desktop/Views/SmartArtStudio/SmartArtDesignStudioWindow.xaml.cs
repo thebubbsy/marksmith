@@ -189,6 +189,8 @@ namespace MarkSmith.Views.SmartArtStudio
             // The palette flyout lives in the popup layer, outside the tracked tree: its Apply /
             // Reset / harmony buttons had no hover lift.
             HoverPolish.AttachOnOpen(PaletteFlyout);
+            // Open on the palette in use (scrolled into view), ringed when opened from the keyboard.
+            FlyoutListFocus.Attach(PaletteFlyout, PaletteList, PaletteButton);
             this.RootGrid.ActualThemeChanged += (_, _) => RefreshWebView();
             // Open in the layout search (typing filters at once), not on the first title-bar button.
             this.RootGrid.Loaded += (_, _) =>

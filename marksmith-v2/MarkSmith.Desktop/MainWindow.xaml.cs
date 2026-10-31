@@ -1725,10 +1725,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             ViewModel.SavePreset(box.Text); // sets the status line and selects the new preset
     }
 
-    private void OnDeletePresetClick(object sender, RoutedEventArgs e)
+    // Deleting a preset can't be undone, and it went on the first press. It also clears the active
+    // preset, which disables this button: WinUI then threw keyboard focus to the window's first tab
+    // stop, so focus moves to Save first.
+    private async void OnDeletePresetClick(object sender, RoutedEventArgs e)
     {
-        if (ViewModel.ActivePreset is { } preset)
-            ViewModel.DeletePreset(preset);
+        if (ViewModel.ActivePreset is not { } preset) return;
+        var held = DeletePresetButton.FocusState;
+        if (!await ConfirmFlyout.AskAsync(DeletePresetButton, $"Delete preset “{preset.Name}”?",
+                "Only the preset is removed. Your current settings stay as they are.", "Delete"))
+            return;
+        if (!ViewModel.Presets.Contains(preset)) return;
+        if (held != FocusState.Unfocused)
+            SavePresetButton.Focus(held == FocusState.Pointer ? FocusState.Programmatic : FocusState.Keyboard);
+        ViewModel.DeletePreset(preset);
     }
 
     private void OnToggleThemeFavoriteClick(object sender, RoutedEventArgs e)

@@ -205,6 +205,8 @@ namespace MarkSmith.Views.ShapeStudio
             this.RootGrid.PreviewKeyDown += OnRootPreviewKeyDown;
             InspectorPanel.GettingFocus += OnInspectorGettingFocus;
             BuildPaletteChoices();
+            // Open on the scheme in use, ringed when opened from the keyboard.
+            FlyoutListFocus.Attach(PaletteFlyout, PaletteList, PaletteButton);
             BuildResizeHandles();
             MarqueeRect.Fill = new SolidColorBrush(AccentColor(0x33));
             SetCursor(MainCanvas, Microsoft.UI.Input.InputSystemCursorShape.Arrow);
