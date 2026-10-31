@@ -513,7 +513,8 @@ public sealed class ImageInsertControl : InsertDialogBody
             Text = "Copy image path or URL",
             Icon = new FontIcon { Glyph = "\uE8C8" },
         };
-        copyItem.Click += (_, _) => CopyFeedback.CopyWithBubble(this, Source, "Copied image path");
+        // A web address is not a path: the bubble said "Copied image path" for both.
+        copyItem.Click += (_, _) => CopyFeedback.CopyWithBubble(this, Source, IsWeb(Source) ? "Copied image address" : "Copied image path");
         return copyItem;
     }
 

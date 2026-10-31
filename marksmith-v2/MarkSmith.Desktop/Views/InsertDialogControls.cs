@@ -161,6 +161,7 @@ public abstract class InsertDialogBody : UserControl
         Loaded += (_, _) =>
         {
             Refresh();
+            HelpFromToolTips(_fields);
             _opened = true;
         };
         AddHandler(PreviewKeyDownEvent, new KeyEventHandler(OnBodyPreviewKeyDown), true);
@@ -361,6 +362,28 @@ public abstract class InsertDialogBody : UserControl
         };
         focusFieldItem.Click += (_, _) => FocusFirstField();
         menu.Items.Add(focusFieldItem);
+    }
+
+    /// <summary>Gives every field and button that explains itself in a mouse tooltip the same
+    /// words as its help text, unless it already has its own. Keyboard focus never shows a
+    /// tooltip, so "(optional)", "Ctrl+O, Alt+B" and the citation id's rule were mouse-only.</summary>
+    internal static void HelpFromToolTips(UIElement? node)
+    {
+        switch (node)
+        {
+            case null:
+                return;
+            case Panel panel:
+                foreach (var child in panel.Children) HelpFromToolTips(child);
+                break;
+            case Border border:
+                HelpFromToolTips(border.Child);
+                break;
+        }
+        if (node is Control control
+            && ToolTipService.GetToolTip(control) is string tip
+            && string.IsNullOrEmpty(AutomationProperties.GetHelpText(control)))
+            AutomationProperties.SetHelpText(control, tip);
     }
 
     private static Control? FirstInput(Panel panel)
@@ -765,6 +788,11 @@ public sealed class ReferencesInsertControl : InsertDialogBody
         _title = new TextBox { Header = "Title", PlaceholderText = "Publication title" };
         _year = new TextBox { Header = "Year", PlaceholderText = DateTime.Now.Year.ToString(), IsSpellCheckEnabled = false, InputScope = NumberScope() };
         _id = new TextBox { Header = "Citation id", PlaceholderText = AutoIdHint, IsSpellCheckEnabled = false };
+        // Link and Image explain every field on hover; these four had no tooltip at all.
+        ToolTipService.SetToolTip(_author, "Who wrote it, surname first (e.g. Smith, J.) · Empty gets a placeholder");
+        ToolTipService.SetToolTip(_title, "The book, article or page title · Empty gets a placeholder");
+        ToolTipService.SetToolTip(_year, "Year of publication · Empty gets this year");
+        ToolTipService.SetToolTip(_id, "What you cite it by in the text (@id) · Empty uses the author's surname and the year");
         foreach (var box in new[] { _author, _title, _year, _id }) box.TextChanged += (_, _) => Refresh();
         // The empty id box shows the id it will get, so its hint never disagrees with the preview.
         _author.TextChanged += (_, _) => _id.PlaceholderText = DerivedId is { Length: > 0 } d ? d : AutoIdHint;

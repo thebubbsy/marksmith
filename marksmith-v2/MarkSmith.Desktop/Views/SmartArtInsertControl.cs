@@ -125,7 +125,7 @@ public sealed class SmartArtInsertControl : InsertDialogBody
         _box = MultilineBox("", "Plan\n  Set goals\nDo\nCheck\nAct", monospace: true);
         _box.MinHeight = 112;
         AutomationProperties.SetName(_box, "Outline");
-        AutomationProperties.SetHelpText(_box, "One item per line. Alt+Shift+Right indents the line, Alt+Shift+Left outdents it.");
+        AutomationProperties.SetHelpText(_box, OutlineHelp);
         _box.TextChanged += (_, _) => Update();
         // Word's own outline keys. Tab is left alone so it still moves focus out of the box.
         _box.AddHandler(KeyDownEvent, new KeyEventHandler(OnOutlineKeyDown), true);
@@ -179,6 +179,9 @@ public sealed class SmartArtInsertControl : InsertDialogBody
         ApplyExample(SmartArt.Examples[0]);
     }
 
+    /// <summary>The outline box's keys, after its item count in the help text.</summary>
+    public const string OutlineHelp = "One item per line. Alt+Shift+Right indents the line, Alt+Shift+Left outdents it.";
+
     /// <summary>The Markdown to insert (kept under its old name for the host).</summary>
     public string GeneratedSnippet => Snippet;
 
@@ -190,6 +193,8 @@ public sealed class SmartArtInsertControl : InsertDialogBody
         {
             var rows = SmartArt.Parse(_box.Text);
             _count.Text = SmartArt.Describe(_layout, rows);
+            // The count sits beside the heading, out of reach from inside the box; say it there too.
+            AutomationProperties.SetHelpText(_box, $"{_count.Text}. {OutlineHelp}");
             return rows.Count == 0 ? "Add at least one item to the outline." : null;
         }
     }
@@ -293,16 +298,19 @@ public sealed class SmartArtInsertControl : InsertDialogBody
         outdentItem.Click += (_, _) => { ShiftLines(-1); _box.Focus(FocusState.Programmatic); };
         menu.Items.Add(outdentItem);
 
+        // Both items used to stay enabled on an outline they can't change: Reset on one with no
+        // indented line did nothing, and Copy on an empty one put nothing on the clipboard.
+        var lines = (_box.Text ?? "").Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
         var resetItem = new MenuFlyoutItem
         {
             Text = "Reset all indentations",
-            Icon = new FontIcon { Glyph = "\uE777" }
+            Icon = new FontIcon { Glyph = "\uE777" },
+            IsEnabled = lines.Any(l => l.Length > 0 && char.IsWhiteSpace(l[0])),
         };
         resetItem.Click += (_, _) =>
         {
-            // Any line break: the TextBox stores Enter as a bare '\r', so splitting on '\n'
-            // only reset the first line of a typed outline.
-            var lines = (_box.Text ?? "").Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+            // Any line break (see above): the TextBox stores Enter as a bare '\r', so splitting
+            // on '\n' only reset the first line of a typed outline.
             _box.Text = string.Join("\n", lines.Select(l => l.TrimStart()));
             _box.Focus(FocusState.Programmatic);
         };
@@ -311,7 +319,8 @@ public sealed class SmartArtInsertControl : InsertDialogBody
         var copyItem = new MenuFlyoutItem
         {
             Text = "Copy outline text",
-            Icon = new FontIcon { Glyph = "\uE8C8" }
+            Icon = new FontIcon { Glyph = "\uE8C8" },
+            IsEnabled = !string.IsNullOrWhiteSpace(_box.Text),
         };
         copyItem.Click += (_, _) => CopyFeedback.CopyWithBubble(_box, _box.Text, "Copied outline text");
         menu.Items.Add(copyItem);
@@ -383,7 +392,8 @@ public sealed class SmartArtInsertControl : InsertDialogBody
         var copyOutline = new MenuFlyoutItem
         {
             Text = "Copy outline text",
-            Icon = new FontIcon { Glyph = "\uE8C8" }
+            Icon = new FontIcon { Glyph = "\uE8C8" },
+            IsEnabled = !string.IsNullOrWhiteSpace(_box.Text),
         };
         copyOutline.Click += (_, _) => CopyFeedback.CopyWithBubble(_box, _box.Text, "Copied outline text");
         menu.Items.Add(copyOutline);

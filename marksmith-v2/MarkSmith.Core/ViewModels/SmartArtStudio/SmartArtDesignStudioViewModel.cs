@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MarkSmith.Core.AST;
 using MarkSmith.Core.Glox;
+using MarkSmith.Services;
 using MarkSmith.Core.Preview;
 
 namespace MarkSmith.ViewModels.SmartArtStudio;
@@ -606,7 +607,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     /// <summary>Concise summary of the current outline item count and selected layout.</summary>
     public string OutlineSummaryText => OutlineRows.Count == 1
         ? $"1 item · {(string.IsNullOrWhiteSpace(PreviewTitle) ? (SelectedLayout?.DisplayName ?? "SmartArt") : PreviewTitle)}"
-        : $"{OutlineRows.Count} items · {(string.IsNullOrWhiteSpace(PreviewTitle) ? (SelectedLayout?.DisplayName ?? "SmartArt") : PreviewTitle)}";
+        : $"{CountText.Of(OutlineRows.Count, "item")} · {(string.IsNullOrWhiteSpace(PreviewTitle) ? (SelectedLayout?.DisplayName ?? "SmartArt") : PreviewTitle)}";
 
     /// <summary>Writes the designed tree back to Markdown (the canonical form). MarkdownText
     /// change re-runs RebuildTree + UpdatePreview, keeping everything in sync.</summary>
@@ -1364,7 +1365,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
         var rootLabel = roots == 1 ? "1 root" : $"{roots} roots";
         var leafLabel = leaves == 1 ? "1 leaf" : $"{leaves} leaves";
-        var summary = $"Hierarchy: {total} nodes · {rootLabel} · {leafLabel} · max depth {maxDepth}";
+        var summary = $"Hierarchy: {CountText.Of(total, "node")} · {rootLabel} · {leafLabel} · max depth {maxDepth}";
         return (total, roots, leaves, maxDepth, summary);
     }
 
@@ -1470,14 +1471,14 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         if (audit.TotalLines == 0) return "Outline is empty (0 lines)";
 
         var warning = audit.ExceedingCount > 0
-            ? $" · ⚠️ {audit.ExceedingCount} lines exceed {audit.Threshold} chars"
+            ? $" · ⚠️ {CountText.Of(audit.ExceedingCount, "line")} {(audit.ExceedingCount == 1 ? "exceeds" : "exceed")} {CountText.Of(audit.Threshold, "char")}"
             : $" · All lines within {audit.Threshold}-char limit";
 
         var preview = audit.LongestLineLength > 0
-            ? $" (Longest: {audit.LongestLineLength} chars: \"{TruncateString(audit.LongestLineText, 25)}\")"
+            ? $" (Longest: {CountText.Of(audit.LongestLineLength, "char")}: \"{TruncateString(audit.LongestLineText, 25)}\")"
             : string.Empty;
 
-        return $"{audit.TotalLines} lines{warning}{preview}";
+        return $"{CountText.Of(audit.TotalLines, "line")}{warning}{preview}";
     }
 
     private static string TruncateString(string text, int max) =>
@@ -1523,7 +1524,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
         int maxDepth = depthCounts.Keys.Max();
         var breakdown = string.Join(", ", depthCounts.OrderBy(k => k.Key).Select(k => $"L{k.Key}: {k.Value}"));
-        return $"Outline: {totalItems} items across {depthCounts.Count} level{(depthCounts.Count == 1 ? "" : "s")} ({breakdown}) · Max Depth: {maxDepth}";
+        return $"Outline: {CountText.Of(totalItems, "item")} across {depthCounts.Count} level{(depthCounts.Count == 1 ? "" : "s")} ({breakdown}) · Max Depth: {maxDepth}";
     }
 
     /// <summary>
@@ -1604,10 +1605,10 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
         if (branches == 0)
         {
-            return $"Outline branching: {total} nodes (All {leaves} are flat root items, 0 branches)";
+            return $"Outline branching: {CountText.Of(total, "node")} (All {leaves} are flat root items, 0 branches)";
         }
 
-        return $"Outline branching: {total} nodes ({branches} branch{(branches == 1 ? "" : "es")}, {leaves} leaf/leaves) · Avg: {avgBranch:0.#} children/branch (Max: {maxBranch})";
+        return $"Outline branching: {CountText.Of(total, "node")} ({branches} branch{(branches == 1 ? "" : "es")}, {leaves} leaf/leaves) · Avg: {avgBranch:0.#} children/branch (Max: {maxBranch})";
     }
 
     /// <summary>
@@ -1774,7 +1775,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
         if (maxDepth == 1)
         {
-            return $"Outline depth: {total} nodes (All flat at Level 1 · Uniform)";
+            return $"Outline depth: {CountText.Of(total, "node")} (All flat at Level 1 · Uniform)";
         }
 
         var levelsList = levelCounts
@@ -1784,7 +1785,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         string levelsStr = string.Join(", ", levelsList);
 
         string uniformityStr = isStepUniform ? "Uniform step hierarchy" : "Non-uniform indentation (contains skipped levels)";
-        return $"Outline depth: {total} nodes (Max: L{maxDepth}, Avg: {avgDepth:0.#}) · [{levelsStr}] · {uniformityStr}";
+        return $"Outline depth: {CountText.Of(total, "node")} (Max: L{maxDepth}, Avg: {avgDepth:0.#}) · [{levelsStr}] · {uniformityStr}";
     }
 
     /// <summary>
@@ -2055,14 +2056,14 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     {
         int limit = Math.Max(12, maxChars);
         if (resultingNodeCount <= 0 && splitCount <= 0)
-            return $"Split long outline items (>{limit} chars): Empty outline (0 nodes)";
+            return $"Split long outline items (>{CountText.Of(limit, "char")}): Empty outline (0 nodes)";
 
         string nodeStr = resultingNodeCount == 1 ? "1 node" : $"{resultingNodeCount} nodes";
         if (splitCount <= 0)
-            return $"Split long outline items (>{limit} chars): 0 long bullets found ({nodeStr} within limit)";
+            return $"Split long outline items (>{CountText.Of(limit, "char")}): 0 long bullets found ({nodeStr} within limit)";
 
         string splitStr = splitCount == 1 ? "1 long bullet split" : $"{splitCount} long bullets split";
-        return $"Split long outline items (>{limit} chars): {splitStr} into parent + sub-bullet ({nodeStr} total)";
+        return $"Split long outline items (>{CountText.Of(limit, "char")}): {splitStr} into parent + sub-bullet ({nodeStr} total)";
     }
 
     private static readonly System.Text.RegularExpressions.Regex ExistingHierarchicalNumberPrefixRegex =
@@ -2204,7 +2205,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
             recommendations.Add(new LayoutFamilyRecommendation(
                 "Hierarchy",
                 score,
-                $"Single root hierarchy spanning {maxDepth} levels with {leafCount} leaf items",
+                $"Single root hierarchy spanning {CountText.Of(maxDepth, "level")} with {CountText.Of(leafCount, "leaf item")}",
                 new[] { "Horizontal Hierarchy", "Hierarchy Tree", "Grouped List" }));
         }
 
@@ -2286,7 +2287,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
                 recommendations.Add(new LayoutFamilyRecommendation(
                     "Pyramid",
                     88,
-                    $"Layered structure of {maxDepth} tiers with tapering proportions",
+                    $"Layered structure of {CountText.Of(maxDepth, "tier")} with tapering proportions",
                     new[] { "Basic Pyramid", "Inverted Pyramid", "Segmented Pyramid" }));
             }
         }
@@ -2298,7 +2299,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
             recommendations.Add(new LayoutFamilyRecommendation(
                 "List",
                 listScore,
-                $"Structured bullet catalog of {totalNodes} items",
+                $"Structured bullet catalog of {CountText.Of(totalNodes, "item")}",
                 new[] { "Vertical Block List", "Horizontal Bullet List", "Table Hierarchy" }));
         }
 
@@ -2426,11 +2427,11 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
             return "Structure by delimiter: 0 nodes (Empty outline)";
 
         if (itemsStructured <= 0)
-            return $"Structure by delimiter: 0 delimited items found across {totalNodes} nodes (No ': ', ' — ', or ' - ' delimiters)";
+            return $"Structure by delimiter: 0 delimited items found across {CountText.Of(totalNodes, "node")} (No ': ', ' — ', or ' - ' delimiters)";
 
         string parentLabel = parentsCreated == 1 ? "1 parent group" : $"{parentsCreated} parent groups";
         string itemLabel = itemsStructured == 1 ? "1 item" : $"{itemsStructured} items";
-        return $"Structure by delimiter ({parentLabel} created): Converted {itemLabel} across {totalNodes} nodes into hierarchical subtrees";
+        return $"Structure by delimiter ({parentLabel} created): Converted {itemLabel} across {CountText.Of(totalNodes, "node")} into hierarchical subtrees";
     }
 
     /// <summary>
@@ -2533,11 +2534,11 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
             return "Balance outline depth: 0 bullets (Empty outline)";
 
         if (adjustedCount <= 0)
-            return $"Balance outline depth: All {totalBullets} bullets within max depth {maxDepth} (0 adjustments needed)";
+            return $"Balance outline depth: All {CountText.Of(totalBullets, "bullet")} within max depth {maxDepth} (0 adjustments needed)";
 
         string modeStr = mergeIntoParent ? "merged into parent bullets" : "clamped to max depth";
         string bulletLabel = adjustedCount == 1 ? "1 bullet" : $"{adjustedCount} bullets";
-        return $"Balance outline depth (Max depth {maxDepth}): {bulletLabel} {modeStr} across {totalBullets} bullets to prevent layout overflow";
+        return $"Balance outline depth (Max depth {maxDepth}): {bulletLabel} {modeStr} across {CountText.Of(totalBullets, "bullet")} to prevent layout overflow";
     }
 
     /// <summary>
@@ -3210,7 +3211,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
                     parentChildCounts.Add(popped.ChildCount);
                     if (popped.ChildCount > 6)
                     {
-                        overBranchingNodes.Add($"'{popped.Text}' ({popped.ChildCount} children)");
+                        overBranchingNodes.Add($"'{popped.Text}' ({CountText.Of(popped.ChildCount, "child", "children")})");
                     }
                 }
             }
@@ -3233,7 +3234,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
                 parentChildCounts.Add(popped.ChildCount);
                 if (popped.ChildCount > 6)
                 {
-                    overBranchingNodes.Add($"'{popped.Text}' ({popped.ChildCount} children)");
+                    overBranchingNodes.Add($"'{popped.Text}' ({CountText.Of(popped.ChildCount, "child", "children")})");
                 }
             }
         }
@@ -3283,7 +3284,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         if (totalItems <= 0) return "Outline hierarchy branching audit: 0 items";
         string itemLabel = totalItems == 1 ? "1 item" : $"{totalItems} items";
         string branchStr = maxDepth > 1 ? $" · Max branch: {maxBranching} (avg {avgBranching:0.#})" : "";
-        return $"Hierarchy branching audit ({itemLabel} across {maxDepth} levels{branchStr} · {treeBalance}): Recommended: {recommendedCategory}";
+        return $"Hierarchy branching audit ({itemLabel} across {CountText.Of(maxDepth, "level")}{branchStr} · {treeBalance}): Recommended: {recommendedCategory}";
     }
     public SmartArtProcessFlowChevronAudit AuditProcessFlowChevronUniformity()
     {
@@ -3657,12 +3658,12 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         string tierStr = totalTiers == 1 ? "1 tier" : $"{totalTiers} tiers";
         var alerts = new List<string>();
         if (truncationRisks > 0) alerts.Add($"⚠ {truncationRisks} truncation risk{(truncationRisks == 1 ? "" : "s")}");
-        if (totalTiers > 6) alerts.Add($"⚠ {totalTiers} tiers (>6 overcrowded)");
+        if (totalTiers > 6) alerts.Add($"⚠ {CountText.Of(totalTiers, "tier")} (>6 overcrowded)");
         if (totalTiers < 3) alerts.Add("⚠ <3 tiers (shallow hierarchy)");
 
         string orient = isInverted ? "Inverted Pyramid" : "Standard Pyramid";
         string issues = alerts.Count > 0 ? " · " + string.Join(" · ", alerts) : " · Proportional apex & base geometry";
-        return $"SmartArt pyramid proportionality audit ({orient} · {tierStr}, {totalWords} words{issues} · {category} · {score:0.#}% score)";
+        return $"SmartArt pyramid proportionality audit ({orient} · {tierStr}, {CountText.Of(totalWords, "word")}{issues} · {category} · {score:0.#}% score)";
     }
 
 
@@ -3756,7 +3757,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
                 : (!isStrictlyMonotonic ? "Non-Monotonic Stage Width Inversion" : "Optimal Stage Proportion");
 
             string recommendation = hasTruncation
-                ? $"Stage '{st.Label}' has {st.Label.Length} chars at width ratio {relativeWidth:0.##}; shorten label for funnel neck"
+                ? $"Stage '{st.Label}' has {CountText.Of(st.Label.Length, "char")} at width ratio {relativeWidth:0.##}; shorten label for funnel neck"
                 : "Conforming funnel stage geometry";
 
             items.Add(new SmartArtFunnelConversionStageItem(
@@ -3923,7 +3924,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         if (totalStages == 0) return $"SmartArt chevron process geometry audit ({layout}): Empty outline";
 
         var parts = new List<string>();
-        parts.Add($"{totalStages} stages");
+        parts.Add($"{CountText.Of(totalStages, "stage")}");
         parts.Add($"spacing {avgGap:0.#}px");
         if (uniformAngles) parts.Add("uniform 38° notch");
         if (truncationRisks > 0) parts.Add($"⚠ {truncationRisks} text truncation risks");
@@ -4217,7 +4218,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
         var parts = new List<string>();
         parts.Add(isInverted ? $"{tierCount} inverted tiers (funnel)" : $"{tierCount} tiered layers");
-        parts.Add($"{totalWords} words (avg {avgWordsPerTier:0.#}/tier)");
+        parts.Add($"{CountText.Of(totalWords, "word")} (avg {avgWordsPerTier:0.#}/tier)");
 
         string details = string.Join(" · ", parts);
         return $"SmartArt pyramid hierarchy audit ({details} · {category} · {score:0.#}% symmetry score)";
@@ -4299,11 +4300,11 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
             }
             else if (wordCount > 10)
             {
-                rec = $"Lengthy text ({wordCount} words) risks arrow tip truncation; condense to <= 6 words.";
+                rec = $"Lengthy text ({CountText.Of(wordCount, "word")}) risks arrow tip truncation; condense to <= 6 words.";
             }
             else if (charCount > 35)
             {
-                rec = $"Character count ({charCount} chars) exceeds standard chevron body box; shorten title.";
+                rec = $"Character count ({CountText.Of(charCount, "char")}) exceeds standard chevron body box; shorten title.";
             }
             else
             {
@@ -4354,7 +4355,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
         var parts = new List<string>();
         parts.Add($"{stageCount} process phase{(stageCount == 1 ? "" : "s")}");
-        parts.Add($"{totalWords} words (avg {avgWordsPerStage:0.#}/phase)");
+        parts.Add($"{CountText.Of(totalWords, "word")} (avg {avgWordsPerStage:0.#}/phase)");
         if (truncationRisks > 0) parts.Add($"⚠ {truncationRisks} chevron tip truncation risk{(truncationRisks == 1 ? "" : "s")}");
         else parts.Add("0 text overflow risks");
 
@@ -4440,11 +4441,11 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
             }
             else if (isCenter && isOverflowRisk)
             {
-                rec = $"Center bullseye has limited circular area ({wordCount} words); condense to <= 4 words to prevent clipping.";
+                rec = $"Center bullseye has limited circular area ({CountText.Of(wordCount, "word")}); condense to <= 4 words to prevent clipping.";
             }
             else if (isOverflowRisk)
             {
-                rec = $"Outer ring text ({wordCount} words) risks radial crowding; balance across bulleted sub-clauses.";
+                rec = $"Outer ring text ({CountText.Of(wordCount, "word")}) risks radial crowding; balance across bulleted sub-clauses.";
             }
             else
             {
@@ -4495,7 +4496,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
         var parts = new List<string>();
         parts.Add($"{ringCount} concentric ring{(ringCount == 1 ? "" : "s")}");
-        parts.Add($"{totalWords} words (center bullseye: {centerBullseyeWords} words)");
+        parts.Add($"{CountText.Of(totalWords, "word")} (center bullseye: {CountText.Of(centerBullseyeWords, "word")})");
         if (overflowRisks > 0) parts.Add($"⚠ {overflowRisks} radial clipping risk{(overflowRisks == 1 ? "" : "s")}");
         else parts.Add("0 radial clipping risks");
 
@@ -4716,7 +4717,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
                 string status = (isOverflow, isOvercrowded, isStarved) switch
                 {
                     (true, _, _) => "Label length exceeds quadrant cell bounds (>25 chars)",
-                    (_, true, _) => $"Overcrowded quadrant ({count} items)",
+                    (_, true, _) => $"Overcrowded quadrant ({CountText.Of(count, "item")})",
                     (_, _, true) => "Starved quadrant (0 items)",
                     _ => "Balanced quadrant density"
                 };
@@ -4928,7 +4929,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         var parts = new List<string>();
         parts.Add($"{totalTiers} tier{(totalTiers == 1 ? "" : "s")}");
         if (totalSubItems > 0) parts.Add($"{totalSubItems} subitem{(totalSubItems == 1 ? "" : "s")}");
-        parts.Add($"apex {apexLength} chars");
+        parts.Add($"apex {CountText.Of(apexLength, "char")}");
         if (textOverflows > 0) parts.Add($"\u26a0 {textOverflows} apex overflow{(textOverflows == 1 ? "" : "s")}");
         if (invertedHazards > 0) parts.Add($"\ud83d\udea8 {invertedHazards} inversion hazard{(invertedHazards == 1 ? "" : "s")}");
 
@@ -4943,8 +4944,8 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         if (quadrantCount == 0) return $"SmartArt matrix quadrant audit: Empty outline · {layout}";
 
         var parts = new List<string>();
-        parts.Add(is2x2 ? "4 quadrants (2x2)" : $"{quadrantCount} quadrants (non-standard 2x2)");
-        parts.Add($"{totalWords} words (avg {avgWords:0.#}/quadrant)");
+        parts.Add(is2x2 ? "4 quadrants (2x2)" : $"{CountText.Of(quadrantCount, "quadrant")} (non-standard 2x2)");
+        parts.Add($"{CountText.Of(totalWords, "word")} (avg {avgWords:0.#}/quadrant)");
         parts.Add($"CV {cv:0.##}");
 
         string details = string.Join(" · ", parts);
@@ -5050,7 +5051,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
             if (bulletCount > 5) bulletImbalances++;
 
             string rec = textRisk
-                ? $"Shorten set label '{stage.Label}' ({stage.Label.Length} chars) to prevent intersection overlap clipping"
+                ? $"Shorten set label '{stage.Label}' ({CountText.Of(stage.Label.Length, "char")}) to prevent intersection overlap clipping"
                 : (bulletCount > 5 ? "Too many bullet items inside circle; consider concise keywords" : "Set geometry and label balance are optimal");
 
             items.Add(new VennSetItem(
@@ -5093,7 +5094,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         if (setCount == 0) return $"SmartArt Venn geometry audit ({layout}): Empty outline";
 
         var parts = new List<string>();
-        parts.Add($"{setCount} sets");
+        parts.Add($"{CountText.Of(setCount, "set")}");
         parts.Add($"r={circleRadius:0.#}px");
         parts.Add($"overlap {overlapDistance:0.#}px ({(overlapRatio * 100):0.#}%)");
         if (isBalanced) parts.Add("balanced radii");
@@ -5110,7 +5111,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         if (totalStages == 0) return $"SmartArt funnel stage audit ({layout} · 0 stages): Empty layout";
 
         var parts = new List<string>();
-        parts.Add($"{totalStages} stages");
+        parts.Add($"{CountText.Of(totalStages, "stage")}");
         if (isInverted) parts.Add("inverted expansion");
         if (!isMonotonic) parts.Add("⚠ non-monotonic");
         if (truncationRisks > 0) parts.Add($"⚠ {truncationRisks} neck truncation risks");
@@ -5129,7 +5130,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
         var parts = new List<string>
         {
-            $"{totalSteps} stage{(totalSteps == 1 ? string.Empty : "s")} ({totalWords} words)",
+            $"{totalSteps} stage{(totalSteps == 1 ? string.Empty : "s")} ({CountText.Of(totalWords, "word")})",
             $"avg len={avgLength:0.#} chars (range {minLength}-{maxLength})",
             $"ratio={varianceRatio:0.#}x"
         };
@@ -5317,7 +5318,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
         if (siblingVariances.Count == 0)
         {
-            string singleSummary = $"Sibling text variance audit ({parsed.Count} items): No multi-sibling groups found (Linear hierarchy)";
+            string singleSummary = $"Sibling text variance audit ({CountText.Of(parsed.Count, "item")}): No multi-sibling groups found (Linear hierarchy)";
             return new SiblingTextVarianceAudit(
                 parsed.Count, 0, 0.0, 0.0, "None",
                 Array.Empty<SiblingGroupVariance>(), "Linear Hierarchy", singleSummary);
@@ -5537,7 +5538,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
         if (stepTitles.Count < 3)
         {
-            string insufficientSummary = $"Cyclic flow continuity audit: {stepTitles.Count} steps (Minimum 3 steps required for circular cycle layout) · Process / Steps";
+            string insufficientSummary = $"Cyclic flow continuity audit: {CountText.Of(stepTitles.Count, "step")} (Minimum 3 steps required for circular cycle layout) · Process / Steps";
             return new CyclicFlowContinuityAudit(
                 stepTitles.Count, false, branchCount, 0.2, "None",
                 "Insufficient Steps for Cycle (Minimum 3)", "Process / Steps", insufficientSummary);
@@ -5612,7 +5613,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         if (stepCount == 0) return "Cyclic flow continuity audit: 0 steps (Empty outline)";
         string stepLabel = stepCount == 1 ? "1 step" : $"{stepCount} steps";
         string closureNote = hasClosure ? " · Closed Loop (↺)" : " · Open Loop (→)";
-        string branchNote = branchCount > 0 ? $" · {branchCount} branches" : " · Flat";
+        string branchNote = branchCount > 0 ? $" · {CountText.Of(branchCount, "branch", "branches")}" : " · Flat";
 
         return $"Cyclic flow audit ({stepLabel}{closureNote}{branchNote} · {category}): Score {score:0.00} · Recommended '{recommendedLayout}'";
     }
@@ -5749,8 +5750,8 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         int totalQuadrants, int totalItems, double meanItems, double cv, double balanceScore, string category)
     {
         if (totalQuadrants == 0) return "Matrix quadrant audit: 0 quadrants (Empty outline)";
-        string quadLabel = totalQuadrants == 4 ? "4 quadrants (2x2)" : $"{totalQuadrants} quadrants";
-        return $"Matrix quadrant audit ({quadLabel}, {totalItems} items · {category}): Avg {meanItems:0.#} items/quad, balance score {balanceScore:0.#}%";
+        string quadLabel = totalQuadrants == 4 ? "4 quadrants (2x2)" : $"{CountText.Of(totalQuadrants, "quadrant")}";
+        return $"Matrix quadrant audit ({quadLabel}, {CountText.Of(totalItems, "item")} · {category}): Avg {meanItems:0.#} items/quad, balance score {balanceScore:0.#}%";
     }
 
     /// <summary>
@@ -6229,7 +6230,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         if (primaryCount == 0) return "Venn completeness audit: 0 sets · Outline is empty";
         string setsLabel = primaryCount == 1 ? "1 set" : $"{primaryCount} sets";
         string missingNote = missingCount > 0 ? $" · ⚠ {missingCount} missing regions" : " · Complete";
-        return $"Venn completeness audit ({setsLabel} · {category}): {definedRegions}/{expectedRegions} regions ({completeness:0.#}% complete){missingNote}";
+        return $"Venn completeness audit ({setsLabel} · {category}): {definedRegions}/{CountText.Of(expectedRegions, "region")} ({completeness:0.#}% complete){missingNote}";
     }
 
     /// <summary>
@@ -7342,7 +7343,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         string stepLabel = totalSteps == 1 ? "1 step" : $"{totalSteps} steps";
         string outlierAlert = outliers > 0 ? $" · ⚠ {outliers} pacing outlier{(outliers == 1 ? "" : "s")}" : " · Uniform step rhythm";
 
-        return $"Linear flow rhythm audit ({stepLabel} [{totalWords} words, avg {meanWords:0.#}w/step] · {category} · {score:0.#}% score): Variation CV={cv:0.##}{outlierAlert}";
+        return $"Linear flow rhythm audit ({stepLabel} [{CountText.Of(totalWords, "word")}, avg {meanWords:0.#}w/step] · {category} · {score:0.#}% score): Variation CV={cv:0.##}{outlierAlert}";
     }
 
     /// <summary>
@@ -7716,7 +7717,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         string modeLabel = isInverted ? "Inverted/Funnel" : "Standard Apex-Up";
         string trapAlert = trapCount > 0 ? $" · ⚠ {trapCount} inverted mass trap{(trapCount == 1 ? "" : "s")}" : " · Proportional mass aligned";
 
-        return $"Pyramid & funnel tapering audit ({tierLabel} [{totalWords} words · {modeLabel}] · {category} · {score:0.#}% score){trapAlert}";
+        return $"Pyramid & funnel tapering audit ({tierLabel} [{CountText.Of(totalWords, "word")} · {modeLabel}] · {category} · {score:0.#}% score){trapAlert}";
     }
 
     /// <summary>
@@ -7932,7 +7933,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
         string alertSuffix = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · 4-quadrant balance aligned";
 
-        return $"2x2 Matrix symmetry audit ({quadLabel} [{totalItems} items, {totalWords} words] · {category} · {score:0.#}% symmetry){alertSuffix}";
+        return $"2x2 Matrix symmetry audit ({quadLabel} [{CountText.Of(totalItems, "item")}, {CountText.Of(totalWords, "word")}] · {category} · {score:0.#}% symmetry){alertSuffix}";
     }
 
     private static int CountWords(string text)
@@ -8098,7 +8099,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     {
         if (definedRegions == 0) return "Venn diagram overlap audit: 0 regions · Outline is empty";
 
-        string setLabel = $"{setCount}-set Venn ({definedRegions} regions, {totalItems} items)";
+        string setLabel = $"{setCount}-set Venn ({CountText.Of(definedRegions, "region")}, {CountText.Of(totalItems, "item")})";
         string chordLabel = $"lens ~{lensOverlapFraction * 100.0:0.#}% area";
 
         var alerts = new List<string>();
@@ -8397,12 +8398,12 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
             if (isOverloaded)
             {
                 overloadedCount++;
-                alerts.Add($"Step {step.Index} (\"{step.Title}\") is overloaded ({words} words)");
+                alerts.Add($"Step {step.Index} (\"{step.Title}\") is overloaded ({CountText.Of(words, "word")})");
             }
             if (isTooBrief)
             {
                 tooBriefCount++;
-                alerts.Add($"Step {step.Index} (\"{step.Title}\") is too brief ({words} words)");
+                alerts.Add($"Step {step.Index} (\"{step.Title}\") is too brief ({CountText.Of(words, "word")})");
             }
 
             stepInfos.Add(new ProcessSequenceStepInfo(
@@ -8484,7 +8485,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         if (tooBriefCount > 0) alerts.Add($"ℹ {tooBriefCount} brief step");
         if (alerts.Count == 0) alerts.Add("✓ uniform pacing");
 
-        return $"Process sequence pacing audit ({stepLabel}, {totalWords} words · {meanWords:0.#} w/step, {aspectLabel} · {category} · {score:0.#}% balance) · {string.Join(", ", alerts)}";
+        return $"Process sequence pacing audit ({stepLabel}, {CountText.Of(totalWords, "word")} · {meanWords:0.#} w/step, {aspectLabel} · {category} · {score:0.#}% balance) · {string.Join(", ", alerts)}";
     }
 
     /// <summary>
@@ -8595,7 +8596,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         var alerts = new List<string>();
         if (wideFanNodes > 0) alerts.Add($"🚨 {wideFanNodes} wide fan (>8 children)");
         if (singleChildChains >= 2) alerts.Add($"⚠ {singleChildChains} linear single-child chains");
-        if (maxDepth >= 5) alerts.Add($"⚠ Deep nesting ({maxDepth} levels)");
+        if (maxDepth >= 5) alerts.Add($"⚠ Deep nesting ({CountText.Of(maxDepth, "level")})");
 
         double penalty = (wideFanNodes * 15.0) + (singleChildChains * 8.0) + (Math.Max(0, maxDepth - 4) * 10.0);
         if (ratio > 2.0) penalty += 15.0;
@@ -9004,7 +9005,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         string stepLabel = totalSteps == 1 ? "1 step" : $"{totalSteps} steps";
         var alerts = new List<string>();
         if (totalSteps < 3) alerts.Add("⚠ under-constrained (<3 steps)");
-        if (totalSteps > 7) alerts.Add($"⚠ {totalSteps} steps (>7 overcrowded)");
+        if (totalSteps > 7) alerts.Add($"⚠ {CountText.Of(totalSteps, "step")} (>7 overcrowded)");
         if (overcrowdedCount > 0) alerts.Add($"⚠ {overcrowdedCount} verbose steps (>12w)");
         alerts.Add($"~{meanWords:0.#}w/step (σ={wordStdDev:0.#})");
 
@@ -9161,7 +9162,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         if (totalItems == 0) return "2x2 matrix quadrant grid audit: 0 items · Outline contains no quadrant content";
 
         string itemLabel = totalItems == 1 ? "1 item" : $"{totalItems} items";
-        return $"2x2 matrix quadrant grid audit ({itemLabel} [{totalWords} words] · {category} · {score:0.#}% score): " +
+        return $"2x2 matrix quadrant grid audit ({itemLabel} [{CountText.Of(totalWords, "word")}] · {category} · {score:0.#}% score): " +
                $"Q1:{q1Words}w, Q2:{q2Words}w, Q3:{q3Words}w, Q4:{q4Words}w · {diagonalSymmetry:0.#}% diagonal symmetry";
     }
 
@@ -9255,7 +9256,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
             string status = hasInversion
                 ? $"Abrupt Volume Inversion ({w}w vs adjacent {stageWordCounts[Math.Max(0, i - 1)]}w)"
-                : $"Paced ({w} words)";
+                : $"Paced ({CountText.Of(w, "word")})";
 
             stageItems.Add(new FunnelPyramidStageItem(
                 i + 1, stageData[i].Title, w, c, stageData[i].Subitems.Count, relRatio, hasInversion, status));
@@ -9269,7 +9270,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         if (totalStages < 3)
             category = "Under-Utilized Stage Count (<3 stages)";
         else if (totalStages > 7)
-            category = $"Overcrowded Stage Sprawl ({totalStages} stages)";
+            category = $"Overcrowded Stage Sprawl ({CountText.Of(totalStages, "stage")})";
         else if (inversionCount > 0)
             category = $"Abrupt Volume Inversion ({inversionCount} stage jumps)";
         else
@@ -9300,7 +9301,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         if (inversions > 0) alerts.Add($"⚠ {inversions} volume {(inversions == 1 ? "inversion" : "inversions")}");
         string alertSuffix = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · 100% smooth monotonic taper";
 
-        return $"Funnel/Pyramid progression audit ({stageLabel} [{totalWords} words] · {category} · {score:0.#}% score): " +
+        return $"Funnel/Pyramid progression audit ({stageLabel} [{CountText.Of(totalWords, "word")}] · {category} · {score:0.#}% score): " +
                $"avg {meanWords:0.#}w (±{stdDev:0.#}w){alertSuffix}";
     }
 
@@ -9331,8 +9332,8 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
             if (string.IsNullOrWhiteSpace(currentTitle)) return;
             setIdx++;
             string status = isCurrentIntersection
-                ? $"Intersection ({currentWords} words, {currentSubitems} subitems)"
-                : $"Primary Set ({currentWords} words, {currentSubitems} subitems)";
+                ? $"Intersection ({CountText.Of(currentWords, "word")}, {CountText.Of(currentSubitems, "subitem")})"
+                : $"Primary Set ({CountText.Of(currentWords, "word")}, {CountText.Of(currentSubitems, "subitem")})";
 
             setItems.Add(new VennRadialSetItem(
                 setIdx, currentTitle, currentWords, currentChars, currentSubitems, isCurrentIntersection, status));
@@ -9463,7 +9464,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         else alerts.Add("0 intersections");
 
         string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : "";
-        return $"Venn/Radial intersection balance audit ({setLabel} [{totalWords} words] · {category} · {score:0.#}% score): " +
+        return $"Venn/Radial intersection balance audit ({setLabel} [{CountText.Of(totalWords, "word")}] · {category} · {score:0.#}% score): " +
                $"avg {meanWords:0.#}w (±{stdDev:0.#}w){details}";
     }
 
@@ -9641,7 +9642,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         if (outliers > 0) alerts.Add($"⚠ {outliers} density {(outliers == 1 ? "outlier" : "outliers")}");
 
         string details = alerts.Count > 0 ? $" · {string.Join(", ", alerts)}" : " · 100% harmonious density";
-        return $"List item text density balance audit ({itemStr} [{totalWords} words] · {category} · {score:0.#}% score): " +
+        return $"List item text density balance audit ({itemStr} [{CountText.Of(totalWords, "word")}] · {category} · {score:0.#}% score): " +
                $"avg {meanWords:0.#}w (±{stdDev:0.#}w), avg {meanLines:0.#} lines{details}";
     }
 
@@ -9913,9 +9914,9 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
             bool isDeep = node.Level > 3;
             if (isDeep) deeplyNestedCount++;
 
-            string status = isLopsided ? $"⚠ Lopsided branch ({children} children)" :
+            string status = isLopsided ? $"⚠ Lopsided branch ({CountText.Of(children, "child", "children")})" :
                             isDeep ? $"⚠ Deeply nested (level {node.Level})" :
-                            children > 0 ? $"✓ {children} children" : "✓ Leaf item";
+                            children > 0 ? $"✓ {CountText.Of(children, "child", "children")}" : "✓ Leaf item";
 
             items.Add(new HierarchyNodeBalanceItem(
                 node.LineNumber, node.Text, node.Level, children, isLopsided, isDeep, status));
@@ -10074,7 +10075,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
             int subCount = step.SubBullets.Count;
 
             string status = !meetsMinSize ? "⚠ Needs ≥3 steps to form closed loop" :
-                            Math.Abs(deviation) > 6.0 ? $"⚠ Word count outlier ({words} words vs avg {avgWords:0.#})" :
+                            Math.Abs(deviation) > 6.0 ? $"⚠ Word count outlier ({CountText.Of(words, "word")} vs avg {avgWords:0.#})" :
                             subCount > 3 ? $"✓ Step with {subCount} details" : "✓ Balanced step";
 
             items.Add(new CycleSequenceStepItem(
@@ -10146,7 +10147,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         else alerts.Add("closed cyclic loop");
 
         alerts.Add($"avg {avgWords:0.#} words/step (var {wordVariance:0.#})");
-        if (totalSubBullets > 0) alerts.Add($"{totalSubBullets} sub-items");
+        if (totalSubBullets > 0) alerts.Add($"{CountText.Of(totalSubBullets, "sub-item")}");
 
         string details = string.Join(" · ", alerts);
         return $"Cycle sequence audit ({layoutName} · {stepStr} · {category} · {score:0.#}% balance): {details}";
@@ -10325,7 +10326,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         if (emptyCount > 0) alerts.Add($"⚠ {emptyCount} empty {(emptyCount == 1 ? "quadrant" : "quadrants")}");
         else alerts.Add("4/4 quadrants populated");
 
-        alerts.Add($"{totalItems} total items ({totalWords} words)");
+        alerts.Add($"{totalItems} total items ({CountText.Of(totalWords, "word")})");
         alerts.Add($"item variance {itemVariance:0.##}");
 
         string details = string.Join(" · ", alerts);
@@ -10434,7 +10435,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
             }
 
             string status = words > 12
-                ? $"⚠ Overly verbose ({words} words > 12)"
+                ? $"⚠ Overly verbose ({CountText.Of(words, "word")} > 12)"
                 : !monotonicWithPrev
                     ? "⚠ Volume progression non-monotonic"
                     : $"✓ Stage {i + 1} progression ({vol:0.#}% volume)";
@@ -10597,7 +10598,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
             }
 
             string status = words > 12
-                ? $"⚠ Overly verbose ({words} words > 12)"
+                ? $"⚠ Overly verbose ({CountText.Of(words, "word")} > 12)"
                 : !ordered
                     ? $"⚠ Inverted sequence order ({indicator} appears after later milestone)"
                     : $"✓ Milestone {i + 1} ({indicator})";
@@ -10767,9 +10768,9 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
             string status;
             if (isViolation)
-                status = $"⚠ Verbose spoke label ({words} words > 12 max recommended) at {idealAngle:0.#}°";
+                status = $"⚠ Verbose spoke label ({CountText.Of(words, "word")} > 12 max recommended) at {idealAngle:0.#}°";
             else
-                status = $"✓ Balanced sector at {idealAngle:0.#}° ({words} words · {chars} chars)";
+                status = $"✓ Balanced sector at {idealAngle:0.#}° ({CountText.Of(words, "word")} · {CountText.Of(chars, "char")})";
 
             sectors.Add(new RadialHubSpokeSectorItem(
                 i + 1,
@@ -10912,8 +10913,8 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
             totalSubSteps += p.SubSteps.Count;
 
             string status = isViolation
-                ? $"⚠ Verbose phase label ({words} words > 12 word max) · Step {i + 1}/{totalPhases}"
-                : $"✓ Concise phase step ({words} words, {p.SubSteps.Count} substeps) · Step {i + 1}/{totalPhases}";
+                ? $"⚠ Verbose phase label ({CountText.Of(words, "word")} > 12 word max) · Step {i + 1}/{totalPhases}"
+                : $"✓ Concise phase step ({CountText.Of(words, "word")}, {CountText.Of(p.SubSteps.Count, "substep")}) · Step {i + 1}/{totalPhases}";
 
             phaseItems.Add(new ChevronProcessPhaseItem(
                 i + 1,
@@ -10974,7 +10975,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         if (isOptimalBounds) parts.Add("optimal bounds (3-7 phases)");
         else parts.Add(totalPhases < 3 ? "too few phases (<3)" : "crowded process (>7 phases)");
 
-        if (totalSubSteps > 0) parts.Add($"{totalSubSteps} substeps");
+        if (totalSubSteps > 0) parts.Add($"{CountText.Of(totalSubSteps, "substep")}");
 
         if (wordViolations > 0) parts.Add($"⚠ {wordViolations} verbose {(wordViolations == 1 ? "label" : "labels")}");
         else parts.Add("concise phase titles");
@@ -11073,8 +11074,8 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
             if (isRisk) overflowRisks++;
 
             string status = isRisk
-                ? $"⚠ Text overflow risk: '{st.Label}' ({textLen} chars, {words} words > {maxChars} char capacity at {widthRatio:P0} width)"
-                : $"✓ Tapered stage {i + 1}/{totalStages}: {widthRatio:P0} width ({textLen} chars, {words} words within {maxChars} cap)";
+                ? $"⚠ Text overflow risk: '{st.Label}' ({CountText.Of(textLen, "char")}, {CountText.Of(words, "word")} > {maxChars} char capacity at {widthRatio:P0} width)"
+                : $"✓ Tapered stage {i + 1}/{totalStages}: {widthRatio:P0} width ({CountText.Of(textLen, "char")}, {CountText.Of(words, "word")} within {maxChars} cap)";
 
             stageItems.Add(new FunnelPyramidProportionStageItem(
                 i + 1,
@@ -11136,7 +11137,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         if (isOptimalBounds) parts.Add("optimal bounds (3-6 stages)");
         else parts.Add(totalStages < 3 ? "too few stages (<3)" : "crowded funnel (>6 stages)");
 
-        if (totalSubBullets > 0) parts.Add($"{totalSubBullets} sub-items");
+        if (totalSubBullets > 0) parts.Add($"{CountText.Of(totalSubBullets, "sub-item")}");
 
         if (overflowRisks > 0) parts.Add($"⚠ {overflowRisks} overflow {(overflowRisks == 1 ? "risk" : "risks")}");
         else parts.Add("proportional text containment");
@@ -11222,8 +11223,8 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
             bool isOvercrowded = cellWords > 25 || c.SubBullets.Any(s => s.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries).Length > 15);
             string status;
-            if (isOvercrowded) status = $"⚠ Overcrowded ({cellWords} words, {c.SubBullets.Count} sub-items)";
-            else status = $"✓ Balanced ({cellWords} words)";
+            if (isOvercrowded) status = $"⚠ Overcrowded ({CountText.Of(cellWords, "word")}, {CountText.Of(c.SubBullets.Count, "sub-item")})";
+            else status = $"✓ Balanced ({CountText.Of(cellWords, "word")})";
 
             items.Add(new MatrixCellSymmetryItem(i + 1, c.Label, cellWords, c.SubBullets.Count, isOvercrowded, status));
         }
@@ -11286,11 +11287,11 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         var parts = new List<string>();
 
         if (isStandardGridSize) parts.Add(totalCells == 4 ? "standard 2x2 grid" : "standard 3x3 grid");
-        else parts.Add($"irregular grid ({totalCells} quadrants)");
+        else parts.Add($"irregular grid ({CountText.Of(totalCells, "quadrant")})");
 
         parts.Add($"mean {meanWords:0.#} words/cell");
 
-        if (totalSubBullets > 0) parts.Add($"{totalSubBullets} sub-items");
+        if (totalSubBullets > 0) parts.Add($"{CountText.Of(totalSubBullets, "sub-item")}");
 
         string details = string.Join(" · ", parts);
         return $"SmartArt matrix symmetry audit ({layoutName} · {cellStr} · {category} · {score:0.#}% score): {details}";
@@ -11553,7 +11554,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
             }
 
             string side = isLeft ? "Left / Upper Phase" : "Right / Lower Phase";
-            string status = $"Step {stepIndex} [{side}]: {words} words, {chars} chars";
+            string status = $"Step {stepIndex} [{side}]: {CountText.Of(words, "word")}, {CountText.Of(chars, "char")}";
 
             stepItems.Add(new AlternatingFlowStepItem(
                 stepIndex, side, title, words, chars, isLeft, status));
@@ -11779,8 +11780,8 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
             string status = totalStages < 2
                 ? $"Single stage pipeline ({totalStages} stage, min 2 required for stage progression)"
                 : totalStages > 7
-                    ? $"Overcrowded pipeline ({totalStages} stages exceed human cognitive buffer of 7)"
-                    : $"Stage {i + 1}: {widthPct:F1}% width taper ({wordCount} words, {charCount} chars)";
+                    ? $"Overcrowded pipeline ({CountText.Of(totalStages, "stage")} exceed human cognitive buffer of 7)"
+                    : $"Stage {i + 1}: {widthPct:F1}% width taper ({CountText.Of(wordCount, "word")}, {CountText.Of(charCount, "char")})";
 
             items.Add(new FunnelStageItem(i + 1, title, charCount, wordCount, widthPct, isMonotonic, status));
         }
@@ -11919,12 +11920,12 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
             bool isSparse = count == 0 && totalItems >= 4;
 
             string status = (count >= 1 && count <= 5 && !isOvercrowded && !isSparse)
-                ? $"Balanced Quadrant ({count} items, {words} words)"
+                ? $"Balanced Quadrant ({CountText.Of(count, "item")}, {CountText.Of(words, "word")})"
                 : isOvercrowded
-                    ? $"Overcrowded Quadrant ({count} items exceed quadrant focus)"
+                    ? $"Overcrowded Quadrant ({CountText.Of(count, "item")} exceed quadrant focus)"
                     : isSparse
                         ? "Sparse Quadrant (0 items, asymmetric void)"
-                        : $"{count} items, {words} words";
+                        : $"{CountText.Of(count, "item")}, {CountText.Of(words, "word")}";
 
             items.Add(new MultiLevelMatrixQuadrantItem(q + 1, quadrantNames[q], count, words, chars, relRatio, isOvercrowded, isSparse, status));
         }
@@ -11970,7 +11971,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         var parts = new List<string>();
 
         parts.Add(itemStr);
-        parts.Add($"{totalWords} words across 4 quadrants");
+        parts.Add($"{CountText.Of(totalWords, "word")} across 4 quadrants");
         parts.Add($"sym ratio {symmetryRatio:0.00}");
         parts.Add($"item var {itemVariance:F1}");
 
@@ -12064,7 +12065,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
             string classification = p.IsIntersection ? "Intersection Region" : "Primary Set Region";
             string status = count == 0
                 ? "Disjoint Empty Void (0 items)"
-                : $"{count} items, {words} words";
+                : $"{CountText.Of(count, "item")}, {CountText.Of(words, "word")}";
             string recommendation = count == 0
                 ? "Add descriptive items to clarify this set partition"
                 : "Partition cardinality populated";
@@ -12230,8 +12231,8 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
         var parts = new List<string>
         {
-            $"{totalNodes} nodes ({idealStep:0.#}° step)",
-            $"{subItems} sub-items"
+            $"{CountText.Of(totalNodes, "node")} ({idealStep:0.#}° step)",
+            $"{CountText.Of(subItems, "sub-item")}"
         };
         if (crowded > 0) parts.Add($"⚠️ {crowded} crowded");
         if (voids > 0) parts.Add($"⚠️ {voids} void");
@@ -12369,7 +12370,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
             string status = isLeaf
                 ? $"Leaf Node (Depth {depth})"
-                : (isOvercrowded ? $"Overcrowded Parent ({chCount} children)" : (isSingleChain ? "Single-Child Redundant Chain" : $"Branching Node ({chCount} children)"));
+                : (isOvercrowded ? $"Overcrowded Parent ({CountText.Of(chCount, "child", "children")})" : (isSingleChain ? "Single-Child Redundant Chain" : $"Branching Node ({CountText.Of(chCount, "child", "children")})"));
 
             string rec = isOvercrowded
                 ? "Subdivide broad category with intermediate sub-categories"
@@ -12417,8 +12418,8 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
         var parts = new List<string>
         {
-            $"{totalNodes} nodes (depth {maxDepth})",
-            $"{leafCount} leaves · {internalNodes} branches",
+            $"{CountText.Of(totalNodes, "node")} (depth {maxDepth})",
+            $"{leafCount} leaves · {CountText.Of(internalNodes, "branch", "branches")}",
             $"avg branching {avgBranching:0.0}"
         };
         if (imbalanced > 0) parts.Add($"⚠️ {imbalanced} imbalanced");
@@ -12440,7 +12441,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         {
             $"{primarySets} primary set{(primarySets == 1 ? "" : "s")}",
             $"{intersections} intersection partition{(intersections == 1 ? "" : "s")}",
-            $"{totalItems} items ({totalWords} words)",
+            $"{CountText.Of(totalItems, "item")} ({CountText.Of(totalWords, "word")})",
             $"bal ratio {balanceRatio:0.00}"
         };
 
@@ -12684,7 +12685,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
             string rec = hasInversion
                 ? "Inverted tier detected; verify hierarchical ordering."
-                : (words > avgWords * 2.5 ? $"Tier text ({words} words) exceeds average ({avgWords:0.#}); shorten label for visual balance." : "Tier satisfies geometric proportionality.");
+                : (words > avgWords * 2.5 ? $"Tier text ({CountText.Of(words, "word")}) exceeds average ({avgWords:0.#}); shorten label for visual balance." : "Tier satisfies geometric proportionality.");
 
             items.Add(new SmartArtPyramidFunnelTierItem(
                 i + 1, label, words, chars, Math.Round(widthFraction, 2), hasInversion, words > avgWords * 2.5, status, rec));
@@ -12839,7 +12840,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
             string rec = isEmpty
                 ? "Quadrant has no sub-items; add content to populate the 2x2 matrix cell."
                 : (isImbalanced
-                    ? $"Quadrant has {count} items vs average {avgItems:0.#}; redistribute items for visual balance."
+                    ? $"Quadrant has {CountText.Of(count, "item")} vs average {avgItems:0.#}; redistribute items for visual balance."
                     : "Balanced quadrant content and density.");
 
             items.Add(new SmartArtMatrixCoordinateParityItem(
@@ -13287,14 +13288,14 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
                 {
                     status = "OvercrowdedCycleSector";
                     severity = "Warning";
-                    rec = $"Cycle has {totalSteps} steps (>8 maximum recommended). Sector angle is narrow ({idealAngle:0.#}°), risking label collision.";
+                    rec = $"Cycle has {CountText.Of(totalSteps, "step")} (>8 maximum recommended). Sector angle is narrow ({idealAngle:0.#}°), risking label collision.";
                 }
                 else if (isAsymmetric)
                 {
                     asymmetricCount++;
                     status = "AsymmetricTextDensity";
                     severity = "Caution";
-                    rec = $"Step text density ({words} words vs {averageWordLength:0.#} avg) creates visual weight imbalance across cycle sectors.";
+                    rec = $"Step text density ({CountText.Of(words, "word")} vs {averageWordLength:0.#} avg) creates visual weight imbalance across cycle sectors.";
                 }
                 else
                 {

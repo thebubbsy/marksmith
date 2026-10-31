@@ -119,7 +119,8 @@ public static class InsertSnippetBuilder
         $"@{Or(id, "paper-id")}\n" +
         $"author: {Or(author, "Author Name")}\n" +
         $"title: {Or(title, "Publication Title")}\n" +
-        $"year: {Or(year, "2026")}\n" +
+        // This year, as the dialog's Year placeholder shows; a fixed "2026" disagreed with it from 2027.
+        $"year: {Or(year, DateTime.Now.Year.ToString())}\n" +
         ":::\n";
 
     /// <summary>:::datagrid block; the first line is the header row.</summary>
