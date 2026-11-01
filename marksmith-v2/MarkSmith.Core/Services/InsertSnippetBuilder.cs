@@ -20,13 +20,12 @@ public static class InsertSnippetBuilder
         rows = Math.Clamp(rows, 1, 50);
         cols = Math.Clamp(cols, 1, 20);
         var sb = new StringBuilder("\n");
-        if (includeHeaderRow)
-        {
-            sb.Append('|');
-            for (var c = 1; c <= cols; c++) sb.Append($" Header {c} |");
-            sb.Append('\n');
-        }
-        sb.Append('|'); // delimiter row — required by Markdown tables with or without a header
+        // Markdown tables always start with a header row: without one GitHub and the preview
+        // show the rows as plain text, so "no header" writes a blank one.
+        sb.Append('|');
+        for (var c = 1; c <= cols; c++) sb.Append(includeHeaderRow ? $" Header {c} |" : "  |");
+        sb.Append('\n');
+        sb.Append('|'); // delimiter row
         for (var c = 0; c < cols; c++) sb.Append(" --- |");
         sb.Append('\n');
         var cell = 1;
@@ -61,6 +60,13 @@ public static class InsertSnippetBuilder
             sb.Append('\n');
         }
         if (includeHeaderRow) Row();
+        else
+        {
+            // A blank header row: a table without one isn't a table to GitHub or the preview.
+            sb.Append('|');
+            for (var c = 0; c < cols; c++) sb.Append("  |");
+            sb.Append('\n');
+        }
         sb.Append('|');
         for (var c = 0; c < cols; c++) sb.Append(" --- |");
         sb.Append('\n');
@@ -176,6 +182,26 @@ public static class InsertSnippetBuilder
         return sb.Append(":::\n").ToString();
     }
 
+    /// <summary>A :::columns block holding <paramref name="contents"/> (one entry per column)
+    /// instead of placeholders; a column without an entry gets one, and entries beyond
+    /// <paramref name="count"/> join the last column, separated by blank lines, so none is lost.</summary>
+    public static string Columns(int count, IReadOnlyList<string> contents)
+    {
+        count = Math.Clamp(count, 2, 4);
+        contents ??= Array.Empty<string>();
+        var sb = new StringBuilder($"\n:::columns count=\"{count}\"\n");
+        for (var i = 0; i < count; i++)
+        {
+            if (i > 0) sb.Append("===\n");
+            var parts = i < count - 1
+                ? (i < contents.Count ? new[] { contents[i] } : Array.Empty<string>())
+                : contents.Skip(i).ToArray();
+            var body = string.Join("\n\n", parts.Select(p => (p ?? "").Trim('\r', '\n')).Where(p => p.Trim().Length > 0));
+            sb.Append(body.Length > 0 ? body : $"Column {i + 1} content").Append('\n');
+        }
+        return sb.Append(":::\n").ToString();
+    }
+
     /// <summary>:::smartart block; each step becomes a "- " bullet.</summary>
     public static string SmartArt(string type, IEnumerable<string> steps) =>
         BulletedBlock($":::smartart type=\"{Or(type, "process")}\"", steps, "Step 1");
@@ -269,6 +295,70 @@ public static class InsertSnippetBuilder
                $"<svg viewBox=\"0 0 {width} {height}\" width=\"{width}\" height=\"{height}\">\n" +
                $"  <circle cx=\"{cx}\" cy=\"{cy}\" r=\"{r}\" stroke=\"black\" stroke-width=\"3\" fill=\"red\" />\n" +
                "</svg>\n:::\n";
+    }
+
+    /// <summary>A :::canvas holding <paramref name="svg"/> (the selected drawing) instead of the
+    /// starter circle, its root &lt;svg&gt; given <paramref name="width"/> × <paramref name="height"/>.
+    /// A viewBox is added from the drawing's own size when it has none, so resizing scales the
+    /// drawing instead of cropping it. An empty <paramref name="svg"/> gives the starter canvas.</summary>
+    public static string Canvas(int width, int height, string svg)
+    {
+        if (string.IsNullOrWhiteSpace(svg)) return Canvas(width, height);
+        width = Math.Clamp(width, 10, 4000);
+        height = Math.Clamp(height, 10, 4000);
+        svg = svg.Trim().Replace("\r\n", "\n").Replace('\r', '\n');
+        var open = SvgStartTag.Match(svg);
+        if (!open.Success) return Canvas(width, height);
+        var tag = open.Value;
+        if (!SvgViewBoxAttr.IsMatch(tag) && SvgSize(tag) is { } own)
+            tag = tag.Insert(4, $" viewBox=\"0 0 {own.Width} {own.Height}\"");
+        tag = SetSvgAttribute(tag, "width", width);
+        tag = SetSvgAttribute(tag, "height", height);
+        return "\n:::canvas\n" + tag + svg[open.Length..] + "\n:::\n";
+    }
+
+    /// <summary>The width and height an &lt;svg&gt; start tag gives itself (its width/height
+    /// attributes, else its viewBox), rounded, or null when it gives neither.</summary>
+    public static (int Width, int Height)? SvgSize(string? tag)
+    {
+        if (string.IsNullOrEmpty(tag)) return null;
+        var w = SvgLength(tag, "width");
+        var h = SvgLength(tag, "height");
+        if (w is null || h is null)
+        {
+            var vb = SvgViewBoxSize.Match(tag);
+            if (vb.Success && Number(vb.Groups[1].Value) is { } vw && Number(vb.Groups[2].Value) is { } vh)
+            {
+                w ??= vw;
+                h ??= vh;
+            }
+        }
+        return w is { } ww && h is { } hh ? ((int)Math.Round(ww), (int)Math.Round(hh)) : null;
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex SvgStartTag =
+        new(@"^<svg\b[^>]*>", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+    private static readonly System.Text.RegularExpressions.Regex SvgViewBoxAttr =
+        new(@"\sviewBox\s*=", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+    private static readonly System.Text.RegularExpressions.Regex SvgViewBoxSize =
+        new(@"\sviewBox\s*=\s*[""']\s*-?[0-9.]+[\s,]+-?[0-9.]+[\s,]+([0-9.]+)[\s,]+([0-9.]+)\s*[""']", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    // A plain or px length only: "100%" or "10em" don't say how big the drawing is.
+    private static double? SvgLength(string tag, string name)
+    {
+        var m = System.Text.RegularExpressions.Regex.Match(tag, $@"\s{name}\s*=\s*[""']\s*([0-9]*\.?[0-9]+)\s*(?:px)?\s*[""']", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        return m.Success ? Number(m.Groups[1].Value) : null;
+    }
+
+    private static double? Number(string s) =>
+        double.TryParse(s, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v) && v > 0 ? v : null;
+
+    private static string SetSvgAttribute(string tag, string name, int value)
+    {
+        var re = new System.Text.RegularExpressions.Regex($@"(\s{name}\s*=\s*)([""'])[^""']*\2", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (re.IsMatch(tag)) return re.Replace(tag, m => $"{m.Groups[1].Value}\"{value}\"", 1);
+        var at = tag.EndsWith("/>", StringComparison.Ordinal) ? tag.Length - 2 : tag.Length - 1;
+        return tag.Insert(at, $" {name}=\"{value}\"");
     }
 
     /// <summary>:::wfc procedural wave function collapse grid snippet.</summary>

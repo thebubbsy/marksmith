@@ -31,12 +31,12 @@ public class InsertSnippetBuilderTests
     }
 
     [Fact]
-    public void Table_without_header_still_emits_delimiter_row()
+    public void Table_without_header_writes_a_blank_header_row_and_the_delimiter_row()
     {
         var md = InsertSnippetBuilder.Table(1, 2, includeHeaderRow: false);
 
         Assert.DoesNotContain("Header", md);
-        Assert.StartsWith("\n| --- | --- |\n", md);
+        Assert.StartsWith("\n|  |  |\n| --- | --- |\n", md);
         Assert.Contains("| Value 1 | Value 2 |", md);
     }
 

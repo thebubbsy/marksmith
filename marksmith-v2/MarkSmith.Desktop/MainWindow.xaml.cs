@@ -17008,11 +17008,21 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             return;
         }
 
+        // Selected paragraphs fill the columns, one each, with the count set to fit them.
+        var source = SelectedLinesForInsert();
+        var paragraphs = source is { } s ? Services.SelectionPrefill.ColumnParagraphs(s.Text) : Array.Empty<string>();
+        if (paragraphs.Count == 0) source = null;
         var control = new Views.NumbersInsertControl(
-            "Side-by-side columns. A line containing only === starts the next column.",
-            v => Services.InsertSnippetBuilder.Columns(v[0]), ("Columns", 2, 2, 4));
+            paragraphs.Count > 0
+                ? "Side-by-side columns holding the selected paragraphs, one each. Fewer columns put the rest in the last one; more add placeholder columns."
+                : "Side-by-side columns. A line containing only === starts the next column.",
+            v => paragraphs.Count > 0
+                ? Services.InsertSnippetBuilder.Columns(v[0], paragraphs)
+                : Services.InsertSnippetBuilder.Columns(v[0]),
+            ("Columns", Math.Clamp(paragraphs.Count, 2, 4), 2, 4));
+        NoteSelectionSource(control, source);
         if (await ShowInsertDialogAsync("Insert multi-column section", control) != ContentDialogResult.Primary) return;
-        InsertBlock(control.Snippet);
+        InsertBlockFrom(source, control.Snippet, "columns");
     }
 
     private async void OnInsertCanvasClick(object sender, RoutedEventArgs e)
@@ -17023,11 +17033,21 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             return;
         }
 
+        // A selected <svg> drawing goes on the canvas, sized as it sizes itself.
+        var source = SelectedLinesForInsert();
+        var svg = source is { } s ? Services.SelectionPrefill.CanvasSvg(s.Text) : "";
+        if (svg.Length == 0) source = null;
+        var size = Services.InsertSnippetBuilder.SvgSize(System.Text.RegularExpressions.Regex.Match(svg, "^<svg\\b[^>]*>",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase).Value) ?? (200, 200);
         var control = new Views.NumbersInsertControl(
-            "An SVG drawing area with a starter shape. Edit the SVG by hand to draw what you need.",
-            v => Services.InsertSnippetBuilder.Canvas(v[0], v[1]), ("Width", 200, 10, 4000), ("Height", 200, 10, 4000));
+            svg.Length > 0
+                ? "A drawing area holding the selected SVG. Width and height resize it; its shapes scale to fit."
+                : "An SVG drawing area with a starter shape. Edit the SVG by hand to draw what you need.",
+            v => Services.InsertSnippetBuilder.Canvas(v[0], v[1], svg),
+            ("Width", Math.Clamp(size.Width, 10, 4000), 10, 4000), ("Height", Math.Clamp(size.Height, 10, 4000), 10, 4000));
+        NoteSelectionSource(control, source);
         if (await ShowInsertDialogAsync("Insert drawing canvas", control) != ContentDialogResult.Primary) return;
-        InsertBlock(control.Snippet);
+        InsertBlockFrom(source, control.Snippet, "a drawing canvas");
     }
 
     private async void OnInsertWaveFunctionClick(object sender, RoutedEventArgs e)

@@ -89,7 +89,7 @@ public class Run328InsertSelectionPrefillTests
     public void Table_with_cells_and_no_header_puts_every_row_in_the_body()
     {
         var cells = new List<IReadOnlyList<string>> { new[] { "Name", "Qty" }, new[] { "Pens", "4" } };
-        Assert.Equal("\n| --- | --- |\n| Name | Qty |\n| Pens | 4 |\n",
+        Assert.Equal("\n|  |  |\n| --- | --- |\n| Name | Qty |\n| Pens | 4 |\n",
             InsertSnippetBuilder.Table(2, 2, false, cells));
     }
 

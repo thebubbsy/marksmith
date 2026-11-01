@@ -6,7 +6,7 @@ using System.Text.RegularExpressions;
 namespace MarkSmith.Services;
 
 /// <summary>The lines a line-list Insert dialog (workflow, timeline, tab group, data grid, chart,
-/// code block, table, SmartArt, image, video) opens with when lines are selected, and the range Insert then replaces. The dialogs
+/// code block, table, SmartArt, image, video, columns, canvas) opens with when lines are selected, and the range Insert then replaces. The dialogs
 /// opened on their samples and dropped the block after the selection, so turning a list into a
 /// workflow meant retyping it and deleting the original.</summary>
 public static class SelectionPrefill
@@ -129,6 +129,36 @@ public static class SelectionPrefill
     private static bool IsWebAddress(string s) =>
         !s.Any(char.IsWhiteSpace) && Uri.TryCreate(s, UriKind.Absolute, out var u)
         && (u.Scheme == Uri.UriSchemeHttps || u.Scheme == Uri.UriSchemeHttp) && u.Host.Length > 0;
+
+    /// <summary>The paragraphs (split at blank lines) the Columns dialog opens with, one per column,
+    /// each kept as written. Empty when a line starts a ":::" fence, which would end the columns
+    /// block early, or when nothing is left.</summary>
+    public static IReadOnlyList<string> ColumnParagraphs(string? text)
+    {
+        var lines = (text ?? "").Replace("\r\n", "\n").Replace('\r', '\n').Split('\n').Select(l => l.TrimEnd()).ToList();
+        if (lines.Any(l => l.TrimStart().StartsWith(":::", StringComparison.Ordinal))) return Array.Empty<string>();
+        var paragraphs = new List<string>();
+        var current = new List<string>();
+        foreach (var line in lines.Append(""))
+        {
+            if (line.Trim().Length > 0) { current.Add(line); continue; }
+            if (current.Count > 0) paragraphs.Add(string.Join("\n", current));
+            current.Clear();
+        }
+        return paragraphs;
+    }
+
+    /// <summary>A selected &lt;svg&gt;…&lt;/svg&gt; drawing for the canvas dialog, or "" for anything
+    /// else (or one with a line that is only ":::", which would end the canvas block early).</summary>
+    public static string CanvasSvg(string? text)
+    {
+        var s = (text ?? "").Trim();
+        if (!s.StartsWith("<svg", StringComparison.OrdinalIgnoreCase)
+            || !s.EndsWith("</svg>", StringComparison.OrdinalIgnoreCase)
+            || (s.Length > 4 && !(char.IsWhiteSpace(s[4]) || s[4] == '>' || s[4] == '/'))) return "";
+        var lines = s.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        return lines.Any(l => l.Trim() == ":::") ? "" : s;
+    }
 
     /// <summary>The note a prefilled dialog shows, so Insert replacing the lines is no surprise.</summary>
     public static string Note(int lines) =>

@@ -663,9 +663,11 @@ public sealed class TableInsertControl : InsertDialogBody
         _cols = MakeNumberBox("Columns", _cells is null ? 2 : Math.Clamp(_cells.Max(r => r.Count), 1, 20), 1, 20);
         ToolTipService.SetToolTip(_cols, "Number of columns (1–20)");
         _header = new CheckBox { Content = "Include header row", IsChecked = true };
+        // Markdown tables always have a header row, so clearing this leaves it blank rather
+        // than writing rows GitHub and the preview show as plain text.
         ToolTipService.SetToolTip(_header, _cells is null
-            ? "Generate a header row separated from body cells"
-            : "The first selected row is the header · Clear it to make that row a body row");
+            ? "Fill the header row with placeholder titles · Clear it to leave the header row blank"
+            : "The first selected row is the header · Clear it to make that row a body row under a blank header");
         RefreshOnEdit(_rows);
         RefreshOnEdit(_cols);
         _header.Click += (_, _) =>
