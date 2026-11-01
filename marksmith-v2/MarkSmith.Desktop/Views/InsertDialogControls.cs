@@ -321,7 +321,7 @@ public abstract class InsertDialogBody : UserControl
         if ((first as TextBox ?? InnerTextBox(first)) is { } box) box.SelectAll();
     }
 
-    private static TextBox? InnerTextBox(DependencyObject parent)
+    protected static TextBox? InnerTextBox(DependencyObject parent)
     {
         for (int i = 0, n = VisualTreeHelper.GetChildrenCount(parent); i < n; i++)
         {
@@ -712,6 +712,9 @@ public sealed class CodeBlockInsertControl : InsertDialogBody
 
     private readonly ComboBox _lang;
     private readonly TextBox _body;
+    // The editable combo's own text box: ComboBox.Text changes only when the typed text is
+    // submitted, so the card kept the old language while a new one was typed.
+    private TextBox? _langText;
 
     public CodeBlockInsertControl()
         : base("A fenced code block with syntax highlighting. Leave the code empty to type it inside the fence.")
@@ -724,9 +727,15 @@ public sealed class CodeBlockInsertControl : InsertDialogBody
             IsEditable = true,
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };
-        ToolTipService.SetToolTip(_lang, "Syntax highlighting language (C#, Python, JavaScript, Mermaid...)");
+        ToolTipService.SetToolTip(_lang, "Syntax highlighting language · Pick one or type any fence id (kotlin, ruby, diff…)");
         _lang.SelectionChanged += (_, _) => Refresh();
         _lang.TextSubmitted += (_, _) => DispatcherQueue.TryEnqueue(Refresh);
+        _lang.Loaded += (_, _) =>
+        {
+            if (_langText is not null || InnerTextBox(_lang) is not { } inner) return;
+            _langText = inner;
+            inner.TextChanged += (_, _) => Refresh();
+        };
         _body = MultilineBox("", "Paste or type code (optional)", monospace: true);
         _body.Header = "Code";
         ToolTipService.SetToolTip(_body, "Initial code content (optional) · Press Ctrl+Enter to insert");
@@ -741,7 +750,7 @@ public sealed class CodeBlockInsertControl : InsertDialogBody
     {
         get
         {
-            var text = (_lang.SelectedItem as string ?? _lang.Text ?? "").Trim();
+            var text = (_langText?.Text ?? _lang.SelectedItem as string ?? _lang.Text ?? "").Trim();
             var hit = Languages.FirstOrDefault(l => l.Name.Equals(text, StringComparison.OrdinalIgnoreCase)
                                                  || (l.Id.Length > 0 && l.Id.Equals(text, StringComparison.OrdinalIgnoreCase)));
             return hit.Name is not null ? hit.Id : text.ToLowerInvariant().Replace(" ", "");
@@ -750,6 +759,8 @@ public sealed class CodeBlockInsertControl : InsertDialogBody
 
     public string Body => _body.Text;
     public override string Snippet => Snippets.CodeBlock(SelectedLanguage, Body.Replace("\r", "\n"));
+
+    protected override string? Problem => InsertCountText.CodeLanguageProblem(SelectedLanguage);
 }
 
 /// <summary>Provider picker + URL (web embeds). Pasting a known URL picks its provider.</summary>
@@ -784,7 +795,7 @@ public sealed class EmbedInsertControl : InsertDialogBody
         ToolTipService.SetToolTip(_url, "Paste a full video link (YouTube, Vimeo, Loom, CodePen, Bilibili)");
         _url.TextChanged += (_, _) =>
         {
-            var detected = Services.ContainerBlockParsers.DetectProvider(_url.Text);
+            var detected = Services.ContainerBlockParsers.DetectProvider(Url);
             var index = detected is null ? -1 : Array.IndexOf(Providers, detected);
             if (index >= 0 && index != _provider.SelectedIndex) _provider.SelectedIndex = index;   // refreshes
             else Refresh();
@@ -795,7 +806,8 @@ public sealed class EmbedInsertControl : InsertDialogBody
     }
 
     public string Provider => Providers[Math.Max(0, _provider.SelectedIndex)];
-    public string Url => _url.Text.Trim();
+    // A link copied from Markdown or a shell often comes as <https://…> or "https://…".
+    public string Url => _url.Text.Trim().Trim('"', '\'', '<', '>').Trim();
     // No link yet: the card says "Nothing yet". The builder's EXAMPLE_ID fallback made the card
     // (and its Copy button) offer a block that Insert, disabled until a link is pasted, never adds.
     public override string Snippet => Url.Length == 0 ? "" : Snippets.Embed(Provider, Url);
@@ -806,7 +818,7 @@ public sealed class EmbedInsertControl : InsertDialogBody
         {
             if (Url.Length == 0) return "Paste the video's link.";
             return Uri.TryCreate(Url, UriKind.Absolute, out var u) && (u.Scheme == "https" || u.Scheme == "http")
-                ? null
+                ? InsertCountText.EmbedProviderProblem(Provider, Url, Providers)
                 : "That isn't a full web link — it should start with https://";
         }
     }

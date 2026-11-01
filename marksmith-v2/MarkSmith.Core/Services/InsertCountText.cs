@@ -59,4 +59,21 @@ public static class InsertCountText
         }
         return null;
     }
+
+    // A backtick in the info string stops a ``` line being a fence at all, so the block (and
+    // everything after it) rendered as plain text.
+    public static string? CodeLanguageProblem(string? language) =>
+        (language ?? "").Contains('`') ? "A language name can't contain a backtick (`)." : null;
+
+    // The video dialog picks the provider from the pasted link; changing it afterwards made a
+    // card with the wrong name and colour ("Vimeo · youtube.com"). Only providers the dialog
+    // offers are checked, so a link it can't name still inserts as before.
+    public static string? EmbedProviderProblem(string? picked, string? url, IEnumerable<string> offered)
+    {
+        var detected = ContainerBlockParsers.DetectProvider(url ?? "");
+        if (detected is null || string.Equals(detected, picked, StringComparison.OrdinalIgnoreCase)
+            || !offered.Contains(detected, StringComparer.OrdinalIgnoreCase)) return null;
+        var name = ContainerBlockParsers.ProviderDisplayName(detected);
+        return $"That's a {name} link, but {ContainerBlockParsers.ProviderDisplayName(picked ?? "")} is picked; pick {name}.";
+    }
 }

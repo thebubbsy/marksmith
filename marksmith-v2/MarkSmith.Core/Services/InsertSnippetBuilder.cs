@@ -57,8 +57,22 @@ public static class InsertSnippetBuilder
     }
 
     /// <summary>Fenced code block; an empty language yields a bare ``` fence.</summary>
-    public static string CodeBlock(string language, string body) =>
-        $"\n```{(language ?? "").Trim()}\n{(body ?? "").TrimEnd()}\n```\n";
+    public static string CodeBlock(string language, string body)
+    {
+        var fence = CodeFence(body);
+        return $"\n{fence}{(language ?? "").Trim()}\n{(body ?? "").TrimEnd()}\n{fence}\n";
+    }
+
+    /// <summary>The fence for <paramref name="body"/>: ``` unless a line of the code starts with ```
+    /// (it closed the block early and the rest spilled out as Markdown), then ~~~, which a ``` line
+    /// can't close, and a backtick fence longer than any in the code only when it holds both.</summary>
+    public static string CodeFence(string? body)
+    {
+        var lines = (body ?? "").Replace("\r\n", "\n").Replace('\r', '\n').Split('\n').Select(l => l.TrimStart()).ToList();
+        if (!lines.Any(l => l.StartsWith("```", StringComparison.Ordinal))) return "```";
+        if (!lines.Any(l => l.StartsWith("~~~", StringComparison.Ordinal))) return "~~~";
+        return new string('`', lines.Max(l => l.TakeWhile(c => c == '`').Count()) + 1);
+    }
 
     /// <summary>:::chart block from "label,value" lines.</summary>
     public static string Chart(string type, IEnumerable<string> labelValueLines)
@@ -109,9 +123,10 @@ public static class InsertSnippetBuilder
         return sb.Append(":::\n").ToString();
     }
 
-    /// <summary>:::embed block for a video/web provider.</summary>
+    /// <summary>:::embed block for a video/web provider. A quote in the link would end the src
+    /// attribute early, so it is written as %22.</summary>
     public static string Embed(string provider, string url) =>
-        $"\n:::embed provider=\"{Or(provider, "youtube")}\" src=\"{Or(url, "https://www.youtube.com/watch?v=EXAMPLE_ID")}\"\n:::\n";
+        $"\n:::embed provider=\"{Or(provider, "youtube")}\" src=\"{Or(url, "https://www.youtube.com/watch?v=EXAMPLE_ID").Replace("\"", "%22")}\"\n:::\n";
 
     /// <summary>:::references bibliography entry; empty fields fall back to the placeholders.</summary>
     public static string References(string id, string author, string title, string year) =>
