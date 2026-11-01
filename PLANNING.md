@@ -23153,3 +23153,7 @@ the keyboard shortcuts sheet, which no run had touched in a long while.
 
 **Total user-visible improvements: 8** (2 type-ahead fixes on Step 1's action boxes, 5 command palette fixes
 covering no-match announcement, Ctrl+Delete, paste, help text and the footer key, 1 shortcuts sheet feedback fix).
+
+**Release (same run):** tagged **v3.100.0** on `5de10bf6`. Release workflow run 41280821287 succeeded and published 5
+assets; user-facing notes for run #322 were put above the generated body. `MarksmithBaseVersion` was then
+bumped to 3.101.0.
