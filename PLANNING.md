@@ -23314,3 +23314,7 @@ block. Reverted in 4ce029bf; the test now pins that no line rule is applied.
 
 **Total user-visible improvements: 6** (number boxes refresh while typing, number box range and key help, 16-tab
 limit, citation id check, citation id help, chart count separators).
+
+**Release (same run):** tagged **v3.102.0** on `81bfa28f`. Release workflow run 41288364471 succeeded and published 5
+assets; user-facing notes for run #324 were put above the generated body. `MarksmithBaseVersion` was then
+bumped to 3.103.0.
