@@ -23318,3 +23318,75 @@ limit, citation id check, citation id help, chart count separators).
 **Release (same run):** tagged **v3.102.0** on `81bfa28f`. Release workflow run 41288364471 succeeded and published 5
 assets; user-facing notes for run #324 were put above the generated body. `MarksmithBaseVersion` was then
 bumped to 3.103.0.
+
+## 2026-11-01 · Run #325 (≈20:00–20:25 AEDT) · Claude Code
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running the scheduled routine in the Claude desktop app (the task file's
+  "Antigravity / Google DeepMind" identity line doesn't describe this agent, so the real one is recorded)
+- Modes: Scheduled Hourly Automation Routine
+- Trigger: Scheduled hourly routine run
+- Agents Used: 1 (Orchestrator, who also did the coding and the skeptical review). No sub-agents, no conversation IDs.
+
+Took #324's "Next up" item 3: the Code block, Video embed and Image Insert dialogs. The Image dialog audited
+clean (problem lines, thumbnail, menus and keys all hold up), so the pass covered Code block and Video embed.
+
+**User-visible improvements and fixes**
+1. **Code that contains a fence no longer breaks the block.** Pasting Markdown that holds a ```` ``` ```` line
+   into Code block closed the fence at that line, so the rest of the code spilled into the document as
+   Markdown (headings, lists). The block now uses a `~~~` fence, which a ```` ``` ```` line can't close, and
+   a longer backtick fence only when the code holds both kinds. This holds in the preview, PDF and DOCX, and in
+   the app's own fence-aware parsers, which all close a `~~~` fence only on `~~~`.
+2. **A language name with a backtick is refused.** A backtick in the info string stops a ```` ``` ```` line
+   being a fence at all. The dialog now says "A language name can't contain a backtick (`)." and disables Insert.
+3. **The card follows the language as you type it.** The editable Language box only commits typed text on
+   Enter, so typing "Kotlin" left the card on the old language. The card now reads the box's own text.
+4. **The Language box says any language works.** Its tooltip and help text now read "Pick one or type any fence
+   id (kotlin, ruby, diff…)", and the inner edit box that takes focus carries the help too (it had none).
+5. **Video refuses a provider that disagrees with the link.** The provider follows the pasted link, but changing
+   it afterwards made a card with the wrong name and colour ("Vimeo · youtube.com"). The dialog now says
+   "That's a YouTube link, but Vimeo is picked; pick YouTube." and disables Insert. Links the dialog can't name
+   (Figma, unknown hosts) insert as before.
+6. **Video accepts links pasted as `<https://…>` or `"https://…"`.** Only a matching pair is removed, so a
+   link's own trailing quote stays. The first version trimmed any quote; the live check caught that and it was
+   fixed in the same run.
+7. **A quote inside a video link no longer cuts the link short.** `src="…"` ended at the first quote; quotes are
+   now written as `%22`.
+
+**Implementation Summary**
+- `MarkSmith.Core/Services/InsertSnippetBuilder.cs`: new `CodeFence(body)`, used by `CodeBlock`; `Embed`
+  writes `"` as `%22`.
+- `MarkSmith.Core/Services/InsertCountText.cs`: new `CodeLanguageProblem`, `EmbedProviderProblem`.
+- `MarkSmith.Desktop/Views/InsertDialogControls.cs`: `InnerTextBox` is now protected; Code block hooks the
+  combo's inner TextBox on Loaded (TextChanged → Refresh, help text), `SelectedLanguage` reads it first,
+  `LanguageHelp` constant, `Problem` override; Video `Url` goes through `Unwrap`, detection uses `Url`,
+  `Problem` adds the provider check.
+- Tests: new `Run325CodeAndVideoDialogTests` (11 methods / 24 cases, including a render check that a heading
+  inside a `~~~` block stays code). `Run236PdfPreviewAndInsertDialogTests` updated for `protected InnerTextBox`.
+- Skeptical review: Insert is the only control disabled by the new problems, and it can't hold focus while the
+  user types in Language or picks a provider. No key handling added, no flyouts, no brush lookups, no file
+  access. The Loaded hook runs once.
+- Build: `MarkSmith.Desktop` Debug x64 to `%TEMP%\ms_run325\b\`, 0 errors (twice). Tests: Run2* + Run3* +
+  Insert* + MarkdownHtml* + Container* passed 2194, 0 failed (the first pass caught the Run236 contract).
+- Live UIA (scratch PIDs 6324, then 2740 on the rebuilt binary; `MARKSMITH_CONFIG_DIR=%TEMP%\ms_run325\cfg`;
+  each stopped by PID). UIA patterns only, no keys sent. Code block: a body with a ```` ```bash ```` block made
+  a `~~~` card; "Kotlin" typed into the Language edit showed `~~~kotlin` at once; "c`s" gave the problem with
+  Insert disabled; the inner edit's help text reads the new line; Insert put the `~~~` block in the editor
+  intact. Video: `<https://youtu.be/abc123>` unwrapped; `…?t="a"` gave `src="…?t=%22a%22"`; picking Vimeo for
+  a YouTube link gave the problem with Insert disabled. PrintWindow `code.png` and `video.png`.
+
+**Noticed, not fixed**
+- The editor's folding (`EditorFoldingService`) only folds ```` ``` ```` fences, not `~~~`. That's an editor
+  behaviour change; left alone.
+- A backtick in the language is refused even under a `~~~` fence, where CommonMark allows it. Kept as one simple
+  rule.
+- A typed out-of-range number is clamped silently (carried from #324).
+
+**Next up (Run #326)**
+1. Live-check the OCR reclassify boxes (load a scratch PNG) and the SmartArt palette flyout (open since #320).
+2. Find a key-free way to select a Diagram Studio connector (open since #318).
+3. Audit the Link and Math Insert flows live (Link's relative-path problem line, Math's input help).
+
+**Total user-visible improvements: 7** (inner-fence code blocks, backtick language refusal, live language card,
+language help, video provider mismatch, unwrapped pasted links, quotes in video links).

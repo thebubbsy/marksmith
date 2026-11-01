@@ -82,7 +82,8 @@ public class Run236PdfPreviewAndInsertDialogTests
         var focus = Method(InsertCode, "FocusFirstField");
         Assert.Contains("first as TextBox ?? InnerTextBox(first)", focus);
         Assert.Contains("box.SelectAll()", focus);
-        Assert.Contains("private static TextBox? InnerTextBox(DependencyObject parent)", InsertCode);
+        // Protected since run #325: the Code block dialog finds its editable combo's text box with it.
+        Assert.Contains("protected static TextBox? InnerTextBox(DependencyObject parent)", InsertCode);
     }
 
     [Fact]
