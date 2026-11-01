@@ -22607,3 +22607,71 @@ SmartArt Insert accessibility/state fixes, 1 snippet fix, 2 wording fixes).
   still reports the thebubbsy token as invalid.
 - This run's commits are on local `main` only, with the earlier unpushed ones.
 - `MarksmithBaseVersion` stays 3.97.0; tag v3.97.0 already exists on the remote.
+
+## 2026-11-01 · Run #316 (≈11:00–11:35 AEDT) · Claude Code
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running the scheduled routine in the Claude desktop app
+- Modes: Scheduled Hourly Automation Routine
+- Trigger: Scheduled hourly routine run
+- Agents Used: 1 (Orchestrator, who also did the coding and the skeptical review). No sub-agents, no conversation IDs.
+
+An earlier #316 attempt (≈09:00) stopped without committing or writing an entry. Its uncommitted edits (a
+`ToolTipHelp` helper used only by History, the Insert box help texts, the raw Browse content) were checked,
+adopted and extended here: the helper now runs inside HoverPolish's walk instead of being wired per window.
+Covers #315's "Next up" item 3.
+
+**User-visible improvements and fixes**
+1. **App-wide: tooltips are now help text.** Every control HoverPolish walks (main window, the studios, History,
+   Settings, Suite Hub, Insert dialogs, opened flyouts) gets its tooltip's words as help text when it has none,
+   so "Ctrl+K", "F7", "Ctrl+1/2/3", "Right-click or Shift+F10 for options" and the like reach keyboard and screen
+   reader users. Live: the main window went from 6 to 44 of 59 buttons/combos with help text, History to 11 of 14.
+   A tooltip that only repeats the name adds nothing; help text set by code is never overwritten; a tooltip that
+   changes later carries its copy with it.
+2. **Insert line-list boxes say how to write a line and how to insert.** Timeline, list and data-grid boxes'
+   help text was only the count; it is now "Header + 2 rows. Header line first, then one row per line, values
+   separated by commas. Ctrl+Enter inserts." (the timeline uses its own "when: what" rule).
+3. **Chart data box does the same:** "3 points. One label, a comma, then a number per line; … Ctrl+Enter inserts."
+4. **The preview card's copy button names its keys** (Ctrl+C / Ctrl+Shift+C) in its help text; it sits outside the
+   fields the dialog's own tooltip walk covers.
+5. **Image Insert: Browse reads once.** Its icon and "Browse…" label are raw, so the button is no longer followed
+   by a duplicate text child.
+6. **Video Insert: the provider tooltip explains itself.** "Picked from the link you paste · Change it only if the
+   guess is wrong" instead of "Video platform hosting the media", so an automatic change no longer looks like an error.
+
+**Implementation Summary**
+- New `MarkSmith.Core/Services/ToolTipHelpRule.cs` (`HelpFor(tip, name, help, copied)`: the testable rule) and
+  `MarkSmith.Desktop/Services/ToolTipHelp.cs` (`Sync(Control)`: applies the rule, remembers its copy in an
+  attached property, and follows later tooltip changes through `RegisterPropertyChangedCallback`).
+- `Services/HoverPolish.cs`: `Apply` calls `ToolTipHelp.Sync` for each Control after its naming step, so a tooltip
+  that just became the name isn't read twice, and dynamic content is covered by HoverPolish's existing re-walks.
+- `MarkSmith.Core/Services/InsertCountText.cs`: `BoxHelp(count, noun, lineHint, headerFirst)`.
+- `Views/InsertDialogControls.cs`: `CopySnippetHelp`, `LinesInsertControl` and `ChartInsertControl` help texts,
+  Video provider tooltip. `Views/ImageInsertControl.cs`: Browse content `AccessibilityView.Raw`.
+- Tests: new `Run316ToolTipHelpAndInsertBoxHelpTests` (10 cases: the rule's copy / keep / repeat / follow cases,
+  the walk order in HoverPolish, BoxHelp wording, and source contracts); `Run314` contracts updated for the longer
+  help text.
+- Skeptical review: nothing is hidden, disabled or refocused; no key handlers added; only empty or self-copied help
+  text is written; no resource lookups. One extra cheap check per Control in a walk HoverPolish already does.
+- Build: `MarkSmith.Desktop` Debug x64 to `%TEMP%\ms_run316\b2\`, 0 errors. Tests: Run316/315/314 + InsertCount* +
+  HoverPolish* + InsertDialog*: 64 passed; Run2*/Run3*: 1865 passed, 0 failed.
+- Live UIA (PID-tracked scratch instances, `MARKSMITH_CONFIG_DIR=%TEMP%\ms_run316\cfg`, both stopped): baseline
+  #315 build vs this build with `%TEMP%\ms_run316\help.ps1` (buttons, split buttons, combos, checkboxes with their
+  help text). History opened via Invoke on "Version history"; PrintWindow screenshot looked unchanged.
+
+**Next up (Run #317)**
+1. Once `gh` is re-authenticated: push `main` (now 14 commits ahead of origin), bump `MarksmithBaseVersion` to
+   3.98.0, tag v3.98.0.
+2. The 15 main-window controls still without help text (Settings section buttons, title-bar buttons, "Choose output
+   folder", Theme combo) have no tooltip; give the ones that have a shortcut or a non-obvious effect a tooltip.
+3. Live-check a SmartArt Studio audit line and a line-list Insert box's new help text (unit-tested only).
+4. Check the inline rename box after a mouse quick-add (still open from run #313).
+
+**Total user-visible improvements: 6** (1 app-wide accessibility fix, 4 Insert dialog help/reading fixes, 1 wording fix).
+
+**Release (same run):** not cut.
+- `git push origin main` still fails (`could not read Username for 'https://github.com'`), and `gh auth status`
+  still reports the thebubbsy token as invalid.
+- This run's commits are on local `main` only, with the earlier unpushed ones.
+- `MarksmithBaseVersion` stays 3.97.0; tag v3.97.0 already exists on the remote.
