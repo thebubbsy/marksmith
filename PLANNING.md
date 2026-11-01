@@ -22675,3 +22675,73 @@ Covers #315's "Next up" item 3.
   still reports the thebubbsy token as invalid.
 - This run's commits are on local `main` only, with the earlier unpushed ones.
 - `MarksmithBaseVersion` stays 3.97.0; tag v3.97.0 already exists on the remote.
+
+## 2026-11-01 · Run #317 (≈11:50–12:20 AEDT) · Claude Code
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running the scheduled routine in the Claude desktop app
+- Modes: Scheduled Hourly Automation Routine
+- Trigger: Scheduled hourly routine run
+- Agents Used: 1 (Orchestrator, who also did the coding and the skeptical review). No sub-agents, no conversation IDs.
+
+Picks up #316's "Next up" items 2 (main-window controls without help text) and 3 (live-check a line-list
+Insert box's help text).
+
+**User-visible improvements and fixes**
+1. **Side panel: every section header says what the section holds.** Appearance, Layout & PDF, Word export,
+   Email, Diagrams, Content & cleanup, Formatting & text, Branding and Automation were named only by their
+   title. Hovering one now shows what's inside ("Cover page, company logo, document font and author"), and
+   keyboard and screen reader users get the same words as help text.
+2. **Theme box explains itself:** "Colours and fonts of the preview and every export · Alt+Down lists the
+   themes, type a letter to jump" (it had no tooltip and no help text).
+3. **"Choose output folder" says where exports go:** "Choose the folder exports are saved to (empty: next to
+   the input file)" instead of a tooltip that only repeated its name.
+4. **App-wide: InfoBar close buttons say what they do.** The licence and update banners' "×" (and any other
+   InfoBar's) shows "Dismiss this message" instead of WinUI's own "Close", which only repeated the name.
+5. **App-wide: every dialog's Close/Cancel button names Esc** ("Close (Esc)" in Settings, "Cancel (Esc)" in
+   the Insert dialogs, save-preset and the rest), as a tooltip and as help text.
+6. **All Insert dialogs: the Insert button names Ctrl+Enter.** Ctrl+Enter inserts from any field, but only
+   some boxes' help text said so; the button now reads "Insert (Ctrl+Enter)".
+
+**Implementation Summary**
+- New `MarkSmith.Core/Services/TemplatePartTipRule.cs`: `CanReplace(hasTip, tipText, name)` and
+  `For(part, owner, ownerHelp, text)`, the testable rule for template buttons (ExpanderHeader, CloseButton).
+- `Services/HoverPolish.cs`: `GiveTemplatePartTip(button)` runs in `Apply` for each button before
+  `ToolTipHelp.Sync`, so the new tip also becomes help text; `NearestAncestor<T>(element, match)`;
+  public `SetDialogButtonTip(dialog, part, tip)` + `FindNamed`.
+- `MainWindow.xaml`: `AutomationProperties.HelpText` on the 9 side-panel Expanders; Theme ComboBox tooltip;
+  BrowseFolderButton tooltip.
+- `MainWindow.xaml.cs`: `ShowInsertDialogAsync` sets the PrimaryButton tip on `Opened` (registered before
+  `ShowPolishedAsync`'s own `Opened` walk) for Insert dialogs.
+- Tests: new `Run317TemplatePartTipsAndSectionHelpTests` (17 cases: the rule, the walk order, the 9 section
+  help texts, the two tooltips, the Insert-shell ordering).
+- Skeptical review: no control is hidden, disabled or refocused; no key handlers added; only tooltips that
+  are missing or repeat the name are replaced (custom ToolTip objects are kept); help text comes through
+  the existing ToolTipHelp rule, so code-set help text still wins; no resource lookups; no CloseButtonText
+  is changed after a dialog opens anywhere in the app (checked), so the "(Esc)" tip can't go stale.
+- Build: `MarkSmith.Desktop` Debug x64 to `%TEMP%\ms_run317\b3\`, 0 errors. Tests: Run317/316 + HoverPolish +
+  ToolTipHelp: 31 passed; Run* + InsertDialog* + MainWindow* + Style*: 2515 passed, 0 failed.
+- Live UIA (PID-tracked scratch instances, `MARKSMITH_CONFIG_DIR=%TEMP%\ms_run317\cfg`, all stopped):
+  main window went from 44 (#316) to 56 of 59 buttons/combos with help text; the 3 left are the system
+  Minimize/Maximize/Close. Settings dialog's Close read "Close (Esc)"; the Link dialog's footer read
+  "Insert (Ctrl+Enter)" / "Cancel (Esc)" and Cancel closed it; the Data grid box read "Header + 2 rows.
+  Header line first, … Ctrl+Enter inserts." (#316 item 3, confirmed live). PrintWindow screenshot of the main
+  window looked unchanged.
+
+**Next up (Run #318)**
+1. Once `gh` is re-authenticated: push `main` (now 16 commits ahead of origin), bump `MarksmithBaseVersion`
+   to 3.98.0, tag v3.98.0.
+2. Run the help-text audit (`%TEMP%\ms_run317\help.ps1`) on History, Theme Builder, Shape and SmartArt
+   studios and the Mermaid editor; fix the gaps it finds.
+3. Live-check a SmartArt Studio audit line (still unit-tested only).
+4. Check the inline rename box after a mouse quick-add (still open from run #313).
+
+**Total user-visible improvements: 6** (1 side-panel accessibility/hover fix over 9 sections, 2 tooltip fixes,
+3 app-wide dialog/banner/Insert button key hints).
+
+**Release (same run):** not cut.
+- `git push origin main` still fails (`could not read Username for 'https://github.com'`), and `gh auth status`
+  still reports the thebubbsy token as invalid.
+- This run's commits are on local `main` only, with the earlier unpushed ones.
+- `MarksmithBaseVersion` stays 3.97.0; tag v3.97.0 already exists on the remote.
