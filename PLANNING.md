@@ -22903,3 +22903,75 @@ Studio, 1 in the shape palette).
   still reports the thebubbsy token as invalid.
 - This run's commits are on local `main` only, with the earlier unpushed ones.
 - `MarksmithBaseVersion` stays 3.97.0.
+
+## 2026-11-01 · Run #320 (≈15:00–15:45 AEDT) · Claude Code
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running the scheduled routine in the Claude desktop app
+- Modes: Scheduled Hourly Automation Routine
+- Trigger: Scheduled hourly routine run
+- Agents Used: 1 (Orchestrator, who also did the coding and the skeptical review). No sub-agents, no conversation IDs.
+
+Git/`gh` credentials work again (#319's "Next up" item 1). The 20 queued commits plus this run's commit went
+to origin. #319's item 2 (help-text guard for OCR Inspection Studio and Theme Builder) needed nothing: a source
+scan of `OcrInspectionStudioWindow.xaml` finds no input without a tooltip or help text, and Theme Builder has
+no XAML of its own. Widening the scan to list controls turned up the gaps below, plus a real keyboard bug.
+
+**User-visible improvements and fixes**
+1. **Shape Studio: you can browse the colour-scheme flyout with the keyboard.** Selecting a scheme applies it
+   and closes the flyout, and the list selected whatever had focus. So the first Down arrow applied the next
+   scheme and shut the flyout. Arrows now only move focus, and Enter or Space applies the scheme.
+2. **SmartArt Studio: the same fix for the colour-palette flyout.**
+3. **Both palette lists say how they work** ("Arrow keys browse … Enter or Space applies one").
+4. **Shape Studio: "Shapes on canvas" names its keys** (Delete, Ctrl+D, F2, Shift+F10), matching
+   `OnShapesListKeyDown`.
+5. **SmartArt Studio: the Layouts list names its keys** (Enter edits the outline, Esc returns to search,
+   Ctrl+C copies the name, Shift+F10 opens the menu, double-click inserts).
+6. **SmartArt Studio: the quick layout carousel says Left/Right switch the layout and update the preview.**
+7. **Diagram Studio: the shape palette list names its keys** (Enter/Space adds the shape, or drag it; Ctrl+C,
+   Shift+F10, Esc back to search).
+
+**Implementation Summary**
+- `Views/ShapeStudio/ShapeDesignStudioWindow.xaml`: `PaletteList` gets `SingleSelectionFollowsFocus="False"` and
+  help text (with a comment giving the reason); `ShapesList` gets help text.
+- `Views/SmartArtStudio/SmartArtDesignStudioWindow.xaml`: the same for its `PaletteList`; help text on
+  `LayoutList` and `QuickLayoutCarouselList`.
+- `Views/Mermaid/NodePaletteControl.xaml`: help text on `PaletteListView`.
+- Tests: new `Run320StudioListKeysTests` (8 cases). Both palette lists turn focus-follows-selection off, and
+  their handlers still apply and hide the flyout (the reason for the setting). Each help text is checked
+  against its key handler. A guard checks that every ListView/GridView with its own `KeyDown` in the studios
+  and Document Galaxy has help text.
+- Skeptical review: nothing hidden, disabled or refocused. No key handlers changed. Focus no longer selects in
+  the two flyout lists only, so the Layouts list and carousel still switch layout as you arrow (wanted:
+  the preview follows). Help text is set directly, not as tooltips, so hovering a whole list shows nothing new.
+  No resource lookups, no file access.
+- Build: `MarkSmith.Desktop` Debug x64 to `%TEMP%\ms_run320\b\`, 0 errors. Tests: Run320/319/318 +
+  ToolTipHelp + SmartArtStudio* + ShapeStudio* + NodePalette* passed 700. Then Run* + Mermaid* + SmartArt* + Shape* passed 3647, 0 failed.
+- Live UIA (PID-tracked scratch instance 11200, `MARKSMITH_CONFIG_DIR=%TEMP%\ms_run320\cfg`, stopped):
+  - Shapes on canvas, Layouts and the quick layout carousel read their new help text.
+  - Shape Studio colour-scheme flyout: it reads its help text. Down and Enter were posted to the studio's own
+    `InputSiteWindowClass` hwnd (the session's foreground wasn't the studio, so no SendKeys). After Down the
+    flyout stayed open with Sunset Coral still selected. Enter then applied Emerald Forest, the next row, and
+    closed it.
+  - A first SendKeys probe was rejected: the foreground check matched the PID, but the key went to the main
+    window, which has the same PID. The probe now checks the studio's own hwnd before sending.
+  - Not reached live: the SmartArt palette flyout and the Diagram Studio shape palette. The SmartArt window
+    became minimised while someone was using the machine, and restoring it would have put it in front of
+    them. Both have the identical mechanism and are source-tested.
+  - No screenshot this run, for the same reason.
+
+**Next up (Run #321)**
+1. Live-check the SmartArt palette flyout (Down keeps it open, Enter applies) and the shape palette's help text.
+2. The UIA rig's `Wins` now uses `EnumWindows` + `AutomationElement.FromHandle` (`%TEMP%\ms_run320\uia.ps1`):
+   `RootElement` children by PID came back empty mid-run while the windows still existed.
+3. Find a key-free way to select a Diagram Studio connector (open since #318).
+4. Check other flyout-hosted single-selection lists (e.g. the command palette's `Results`, and any
+   `SelectionChanged` that hides a flyout) for the same arrow-applies-and-closes bug.
+
+**Total user-visible improvements: 7** (2 keyboard fixes in palette flyouts, 5 list help-text fixes across Shape
+Studio, SmartArt Studio and Diagram Studio).
+
+**Release (same run):** tagged **v3.98.0** on `71b9d98d` (MarksmithBaseVersion first moved 3.97.0 → 3.98.0, since
+v3.97.0 was already tagged). Release workflow run 41272323429 succeeded and published 5 assets. User-facing notes
+covering runs #292–#320 were put above the generated body. `MarksmithBaseVersion` was then bumped to 3.99.0.
