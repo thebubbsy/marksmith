@@ -126,6 +126,7 @@
             <TextBlock x:Name="NoMatchesText" FontSize="12" Foreground="#8D99AE" TextAlignment="Center" TextWrapping="Wrap"
                        AutomationProperties.LiveSetting="Assertive" />
             <HyperlinkButton x:Name="ClearSearchButton" Content="Show all shapes" Click="OnClearSearchClick"
+                             ToolTipService.ToolTip="Clear the search and show every category, then return to the search box"
                              HorizontalAlignment="Center" FontSize="12" />
         </StackPanel>
     </Grid>

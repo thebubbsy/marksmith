@@ -714,6 +714,7 @@
                                     XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
                                     AutomationProperties.Name="Empty map actions">
                             <Button Command="{Binding AddRootNodeCommand}" Style="{StaticResource AccentButtonStyle}" Padding="12,6"
+                                    ToolTipService.ToolTip="Start the map with one node and type its title · On the canvas, Tab or N adds one too"
                                     AutomationProperties.Name="Add first node">
                                 <StackPanel Orientation="Horizontal" Spacing="6">
                                     <FontIcon Glyph="&#xE710;" FontSize="12" />
@@ -756,6 +757,7 @@
                                             XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
                                             AutomationProperties.Name="Tour banner actions">
                                 <Button Click="OnImportFolderClick" Style="{StaticResource AccentButtonStyle}" FontSize="12" Padding="10,5"
+                                        ToolTipService.ToolTip="Map a folder: every document in it becomes a node, linked by what they share"
                                         AutomationProperties.Name="Import folder">
                                     <StackPanel Orientation="Horizontal" Spacing="6">
                                         <FontIcon Glyph="&#xE8B7;" FontSize="12" />
@@ -945,7 +947,9 @@
                         <!-- APPEARANCE -->
                         <StackPanel Spacing="8">
                             <TextBlock Text="Appearance" Style="{StaticResource InspectorHeading}" />
-                            <ComboBox AutomationProperties.Name="Map appearance" ItemsSource="{Binding AvailableThemes}" SelectedItem="{Binding SelectedThemeName, Mode=TwoWay}" HorizontalAlignment="Stretch" />
+                            <ComboBox AutomationProperties.Name="Map appearance"
+                                      ToolTipService.ToolTip="Colour theme for the whole map: background, nodes and links · Alt+Down lists the themes"
+                                      ItemsSource="{Binding AvailableThemes}" SelectedItem="{Binding SelectedThemeName, Mode=TwoWay}" HorizontalAlignment="Stretch" />
                         </StackPanel>
 
                         <Rectangle Height="1" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" />
@@ -978,6 +982,7 @@
                                     </Grid.ColumnDefinitions>
                                     <TextBox x:Name="LinkedFileBox" Grid.Column="0" Header="Linked file" Text="{Binding FilePath, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                                              AutomationProperties.Name="Linked file"
+                                             ToolTipService.ToolTip="Path of the document this node stands for · Enter or Esc returns to the map"
                                              PlaceholderText="No file attached" KeyDown="OnInspectorFieldKeyDown" />
                                     <Button Grid.Column="1" Click="OnBrowseForFileClick" VerticalAlignment="Bottom" Width="34" Height="32" Padding="0"
                                             ToolTipService.ToolTip="Choose the document this node stands for" AutomationProperties.Name="Choose a file">
@@ -996,6 +1001,7 @@
                                 </Grid.ColumnDefinitions>
                                 <ComboBox x:Name="NodeTypeCombo" Grid.Column="0" Header="Type" HorizontalAlignment="Stretch"
                                           AutomationProperties.Name="Node type"
+                                          ToolTipService.ToolTip="What this node stands for: a document, project, concept, milestone, note, task or folder · Alt+Down lists them"
                                           ItemsSource="{Binding ElementName=RootGrid, Path=DataContext.AvailableNodeTypes}"
                                           SelectedItem="{Binding NodeType, Mode=TwoWay}" />
                                 <Grid x:Name="NodeIconCluster" Grid.Column="1"
@@ -1074,8 +1080,9 @@
                                      DoubleTapped="OnTagsBoxDoubleTapped"
                                      ToolTipService.ToolTip="Separate tags with spaces or commas · Double-click to select all, Right-click or Shift+F10 for tag suggestions &amp; options" />
 
-                            <TextBox Header="Notes" Text="{Binding MarkdownContent, Mode=TwoWay}" AcceptsReturn="True" Height="130" TextWrapping="Wrap"
-                                     PlaceholderText="What this document is and why it matters (Markdown)" />
+                            <TextBox x:Name="NotesBox" Header="Notes" Text="{Binding MarkdownContent, Mode=TwoWay}" AcceptsReturn="True" Height="130" TextWrapping="Wrap"
+                                     PlaceholderText="What this document is and why it matters (Markdown)" KeyDown="OnNotesBoxKeyDown"
+                                     ToolTipService.ToolTip="Markdown notes about this node · Enter starts a new line, Esc returns to the map" />
 
                             <StackPanel x:Name="SelectedNodeActionsCluster" Spacing="6"
                                         XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"

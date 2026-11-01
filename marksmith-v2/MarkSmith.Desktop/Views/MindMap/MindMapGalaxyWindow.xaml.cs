@@ -513,6 +513,15 @@ namespace MarkSmith.Views.MindMap
             }
         }
 
+        // Notes takes Enter for new lines, so only Esc leaves it. The window's key handler ignores
+        // keys typed in a text box, so Esc here used to do nothing.
+        private void OnNotesBoxKeyDown(object sender, KeyRoutedEventArgs e)
+        {
+            if (e.Key != Windows.System.VirtualKey.Escape) return;
+            e.Handled = true;
+            GalaxyCanvas.Focus(FocusState.Programmatic);
+        }
+
         private void OnTitleBoxDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
         {
             if (TitleBox is null) return;

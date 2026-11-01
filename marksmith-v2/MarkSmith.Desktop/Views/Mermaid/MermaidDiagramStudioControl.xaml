@@ -548,6 +548,7 @@
                             <TextBox x:Name="ConnectorLabelTextBox"
                                      Header="Label"
                                      AutomationProperties.Name="Connector label"
+                                     ToolTipService.ToolTip="Text shown on the selected connector · Enter or Esc returns to the canvas"
                                      Text="{Binding SelectedConnector.Label, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                      KeyDown="OnInspectorSingleLineKeyDown"
                                      PlaceholderText="No label" />
