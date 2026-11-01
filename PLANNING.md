@@ -23052,3 +23052,7 @@ boxes act on every selection change.
 
 **Total user-visible improvements: 8** (4 keyboard fixes in action combo boxes across Step 1 and the OCR
 studio, 4 help-text fixes naming keys on those boxes and on the main window's three flyout lists).
+
+**Release (same run):** tagged **v3.99.0** on `6d03c863`. Release workflow run 41276341462 succeeded and published 5
+assets; user-facing notes for run #321 were put above the generated body. `MarksmithBaseVersion` was then
+bumped to 3.100.0.
