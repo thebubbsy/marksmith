@@ -23241,3 +23241,76 @@ sheet copy fix).
 **Release (same run):** tagged **v3.101.0** on `e8bdaef4`. Release workflow run 41283859122 succeeded and published 5
 assets; user-facing notes for run #323 were put above the generated body. `MarksmithBaseVersion` was then
 bumped to 3.102.0.
+
+## 2026-11-01 · Run #324 (≈19:00–19:40 AEDT) · Claude Code
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running the scheduled routine in the Claude desktop app (the task file's
+  "Antigravity / Google DeepMind" identity line doesn't describe this agent, so the real one is recorded)
+- Modes: Scheduled Hourly Automation Routine
+- Trigger: Scheduled hourly routine run
+- Agents Used: 1 (Orchestrator, who also did the coding and the skeptical review). No sub-agents, no conversation IDs.
+
+Took #323's "Next up" item 3 (the least recently touched Insert dialogs). Details and Footnote have no dialog
+(they insert directly), so the pass covered every dialog built on `InsertDialogBody`: Tab group, Columns,
+Table, Drawing canvas, Random tile map, References and Chart.
+
+**User-visible improvements and fixes**
+1. **Number boxes update the "Inserts" card as you type.** A NumberBox only commits typed text on Enter or when
+   focus leaves, so typing 4 into Columns left the card showing 2 columns until you tabbed away. The card now
+   follows the typed digits (clamped to the box's range, the value the box itself settles on) in Columns,
+   Table rows/columns, Drawing canvas width/height and Random tile map width/height.
+2. **Number boxes name their range and keys to a screen reader.** Help text, on the spinner and on the inner edit
+   box that actually takes focus: "From 2 to 4. Up and Down change it by 1, Page Up and Page Down by 5.
+   Ctrl+Enter inserts." The range was only in the heading and the keys nowhere.
+3. **Tab group refuses more tabs than the preview can show.** The preview draws at most 16 tabs and silently
+   dropped the rest; with 18 lines the dialog now says "At most 16 tabs fit; remove 2 tabs." and disables Insert.
+   The preview and the dialog share one constant (`ContainerBlockParsers.MaxTabs`).
+4. **References refuses a citation id nothing can cite.** Citations are `[@id]` and every citation pattern reads
+   letters, digits, `-` and `_` only, so "smith 2024" made an entry that could never be cited. The dialog now
+   says "A citation id can only use letters, digits, - and _ (this one has a space)." (or names the offending
+   character) and disables Insert. This also covers ids derived from the author and year.
+5. **The citation id field says what's allowed.** Its tooltip and help text read "What you cite it by in the text
+   ([@id]): letters, digits, - and _ · Empty uses the author's surname and the year".
+6. **Chart's point count uses group separators** through `CountText.Of`, like the other dialogs' counts.
+
+**Tried and reverted (same run):** a rule refusing tab titles that start with `:::`. Live testing plus
+`FindCloser` showed it was wrong: every title is written after `=== `, so such a title can't close or open a
+block. Reverted in 4ce029bf; the test now pins that no line rule is applied.
+
+**Implementation Summary**
+- `MarkSmith.Core/Services/InsertCountText.cs`: new `Excess`, `NumberHelp`, `CitationIdProblem`.
+- `MarkSmith.Core/Services/ContainerBlockParsers.cs`: `MaxTabs = 16`; `MarkdownHtmlService.Containers.cs` uses it
+  in place of two literal 16s.
+- `MarkSmith.Desktop/Views/InsertDialogControls.cs`: `MakeNumberBox` sets the help text; new
+  `RefreshOnEdit(box)` hooks ValueChanged plus the inner TextBox's TextChanged once on Loaded (and copies the
+  help text onto it); `IntOf` reads typed text first; `LinesInsertControl` takes `maximum`; References gets a
+  `Problem`; Chart count through `CountText.Of`.
+- `MarkSmith.Desktop/MainWindow.xaml.cs`: Tab group dialog passes `maximum: ContainerBlockParsers.MaxTabs`.
+- Tests: new `Run324InsertDialogLimitsTests` (8 methods / 14 cases); `Run314InsertDialogAndLineToolsTests`
+  updated for the CountText count line.
+- Skeptical review: no control that can hold focus is collapsed or disabled by these changes (Insert disabling
+  already existed; the Copy button rule is unchanged and never triggers for number dialogs). No key handling
+  changed. No new flyouts, brushes, or file access. `RefreshOnEdit` hooks once even if Loaded fires again.
+- Build: `MarkSmith.Desktop` Debug x64 to `%TEMP%\ms_run324\b\`, 0 errors (twice, before and after the revert).
+  Tests: Run2* + Run3* + Insert* + Tabs* + Container* + Reference* + MarkdownHtml* passed 2225, 0 failed.
+- Live UIA (scratch PIDs 22284, then 25404 on the rebuilt binary; `MARKSMITH_CONFIG_DIR=%TEMP%\ms_run324\cfg`;
+  each stopped by PID). UIA patterns only, no keys sent. Tab group: 18 lines gave the Excess problem with Insert
+  disabled, 3 lines re-enabled it. Columns: the spinner and the inner edit both carry the new help text; setting
+  the inner text to 4 changed the card to `count="4"` before any commit, and 9 showed 4. References: "smith 2024"
+  gave the space problem with Insert disabled; "smith2024" cleared it. PrintWindow `cols.png` shows the
+  Columns dialog with the box at 9 and the card at 4 columns.
+
+**Noticed, not fixed**
+- A typed out-of-range number (9 in Columns) is clamped silently; the card shows the result, but nothing says
+  "becomes 4". Saying so would need a non-blocking note the dialog shell doesn't have.
+- The Replace box has no Up/Down history, unlike Find (carried from #323).
+
+**Next up (Run #325)**
+1. Live-check the OCR reclassify boxes (load a scratch PNG) and the SmartArt palette flyout (open since #320).
+2. Find a key-free way to select a Diagram Studio connector (open since #318).
+3. Audit the Code block / Video embed / Image dialogs live (fields, help text, Problem lines).
+
+**Total user-visible improvements: 6** (number boxes refresh while typing, number box range and key help, 16-tab
+limit, citation id check, citation id help, chart count separators).
