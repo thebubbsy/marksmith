@@ -132,7 +132,12 @@ public static class SelectionPrefill
 
     /// <summary>The note a prefilled dialog shows, so Insert replacing the lines is no surprise.</summary>
     public static string Note(int lines) =>
-        $"Filled from the {CountText.Of(lines, "selected line")}. Insert replaces {(lines == 1 ? "it" : "them")}.";
+        $"Filled from {TheSelectedLines(lines)}. Insert replaces {(lines == 1 ? "it" : "them")}.";
+
+    /// <summary>"the selected line" or "the 4 selected lines": "the 1 selected line" read oddly in
+    /// the note and the status bar.</summary>
+    public static string TheSelectedLines(int lines) =>
+        lines == 1 ? "the selected line" : $"the {CountText.Of(lines, "selected line")}";
 
     /// <summary>Lines in a selection, counting a WinUI bare '\r' as a break.</summary>
     public static int LineCount(string? text) =>

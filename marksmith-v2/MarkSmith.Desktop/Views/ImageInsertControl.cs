@@ -151,7 +151,13 @@ public sealed class ImageInsertControl : InsertDialogBody
 
         // Alt first: a source set alongside it then sees words the person chose and keeps them.
         if (initialAlt.Length > 0) _alt.Text = initialAlt;
-        if (initialSource.Length > 0) _source.Text = initialSource;
+        if (initialSource.Length > 0)
+        {
+            _source.Text = initialSource;
+            // TextChanged doesn't come for text set before the dialog is shown, so the alt text and
+            // thumbnail are filled in here.
+            OnSourceChanged();
+        }
     }
 
     private async System.Threading.Tasks.Task PasteSourceFromClipboardAsync()

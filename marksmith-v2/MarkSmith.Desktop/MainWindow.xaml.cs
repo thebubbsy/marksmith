@@ -16753,7 +16753,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         ViewModel.BreakUndoBurst();
         tb.Focus(FocusState.Programmatic);
         _editorCaretPlaced = true;
-        ViewModel.StatusText = $"Replaced the {Services.CountText.Of(Services.SelectionPrefill.LineCount(s.Text), "selected line")} with {what}.";
+        ViewModel.StatusText = $"Replaced {Services.SelectionPrefill.TheSelectedLines(Services.SelectionPrefill.LineCount(s.Text))} with {what}.";
         ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
     }
 

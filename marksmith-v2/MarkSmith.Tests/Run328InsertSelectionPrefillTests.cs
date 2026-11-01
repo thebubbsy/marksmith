@@ -137,6 +137,12 @@ public class Run328InsertSelectionPrefillTests
     public void VideoPrefill_takes_only_a_one_line_web_address(string? selection, string expected) =>
         Assert.Equal(expected, SelectionPrefill.VideoPrefill(selection));
 
+    [Theory]
+    [InlineData(1, "the selected line")]
+    [InlineData(4, "the 4 selected lines")]
+    public void TheSelectedLines_drops_the_count_for_one_line(int lines, string expected) =>
+        Assert.Equal(expected, SelectionPrefill.TheSelectedLines(lines));
+
     [Fact]
     public void Main_window_handlers_prefill_and_replace_the_selection()
     {
@@ -179,12 +185,18 @@ public class Run328InsertSelectionPrefillTests
         Assert.Contains("public TableInsertControl(IReadOnlyList<IReadOnlyList<string>>? cells = null)", controls);
         Assert.Contains("_rows.Value = Math.Clamp(Rows + (IncludeHeaderRow ? -1 : 1), 1, 50);", controls);
         Assert.Contains("public EmbedInsertControl(string? initialUrl = null)", controls);
+        // TextChanged doesn't come for text set before the dialog shows: the provider and the alt
+        // text are worked out straight after the prefill.
+        Assert.Contains("_url.Text = initialUrl.Trim();\n            FollowLink();", controls);
 
         var image = Read("MarkSmith.Desktop/Views/ImageInsertControl.cs");
         Assert.Contains("string initialSource = \"\", string initialAlt = \"\")", image);
         // Alt before source, so the source's automatic alt text doesn't replace the selected words.
         Assert.True(image.IndexOf("_alt.Text = initialAlt;", StringComparison.Ordinal)
             < image.IndexOf("_source.Text = initialSource;", StringComparison.Ordinal));
+
+        Assert.Contains("_source.Text = initialSource;", image);
+        Assert.True(image.IndexOf("OnSourceChanged();", image.IndexOf("_source.Text = initialSource;", StringComparison.Ordinal), StringComparison.Ordinal) > 0);
 
         var smartArt = Read("MarkSmith.Desktop/Views/SmartArtInsertControl.cs");
         Assert.Contains("public SmartArtInsertControl(string? initialOutline = null)", smartArt);

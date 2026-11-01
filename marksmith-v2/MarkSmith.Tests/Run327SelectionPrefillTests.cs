@@ -90,7 +90,7 @@ public class Run327SelectionPrefillTests
             SelectionPrefill.ChartRows("| Quarter | Sales |\r|---|---|\r| Q1 | 10 |\rQ2\t25\rQ3,15"));
 
     [Theory]
-    [InlineData(1, "Filled from the 1 selected line. Insert replaces it.")]
+    [InlineData(1, "Filled from the selected line. Insert replaces it.")]
     [InlineData(3, "Filled from the 3 selected lines. Insert replaces them.")]
     public void Note_says_insert_replaces_the_lines(int lines, string expected) =>
         Assert.Equal(expected, SelectionPrefill.Note(lines));
@@ -138,7 +138,7 @@ public class Run327SelectionPrefillTests
         Assert.Contains("string.Equals(text.Substring(s.Start, s.Length), s.Text, StringComparison.Ordinal)", from);
         Assert.Contains("BlockInsertion.Replace(", from);
         Assert.Contains("ViewModel.BreakUndoBurst();", from);
-        Assert.Contains("ViewModel.StatusText = $\"Replaced the ", from);
+        Assert.Contains("ViewModel.StatusText = $\"Replaced {Services.SelectionPrefill.TheSelectedLines(", from);
         // The portal edits its own caret, so it never prefills from the main editor.
         Assert.Contains("if (_portalOpen || tb is null) return null;", Method(main, "private (int Start, int Length, string Text)? SelectedLinesForInsert()"));
     }

@@ -844,18 +844,24 @@ public sealed class EmbedInsertControl : InsertDialogBody
             InputScope = LinkInsertControl.UrlScope(),
         };
         ToolTipService.SetToolTip(_url, "Paste a full video link (YouTube, Vimeo, Loom, CodePen, Bilibili)");
-        _url.TextChanged += (_, _) =>
+        void FollowLink()
         {
             var detected = Services.ContainerBlockParsers.DetectProvider(Url);
             var index = detected is null ? -1 : Array.IndexOf(Providers, detected);
             if (index >= 0 && index != _provider.SelectedIndex) _provider.SelectedIndex = index;   // refreshes
             else Refresh();
-        };
+        }
+        _url.TextChanged += (_, _) => FollowLink();
         AddField(_url);
         AddField(_provider);
         TextBoxEndScroll.Attach(_url);
-        // Set after the handler above, so the provider follows the selected link too.
-        if (!string.IsNullOrWhiteSpace(initialUrl)) _url.Text = initialUrl.Trim();
+        // TextChanged doesn't come for text set before the dialog is shown, so the provider is
+        // picked from the selected link here.
+        if (!string.IsNullOrWhiteSpace(initialUrl))
+        {
+            _url.Text = initialUrl.Trim();
+            FollowLink();
+        }
     }
 
     public string Provider => Providers[Math.Max(0, _provider.SelectedIndex)];
