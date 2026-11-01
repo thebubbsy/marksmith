@@ -23664,3 +23664,83 @@ Image source, Image alt text, Video link and provider, replace with note and sta
 **Release (same run):** tagged **v3.106.0** on `42e5fe17`. Release workflow run 41306105138 succeeded and published 5
 assets; user-facing notes for run #328 were put above the generated body. `MarksmithBaseVersion` was then
 bumped to 3.107.0.
+
+## 2026-11-02 · Run #329 (≈23:45–00:35 AEDT) · Claude Code
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running the scheduled routine in the Claude desktop app (the task file's
+  "Antigravity / Google DeepMind" identity line doesn't describe this agent, so the real one is recorded)
+- Modes: Scheduled Hourly Automation Routine
+- Trigger: Scheduled hourly routine run
+- Agents Used: 1 (Orchestrator, who also did the coding and the skeptical review). No sub-agents, no conversation IDs.
+
+Took #328's "Next up" item 1 (the header-less table) and carried the selection prefill to the two Insert
+dialogs that still ignored the selection: Columns and Drawing canvas.
+
+**User-visible improvements and fixes**
+1. **A table without a header row is a table again.** Clearing "Include header row" used to write a table
+   that starts at its `| --- |` row, which GitHub and the preview show as plain text. It now writes a blank
+   header row above the delimiter row, for placeholder tables and for tables made from selected rows.
+2. **The header checkbox says what clearing it does**: "Clear it to leave the header row blank" (placeholder
+   table) and "make that row a body row under a blank header" (selected rows).
+3. **Columns opens with the selected paragraphs**, one per column, split at blank lines and kept as
+   written, with the column count set to fit them (2–4).
+4. **Fewer columns keep every paragraph.** Paragraphs beyond the column count go into the last column,
+   separated by blank lines; more columns than paragraphs add placeholder columns. The dialog's
+   description says so.
+5. **Drawing canvas opens with a selected `<svg>` drawing** instead of the red starter circle, with Width
+   and Height read from the drawing's own width/height (or its viewBox).
+6. **Resizing a selected drawing scales it.** Width and Height set the root `<svg>`'s size; a viewBox is
+   added from its original size when it has none, so the shapes scale instead of being cropped.
+7. **Both dialogs replace the selected lines** (one undo step) with the usual note ("Filled from the 4
+   selected lines. Insert replaces them.") and status line ("Replaced the 3 selected lines with a drawing
+   canvas."). A selection they can't use (words in a paragraph, a `:::` fence that would end the block
+   early, anything that isn't a whole `<svg>`) opens the dialog as before and replaces nothing.
+
+**Implementation Summary**
+- `MarkSmith.Core/Services/InsertSnippetBuilder.cs`: both `Table` overloads write a blank header row when
+  `includeHeaderRow` is false; new `Columns(count, contents)`, `Canvas(width, height, svg)` and `SvgSize(tag)`
+  (plain or px lengths only; `100%` gives null).
+- `MarkSmith.Core/Services/SelectionPrefill.cs`: `ColumnParagraphs` (empty when a line starts with `:::`) and
+  `CanvasSvg` (a whole `<svg>…</svg>` only, no bare `:::` line).
+- `MarkSmith.Desktop/MainWindow.xaml.cs`: `OnInsertColumnsClick` and `OnInsertCanvasClick` use
+  `SelectedLinesForInsert` / `NoteSelectionSource` / `InsertBlockFrom`, dropping the source when nothing in
+  the selection was used; the NumberBoxes open sized to the selection.
+- `MarkSmith.Desktop/Views/InsertDialogControls.cs`: Table header tooltip.
+- Tests: new `Run329ColumnsCanvasTablePrefillTests` (16 methods / 29 cases): the blank header row, a Markdig
+  check that the header-less table renders as `<table>`, paragraph splitting and fence rejection, columns
+  padding/overflow/clamping, SVG detection and size reading, canvas sizing with and without a viewBox, and
+  source contracts for both handlers and the tooltip. `InsertSnippetBuilderTests` and
+  `Run328InsertSelectionPrefillTests` updated for the blank header row.
+- Skeptical review: nothing collapsed or disabled, no key handlers added, both dialogs go through the
+  existing `ShowInsertDialogAsync` / `ShowPolishedAsync` path (HoverPolish covered), no brushes, no file access.
+- Build: `MarkSmith.Desktop` Debug x64 to `%TEMP%\ms_run329\b\`, 0 errors. Tests: Run327-329 + InsertSnippetBuilder
+  + InsertDialog + GovernanceDocsSync + SelectionPrefill + BlockInsertion passed 183, 0 failed.
+- Live UIA (scratch PID 28932, `MARKSMITH_CONFIG_DIR=%TEMP%\ms_run329\cfg`, stopped by PID; no keys sent; the
+  first-run tour was skipped by invoking `Skip`). Two selected paragraphs opened Columns at 2 with both
+  paragraphs and the note (PrintWindow `columns.png`); 3 added a placeholder column; Insert replaced the 4
+  lines, status "Replaced the 4 selected lines with columns." A selected 400×200 `<svg>` opened Drawing canvas
+  at 400 × 200 with the drawing and a viewBox (`canvas.png`); 200 × 100 updated the preview and Insert replaced
+  the 3 lines. Table with the header cleared previewed and inserted `|  |  |` above `| --- | --- |`.
+
+**Noticed, not fixed**
+- A selected paragraph holding a line that is only `===` splits into an extra column in the preview (the
+  count still says one); rare, left as written.
+- The note counts lines (blank ones included), so two paragraphs read "the 4 selected lines"; accurate, but
+  "2 paragraphs" would read better for Columns.
+- Word export shows the blank header row as an empty first row; not checked whether it should be dropped there.
+- Carried: OCR reclassify boxes and SmartArt palette flyout live check; key-free Diagram Studio connector
+  selection; Workflow status overwrite; Find history trimming.
+
+**Next up (Run #330)**
+1. Check the Word export and the PDF of a header-less table (drop or style the blank header row?).
+2. Live-check the OCR reclassify boxes (load a scratch PNG) and the SmartArt palette flyout (open since #320).
+3. Find a key-free way to select a Diagram Studio connector (open since #318).
+
+**Total user-visible improvements: 7** (blank header row, header tooltip, Columns from paragraphs, overflow
+kept in the last column, canvas from a selected SVG, resizing scales it, replace with note and status).
+
+**Release (same run):** tagged **v3.107.0** on `8a7d3b80`. Release workflow run 41310044946 succeeded and published 5
+assets; user-facing notes for run #329 were put above the generated body. `MarksmithBaseVersion` was then
+bumped to 3.108.0.
