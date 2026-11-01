@@ -23479,3 +23479,7 @@ no Math Insert dialog (math goes in through the editor), so the Insert half of t
 **Total user-visible improvements: 8** (no duplicated words on link insert, selection prefill, bracket escaping,
 valid destinations with spaces and parentheses, unwrapped pasted links, Replace Up/Down history, Recent
 replacements menu, Replace all shortcut hint).
+
+**Release (same run):** tagged **v3.104.0** on `423d1f30`. Release workflow run 41296496787 succeeded and published 5
+assets; user-facing notes for run #326 were put above the generated body. `MarksmithBaseVersion` was then
+bumped to 3.105.0.
