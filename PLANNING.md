@@ -23483,3 +23483,83 @@ replacements menu, Replace all shortcut hint).
 **Release (same run):** tagged **v3.104.0** on `423d1f30`. Release workflow run 41296496787 succeeded and published 5
 assets; user-facing notes for run #326 were put above the generated body. `MarksmithBaseVersion` was then
 bumped to 3.105.0.
+
+## 2026-11-01 · Run #327 (≈22:00–22:30 AEDT) · Claude Code
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running the scheduled routine in the Claude desktop app (the task file's
+  "Antigravity / Google DeepMind" identity line doesn't describe this agent, so the real one is recorded)
+- Modes: Scheduled Hourly Automation Routine
+- Trigger: Scheduled hourly routine run
+- Agents Used: 1 (Orchestrator, who also did the coding and the skeptical review). No sub-agents, no conversation IDs.
+
+Took #326's "Next up" item 3. There are no Footnote, Callout or Details Insert dialogs (those go in through
+the editor), so the pass went to the line-list Insert dialogs, which had the problem #326 found in Link: they
+ignored the selection.
+
+**User-visible improvements and fixes**
+1. **Workflow opens with the selected lines.** Select a list, choose Insert > Diagrams and studios > Workflow,
+   and the steps box holds those lines with their `- `, `1. ` or `- [ ] ` markers taken off, instead of
+   "Step 1 / Step 2 / Step 3".
+2. **Insert replaces the lines it was filled from.** The block used to go after the selection, leaving the
+   original list behind it. It now takes the list's place, with one blank line either side as before, and undoes
+   as one step. If the lines changed while the dialog was open, the block is added as before.
+3. **Timeline and Tab group do the same.** Selected `2026: Launch` lines become milestones; selected lines
+   become tab titles.
+4. **Data grid reads a selected table.** Comma, tab (pasted from a spreadsheet) and pipe-table rows are kept
+   as they are, and a Markdown table's `|---|` row is dropped so it isn't counted as a row.
+5. **Chart reads a selected table too.** It only understands `label,value`, so pipe-table and tab rows are
+   turned into that: `| Q1 | 10 |` and `Q1<tab>10` both give `Q1,10`.
+6. **Code block shows the selected lines as its code.** It already wrapped them when the code box was left
+   empty, but its card showed an empty fence. The card now shows what Insert makes. Clearing the box now
+   inserts an empty fence after the lines, instead of wrapping the lines you just cleared.
+7. **The dialog says it was filled from the selection.** An info line under the description reads "Filled
+   from the 3 selected lines. Insert replaces them." so the replacement isn't a surprise.
+8. **The status bar says what was replaced**, for example "Replaced the 4 selected lines with a chart."
+9. **A few words inside a paragraph don't trigger any of this.** Only a selection that covers whole lines
+   (a list marker or indentation before it is fine) fills a dialog. Words picked out of a sentence open the
+   sample as before and the block goes after that line, so a paragraph is never replaced by accident.
+
+**Implementation Summary**
+- `MarkSmith.Core/Services/SelectionPrefill.cs` (new): `WholeLines` (the whole-line range a selection covers,
+  or null), `ListLines`, `GridRows`, `ChartRows`, `Note`, `LineCount`.
+- `MarkSmith.Core/Services/BlockInsertion.cs`: new `Replace(doc, start, length, block)` plan with the same
+  blank-line separation as `Plan`.
+- `MarkSmith.Desktop/Views/InsertDialogControls.cs`: `InsertDialogBody.ShowNote` (a wrapping Grid row with an
+  info glyph hidden from screen readers, themed brushes); `ChartInsertControl(initialData)`,
+  `CodeBlockInsertControl(initialBody)`.
+- `MarkSmith.Desktop/MainWindow.xaml.cs`: `SelectedLinesForInsert`, `PrefillOr`, `NoteSelectionSource`,
+  `InsertBlockFrom` (checks the lines are unchanged, replaces them, sets the status); Workflow, Timeline, Tab
+  group, Chart, Data grid and Code block handlers use them. Quick-insert (Pro) paths are unchanged, and the
+  portal never prefills from the main editor.
+- Tests: new `Run327SelectionPrefillTests` (9 methods / 24 cases): whole-line detection and refusals, marker
+  stripping, grid and chart row shaping, the note wording, `BlockInsertion.Replace` output for `\r` and `\n`
+  documents with the caret after the block, and source contracts for all six handlers and the note row.
+- Skeptical review: nothing is collapsed or disabled; no key handlers were added; the note is built before
+  the dialog opens, inside the body `HoverPolish.Track` already covers; brushes go through `Themed`; no file
+  access. The first edit script went through a Bash heredoc and lost its `\n` escapes; it failed its own
+  assertion before writing anything and was rerun from a file.
+- Build: `MarkSmith.Desktop` Debug x64 to `%TEMP%\ms_run327\b\`, 0 errors. Tests: Run327 + Run32* +
+  BlockInsertion* + Insert* passed 355, 0 failed.
+- Live UIA (scratch PID 11228, `MARKSMITH_CONFIG_DIR=%TEMP%\ms_run327\cfg`, stopped by PID). No keys were
+  sent. A three-line `- ` list selected via `TextPattern` (new `sel2.ps1 -from -to` spans lines) opened
+  Workflow with the three steps and the note (PrintWindow `workflow.png`); Insert put the `:::workflow` block in
+  the list's place. A selected four-row pipe table opened Chart as `Quarter,Sales / Q1,10 / Q2,25` and was
+  replaced, status "Replaced the 4 selected lines with a chart." "words in" selected mid-paragraph opened Tab
+  group on its sample with no note, and the block went after the paragraph. The line "Plan" opened Code block
+  with Code "Plan" and the note; clearing the code inserted an empty fence after "Plan".
+
+**Noticed, not fixed**
+- The Workflow status line from the first insert had already been replaced by the time it was read (the chart
+  one was read straight away), so check whether another status write follows `SyncDocumentFromEditor`.
+- Find's history trims entries and a typed out-of-range number is clamped silently (both carried).
+
+**Next up (Run #328)**
+1. Live-check the OCR reclassify boxes (load a scratch PNG) and the SmartArt palette flyout (open since #320).
+2. Find a key-free way to select a Diagram Studio connector (open since #318).
+3. SmartArt Insert dialog: prefill its outline from selected lines the same way (it has its own text box).
+
+**Total user-visible improvements: 9** (Workflow prefill, replace instead of leaving the list behind,
+Timeline and Tab group prefill, Data grid table reading, Chart table conversion, Code block card and
+cleared-code fix, dialog note, status line, paragraph words left alone).
