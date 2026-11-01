@@ -23563,3 +23563,7 @@ ignored the selection.
 **Total user-visible improvements: 9** (Workflow prefill, replace instead of leaving the list behind,
 Timeline and Tab group prefill, Data grid table reading, Chart table conversion, Code block card and
 cleared-code fix, dialog note, status line, paragraph words left alone).
+
+**Release (same run):** tagged **v3.105.0** on `e0229be2`. Release workflow run 41300897740 succeeded and published 5
+assets; user-facing notes for run #327 were put above the generated body. `MarksmithBaseVersion` was then
+bumped to 3.106.0.
