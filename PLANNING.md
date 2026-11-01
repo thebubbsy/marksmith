@@ -23567,3 +23567,100 @@ cleared-code fix, dialog note, status line, paragraph words left alone).
 **Release (same run):** tagged **v3.105.0** on `e0229be2`. Release workflow run 41300897740 succeeded and published 5
 assets; user-facing notes for run #327 were put above the generated body. `MarksmithBaseVersion` was then
 bumped to 3.106.0.
+
+
+## 2026-11-01 · Run #328 (≈23:00–23:40 AEDT) · Claude Code
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running the scheduled routine in the Claude desktop app (the task file's
+  "Antigravity / Google DeepMind" identity line doesn't describe this agent, so the real one is recorded)
+- Modes: Scheduled Hourly Automation Routine
+- Trigger: Scheduled hourly routine run
+- Agents Used: 1 (Orchestrator, who also did the coding and the skeptical review). No sub-agents, no conversation IDs.
+
+Took #327's "Next up" item 3 (SmartArt prefill) and carried the same selection handling to the other Insert
+dialogs that still ignored the selection: Table, Image and Video.
+
+**User-visible improvements and fixes**
+1. **Table reads the selected rows.** Select comma, tab (pasted from a spreadsheet) or pipe-table rows and
+   choose Insert > Table: the dialog opens with those cells instead of "Header 1 / Value 1", sized to them
+   (rows and columns set to fit), with the first row as the header. A pipe table's `|---|` row is dropped and
+   an escaped pipe stays inside its cell.
+2. **Clearing "Include header row" keeps every row.** With selected rows, the header row moves into the body
+   and the body row count goes up by one (and back down when ticked again), so the last row isn't cut off.
+3. **SmartArt opens with the selected list as its outline**, list markers taken off and nesting kept relative
+   to the least indented line, so a nested list keeps its levels (a tab counts as four spaces, as the outline
+   reads it). Before, it always opened on the first example.
+4. **Image takes a selected path or web address as its source**, unwrapped from `<...>` or quotes, and fills
+   the alt text from the file name as a dropped file does.
+5. **Image takes other selected words as the alt text.** Setting a source afterwards keeps those words
+   instead of replacing them with the file name.
+6. **Video takes a selected link as its address** and picks the matching provider (Vimeo, Loom, ...).
+7. **Whole selected lines are replaced.** In all four dialogs Insert puts the block where the selected lines
+   were (one undo step), the dialog shows "Filled from the 3 selected lines. Insert replaces them." and the
+   status bar says what was replaced. Words picked out of a paragraph only prefill; the block goes after
+   the line and the words stay. A selection the dialog can't use (a list for Table, two links for Video)
+   opens the dialog as before and replaces nothing.
+8. **"the selected line" instead of "the 1 selected line"** in the dialog note and the status bar, for all
+   ten dialogs that prefill (found live: "Replaced the 1 selected line with a video card.").
+
+**Implementation Summary**
+- `MarkSmith.Core/Services/SelectionPrefill.cs`: `TableCells` (null without a separator, capped at 51 rows x
+  20 cells), `OutlineLines`, `ImagePrefill`, `VideoPrefill`, `TheSelectedLines`; `Note` uses the latter.
+- `MarkSmith.Core/Services/InsertSnippetBuilder.cs`: `Table(rows, cols, header, cells)` overload (pads with
+  empty cells, cuts extra columns, escapes a bare `|`).
+- `MarkSmith.Desktop/Views/InsertDialogControls.cs`: `TableInsertControl(cells)` (sized description, header
+  tooltip, header toggle shifts the row count); `EmbedInsertControl(initialUrl)` with the provider logic
+  moved into a local `FollowLink`.
+- `MarkSmith.Desktop/Views/ImageInsertControl.cs`: `initialSource` / `initialAlt` (alt set first).
+- `MarkSmith.Desktop/Views/SmartArtInsertControl.cs`: `initialOutline`.
+- `MarkSmith.Desktop/MainWindow.xaml.cs`: SmartArt, Image, Table and Video handlers use
+  `SelectedLinesForInsert` / `NoteSelectionSource` / `InsertBlockFrom`, dropping the source when nothing in
+  the selection was used; `InsertBlockFrom`'s status uses `TheSelectedLines`.
+- Tests: new `Run328InsertSelectionPrefillTests` (16 methods / 31 cases): table cell reading, caps and
+  escaped pipes, the cells table with and without a header, outline nesting checked through
+  `SmartArtInsert.Parse`, image and video prefill sorting, the singular wording, and source contracts for
+  the four handlers and the controls. `Run327SelectionPrefillTests` updated for the new wording.
+  `GovernanceDocsSyncTests.T2_02` (calls every public snippet builder with edge arguments by reflection)
+  now passes empty rows to a rows-of-cells parameter instead of a `string[]` it can't take.
+- **Bug found live and fixed:** `TextChanged` doesn't come for text set in the dialog's constructor, so the
+  first build's prefilled image source had an empty alt box and a prefilled link kept the default
+  provider. The constructors now call `OnSourceChanged()` / `FollowLink()` straight after the prefill.
+- Skeptical review: nothing collapsed or disabled (the copy button's existing focus fallback is
+  untouched); no key handlers added; the note row and every dialog go through the existing
+  `InsertDialogBody` / `ShowPolishedAsync` path, so `HoverPolish` covers them; no new brushes; no file
+  access beyond the image dialog's existing `DocumentImages.Resolve`.
+- Build: `MarkSmith.Desktop` Debug x64 to `%TEMP%\ms_run328\b\`, 0 errors (three builds). Tests: Run32* +
+  Insert* + GovernanceDocsSync + SmartArt* + BlockInsertion + Embed* + Image* passed 1084, 0 failed, 1 skipped.
+- Live UIA (scratch PIDs 27220, 2648 and 29516 in turn, `MARKSMITH_CONFIG_DIR=%TEMP%\ms_run328\cfg`, each
+  stopped by PID; no keys sent). A nested `- Plan / - Set goals / - Do / - Check` list opened SmartArt with
+  the indented outline, "3 shapes · 1 sub-point" and the note (PrintWindow `smartart.png`); Insert replaced
+  it, status "Replaced the 4 selected lines with SmartArt." `Name,Qty / Pens,4 / Ink,2` opened Table as a
+  2x2 body with the header; toggling the header off made 3 body rows and Insert replaced the rows. A YouTube
+  line opened Video filled and was replaced (`video.png`). "A chart of the quarter" opened Image with that
+  alt text; adding a web source kept it and Insert replaced the line. After the fix, `images/diagram.png`
+  opened with alt "diagram", a Vimeo line picked Vimeo, and the note and status read "the selected line".
+  "paragraph" picked out of a sentence opened Image with that alt text and no note.
+
+**Noticed, not fixed**
+- Stopping a scratch instance by PID leaves an unsaved draft, and the next launch's "Recover unsaved
+  document" dialog silently blocks every Insert dialog (they never open, and nothing says why). Discard it
+  over UIA (`Discard` by name) before driving dialogs. Whether an Insert click should say "Finish the open
+  dialog first" is worth a look.
+- A table without a header row is written as a `| --- |` row followed by body rows; GitHub doesn't render
+  that as a table (existing `Table(rows, cols, false)` behaviour, now also reachable from selected rows).
+- The Workflow status-overwrite question and Find's history trimming are carried from #327.
+
+**Next up (Run #329)**
+1. Decide what the header-less table should write (GitHub needs a header row) and check the preview and
+   Word export agree.
+2. Live-check the OCR reclassify boxes (load a scratch PNG) and the SmartArt palette flyout (open since #320).
+3. Find a key-free way to select a Diagram Studio connector (open since #318).
+
+**Total user-visible improvements: 8** (Table cells from rows, header toggle keeps rows, SmartArt outline,
+Image source, Image alt text, Video link and provider, replace with note and status, singular wording).
+
+**Release (same run):** tagged **v3.106.0** on `42e5fe17`. Release workflow run 41306105138 succeeded and published 5
+assets; user-facing notes for run #328 were put above the generated body. `MarksmithBaseVersion` was then
+bumped to 3.107.0.
