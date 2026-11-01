@@ -327,14 +327,14 @@
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
-                                    <CheckBox x:Name="CompRoundRect" Grid.Row="0" Grid.Column="0" Content="Rounded rect" IsChecked="True" MinWidth="0" IsEnabled="False" />
-                                    <CheckBox x:Name="CompRect" Grid.Row="0" Grid.Column="1" Content="Rectangle" MinWidth="0" IsEnabled="False" />
-                                    <CheckBox x:Name="CompEllipse" Grid.Row="1" Grid.Column="0" Content="Ellipse" IsChecked="True" MinWidth="0" IsEnabled="False" />
-                                    <CheckBox x:Name="CompChevron" Grid.Row="1" Grid.Column="1" Content="Chevron" MinWidth="0" IsEnabled="False" />
-                                    <CheckBox x:Name="CompDiamond" Grid.Row="2" Grid.Column="0" Content="Diamond" MinWidth="0" IsEnabled="False" />
-                                    <CheckBox x:Name="CompHexagon" Grid.Row="2" Grid.Column="1" Content="Hexagon" MinWidth="0" IsEnabled="False" />
-                                    <CheckBox x:Name="CompTriangle" Grid.Row="3" Grid.Column="0" Content="Triangle" MinWidth="0" IsEnabled="False" />
-                                    <CheckBox x:Name="CompCloud" Grid.Row="3" Grid.Column="1" Content="Cloud" MinWidth="0" IsEnabled="False" />
+                                    <CheckBox x:Name="CompRoundRect" ToolTipService.ToolTip="Tile the mosaic with rounded rectangles (used while Smart tiles is off)" Grid.Row="0" Grid.Column="0" Content="Rounded rect" IsChecked="True" MinWidth="0" IsEnabled="False" />
+                                    <CheckBox x:Name="CompRect" ToolTipService.ToolTip="Tile the mosaic with rectangles (used while Smart tiles is off)" Grid.Row="0" Grid.Column="1" Content="Rectangle" MinWidth="0" IsEnabled="False" />
+                                    <CheckBox x:Name="CompEllipse" ToolTipService.ToolTip="Tile the mosaic with ellipses (used while Smart tiles is off)" Grid.Row="1" Grid.Column="0" Content="Ellipse" IsChecked="True" MinWidth="0" IsEnabled="False" />
+                                    <CheckBox x:Name="CompChevron" ToolTipService.ToolTip="Tile the mosaic with chevrons (used while Smart tiles is off)" Grid.Row="1" Grid.Column="1" Content="Chevron" MinWidth="0" IsEnabled="False" />
+                                    <CheckBox x:Name="CompDiamond" ToolTipService.ToolTip="Tile the mosaic with diamonds (used while Smart tiles is off)" Grid.Row="2" Grid.Column="0" Content="Diamond" MinWidth="0" IsEnabled="False" />
+                                    <CheckBox x:Name="CompHexagon" ToolTipService.ToolTip="Tile the mosaic with hexagons (used while Smart tiles is off)" Grid.Row="2" Grid.Column="1" Content="Hexagon" MinWidth="0" IsEnabled="False" />
+                                    <CheckBox x:Name="CompTriangle" ToolTipService.ToolTip="Tile the mosaic with triangles (used while Smart tiles is off)" Grid.Row="3" Grid.Column="0" Content="Triangle" MinWidth="0" IsEnabled="False" />
+                                    <CheckBox x:Name="CompCloud" ToolTipService.ToolTip="Tile the mosaic with clouds (used while Smart tiles is off)" Grid.Row="3" Grid.Column="1" Content="Cloud" MinWidth="0" IsEnabled="False" />
                                 </Grid>
                             </StackPanel>
 
@@ -353,7 +353,8 @@
                                         RightTapped="OnFuseLineDensityRightTapped"
                                         ToolTipService.ToolTip="Traced line density (0..1200) · Double-click for default 120, Right-click or Shift+F10 for presets" />
                                 <ComboBox x:Name="FuseModePicker" Header="Line style" HorizontalAlignment="Stretch" SelectedIndex="0"
-                                          AutomationProperties.Name="Line style">
+                                          AutomationProperties.Name="Line style"
+                                          ToolTipService.ToolTip="How the traced lines are drawn · Alt+Down lists the styles, type a letter to jump">
                                     <ComboBoxItem Content="Cross-hatch — etching" Tag="CrossHatch" />
                                     <ComboBoxItem Content="Topographic waves — flowing contours" Tag="TopographicWaves" />
                                     <ComboBoxItem Content="Calligraphic — 30° chisel strokes" Tag="Calligraphic" />
@@ -392,7 +393,8 @@
                                                 ToolTipService.ToolTip="Thickness of traced ink strokes (0.5..5.0 pt) · Double-click for default 1.5 pt, Right-click or Shift+F10 for presets" />
                                     </StackPanel>
                                 </Grid>
-                                <CheckBox x:Name="FuseMonochrome" Content="Dark ink only (ignore the picture's colours)" IsChecked="True" MinWidth="0" />
+                                <CheckBox x:Name="FuseMonochrome" Content="Dark ink only (ignore the picture's colours)" IsChecked="True" MinWidth="0"
+                                          ToolTipService.ToolTip="On: every traced line is dark ink. Off: each line takes the colour of the picture under it" />
                             </StackPanel>
 
                             <Button x:Name="ConvertButton" Click="OnFuseImageClick" Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Stretch" Padding="12,8"
@@ -1212,6 +1214,7 @@
                             <TextBlock Grid.Row="0" Text="Type" Style="{StaticResource InspectorLabel}" />
                             <StackPanel Grid.Row="0" Grid.Column="1" Spacing="6">
                                 <ComboBox x:Name="ShapeTypeCombo" AutomationProperties.Name="Shape type" HorizontalAlignment="Stretch"
+                                          ToolTipService.ToolTip="Change the selected shape into another type, keeping its size, colour and text · Alt+Down lists the types"
                                           SelectedItem="{Binding SelectedShape.Prst, Mode=TwoWay}" ItemsSource="{Binding PaletteItems}">
                                     <ComboBox.ItemTemplate>
                                         <DataTemplate>
@@ -1422,8 +1425,9 @@
                                                 <ColorPicker x:Name="FillPicker" ColorSpectrumShape="Ring" IsAlphaEnabled="False" IsMoreButtonVisible="False"
                                                              IsColorSliderVisible="True" IsColorChannelTextInputVisible="False" IsHexInputVisible="True"
                                                              ColorChanged="OnFillPickerColorChanged" />
-                                                <Button Content="Use this colour" Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Stretch" Click="OnFillPickerApply"
-                                                        AutomationProperties.Name="Use this colour" />
+                                                <Button x:Name="FillPickerApplyButton" Content="Use this colour" Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Stretch" Click="OnFillPickerApply"
+                                                        AutomationProperties.Name="Use this colour"
+                                                        ToolTipService.ToolTip="Give the selected shape this colour · Ctrl+Z undoes it" />
                                             </StackPanel>
                                         </Flyout>
                                     </Button.Flyout>

@@ -4198,6 +4198,9 @@ namespace MarkSmith.Views.ShapeStudio
             }
             RebuildFillFlyoutSwatches(hex);
             RebuildRecentColorsSwatches(hex);
+            // Flyout content sits outside the tracked window tree: polish the apply button here so it
+            // lifts on hover and reads its tooltip as help text like the rest of the studio.
+            HoverPolish.Apply(FillPickerApplyButton);
         }
 
         private void OnFillPickerColorChanged(ColorPicker sender, ColorChangedEventArgs args)

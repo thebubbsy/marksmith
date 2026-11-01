@@ -402,7 +402,8 @@
                                                                 Padding="0" Margin="2,2,2,4"
                                                                 HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
                                                                 VerticalContentAlignment="Stretch"
-                                                                AutomationProperties.Name="{Binding AutomationName}">
+                                                                AutomationProperties.Name="{Binding AutomationName}"
+                                                                AutomationProperties.HelpText="Shows what changed in this version · S stars it, F2 labels it, Ctrl+C copies its Markdown, Shift+F10 for more">
                                                           <Grid>
                                                             <Border CornerRadius="7" Background="{ThemeResource AccentFillColorDefaultBrush}" Opacity="0.16"
                                                                     Visibility="{Binding IsSelected, Converter={StaticResource BoolToVis}}" />

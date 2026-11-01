@@ -374,6 +374,7 @@
                             <!-- Tag is the stored shape name; Content is what people read. -->
                             <ComboBox x:Name="NodeShapeCombo" Header="Shape"
                                       AutomationProperties.Name="Node shape"
+                                      ToolTipService.ToolTip="Shape of the selected node · Alt+Down lists the shapes, type a letter to jump, Esc returns to canvas"
                                       SelectedValuePath="Tag"
                                       SelectedValue="{Binding SelectedNode.Shape, Mode=TwoWay}"
                                       KeyDown="OnInspectorInputKeyDown"
@@ -481,9 +482,11 @@
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
                                 <NumberBox x:Name="NodeXBox" Grid.Column="0" Header="X" AutomationProperties.Name="Node X"
+                                           ToolTipService.ToolTip="Distance from the canvas's left edge, in pixels · Enter applies and returns to canvas"
                                            Value="{Binding SelectedNode.X, Mode=TwoWay}" SpinButtonPlacementMode="Hidden"
                                            KeyDown="OnInspectorSingleLineKeyDown" />
                                 <NumberBox x:Name="NodeYBox" Grid.Column="1" Header="Y" AutomationProperties.Name="Node Y"
+                                           ToolTipService.ToolTip="Distance from the canvas's top edge, in pixels · Enter applies and returns to canvas"
                                            Value="{Binding SelectedNode.Y, Mode=TwoWay}" SpinButtonPlacementMode="Hidden"
                                            KeyDown="OnInspectorSingleLineKeyDown" />
                             </Grid>
@@ -495,9 +498,11 @@
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
                                 <NumberBox x:Name="NodeWidthBox" Grid.Column="0" Header="Width" AutomationProperties.Name="Node width"
+                                           ToolTipService.ToolTip="Node width in pixels (at least 20) · Enter applies and returns to canvas"
                                            Value="{Binding SelectedNode.Width, Mode=TwoWay}" Minimum="20" SpinButtonPlacementMode="Hidden"
                                            KeyDown="OnInspectorSingleLineKeyDown" />
                                 <NumberBox x:Name="NodeHeightBox" Grid.Column="1" Header="Height" AutomationProperties.Name="Node height"
+                                           ToolTipService.ToolTip="Node height in pixels (at least 20) · Enter applies and returns to canvas"
                                            Value="{Binding SelectedNode.Height, Mode=TwoWay}" Minimum="20" SpinButtonPlacementMode="Hidden"
                                            KeyDown="OnInspectorSingleLineKeyDown" />
                             </Grid>
@@ -557,6 +562,7 @@
                                 </Grid.ColumnDefinitions>
                                 <ComboBox x:Name="ConnectorLineCombo" Header="Line" SelectedValuePath="Tag" HorizontalAlignment="Stretch"
                                           AutomationProperties.Name="Connector line style"
+                                          ToolTipService.ToolTip="Solid, dashed or thick line · Alt+Down lists the styles, Esc returns to canvas"
                                           KeyDown="OnInspectorInputKeyDown"
                                           SelectedValue="{Binding SelectedConnector.LineStyle, Mode=TwoWay}">
                                     <ComboBoxItem Content="Solid" Tag="Solid" />
@@ -565,6 +571,7 @@
                                 </ComboBox>
                                 <ComboBox Grid.Column="1" x:Name="ConnectorHeadCombo" Header="Arrow head" SelectedValuePath="Tag" HorizontalAlignment="Stretch"
                                           AutomationProperties.Name="Connector arrow head"
+                                          ToolTipService.ToolTip="What the connector's far end looks like · Alt+Down lists the heads, Esc returns to canvas"
                                           KeyDown="OnInspectorInputKeyDown"
                                           SelectedValue="{Binding SelectedConnector.EndHead, Mode=TwoWay}">
                                     <ComboBoxItem Content="Arrow" Tag="Normal" />
@@ -575,6 +582,7 @@
                             </Grid>
                             <ComboBox x:Name="ConnectorMessageCombo" Header="Message" SelectedValuePath="Tag" HorizontalAlignment="Stretch"
                                       AutomationProperties.Name="Sequence message type"
+                                      ToolTipService.ToolTip="Call, reply, async or lost message, as Mermaid draws it · Alt+Down lists the types, Esc returns to canvas"
                                       KeyDown="OnInspectorInputKeyDown"
                                       SelectedValue="{Binding SelectedConnector.LineStyle, Mode=TwoWay}" Visibility="Collapsed">
                                 <ComboBoxItem Content="Call (solid arrow)" Tag="SolidArrow" />
@@ -588,6 +596,7 @@
                             </ComboBox>
                             <ComboBox x:Name="ConnectorRelationCombo" Header="Relationship" SelectedValuePath="Tag" HorizontalAlignment="Stretch"
                                       AutomationProperties.Name="Class relationship type"
+                                      ToolTipService.ToolTip="How the two classes relate (inheritance, composition…) · Alt+Down lists the types, Esc returns to canvas"
                                       KeyDown="OnInspectorInputKeyDown"
                                       SelectedValue="{Binding SelectedConnector.EndHead, Mode=TwoWay}" Visibility="Collapsed">
                                 <ComboBoxItem Content="Association" Tag="Association" />
