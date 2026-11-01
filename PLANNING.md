@@ -23394,3 +23394,88 @@ language help, video provider mismatch, unwrapped pasted links, quotes in video 
 **Release (same run):** tagged **v3.103.0** on `b466b9d7`. Release workflow run 41292497881 succeeded and published 5
 assets; user-facing notes for run #325 were put above the generated body. `MarksmithBaseVersion` was then
 bumped to 3.104.0.
+
+## 2026-11-01 · Run #326 (≈21:00–21:30 AEDT) · Claude Code
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running the scheduled routine in the Claude desktop app (the task file's
+  "Antigravity / Google DeepMind" identity line doesn't describe this agent, so the real one is recorded)
+- Modes: Scheduled Hourly Automation Routine
+- Trigger: Scheduled hourly routine run
+- Agents Used: 1 (Orchestrator, who also did the coding and the skeptical review). No sub-agents, no conversation IDs.
+
+Took #325's "Next up" item 3 (Link and Math Insert flows) and the Replace-box history carried since #323. There is
+no Math Insert dialog (math goes in through the editor), so the Insert half of the pass covered Link.
+
+**User-visible improvements and fixes**
+1. **Insert link no longer duplicates the selected words.** With "the docs" selected, typing link text and
+   pressing Insert wrote `[the docs](url)the docs`: the one-part snippet went through `InsertMarkdown` as a
+   prefix, which keeps the selection after it. The link now replaces the selection, and any spaces the
+   selection started or ended with stay outside the link.
+2. **The selection opens in the dialog.** Selected words fill "Link text"; a selected address
+   (`https://…`, `mailto:…`, `www.…`, also `<…>`-wrapped) fills "URL" instead. A selection that spans lines
+   fills neither and is wrapped as before.
+3. **Brackets in link text no longer break the link.** `Start [here` or `a ] b` ended or broke the link;
+   brackets (and backslashes) in the text are now escaped.
+4. **Links with spaces or odd parentheses work.** A web address with a space now gets `%20`; a local path
+   with spaces or unbalanced parentheses is written as `<my notes.md>` (a bare `my notes.md` isn't a link at
+   all). Balanced parentheses (`…/Foo_(bar)`) and an explicit title (`https://x "Home"`) are kept as typed.
+   The empty-text path (caret between the brackets) gets the same treatment.
+5. **Pasted `<https://…>` or `"https://…"` links are unwrapped in the Link dialog**, the same as the Video
+   dialog. The unwrap moved to Core and both dialogs share it.
+6. **The Replace box remembers earlier replacements.** Up and Down step through the last 12 (newest first)
+   and Down past the newest gives back what you had typed. Replacements are kept exactly, so `"a "` and `"a"`
+   are different entries. The box's tooltip and help text say so.
+7. **The Replace box menu lists them too.** A "Recent replacements" submenu (Right-click / Shift+F10 / Menu
+   key) shows the same list. An entry that starts or ends with a space is shown in quotes so it isn't a blank
+   row.
+8. **"Replace all matches" in that menu shows its shortcut** (Ctrl+Alt+Enter), like "Replace next match"
+   already showed Enter.
+
+**Implementation Summary**
+- `MarkSmith.Core/Services/InsertSnippetBuilder.cs`: `Link` escapes the text (`DocumentImages.EscapeAlt`) and
+  routes the URL through new `LinkDestination`; new `LinkPrefill(selection)` and `UnwrapPasted(value)`.
+- `MarkSmith.Core/Services/DocumentImages.cs`: `NeedsAngleBrackets` is now `internal` (reused by
+  `LinkDestination`).
+- `MarkSmith.Core/Services/RecallHistory.cs` (new): Up/Down recall with draft restore and a menu `Label`.
+- `MarkSmith.Desktop/Views/InsertDialogControls.cs`: `LinkInsertControl(initialText, initialUrl)`; Link and
+  Video `Url` both use `Snippets.UnwrapPasted`; Video's private `Unwrap` removed.
+- `MarkSmith.Desktop/MainWindow.xaml.cs`: `OnLinkClick` prefills from the selection and replaces it on Insert;
+  `_replaceHistory` recorded by Replace and Replace all, recalled by Up/Down in `OnReplaceTextBoxKeyDown`
+  (handled only when something was recalled), listed in `FillReplaceTextBoxMenu`.
+- `MarkSmith.Desktop/MainWindow.xaml`: Replace box tooltip and help text mention Up and Down.
+- Tests: new `Run326LinkAndReplaceTests` (9 methods / 31 cases, including Markdig render checks that the
+  escaped / `<…>` / `%20` links come out as one anchor with the right `href`). `Run325CodeAndVideoDialogTests`
+  follows the unwrap's move to Core.
+- Skeptical review: nothing is collapsed or disabled. Up/Down in the Replace box are only marked handled when
+  an entry was recalled; the box is single-line, so the arrows had no other job there. No flyouts built outside
+  the existing `TextBoxMenu` path, no brush lookups, no file access. The Edit tool turned two `\uE81C`-style
+  glyph escapes into raw characters; they were put back as escapes.
+- Build: `MarkSmith.Desktop` Debug x64 to `%TEMP%\ms_run326\b\`, 0 errors. Tests: Run2* + Run3* + Insert* +
+  DocumentImages* + TextSearch* + MarkdownHtml* passed 2338, 0 failed (the first pass had 3 failures in the new
+  render test, which counted the page's own extra anchor; the assertion now checks the link's `href` and text).
+- Live UIA (scratch PID 27172, `MARKSMITH_CONFIG_DIR=%TEMP%\ms_run326\cfg`, stopped by PID). No SendKeys; keys
+  were PostMessage'd to our own `InputSiteWindowClass`. Selecting "the docs" opened Link with Link text "the
+  docs"; URL `<https://example.com/my page>` showed `(https://example.com/my%20page)` on the card and Insert
+  gave `Read [the docs](https://example.com/my%20page) today.` (no duplicated words). Selecting
+  `https://example.com/start` filled URL, text `Start [here` gave `[Start \[here](https://example.com/start)`.
+  Replace: after two Replace alls, Up gave `tonight`, `Opening `, stayed at the oldest; Down gave `tonight`, then
+  the draft `draft`. The Menu key showed "Recent replacements" with `tonight` and `“Opening ”`, and Replace all
+  with `Ctrl+Alt+Enter`. PrintWindow `replace.png`.
+
+**Noticed, not fixed**
+- `EditorFoldingService` (the `~~~` fold gap noted in #325) has no callers; the live folding is `EditorFolds`,
+  which already folds `~~~` fences. Nothing to fix for users.
+- Find's own history trims entries (`TextSearch.AddToSearchHistory`), so a search for `"a "` comes back as
+  `"a"`. Left alone: changing it would change Find's existing behaviour.
+- A typed out-of-range number is clamped silently (carried from #324).
+
+**Next up (Run #327)**
+1. Live-check the OCR reclassify boxes (load a scratch PNG) and the SmartArt palette flyout (open since #320).
+2. Find a key-free way to select a Diagram Studio connector (open since #318).
+3. Audit the Footnote / Callout / Details Insert dialogs live (selection prefill like Link's, problem lines).
+
+**Total user-visible improvements: 8** (no duplicated words on link insert, selection prefill, bracket escaping,
+valid destinations with spaces and parentheses, unwrapped pasted links, Replace Up/Down history, Recent
+replacements menu, Replace all shortcut hint).

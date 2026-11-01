@@ -116,9 +116,11 @@ public class Run325CodeAndVideoDialogTests
     public void EmbedDialog_cleans_the_link_and_checks_the_provider()
     {
         var embed = Class(Read(Dialogs), "EmbedInsertControl");
-        Assert.Contains("public string Url => Unwrap(_url.Text.Trim());", embed);
-        // Only a matching pair: a link's own trailing quote (…?t="a") stays.
-        Assert.Contains("(s[0] == '<' && s[^1] == '>') || (s[0] == '\"' && s[^1] == '\"')", embed);
+        // Run #326 moved the unwrap to Core (shared with the Link dialog); only a matching pair
+        // is removed there, so a link's own trailing quote (…?t="a") stays.
+        Assert.Contains("public string Url => Snippets.UnwrapPasted(_url.Text);", embed);
+        Assert.Equal("https://vimeo.com/1?t=\"a\"", InsertSnippetBuilder.UnwrapPasted("https://vimeo.com/1?t=\"a\""));
+        Assert.Equal("https://youtu.be/abc", InsertSnippetBuilder.UnwrapPasted(" <https://youtu.be/abc> "));
         Assert.DoesNotContain(".Trim('\"'", embed);
         Assert.Contains("DetectProvider(Url)", embed);
         Assert.Contains("? InsertCountText.EmbedProviderProblem(Provider, Url, Providers)", embed);

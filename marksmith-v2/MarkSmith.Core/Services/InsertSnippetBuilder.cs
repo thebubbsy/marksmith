@@ -39,9 +39,61 @@ public static class InsertSnippetBuilder
         return sb.ToString();
     }
 
-    /// <summary>[text](url). An empty URL falls back to the literal "url" placeholder.</summary>
+    /// <summary>
+    /// [text](destination). An empty URL falls back to the literal "url" placeholder. Brackets in
+    /// the text are escaped (an unmatched "]" ended the link early) and the destination goes
+    /// through <see cref="LinkDestination"/>.
+    /// </summary>
     public static string Link(string text, string url) =>
-        $"[{(text ?? "").Trim()}]({Or(url, "url")})";
+        $"[{DocumentImages.EscapeAlt(text)}]({Or(LinkDestination(url), "url")})";
+
+    /// <summary>
+    /// A link target as Markdown can carry it. A pasted &lt;…&gt; or quoted link is unwrapped first.
+    /// Spaces in a web address become %20; a local path with spaces or unbalanced parentheses is
+    /// wrapped in &lt;…&gt; (a bare "my notes.md" isn't a link at all). An explicit title,
+    /// <c>https://x "Title"</c>, is kept as written.
+    /// </summary>
+    public static string LinkDestination(string? url)
+    {
+        var value = UnwrapPasted(url);
+        if (value.Length == 0) return "";
+        var titled = System.Text.RegularExpressions.Regex.Match(value, @"^(\S+)\s+(""[^""]*""|'[^']*')$");
+        if (titled.Success) return LinkDestination(titled.Groups[1].Value) + " " + titled.Groups[2].Value;
+        if (value.Contains("://", StringComparison.Ordinal))
+            value = System.Text.RegularExpressions.Regex.Replace(value, @"\s", "%20");
+        return DocumentImages.NeedsAngleBrackets(value)
+            ? "<" + value.Replace("<", "%3C").Replace(">", "%3E") + ">"
+            : value;
+    }
+
+    /// <summary>
+    /// What the Link dialog opens with for the editor's <paramref name="selection"/>: words become
+    /// the link text, a selection that is itself an address becomes the URL, and a selection that
+    /// spans lines fills neither (it is wrapped as it stands).
+    /// </summary>
+    public static (string Text, string Url) LinkPrefill(string? selection)
+    {
+        var s = (selection ?? "").Trim();
+        if (s.Length == 0 || s.IndexOfAny(new[] { '\r', '\n' }) >= 0) return ("", "");
+        var bare = UnwrapPasted(s);
+        var looksLikeAddress = !bare.Any(char.IsWhiteSpace) &&
+            (bare.Contains("://", StringComparison.Ordinal) ||
+             bare.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase) ||
+             bare.StartsWith("www.", StringComparison.OrdinalIgnoreCase));
+        return looksLikeAddress ? ("", bare) : (s, "");
+    }
+
+    /// <summary>
+    /// A link copied from Markdown or a shell often comes as &lt;https://…&gt; or "https://…". Only a
+    /// matching pair is removed: a link can end in a quote of its own (…?t="a").
+    /// </summary>
+    public static string UnwrapPasted(string? value)
+    {
+        var s = (value ?? "").Trim();
+        return s.Length >= 2 && ((s[0] == '<' && s[^1] == '>') || (s[0] == '"' && s[^1] == '"') || (s[0] == '\'' && s[^1] == '\''))
+            ? s[1..^1].Trim()
+            : s;
+    }
 
     /// <summary>
     /// ![alt](destination) on its own line. A local file in or below

@@ -251,7 +251,7 @@ public static class DocumentImages
         _ => "image/png",
     };
 
-    private static bool NeedsAngleBrackets(string value)
+    internal static bool NeedsAngleBrackets(string value)
     {
         if (value.Any(char.IsWhiteSpace)) return true;
         var depth = 0;

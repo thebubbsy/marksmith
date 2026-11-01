@@ -781,9 +781,9 @@
                                             </Grid.ColumnDefinitions>
                                             <TextBox x:Name="ReplaceTextBox" Grid.Column="0" PlaceholderText="Replace with…"
                                                      AutomationProperties.Name="Replace with"
-                                                     AutomationProperties.HelpText="Enter: replace this match and go to the next · Ctrl+Alt+Enter: replace all · Shift+Tab: back to Find · Esc: close"
+                                                     AutomationProperties.HelpText="Enter: replace this match and go to the next · Up and Down: earlier replacements · Ctrl+Alt+Enter: replace all · Shift+Tab: back to Find · Esc: close"
                                                      Height="30" FontSize="13" KeyDown="OnReplaceTextBoxKeyDown"
-                                                     ToolTipService.ToolTip="Replacement text · Enter replaces this match, Ctrl+Alt+Enter replaces all · Right-click or Shift+F10 for options" />
+                                                     ToolTipService.ToolTip="Replacement text · Enter replaces this match, Ctrl+Alt+Enter replaces all · Up and Down recall earlier replacements · Right-click or Shift+F10 for options" />
                                             <StackPanel x:Name="ReplaceActionsCluster" Grid.Column="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
                                                         XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
                                                         AutomationProperties.Name="Replace actions">

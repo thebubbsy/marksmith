@@ -130,6 +130,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private readonly List<string> _findHistory = new();
     private int _findHistoryIndex = -1;
     private string _findDraft = "";
+    // Up/Down in the Replace box recall earlier replacements, the same way Find recalls queries.
+    private readonly MarkSmith.Services.RecallHistory _replaceHistory = new();
     private string? _regexErrorMessage;
     private bool _lastFindWrapped;
     private int _findMatchIndex = -1;
@@ -8888,6 +8890,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var replaceAllItem = new MenuFlyoutItem
         {
             Text = "Replace all matches",
+            KeyboardAcceleratorTextOverride = "Ctrl+Alt+Enter",
             Icon = new FontIcon { Glyph = "\uE8C8" },
             IsEnabled = _findMatches.Count > 0
         };
@@ -8923,6 +8926,34 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             ReplaceTextBox.Focus(FocusState.Programmatic);
         };
         menu.Items.Add(clearItem);
+
+        // The same list Up and Down step through, for a mouse user.
+        if (_replaceHistory.Items.Count > 0)
+        {
+            menu.Items.Add(new MenuFlyoutSeparator());
+            var historySub = new MenuFlyoutSubItem
+            {
+                Text = "Recent replacements",
+                Icon = new FontIcon { Glyph = "\uE81C" }
+            };
+            foreach (var entry in _replaceHistory.Items)
+            {
+                var captured = entry;
+                var entryItem = new MenuFlyoutItem
+                {
+                    Text = MarkSmith.Services.RecallHistory.Label(captured),
+                    Icon = new FontIcon { Glyph = "\uE8AB" }
+                };
+                entryItem.Click += (_, _) =>
+                {
+                    ReplaceTextBox.Text = captured;
+                    ReplaceTextBox.Focus(FocusState.Keyboard);
+                    ReplaceTextBox.SelectionStart = captured.Length;
+                };
+                historySub.Items.Add(entryItem);
+            }
+            menu.Items.Add(historySub);
+        }
 
         menu.Items.Add(new MenuFlyoutSeparator());
 
@@ -9950,6 +9981,19 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             OnReplaceClick(sender, new RoutedEventArgs());
             e.Handled = true;
         }
+        else if ((e.Key == Windows.System.VirtualKey.Up || e.Key == Windows.System.VirtualKey.Down) && !AltDown() && !CtrlDown() && !ShiftDown())
+        {
+            // Nothing recorded yet (or Down with nothing recalled): the key keeps its usual job.
+            var recalled = e.Key == Windows.System.VirtualKey.Up
+                ? _replaceHistory.Older(ReplaceTextBox.Text)
+                : _replaceHistory.Newer();
+            if (recalled is not null)
+            {
+                ReplaceTextBox.Text = recalled;
+                ReplaceTextBox.SelectionStart = recalled.Length;
+                e.Handled = true;
+            }
+        }
         else if (e.Key == Windows.System.VirtualKey.C && AltDown() && !CtrlDown())
         {
             MatchCaseCheck.IsChecked = !(MatchCaseCheck.IsChecked == true);
@@ -9975,6 +10019,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var query = FindTextBox?.Text ?? string.Empty;
         if (query.Length == 0) { AskForFindText(); return; }
         var replacement = ReplaceTextBox?.Text ?? string.Empty;
+        _replaceHistory.Record(replacement);
         var text = PasteTextBox.Text ?? string.Empty;
         var cmp = FindComparison;
         var wholeWord = MatchWholeWordCheck?.IsChecked == true;
@@ -10065,6 +10110,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var query = FindTextBox?.Text ?? string.Empty;
         if (query.Length == 0) { AskForFindText(); return; }
         var replacement = ReplaceTextBox?.Text ?? string.Empty;
+        _replaceHistory.Record(replacement);
         var wholeWord = MatchWholeWordCheck?.IsChecked == true;
         var useRegex = UseRegexCheck?.IsChecked == true;
         var (newText, count, caret) = MarkSmith.Services.TextSearch.ReplaceAll(
@@ -17003,13 +17049,38 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             return;
         }
 
-        var control = new Views.LinkInsertControl();
+        // The selection opens in the dialog: words as the link text, an address as the URL. (The
+        // portal edits its own caret, so the main editor's selection doesn't apply there.)
+        var tb = PasteTextBox;
+        var (initialText, initialUrl) = _portalOpen || tb is null
+            ? ("", "")
+            : Services.InsertSnippetBuilder.LinkPrefill(tb.SelectedText);
+        var control = new Views.LinkInsertControl(initialText, initialUrl);
         if (await ShowInsertDialogAsync("Insert link", control) != ContentDialogResult.Primary) return;
-        var url = string.IsNullOrWhiteSpace(control.Url) ? "url" : control.Url.Trim();
+        var url = Services.InsertSnippetBuilder.LinkDestination(control.Url) is { Length: > 0 } dest ? dest : "url";
         if (string.IsNullOrWhiteSpace(control.Text))
+        {
             InsertMarkdown("[", $"]({url})"); // empty text: caret lands between the brackets
-        else
-            InsertMarkdown(Services.InsertSnippetBuilder.Link(control.Text, url));
+            return;
+        }
+        var link = Services.InsertSnippetBuilder.Link(control.Text, control.Url);
+        if (!_portalOpen && tb is not null && tb.SelectionLength > 0)
+        {
+            // The link replaces the selected words. InsertMarkdown treats a one-part snippet as a
+            // prefix and kept the selection after it ("[Read the docs](url)docs"). Spaces the
+            // selection started or ended with stay outside the link.
+            var selected = tb.SelectedText ?? "";
+            var lead = selected[..(selected.Length - selected.TrimStart().Length)];
+            var trail = selected[selected.TrimEnd().Length..];
+            if (lead.Length == selected.Length) trail = "";
+            var start = tb.SelectionStart;
+            tb.SelectedText = lead + link + trail;
+            tb.SelectionStart = start + lead.Length + link.Length;
+            tb.SelectionLength = 0;
+            tb.Focus(FocusState.Programmatic);
+            return;
+        }
+        InsertMarkdown(link);
     }
 
     // Shared shell for every Insert-menu modal: builds the ContentDialog, resolves a guaranteed

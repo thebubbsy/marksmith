@@ -656,12 +656,14 @@ public sealed class LinkInsertControl : InsertDialogBody
     private readonly TextBox _text;
     private readonly TextBox _url;
 
-    public LinkInsertControl(string initialText = "")
+    /// <param name="initialText">The editor's selection, so the dialog shows the words it will link.</param>
+    /// <param name="initialUrl">A selection that is itself a link goes here instead.</param>
+    public LinkInsertControl(string initialText = "", string initialUrl = "")
         : base("A clickable link. Leave the text empty to type it in the document instead.")
     {
         _text = new TextBox { Header = "Link text", PlaceholderText = "Read the docs", Text = initialText };
         ToolTipService.SetToolTip(_text, "The text displayed in the document (optional)");
-        _url = new TextBox { Header = "URL", PlaceholderText = "https://example.com", IsSpellCheckEnabled = false, InputScope = UrlScope() };
+        _url = new TextBox { Header = "URL", PlaceholderText = "https://example.com", IsSpellCheckEnabled = false, InputScope = UrlScope(), Text = initialUrl };
         TextBoxEndScroll.Attach(_url);
         ToolTipService.SetToolTip(_url, "Target URL or heading reference (e.g. https://example.com or #heading)");
         _text.TextChanged += (_, _) => Refresh();
@@ -671,7 +673,8 @@ public sealed class LinkInsertControl : InsertDialogBody
     }
 
     public string Text => _text.Text;
-    public string Url => _url.Text;
+    // A pasted <https://…> or "https://…" is unwrapped, the same as the Video dialog.
+    public string Url => Snippets.UnwrapPasted(_url.Text);
     public override string Snippet => Snippets.Link(string.IsNullOrWhiteSpace(Text) ? "" : Text, Url);
 
     // Relative links (#heading, ./other.md) are legitimate; only a scheme-less web address
@@ -680,7 +683,7 @@ public sealed class LinkInsertControl : InsertDialogBody
     {
         get
         {
-            var url = Url.Trim();
+            var url = Url;
             if (url.Length == 0 || url.Contains("://") || url.StartsWith('#') || url.StartsWith('.') || url.StartsWith('/') || url.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase))
                 return null;
             return url.Contains('.') && !url.Contains(' ') && !url.EndsWith(".md", StringComparison.OrdinalIgnoreCase)
@@ -810,14 +813,8 @@ public sealed class EmbedInsertControl : InsertDialogBody
     }
 
     public string Provider => Providers[Math.Max(0, _provider.SelectedIndex)];
-    // A link copied from Markdown or a shell often comes as <https://…> or "https://…". Only a
-    // matching pair is removed: a link can end in a quote of its own (…?t="a").
-    public string Url => Unwrap(_url.Text.Trim());
-
-    private static string Unwrap(string s) =>
-        s.Length >= 2 && ((s[0] == '<' && s[^1] == '>') || (s[0] == '"' && s[^1] == '"') || (s[0] == '\'' && s[^1] == '\''))
-            ? s[1..^1].Trim()
-            : s;
+    // A link copied from Markdown or a shell often comes as <https://…> or "https://…".
+    public string Url => Snippets.UnwrapPasted(_url.Text);
     // No link yet: the card says "Nothing yet". The builder's EXAMPLE_ID fallback made the card
     // (and its Copy button) offer a block that Insert, disabled until a link is pasted, never adds.
     public override string Snippet => Url.Length == 0 ? "" : Snippets.Embed(Provider, Url);
