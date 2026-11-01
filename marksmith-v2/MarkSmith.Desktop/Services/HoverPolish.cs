@@ -235,6 +235,7 @@ public static class HoverPolish
                 return;
             }
             EnsureAccessibleName(button);
+            GiveTemplatePartTip(button);
             AttachTo(button);
         }
         else if (root is NumberBox nb)
@@ -290,6 +291,55 @@ public static class HoverPolish
         {
             Apply(VisualTreeHelper.GetChild(root, i));
         }
+    }
+
+    // Template buttons that never carry a useful tooltip of their own: an Expander's header (named
+    // only by its title, so "Branding" said nothing about what opening it shows) borrows the
+    // Expander's help text; an InfoBar's close button (whose own tip only repeats "Close") says what
+    // pressing it does; and a ContentDialog's Close/Cancel button names Esc, which does the same.
+    // Set before ToolTipHelp.Sync runs, so the tip becomes help text too.
+    private static void GiveTemplatePartTip(ButtonBase button)
+    {
+        if (button.Name is not ("ExpanderHeader" or "CloseButton")) return;
+        var current = ToolTipService.GetToolTip(button);
+        if (!TemplatePartTipRule.CanReplace(current is not null, ToolTipHelp.TipText(current), AutomationProperties.GetName(button)))
+            return;
+        var owner = button.Name == "ExpanderHeader"
+            ? NearestAncestor<Control>(button, c => c is Expander)
+            : NearestAncestor<Control>(button, c => c is InfoBar or ContentDialog);
+        var kind = owner switch { Expander => "Expander", InfoBar => "InfoBar", ContentDialog => "ContentDialog", _ => null };
+        var tip = TemplatePartTipRule.For(button.Name, kind,
+            owner is null ? null : AutomationProperties.GetHelpText(owner), button.Content as string);
+        if (tip is not null) ToolTipService.SetToolTip(button, tip);
+    }
+
+    /// <summary>Gives one of a dialog's own buttons ("PrimaryButton", "SecondaryButton") a tooltip,
+    /// unless it has one already. Call from <c>Opened</c>, once the template exists.</summary>
+    public static void SetDialogButtonTip(ContentDialog dialog, string partName, string tip)
+    {
+        if (FindNamed(dialog, partName) is ButtonBase { } part && ToolTipService.GetToolTip(part) is null)
+            ToolTipService.SetToolTip(part, tip);
+    }
+
+    private static FrameworkElement? FindNamed(DependencyObject root, string name)
+    {
+        var count = VisualTreeHelper.GetChildrenCount(root);
+        for (var i = 0; i < count; i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is FrameworkElement { } fe && fe.Name == name) return fe;
+            if (FindNamed(child, name) is { } found) return found;
+        }
+        return null;
+    }
+
+    private static T? NearestAncestor<T>(DependencyObject element, Func<T, bool>? match = null) where T : DependencyObject
+    {
+        for (var cur = VisualTreeHelper.GetParent(element); cur is not null; cur = VisualTreeHelper.GetParent(cur))
+        {
+            if (cur is T found && (match is null || match(found))) return found;
+        }
+        return null;
     }
 
     private static bool IsInsideNumberBox(DependencyObject element)

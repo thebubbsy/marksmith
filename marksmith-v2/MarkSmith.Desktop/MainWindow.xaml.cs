@@ -16995,6 +16995,12 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                     dialog.Hide();
                 };
                 dialog.Opened += (_, _) => body.FocusFirstField();
+                // Ctrl+Enter inserts from any field (the body's OnBodyKeyDown), but only the
+                // boxes' help text said so; the button that does the same now names its key too.
+                // Before ShowPolishedAsync's own Opened handler, so the tip also becomes help text.
+                if (primaryButtonText is not null)
+                    dialog.Opened += (_, _) => MarkSmith.Services.HoverPolish.SetDialogButtonTip(
+                        dialog, "PrimaryButton", $"{dialog.PrimaryButtonText} (Ctrl+Enter)");
             }
             var result = await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog);
             return primaryCommitted ? ContentDialogResult.Primary : result;

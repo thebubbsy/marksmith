@@ -383,7 +383,7 @@
                         </StackPanel>
 
                         <!-- Automated ingest: clipboard watcher, watched folder, local REST API -->
-                        <Expander x:Name="AutomationExpander" Grid.Row="1" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                        <Expander x:Name="AutomationExpander" AutomationProperties.HelpText="Clipboard watcher, watched folder, batch convert, the local REST API and the tray" Grid.Row="1" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                             <Expander.Header>
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <FontIcon Glyph="&#xE945;" FontSize="14" />
@@ -1569,7 +1569,7 @@
                                                 <StackPanel Padding="14" Spacing="12">
 
                             <!-- ══════════ APPEARANCE ══════════ -->
-                                <Expander x:Name="StyleAppearanceExpander" Tag="Appearance" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                                <Expander x:Name="StyleAppearanceExpander" AutomationProperties.HelpText="Preset, theme and light theme influence" Tag="Appearance" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                                     <Expander.Header>
                                         <StackPanel Orientation="Horizontal" Spacing="8">
                                             <FontIcon Glyph="&#xE790;" FontSize="14" />
@@ -1626,6 +1626,7 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <ComboBox Grid.Column="0" Header="Theme" ItemsSource="{Binding ThemeNames}"
+                                          ToolTipService.ToolTip="Colours and fonts of the preview and every export · Alt+Down lists the themes, type a letter to jump"
                                           SelectedItem="{Binding SelectedThemeName, Mode=TwoWay}"
                                           HorizontalAlignment="Stretch">
                                     <ComboBox.ItemTemplate>
@@ -1667,7 +1668,7 @@
                                 </Expander>
 
                             <!-- ══════════ LAYOUT & PDF ══════════ -->
-                                <Expander x:Name="StyleLayoutExpander" Tag="Layout" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                                <Expander x:Name="StyleLayoutExpander" AutomationProperties.HelpText="A4 lock, page width, single continuous page and table of contents" Tag="Layout" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                                     <Expander.Header>
                                         <StackPanel Orientation="Horizontal" Spacing="8">
                                             <FontIcon Glyph="&#xE8A1;" FontSize="14" />
@@ -1700,7 +1701,7 @@
                                 </Expander>
 
                             <!-- ══════════ WORD EXPORT ══════════ -->
-                                <Expander x:Name="StyleWordExpander" Tag="Word" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                                <Expander x:Name="StyleWordExpander" AutomationProperties.HelpText="Page border, track changes, editable diagram shapes, connectors and arrowheads" Tag="Word" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                                     <Expander.Header>
                                         <StackPanel Orientation="Horizontal" Spacing="8">
                                             <FontIcon Glyph="&#xE8A5;" FontSize="14" />
@@ -1762,7 +1763,7 @@
                                 </Expander>
 
                             <!-- ══════════ EMAIL (free on every plan) ══════════ -->
-                                <Expander x:Name="StyleEmailExpander" Tag="Email" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                                <Expander x:Name="StyleEmailExpander" AutomationProperties.HelpText="To, Cc, subject, PDF and Word attachments, draft format and saved drafts" Tag="Email" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                                     <Expander.Header>
                                         <StackPanel Orientation="Horizontal" Spacing="8">
                                             <FontIcon Glyph="&#xE724;" FontSize="14" />
@@ -1847,7 +1848,7 @@
                                 </Expander>
 
                             <!-- ══════════ DIAGRAMS ══════════ -->
-                                <Expander x:Name="StyleDiagramsExpander" Tag="Diagrams" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                                <Expander x:Name="StyleDiagramsExpander" AutomationProperties.HelpText="Whether Mermaid code blocks are drawn as diagrams in the preview and every export" Tag="Diagrams" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                                     <Expander.Header>
                                         <StackPanel Orientation="Horizontal" Spacing="8">
                                             <FontIcon Glyph="&#xF003;" FontSize="14" />
@@ -1880,7 +1881,7 @@
                                 </Expander>
 
                             <!-- ══════════ CONTENT & CLEANUP ══════════ -->
-                                <Expander x:Name="StyleContentExpander" Tag="Content" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                                <Expander x:Name="StyleContentExpander" AutomationProperties.HelpText="AI formatting fixes, custom cleanup rules and source attribution" Tag="Content" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                                     <Expander.Header>
                                         <StackPanel Orientation="Horizontal" Spacing="8">
                                             <FontIcon Glyph="&#xEA99;" FontSize="14" />
@@ -1986,7 +1987,7 @@
                                 </Expander>
 
                             <!-- ══════════ FORMATTING & TEXT ══════════ -->
-                                <Expander x:Name="StyleFormattingExpander" Tag="Formatting" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                                <Expander x:Name="StyleFormattingExpander" AutomationProperties.HelpText="Emoji, em dashes, heading level shift, bold and italic text" Tag="Formatting" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                                     <Expander.Header>
                                         <StackPanel Orientation="Horizontal" Spacing="8">
                                             <FontIcon Glyph="&#xE8D2;" FontSize="14" />
@@ -2046,7 +2047,7 @@
                                 </Expander>
 
                             <!-- ══════════ BRANDING (PRO) ══════════ -->
-                                <Expander x:Name="ExportBrandingExpander" Tag="Branding" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                                <Expander x:Name="ExportBrandingExpander" AutomationProperties.HelpText="Cover page, company logo, document font and author" Tag="Branding" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                                 <Expander.Header>
                                     <StackPanel Orientation="Horizontal" Spacing="8">
                                         <FontIcon Glyph="&#xE8D4;" FontSize="14" />
@@ -2134,7 +2135,7 @@
                                 AutomationProperties.Name="Output folder actions">
                         <Button x:Name="BrowseFolderButton" VerticalAlignment="Stretch" Click="OnBrowseFolderClick"
                                 AutomationProperties.Name="Choose output folder"
-                                ToolTipService.ToolTip="Choose output folder">
+                                ToolTipService.ToolTip="Choose the folder exports are saved to (empty: next to the input file)">
                             <FontIcon Glyph="&#xE8B7;" FontSize="14" />
                         </Button>
 
