@@ -23056,3 +23056,100 @@ studio, 4 help-text fixes naming keys on those boxes and on the main window's th
 **Release (same run):** tagged **v3.99.0** on `6d03c863`. Release workflow run 41276341462 succeeded and published 5
 assets; user-facing notes for run #321 were put above the generated body. `MarksmithBaseVersion` was then
 bumped to 3.100.0.
+
+## 2026-11-01 · Run #322 (≈17:00–18:10 AEDT) · Claude Code
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running the scheduled routine in the Claude desktop app
+- Modes: Scheduled Hourly Automation Routine
+- Trigger: Scheduled hourly routine run
+- Agents Used: 1 (Orchestrator, who also did the coding and the skeptical review). No sub-agents, no conversation IDs.
+
+Picked up #321's "Next up" item 2 (type-ahead on the recent-files box) and audited the command palette and
+the keyboard shortcuts sheet, which no run had touched in a long while.
+
+**User-visible improvements and fixes**
+1. **Step 1, Recent & found .md files: typing a letter no longer opens a file.** WinUI's own type-ahead
+   selects the matching row, and selecting opens it, whether the list is closed *or open* (live check:
+   "b" on the closed box opened beta.md; Down then "g" in the open list opened gamma.md). Letters and digits
+   now open the list and move only the highlight; Enter opens the file, Esc cancels. Typing the same letter
+   again steps through the rows that start with it; a quick "be" goes to the first row starting with "be".
+2. **Step 1, AI agent folder presets: the same fix** (typing used to overwrite the watch folder).
+3. **Command palette: a search with no hits says "No matches" in the footer and is read out.** The count
+   line went blank, so a screen reader heard nothing at all; it now announces which query found nothing.
+4. **Command palette: Ctrl+Delete deletes the next word again** while there is text after the caret. It was
+   taken over to remove the selected command from Recently used whenever that command was a recent one.
+5. **Command palette: "Paste into search" works like Ctrl+V.** The three menus that offer it (search box,
+   clear button, "Show all commands") replaced the whole query with the clipboard, line breaks and all, and
+   the button menus left focus on a button that isn't a tab stop, so typing went nowhere. Now one tidied line
+   goes in at the caret, focus returns to the box, and an empty clipboard says "Nothing to paste".
+6. **Command palette: the search box names all its keys** (help text: arrows, Page Up/Down, Ctrl+Home/End,
+   Enter, Ctrl+C, Ctrl+Delete, Esc, Shift+F10), and its tooltip mentions Ctrl+C.
+7. **Command palette footer names Shift+F10 for options** instead of "Apps", a key most keyboards label
+   with an icon or don't have.
+8. **Keyboard shortcuts sheet (F1): copying shows its result inside the dialog.** "Copy all" and a row's
+   "Copy shortcut" wrote only to the main status bar, hidden behind the dialog's veil, so the button looked
+   dead. A status line under the list now says "Copied 30 shortcuts to the clipboard as Markdown." and is
+   read out; the status bar still gets it too.
+
+**Implementation Summary**
+- `Services/ComboArrowOpens.cs`: `Attach(combo, typeAheadText)` takes the text a row is known by. Letters and
+  digits without Ctrl/Alt/Win are handled: on a closed box they open the list and, after `DropDownOpened`,
+  focus the matching row; in the open list the same happens through a `PreviewKeyDown` hooked once on the
+  combo's template `Popup` child (keys in the open list never reach the combo's own `PreviewKeyDown`).
+  The highlight is keyboard focus on a `ComboBoxItem`; nothing sets `SelectedIndex`, so nothing commits until
+  Enter. Arrow behaviour from #321 is unchanged. OCR reclassify boxes don't take type-ahead (digits 1–8 are
+  their shortcuts).
+- New Core `Services/TypeAheadSearch.cs` (`Extend` with a 1 s pause, `Find` with same-letter cycling, wrap,
+  case-insensitive) and `CommandSearch.PasteQuery` (first non-blank line, whitespace folded, 80 chars max).
+- `Controls/CommandPalette.xaml(.cs)`: `FormatCountText` returns "No matches"; `Refresh` names `CountText` with
+  the no-match title (the tracked live region); `NothingAfterCaret()` gates Ctrl+Delete; one
+  `PasteIntoSearchAsync` replaces three copy-pasted clipboard bodies and checks `_closing` after its await;
+  search box help text and footer key cap.
+- `MainWindow.xaml(.cs)`: both Step 1 boxes attach with their item names; their help text says typing opens
+  the list. `ShowShortcutsCheatsheetAsync` gained a `copyStatus` line under the sheet (`ShowCopyStatus`, named
+  and raised via `LiveAnnounce.Raise`).
+- Tests: new `Run322PaletteAndShortcutSheetTests` (30 cases: `PasteQuery`, `TypeAheadSearch`, the palette's
+  key/paste/no-match contracts, the sheet's in-dialog status, the type-ahead hook and attach sites). Updated
+  `Run321ComboArrowKeysTests` (new attach signature) and `Run276…ShortcutsSheet_IsAFocusedNamedTabStop` (the
+  sheet now sits in a StackPanel with the status line).
+- Skeptical review: no control that can hold focus is collapsed or disabled (the copy status line is never
+  focusable; Clear stays a non-tab-stop and every path returns focus to the search box). Letters are only
+  taken inside the two non-editable combo boxes and their open lists; Ctrl/Alt chords, Space, Enter, Esc and
+  arrows-in-the-open-list keep their stock behaviour; Ctrl+Delete goes back to the TextBox when it has
+  something to delete. The paste helper's await is guarded against a palette that closed meanwhile. Brushes
+  come from `ThemeBrush.Get`; no new file access.
+- Build: `MarkSmith.Desktop` Debug x64 to `%TEMP%\ms_run322\b\`, 0 errors. Tests: Run2* + Run3* + MainWindow* +
+  Shortcut* + CommandPalette* + SuiteAndTour* + SuiteHubAndTour* + CommandSearch* + Ocr* passed 2272, 0 failed
+  (an earlier pass caught the Run276 contract above before it was updated).
+- Live UIA (PID-tracked scratch instances, last one 12376, `MARKSMITH_CONFIG_DIR=%TEMP%\ms_run322\cfg` with
+  three pinned scratch files; all stopped). Keys were posted to the scratch window's own `InputSiteWindowClass`
+  hwnd; the session's foreground belonged to another process, so no SendKeys.
+  - Before the second fix: "b" on the closed box opened beta.md; Down then "g" opened gamma.md (editor text
+    read through ValuePattern). Up inside the open list did not commit, which is why arrows were already fine.
+  - After: "b" on the closed box expanded it with the editor still empty; "g" in the open list left the
+    editor empty; Enter then opened gamma.md. "a" then Esc kept gamma.md; "a" then Enter opened alpha.md.
+  - Palette (opened from the title bar search button, query set via ValuePattern): `CountText` named
+    "Nothing matches “zzqxy”", search box help text read back in full, footer shows Shift+F10. PrintWindow
+    `pal322.png`: footer fits at 600 px.
+  - F1 sheet: invoking "Copy all" showed "Copied 30 shortcuts to the clipboard as Markdown." inside the
+    dialog (`sheet322.png`), dialog stayed open. The clipboard was empty before and was cleared after.
+  - Not reached live: Ctrl+Delete and the paste menus (posted keys carry no Ctrl state, and the menus need a
+    right-click). Source- and unit-tested.
+
+**Noticed, not fixed**
+- The sheet's count says 30 shortcuts while the sheet shows more rows (alternate chords?). Check what
+  `Shortcuts.Sheet()` counts versus what `SheetText()` copies.
+- Type-ahead only highlights rows the open list has realized; a long recent-files list (dozens of files)
+  could have an off-screen match that isn't reached.
+
+**Next up (Run #323)**
+1. The shortcut-count mismatch above.
+2. Live-check the OCR reclassify boxes (load a scratch PNG) and the SmartArt palette flyout (open since #320).
+3. Find a key-free way to select a Diagram Studio connector (open since #318).
+4. Other combos that act on selection inside studios (Shape / SmartArt / Mermaid): audit for the same
+   type-ahead commit.
+
+**Total user-visible improvements: 8** (2 type-ahead fixes on Step 1's action boxes, 5 command palette fixes
+covering no-match announcement, Ctrl+Delete, paste, help text and the footer key, 1 shortcuts sheet feedback fix).
