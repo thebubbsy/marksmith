@@ -35,7 +35,9 @@ public sealed class SmartArtInsertControl : InsertDialogBody
     private readonly TextBlock _indentHint;
     private SmartArt.Layout _layout = SmartArt.Find(SmartArt.DefaultAlias)!;
 
-    public SmartArtInsertControl()
+    /// <param name="initialOutline">Lines the outline opens with (the selected list, see
+    /// SelectionPrefill.OutlineLines) instead of the first example's, or null.</param>
+    public SmartArtInsertControl(string? initialOutline = null)
         : base("A diagram drawn from an outline. The preview draws it live, and Word export makes it real, editable SmartArt.")
     {
         // ---- Layout gallery ------------------------------------------------------------------
@@ -177,6 +179,11 @@ public sealed class SmartArtInsertControl : InsertDialogBody
         AddField(new StackPanel { Spacing = 6, Children = { outlineHeader, _box, indentRow, _advice } });
 
         ApplyExample(SmartArt.Examples[0]);
+        if (!string.IsNullOrWhiteSpace(initialOutline))
+        {
+            _box.Text = initialOutline;
+            Update();
+        }
     }
 
     /// <summary>The outline box's keys, after its item count in the help text.</summary>

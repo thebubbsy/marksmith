@@ -39,6 +39,35 @@ public static class InsertSnippetBuilder
         return sb.ToString();
     }
 
+    /// <summary>A table holding <paramref name="cells"/> (rows of cells, the header row first when
+    /// there is one) instead of placeholders, cut or padded with empty cells to
+    /// <paramref name="rows"/> × <paramref name="cols"/>. A '|' in a cell is escaped so it can't split it.</summary>
+    public static string Table(int rows, int cols, bool includeHeaderRow, IReadOnlyList<IReadOnlyList<string>> cells)
+    {
+        rows = Math.Clamp(rows, 1, 50);
+        cols = Math.Clamp(cols, 1, 20);
+        var sb = new StringBuilder("\n");
+        var next = 0;
+        void Row()
+        {
+            var row = next < cells.Count ? cells[next] : Array.Empty<string>();
+            next++;
+            sb.Append('|');
+            for (var c = 0; c < cols; c++)
+            {
+                var cell = c < row.Count ? System.Text.RegularExpressions.Regex.Replace(row[c] ?? "", @"(?<!\\)\|", @"\|") : "";
+                sb.Append(' ').Append(cell).Append(" |");
+            }
+            sb.Append('\n');
+        }
+        if (includeHeaderRow) Row();
+        sb.Append('|');
+        for (var c = 0; c < cols; c++) sb.Append(" --- |");
+        sb.Append('\n');
+        for (var r = 0; r < rows; r++) Row();
+        return sb.ToString();
+    }
+
     /// <summary>
     /// [text](destination). An empty URL falls back to the literal "url" placeholder. Brackets in
     /// the text are escaped (an unmatched "]" ended the link early) and the destination goes

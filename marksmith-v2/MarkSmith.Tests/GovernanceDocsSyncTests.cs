@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -132,6 +133,8 @@ public class GovernanceDocsSyncTests
                 if (p.ParameterType == typeof(int)) return (object)-100;
                 if (p.ParameterType == typeof(string)) return (object)"";
                 if (p.ParameterType == typeof(bool)) return (object)false;
+                // Rows of cells (the Table overload that takes selected rows) can't take a string[].
+                if (p.ParameterType == typeof(IReadOnlyList<IReadOnlyList<string>>)) return Array.Empty<IReadOnlyList<string>>();
                 if (typeof(System.Collections.IEnumerable).IsAssignableFrom(p.ParameterType)) return Array.Empty<string>();
                 return p.DefaultValue ?? (object)1;
             }).ToArray();

@@ -44,7 +44,9 @@ public sealed class ImageInsertControl : InsertDialogBody
 
     /// <param name="documentFolder">Folder of the open file (images in it are written relative to
     /// it), or null for pasted text.</param>
-    public ImageInsertControl(string? documentFolder)
+    /// <param name="initialSource">A path or web address the dialog opens with (the selection), or "".</param>
+    /// <param name="initialAlt">Alt text the dialog opens with (selected words), or "".</param>
+    public ImageInsertControl(string? documentFolder, string initialSource = "", string initialAlt = "")
         : base(documentFolder is null
             ? "A picture from this PC or the web. Pasted text has no folder of its own, so a file is linked by its full path."
             : "A picture from this PC or the web. Files in the document's folder are linked relative to it, so they move together.")
@@ -146,6 +148,10 @@ public sealed class ImageInsertControl : InsertDialogBody
         TextBoxMenu.Attach(_alt, FillAltMenu);
 
         AddHandler(KeyDownEvent, new KeyEventHandler(OnImageControlKeyDown), true);
+
+        // Alt first: a source set alongside it then sees words the person chose and keeps them.
+        if (initialAlt.Length > 0) _alt.Text = initialAlt;
+        if (initialSource.Length > 0) _source.Text = initialSource;
     }
 
     private async System.Threading.Tasks.Task PasteSourceFromClipboardAsync()

@@ -16970,9 +16970,14 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             return;
         }
 
-        var control = new Views.SmartArtInsertControl();
+        // Selected lines open as the outline, nesting kept, and Insert replaces them.
+        var source = SelectedLinesForInsert();
+        var outline = PrefillOr(source, Services.SelectionPrefill.OutlineLines, "");
+        if (outline.Length == 0) source = null;
+        var control = new Views.SmartArtInsertControl(outline.Length == 0 ? null : outline);
+        NoteSelectionSource(control, source);
         if (await ShowInsertDialogAsync("Insert SmartArt", control) != ContentDialogResult.Primary) return;
-        InsertBlock(control.GeneratedSnippet);
+        InsertBlockFrom(source, control.GeneratedSnippet, "SmartArt");
     }
 
     private async void OnInsertTabsClick(object sender, RoutedEventArgs e)
@@ -17220,9 +17225,17 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
 
         // Default experience: drop, browse or paste a path/address, check the thumbnail and alt
         // text, then Insert — the same footer as every other insert dialog.
-        var control = new Views.ImageInsertControl(ViewModel.DocumentFolder);
+        // A selected path or web address opens as the source, other selected words as the alt
+        // text. A whole selected line is replaced by the picture; words inside a paragraph stay.
+        var source = SelectedLinesForInsert();
+        var (initialSource, initialAlt) = _portalOpen || PasteTextBox is null
+            ? ("", "")
+            : Services.SelectionPrefill.ImagePrefill(PasteTextBox.SelectedText);
+        if (initialSource.Length == 0 && initialAlt.Length == 0) source = null;
+        var control = new Views.ImageInsertControl(ViewModel.DocumentFolder, initialSource, initialAlt);
+        NoteSelectionSource(control, source);
         if (await ShowInsertDialogAsync("Insert image", control) != ContentDialogResult.Primary) return;
-        InsertBlock(control.Snippet);
+        InsertBlockFrom(source, control.Snippet, "a picture");
     }
 
     private async void OnTableClick(object sender, RoutedEventArgs e)
@@ -17233,8 +17246,18 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             return;
         }
 
-        var control = new Views.TableInsertControl();
+        // Selected comma, tab or pipe rows open as the table's cells, and Insert replaces them.
+        var source = SelectedLinesForInsert();
+        var cells = source is { } s ? Services.SelectionPrefill.TableCells(s.Text) : null;
+        if (cells is null) source = null;
+        var control = new Views.TableInsertControl(cells);
+        NoteSelectionSource(control, source);
         if (await ShowInsertDialogAsync("Insert table", control) != ContentDialogResult.Primary) return;
+        if (cells is not null)
+        {
+            InsertBlockFrom(source, control.Snippet, "a table");
+            return;
+        }
         // The first cell comes selected, so typing fills the table instead of starting after it.
         InsertBlock(control.Snippet, select: control.Snippet.Contains("Header 1") ? "Header 1" : "Value 1");
     }
@@ -17247,9 +17270,14 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             return;
         }
 
-        var control = new Views.EmbedInsertControl();
+        // A selected link opens as the video's address; a whole selected line is replaced by the card.
+        var source = SelectedLinesForInsert();
+        var initialUrl = _portalOpen || PasteTextBox is null ? "" : Services.SelectionPrefill.VideoPrefill(PasteTextBox.SelectedText);
+        if (initialUrl.Length == 0) source = null;
+        var control = new Views.EmbedInsertControl(initialUrl);
+        NoteSelectionSource(control, source);
         if (await ShowInsertDialogAsync("Insert video embed", control) != ContentDialogResult.Primary) return;
-        InsertBlock(control.Snippet);
+        InsertBlockFrom(source, control.Snippet, "a video card");
     }
 
     private async void OnInsertChartClick(object sender, RoutedEventArgs e)

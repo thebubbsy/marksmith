@@ -647,19 +647,35 @@ public sealed class TableInsertControl : InsertDialogBody
     private readonly NumberBox _rows;
     private readonly NumberBox _cols;
     private readonly CheckBox _header;
+    private readonly IReadOnlyList<IReadOnlyList<string>>? _cells;
 
-    public TableInsertControl()
-        : base("A Markdown table with placeholder cells. The first cell comes selected, so you can type straight over it.")
+    /// <param name="cells">Rows read from the selected lines (SelectionPrefill.TableCells), first row
+    /// as the header, or null for a table of placeholders.</param>
+    public TableInsertControl(IReadOnlyList<IReadOnlyList<string>>? cells = null)
+        : base(cells is { Count: > 0 }
+            ? "A Markdown table of the selected rows, the first one as its header. Fewer rows or columns cut it; more add empty cells."
+            : "A Markdown table with placeholder cells. The first cell comes selected, so you can type straight over it.")
     {
-        _rows = MakeNumberBox("Body rows", 2, 1, 50);
+        _cells = cells is { Count: > 0 } ? cells : null;
+        // Sized to the selected rows, so nothing they hold is cut off.
+        _rows = MakeNumberBox("Body rows", _cells is null ? 2 : Math.Clamp(_cells.Count - 1, 1, 50), 1, 50);
         ToolTipService.SetToolTip(_rows, "Number of body rows (1–50)");
-        _cols = MakeNumberBox("Columns", 2, 1, 20);
+        _cols = MakeNumberBox("Columns", _cells is null ? 2 : Math.Clamp(_cells.Max(r => r.Count), 1, 20), 1, 20);
         ToolTipService.SetToolTip(_cols, "Number of columns (1–20)");
         _header = new CheckBox { Content = "Include header row", IsChecked = true };
-        ToolTipService.SetToolTip(_header, "Generate a header row separated from body cells");
+        ToolTipService.SetToolTip(_header, _cells is null
+            ? "Generate a header row separated from body cells"
+            : "The first selected row is the header · Clear it to make that row a body row");
         RefreshOnEdit(_rows);
         RefreshOnEdit(_cols);
-        _header.Click += (_, _) => Refresh();
+        _header.Click += (_, _) =>
+        {
+            // With selected rows, the header row moves into the body (or back), so the body grows
+            // or shrinks by one and the last row isn't dropped.
+            if (_cells is not null)
+                _rows.Value = Math.Clamp(Rows + (IncludeHeaderRow ? -1 : 1), 1, 50);
+            Refresh();
+        };
 
         var grid = new Grid { ColumnSpacing = 12, Children = { _rows, _cols } };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -672,7 +688,9 @@ public sealed class TableInsertControl : InsertDialogBody
     public int Rows => IntOf(_rows, 2);
     public int Columns => IntOf(_cols, 2);
     public bool IncludeHeaderRow => _header.IsChecked == true;
-    public override string Snippet => Snippets.Table(Rows, Columns, IncludeHeaderRow);
+    public override string Snippet => _cells is null
+        ? Snippets.Table(Rows, Columns, IncludeHeaderRow)
+        : Snippets.Table(Rows, Columns, IncludeHeaderRow, _cells);
 }
 
 /// <summary>Link text + URL.</summary>
@@ -803,7 +821,8 @@ public sealed class EmbedInsertControl : InsertDialogBody
     private readonly ComboBox _provider;
     private readonly TextBox _url;
 
-    public EmbedInsertControl()
+    /// <param name="initialUrl">A web address the dialog opens with (the selected link), or null.</param>
+    public EmbedInsertControl(string? initialUrl = null)
         : base("A video card that opens the video. Documents and PDFs can't play video, so readers click through.")
     {
         _provider = new ComboBox
@@ -835,6 +854,8 @@ public sealed class EmbedInsertControl : InsertDialogBody
         AddField(_url);
         AddField(_provider);
         TextBoxEndScroll.Attach(_url);
+        // Set after the handler above, so the provider follows the selected link too.
+        if (!string.IsNullOrWhiteSpace(initialUrl)) _url.Text = initialUrl.Trim();
     }
 
     public string Provider => Providers[Math.Max(0, _provider.SelectedIndex)];
