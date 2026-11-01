@@ -88,6 +88,9 @@ public class Run325CodeAndVideoDialogTests
         Assert.Contains("inner.TextChanged += (_, _) => Refresh();", code);
         Assert.Contains("var text = (_langText?.Text ?? _lang.SelectedItem as string ?? _lang.Text ?? \"\").Trim();", code);
         Assert.Contains("Pick one or type any fence id", code);
+        Assert.Contains("ToolTipService.SetToolTip(_lang, LanguageHelp);", code);
+        // The inner edit box takes focus, so it carries the help too.
+        Assert.Contains("AutomationProperties.SetHelpText(inner, LanguageHelp);", code);
     }
 
     private static readonly string[] Offered = { "youtube", "vimeo", "loom", "codepen", "bilibili" };
@@ -113,7 +116,10 @@ public class Run325CodeAndVideoDialogTests
     public void EmbedDialog_cleans_the_link_and_checks_the_provider()
     {
         var embed = Class(Read(Dialogs), "EmbedInsertControl");
-        Assert.Contains("public string Url => _url.Text.Trim().Trim('\"', '\\'', '<', '>').Trim();", embed);
+        Assert.Contains("public string Url => Unwrap(_url.Text.Trim());", embed);
+        // Only a matching pair: a link's own trailing quote (…?t="a") stays.
+        Assert.Contains("(s[0] == '<' && s[^1] == '>') || (s[0] == '\"' && s[^1] == '\"')", embed);
+        Assert.DoesNotContain(".Trim('\"'", embed);
         Assert.Contains("DetectProvider(Url)", embed);
         Assert.Contains("? InsertCountText.EmbedProviderProblem(Provider, Url, Providers)", embed);
     }

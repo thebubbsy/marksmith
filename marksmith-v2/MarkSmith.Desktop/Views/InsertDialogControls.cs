@@ -716,6 +716,8 @@ public sealed class CodeBlockInsertControl : InsertDialogBody
     // submitted, so the card kept the old language while a new one was typed.
     private TextBox? _langText;
 
+    internal const string LanguageHelp = "Syntax highlighting language · Pick one or type any fence id (kotlin, ruby, diff…)";
+
     public CodeBlockInsertControl()
         : base("A fenced code block with syntax highlighting. Leave the code empty to type it inside the fence.")
     {
@@ -727,7 +729,7 @@ public sealed class CodeBlockInsertControl : InsertDialogBody
             IsEditable = true,
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };
-        ToolTipService.SetToolTip(_lang, "Syntax highlighting language · Pick one or type any fence id (kotlin, ruby, diff…)");
+        ToolTipService.SetToolTip(_lang, LanguageHelp);
         _lang.SelectionChanged += (_, _) => Refresh();
         _lang.TextSubmitted += (_, _) => DispatcherQueue.TryEnqueue(Refresh);
         _lang.Loaded += (_, _) =>
@@ -735,6 +737,8 @@ public sealed class CodeBlockInsertControl : InsertDialogBody
             if (_langText is not null || InnerTextBox(_lang) is not { } inner) return;
             _langText = inner;
             inner.TextChanged += (_, _) => Refresh();
+            // Focus lands in the inner box, which had no help text of its own.
+            AutomationProperties.SetHelpText(inner, LanguageHelp);
         };
         _body = MultilineBox("", "Paste or type code (optional)", monospace: true);
         _body.Header = "Code";
@@ -806,8 +810,14 @@ public sealed class EmbedInsertControl : InsertDialogBody
     }
 
     public string Provider => Providers[Math.Max(0, _provider.SelectedIndex)];
-    // A link copied from Markdown or a shell often comes as <https://…> or "https://…".
-    public string Url => _url.Text.Trim().Trim('"', '\'', '<', '>').Trim();
+    // A link copied from Markdown or a shell often comes as <https://…> or "https://…". Only a
+    // matching pair is removed: a link can end in a quote of its own (…?t="a").
+    public string Url => Unwrap(_url.Text.Trim());
+
+    private static string Unwrap(string s) =>
+        s.Length >= 2 && ((s[0] == '<' && s[^1] == '>') || (s[0] == '"' && s[^1] == '"') || (s[0] == '\'' && s[^1] == '\''))
+            ? s[1..^1].Trim()
+            : s;
     // No link yet: the card says "Nothing yet". The builder's EXAMPLE_ID fallback made the card
     // (and its Copy button) offer a block that Insert, disabled until a link is pasted, never adds.
     public override string Snippet => Url.Length == 0 ? "" : Snippets.Embed(Provider, Url);
