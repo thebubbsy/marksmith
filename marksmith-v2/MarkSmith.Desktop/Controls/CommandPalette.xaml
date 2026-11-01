@@ -75,7 +75,8 @@
                              AutomationProperties.Name="Search commands"
                              AutomationProperties.AutomationId="SearchBox"
                              TextChanged="OnSearchTextChanged"
-                             ToolTipService.ToolTip="Type to filter commands · Up/Down to choose, Enter to run · Right-click or Shift+F10 for options">
+                             AutomationProperties.HelpText="Up and Down arrows or Page Up and Page Down choose a command, Ctrl+Home and Ctrl+End jump to the first or last. Enter runs it, Ctrl+C copies its name and shortcut, Ctrl+Delete removes it from Recently used. Esc clears the search, then closes. Shift+F10 for options."
+                             ToolTipService.ToolTip="Type to filter commands · Up/Down to choose, Enter to run · Ctrl+C copies the selected command · Right-click or Shift+F10 for options">
                         <TextBox.Resources>
                             <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="Transparent" />
                             <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="Transparent" />
@@ -228,7 +229,7 @@
                                 <TextBlock Text="to close" Margin="2,0,0,0" Style="{StaticResource PaletteHintTextStyle}" />
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Spacing="4">
-                                <Border Style="{StaticResource PaletteKeyCapStyle}"><TextBlock Text="Apps" Style="{StaticResource PaletteKeyCapTextStyle}" /></Border>
+                                <Border Style="{StaticResource PaletteKeyCapStyle}"><TextBlock Text="Shift+F10" Style="{StaticResource PaletteKeyCapTextStyle}" /></Border>
                                 <TextBlock Text="options" Margin="2,0,0,0" Style="{StaticResource PaletteHintTextStyle}" />
                             </StackPanel>
                         </StackPanel>

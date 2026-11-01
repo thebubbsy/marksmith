@@ -66,7 +66,7 @@ public sealed partial class CommandPalette : UserControl
 
     public static string FormatCountText(bool searching, int count) =>
         !searching ? (count == 1 ? "1 command" : $"{Math.Max(0, count)} commands")
-        : count <= 0 ? ""
+        : count <= 0 ? "No matches"
         : count == 1 ? "1 match" : $"{count} matches";
 
     public static string FormatCommandClipboardText(PaletteCommand command) =>
@@ -300,6 +300,9 @@ public sealed partial class CommandPalette : UserControl
         {
             Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(NoMatches, NoMatchesTitle.Text);
             Microsoft.UI.Xaml.Automation.AutomationProperties.SetLiveSetting(NoMatches, Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Assertive);
+            // The footer reads "No matches"; the tracked announcement says which query (the
+            // count line used to go blank, so nothing at all was read out).
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(CountText, NoMatchesTitle.Text);
         }
         else
         {
@@ -519,23 +522,7 @@ public sealed partial class CommandPalette : UserControl
             KeyboardAcceleratorTextOverride = "Ctrl+V",
             Icon = new FontIcon { Glyph = "\uE77F" }
         };
-        pasteItem.Click += async (_, _) =>
-        {
-            try
-            {
-                var content = Windows.ApplicationModel.DataTransfer.Clipboard.GetContent();
-                if (content.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text))
-                {
-                    var text = await content.GetTextAsync();
-                    if (!string.IsNullOrEmpty(text))
-                    {
-                        SearchBox.Text = text;
-                        SearchBox.SelectionStart = SearchBox.Text.Length;
-                    }
-                }
-            }
-            catch { }
-        };
+        pasteItem.Click += async (_, _) => await PasteIntoSearchAsync();
         menu.Items.Add(pasteItem);
     }
 
@@ -560,23 +547,7 @@ public sealed partial class CommandPalette : UserControl
             Icon = new FontIcon { Glyph = "\uE77F" },
             KeyboardAcceleratorTextOverride = "Ctrl+V"
         };
-        pasteItem.Click += async (_, _) =>
-        {
-            try
-            {
-                var content = Windows.ApplicationModel.DataTransfer.Clipboard.GetContent();
-                if (content.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text))
-                {
-                    var text = await content.GetTextAsync();
-                    if (!string.IsNullOrEmpty(text))
-                    {
-                        SearchBox.Text = text;
-                        SearchBox.SelectionStart = SearchBox.Text.Length;
-                    }
-                }
-            }
-            catch { }
-        };
+        pasteItem.Click += async (_, _) => await PasteIntoSearchAsync();
         menu.Items.Add(pasteItem);
 
         menu.Items.Add(new MenuFlyoutSeparator());
@@ -640,23 +611,7 @@ public sealed partial class CommandPalette : UserControl
             Icon = new FontIcon { Glyph = "\uE77F" },
             KeyboardAcceleratorTextOverride = "Ctrl+V"
         };
-        pasteItem.Click += async (_, _) =>
-        {
-            try
-            {
-                var content = Windows.ApplicationModel.DataTransfer.Clipboard.GetContent();
-                if (content.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text))
-                {
-                    var text = await content.GetTextAsync();
-                    if (!string.IsNullOrEmpty(text))
-                    {
-                        SearchBox.Text = text;
-                        SearchBox.SelectionStart = SearchBox.Text.Length;
-                    }
-                }
-            }
-            catch { }
-        };
+        pasteItem.Click += async (_, _) => await PasteIntoSearchAsync();
         menu.Items.Add(pasteItem);
 
         menu.Items.Add(new MenuFlyoutSeparator());
@@ -715,7 +670,8 @@ public sealed partial class CommandPalette : UserControl
             case VirtualKey.C when ctrl && SearchBox.SelectionLength == 0 && Results.SelectedItem is PaletteCommand copyCmd:
                 _ = CopySelectedCommandAsync(copyCmd);
                 break;
-            case VirtualKey.Delete when ctrl && Results.SelectedItem is PaletteCommand recCmd && IsRecent(recCmd.Label):
+            // Only with nothing after the caret: otherwise Ctrl+Delete is the box's delete-next-word.
+            case VirtualKey.Delete when ctrl && NothingAfterCaret() && Results.SelectedItem is PaletteCommand recCmd && IsRecent(recCmd.Label):
                 RemoveRecent(recCmd.Label);
                 break;
             case VirtualKey.Enter:
@@ -759,6 +715,37 @@ public sealed partial class CommandPalette : UserControl
                 return;
         }
         e.Handled = true;
+    }
+
+    private bool NothingAfterCaret() =>
+        SearchBox.SelectionLength == 0 && SearchBox.SelectionStart >= SearchBox.Text.Length;
+
+    // The three "Paste into search" items replaced the whole query with the clipboard, line
+    // breaks and all, and the Clear / Esc button menus left focus on a button that is not a tab
+    // stop, so typing went nowhere. Now a paste works like Ctrl+V: one line, at the caret.
+    private async Task PasteIntoSearchAsync()
+    {
+        var text = "";
+        try
+        {
+            var content = Windows.ApplicationModel.DataTransfer.Clipboard.GetContent();
+            if (content.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text))
+                text = CommandSearch.PasteQuery(await content.GetTextAsync());
+        }
+        catch { }
+        if (_closing) return;
+        if (text.Length > 0)
+        {
+            var start = Math.Min(SearchBox.SelectionStart, SearchBox.Text.Length);
+            var length = Math.Min(SearchBox.SelectionLength, SearchBox.Text.Length - start);
+            SearchBox.Text = SearchBox.Text.Remove(start, length).Insert(start, text);
+            SearchBox.SelectionStart = start + text.Length;
+        }
+        else
+        {
+            AnnounceFooterStatus("Nothing to paste");
+        }
+        SearchBox.Focus(FocusState.Programmatic);
     }
 
     private async Task CopySelectedCommandAsync(PaletteCommand cmd)

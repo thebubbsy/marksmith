@@ -364,7 +364,7 @@
                                       RightTapped="OnMarkdownFilesComboRightTapped"
                                       ToolTipService.ToolTip="Recent and discovered Markdown files on this PC (Right-click or Shift+F10 for options)"
                                       AutomationProperties.Name="Recent and found Markdown files"
-                                      AutomationProperties.HelpText="Down arrow opens the list, Enter opens the file. Shift+F10 for options." PlaceholderText="Pick a Markdown file from your PC…" HorizontalAlignment="Stretch">
+                                      AutomationProperties.HelpText="Down arrow opens the list, and so does typing a file name; Enter opens the file. Shift+F10 for options." PlaceholderText="Pick a Markdown file from your PC…" HorizontalAlignment="Stretch">
                                 <ComboBox.ItemTemplate>
                                     <DataTemplate>
                                         <StackPanel Padding="0,2">
@@ -468,7 +468,7 @@
                                             <ComboBox x:Name="WatchFolderPresets" HorizontalAlignment="Stretch"
                                                       PlaceholderText="Quick pick an AI agent folder…"
                                                       AutomationProperties.Name="AI agent folder presets"
-                                                      AutomationProperties.HelpText="Down arrow opens the list, Enter makes that folder the watch folder."
+                                                      AutomationProperties.HelpText="Down arrow opens the list, and so does typing a name; Enter makes that folder the watch folder."
                                                       ToolTipService.ToolTip="Pre-configured export folders for local AI agents and CLIs"
                                                       SelectionChanged="OnWatchFolderPresetSelected">
                                                 <ComboBox.ItemTemplate>

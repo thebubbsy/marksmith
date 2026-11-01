@@ -63,12 +63,12 @@ public class Run321ComboArrowKeysTests
         var code = Read(Helper);
         Assert.Contains("PreviewKeyDown", code);
         // Leaves an open list alone: there arrows only move the highlight.
-        Assert.Contains("if (combo.IsDropDownOpen || !OpensList(e.Key)) return;", code);
+        Assert.Contains("if (combo.IsDropDownOpen) return;", code);
         Assert.Contains("e.Handled = true;", code);
         Assert.Contains("combo.IsDropDownOpen = true;", code);
         foreach (var key in new[] { "Up", "Down", "Home", "End", "PageUp", "PageDown" })
             Assert.Contains($"VirtualKey.{key}", code);
-        // Not Enter, Space, F4 or letters: those keep the stock behaviour.
+        // Not Enter, Space, F4 or Esc: those keep the stock behaviour (letters: see Run322).
         foreach (var key in new[] { "Enter", "Space", "F4", "Escape" })
             Assert.DoesNotContain($"VirtualKey.{key}", code);
     }
@@ -79,7 +79,7 @@ public class Run321ComboArrowKeysTests
     public void MainWindowActionCombosOpenOnArrows(string combo, string handler, string action)
     {
         var code = Read(MainCode);
-        Assert.Contains($"Services.ComboArrowOpens.Attach({combo});", code);
+        Assert.Matches($@"Services\.ComboArrowOpens\.Attach\({combo}(, typeAheadOpens: true)?\);", code);
         // The reason: the selection handler acts straight away.
         Assert.Contains(action, Method(code, handler));
         Assert.StartsWith("Down arrow opens the list", Help(Tag(Read(Main), $"x:Name=\"{combo}\"")));

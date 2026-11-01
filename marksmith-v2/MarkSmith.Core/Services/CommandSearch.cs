@@ -27,6 +27,22 @@ public static class CommandSearch
     public static IReadOnlyList<(int Start, int Length)> Highlights(string label, string query) =>
         Analyse(label, "", query, "", includeRanges: true).Ranges;
 
+    /// <summary>Longest query a paste puts in the search box; no command label is near it.</summary>
+    public const int MaxPastedQuery = 80;
+
+    /// <summary>
+    /// What a paste adds to a one-line search box: the first non-blank line, trimmed, with runs of
+    /// spaces and tabs folded to one and cut to <see cref="MaxPastedQuery"/>. Pasting a copied
+    /// paragraph used to put all of it, line breaks included, into the palette's search box.
+    /// </summary>
+    public static string PasteQuery(string? clipboard)
+    {
+        if (string.IsNullOrWhiteSpace(clipboard)) return "";
+        var line = clipboard.Split('\n').Select(l => l.Trim()).FirstOrDefault(l => l.Length > 0) ?? "";
+        line = string.Join(' ', line.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries));
+        return line.Length <= MaxPastedQuery ? line : line[..MaxPastedQuery].TrimEnd();
+    }
+
     /// <summary>The items that match, best first; ties keep their original order.</summary>
     public static List<T> Rank<T>(IEnumerable<T> items, string query, Func<T, string> label, Func<T, string> category, Func<T, string>? keywords = null) =>
         items.Select((item, index) => (item, index, score: Score(label(item), category(item), query, keywords?.Invoke(item) ?? "")))

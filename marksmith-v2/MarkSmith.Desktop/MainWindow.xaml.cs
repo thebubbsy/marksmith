@@ -432,8 +432,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         // Picking a recent file opens it, and picking a folder preset replaces the watch folder, so
         // arrows on these closed boxes open their lists instead of acting once per key press.
-        Services.ComboArrowOpens.Attach(MarkdownFilesCombo);
-        Services.ComboArrowOpens.Attach(WatchFolderPresets);
+        Services.ComboArrowOpens.Attach(MarkdownFilesCombo, typeAheadOpens: true);
+        Services.ComboArrowOpens.Attach(WatchFolderPresets, typeAheadOpens: true);
 
         // Persistent undo/redo: the editor owns its undo stack (native TextBox undo is disabled in
         // XAML). Keep the caret in the ViewModel so undo snapshots can restore it exactly.
@@ -6381,6 +6381,26 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var res = Application.Current.Resources;
 
         var rows = new StackPanel { Spacing = 6 };
+        // Copy results used to go to the main window's status bar, out of sight behind the
+        // dialog's veil, so "Copy all" looked like it did nothing. They show (and are read out) here.
+        var copyStatus = new TextBlock
+        {
+            Style = (Style)res["CaptionTextBlockStyle"],
+            Foreground = secondary,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 10, 0, 0),
+            Visibility = Visibility.Collapsed,
+        };
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(copyStatus, "Copy status");
+        void ShowCopyStatus(string message, bool ok)
+        {
+            ViewModel.StatusText = message;
+            ViewModel.StatusSeverity = ok ? Models.StatusSeverity.Informational : Models.StatusSeverity.Warning;
+            copyStatus.Text = message;
+            copyStatus.Visibility = Visibility.Visible;
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(copyStatus, message);
+            Services.LiveAnnounce.Raise(copyStatus);
+        }
         foreach (var (section, sectionRows) in Shortcuts.Sheet())
         {
             if (sectionRows.Count == 0) continue;
@@ -6439,10 +6459,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                     copyItem.Click += async (_, _) =>
                     {
                         var err = await ClipboardWriter.TrySetTextAsync(chordText);
-                        ViewModel.StatusText = err is null
+                        ShowCopyStatus(err is null
                             ? $"Copied shortcut chord \u201C{chordText}\u201D to clipboard."
-                            : $"Failed to copy shortcut: {err}";
-                        ViewModel.StatusSeverity = err is null ? Models.StatusSeverity.Informational : Models.StatusSeverity.Warning;
+                            : $"Failed to copy shortcut: {err}", err is null);
                     };
                     flyout.Items.Add(copyItem);
                     row.ContextFlyout = flyout;
@@ -6504,10 +6523,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var visibleRows = Shortcuts.Sheet().Sum(s => s.Rows.Count);
             var err = await ClipboardWriter.TrySetTextAsync(Shortcuts.SheetText());
-            ViewModel.StatusText = err is null
+            ShowCopyStatus(err is null
                 ? $"Copied {CountText.Of(visibleRows, "shortcut")} to the clipboard as Markdown."
-                : $"Failed to copy the shortcuts: {err}";
-            ViewModel.StatusSeverity = err is null ? Models.StatusSeverity.Informational : Models.StatusSeverity.Warning;
+                : $"Failed to copy the shortcuts: {err}", err is null);
         }
         var sheetMenu = new MenuFlyout();
         var copyAllItem = new MenuFlyoutItem
@@ -6532,7 +6550,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var dialog = new ContentDialog
         {
             Title = "Keyboard shortcuts",
-            Content = sheet,
+            Content = new StackPanel { Children = { sheet, copyStatus } },
             SecondaryButtonText = "Copy all",
             CloseButtonText = "Close",
             DefaultButton = ContentDialogButton.Close,
