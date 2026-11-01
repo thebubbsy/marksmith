@@ -23157,3 +23157,83 @@ covering no-match announcement, Ctrl+Delete, paste, help text and the footer key
 **Release (same run):** tagged **v3.100.0** on `5de10bf6`. Release workflow run 41280821287 succeeded and published 5
 assets; user-facing notes for run #322 were put above the generated body. `MarksmithBaseVersion` was then
 bumped to 3.101.0.
+
+## 2026-11-01 · Run #323 (≈18:00–18:30 AEDT) · Claude Code
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running the scheduled routine in the Claude desktop app
+- Modes: Scheduled Hourly Automation Routine
+- Trigger: Scheduled hourly routine run
+- Agents Used: 1 (Orchestrator, who also did the coding and the skeptical review). No sub-agents, no conversation IDs.
+
+Closed #322's "Next up" items 1 and 4, then audited the find and replace bar, the least recently touched
+surface in the rotation (last real pass around run #200).
+
+**Backlog items closed without code**
+- Shortcut-count "mismatch": not a bug. "Copied 30 shortcuts" counts actions (30 rows); rows with two chords
+  show two key lines. `SheetText()` writes one bullet per action too (now pinned by a test).
+- Studio combos acting on selection: the Diagram / Shape / SmartArt studios' combos are all property boxes
+  (direction, routing, line, arrow head, shape), where WinUI's select-on-type is the expected behaviour. The
+  only action-style lists (both palette flyouts) already have `SingleSelectionFollowsFocus="False"`.
+
+**User-visible improvements and fixes**
+1. **Find bar: Ctrl+Alt+Enter replaces every match** from the Find or the Replace box (the VS Code key).
+   Replace all was mouse-only: its button sits after Replace in a one-stop arrow-key cluster. From the Find
+   box with the replace row closed, the key opens the row and puts the caret in it instead, so a stale
+   replacement hidden from view is never applied; with an invalid regex it says what's wrong.
+2. **Find bar: a regex error says why to a screen reader.** The count read "Regex error" and nothing more;
+   the reason was only in its tooltip. Its name, and so its live announcement, is now e.g. "Regex error:
+   Invalid pattern 'alp(ha' at offset 6. Not enough )'s."
+3. **Find bar: both boxes name their keys.** The Find box's help text lists Enter, Shift+Enter, Up/Down for
+   earlier searches, Alt+Home/End, Alt+C/W/R, Ctrl+H, Ctrl+Alt+Enter and Esc; its tooltip mentions the search
+   history, which nothing on screen did. The Replace box's help text and tooltip name Enter, Ctrl+Alt+Enter,
+   Shift+Tab and Esc.
+4. **Find bar: the option toggles and Replace buttons expose their keys as keys.** "Match case (Alt+C)" etc.
+   were names with the key glued on; the names are now plain and the key is the UIA AcceleratorKey, so screen
+   readers say "Match case, toggle button, Alt+C". Replace all's tooltip names Ctrl+Alt+Enter.
+5. **Find bar: an empty count says "No matches"**, like the status line ("No matches found for …") and the
+   command palette, instead of "No results".
+6. **Keyboard shortcuts sheet: copying one row writes "Ctrl+E or Ctrl+Shift+P"**, the way "Copy all" writes
+   it, instead of "Ctrl+E, Ctrl+Shift+P" (which reads like a two-step chord). Its menu item reads the same, and
+   the confirmation names the action: "Copied “Ctrl+E or Ctrl+Shift+P” (Export PDF) to the clipboard."
+7. **Replace all's status uses group separators** ("Replaced 1,204 occurrences …") through `CountText.Of`.
+
+**Implementation Summary**
+- `MainWindow.xaml`: `FindTextBox` / `ReplaceTextBox` help text and tooltips; `MatchCaseCheck`,
+  `MatchWholeWordCheck`, `UseRegexCheck`, `ReplaceOneButton`, `ReplaceAllButton` get plain names plus
+  `AutomationProperties.AcceleratorKey`.
+- `MainWindow.xaml.cs`: new `ReplaceAllFromKeyboard()` (opens the hidden row, refuses an invalid pattern,
+  else runs `OnReplaceAllClick`); both box KeyDown handlers check Ctrl+Alt+Enter before plain Enter.
+  `UpdateFindCount` builds `countName` with the regex reason and uses it for both the text and the button.
+  Shortcut sheet row copy joins with " or ". Replace-all status through `CountText.Of`.
+- `MarkSmith.Core/Services/TextSearch.cs`: `FormatFindMatchStatus` returns "No matches".
+- Tests: new `Run323FindBarKeysTests` (11 methods / 23 cases: help text, AcceleratorKey, key order in both
+  handlers, the keyboard replace-all guards, regex name, plural, sheet copy, sheet count). Updated
+  `TextSearchTests` ("No matches") and `Run225StatusReadoutKeyboardTests` (the count button's name expression).
+- Skeptical review: the keyboard replace-all never collapses or disables a focused control (opening the row
+  moves focus into it; `OnReplaceAllClick` already hands focus to the editor before the recompute that can
+  disable the buttons). Only Ctrl+Alt+Enter is newly handled in the two TextBoxes; arrows, Home/End, Delete
+  and plain keys keep their behaviour. No new flyouts, brushes or file access.
+- Build: `MarkSmith.Desktop` Debug x64 to `%TEMP%\ms_run323\b\`, 0 errors. Tests: Run2* + Run3* + TextSearch* +
+  Shortcut* + Find* + MainWindow* passed 2143, 0 failed (one earlier pass caught the Run225 contract).
+- Live UIA (scratch PID 26272, `MARKSMITH_CONFIG_DIR=%TEMP%\ms_run323\cfg`, launched on a scratch `doc.md`;
+  stopped by PID). UIA patterns only, no keys sent. Opened the bar via `EditorFindButton` Invoke and read back:
+  the three toggles' names and AcceleratorKeys, both boxes' help text, "1 of 3" for "alpha", "No matches" for
+  "zzqxy", "Regex error: Invalid pattern 'alp(ha' at offset 6. Not enough )'s." with Regex toggled on. Replace
+  all (Invoke) turned the three "alpha"s into "omega" with status "Replaced 3 occurrences of “alpha”. Ctrl+Z
+  undoes it." PrintWindow `find323.png`: "No matches" fits the count slot. Not reached live: the Ctrl+Alt+Enter
+  chord itself (posted keys carry no Ctrl/Alt state); source-tested.
+
+**Noticed, not fixed**
+- The Replace box has no Up/Down history, unlike Find. Would be new behaviour; left alone.
+- Type-ahead only highlights realized rows in a long recent-files list (carried from #322).
+
+**Next up (Run #324)**
+1. Live-check the OCR reclassify boxes (load a scratch PNG) and the SmartArt palette flyout (open since #320).
+2. Find a key-free way to select a Diagram Studio connector (open since #318).
+3. Audit the Details / Tabs / Columns / Footnote Insert dialogs (least recently touched dialogs).
+
+**Total user-visible improvements: 7** (6 find and replace bar fixes covering a keyboard replace-all, regex
+error read-out, key help on both boxes, accelerator keys, "No matches" wording and the replace count; 1 shortcuts
+sheet copy fix).
