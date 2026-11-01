@@ -282,6 +282,9 @@ public static class HoverPolish
             }
         }
 
+        // After the naming above, so a tooltip that just became the name isn't read twice.
+        if (root is Control tipped) ToolTipHelp.Sync(tipped);
+
         var childCount = VisualTreeHelper.GetChildrenCount(root);
         for (var i = 0; i < childCount; i++)
         {

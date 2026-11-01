@@ -58,6 +58,8 @@ public abstract class InsertDialogBody : UserControl
         CopyFeedback.CopyWithTick(_copySnippetButton, snippet);
     }
 
+    internal const string CopySnippetHelp = "Copy the generated Markdown snippet (Ctrl+C / Ctrl+Shift+C)";
+
     protected InsertDialogBody(string description)
     {
         _preview = new TextBlock
@@ -84,7 +86,10 @@ public abstract class InsertDialogBody : UserControl
             VerticalAlignment = VerticalAlignment.Center,
         };
         AutomationProperties.SetName(_copySnippetButton, "Copy generated Markdown snippet");
-        ToolTipService.SetToolTip(_copySnippetButton, "Copy the generated Markdown snippet (Ctrl+C / Ctrl+Shift+C)");
+        ToolTipService.SetToolTip(_copySnippetButton, CopySnippetHelp);
+        // The button sits on the preview card, outside the fields HelpFromToolTips walks, so its keys
+        // were mouse-only.
+        AutomationProperties.SetHelpText(_copySnippetButton, CopySnippetHelp);
         _copySnippetButton.Click += (_, _) => CopyCurrentSnippet();
 
         var previewHeader = new Grid();
@@ -508,8 +513,9 @@ public sealed class LinesInsertControl : InsertDialogBody
             var lines = Lines;
             // A data grid's first line is its header: "label,value / Q1,10 / Q2,25" is 2 rows, not 3.
             _count.Text = Services.InsertCountText.Lines(lines.Count, _noun, _headerFirst);
-            // The count sits beside the heading, out of reach from inside the box; say it there too.
-            AutomationProperties.SetHelpText(_box, _count.Text);
+            // The count sits beside the heading, out of reach from inside the box; say it there too,
+            // with the shape a line takes and the key that inserts from a box where Enter is a new line.
+            AutomationProperties.SetHelpText(_box, Services.InsertCountText.BoxHelp(_count.Text, _noun, _lineHint, _headerFirst));
             if (lines.Count < _minimum)
                 return Services.InsertCountText.Shortfall(_minimum, _noun, _headerFirst);
             if (_lineIsValid is not null)
@@ -527,6 +533,7 @@ public sealed class LinesInsertControl : InsertDialogBody
 public sealed class ChartInsertControl : InsertDialogBody
 {
     private static readonly (string Label, string Id)[] Types = { ("Bar", "bar"), ("Line", "line"), ("Pie", "pie") };
+    internal const string DataHelp = "One label, a comma, then a number per line; a first line that isn't data is the header. Ctrl+Enter inserts.";
 
     private readonly RadioButtons _type;
     private readonly TextBox _box;
@@ -569,7 +576,7 @@ public sealed class ChartInsertControl : InsertDialogBody
             var lines = Lines;
             var points = lines.Count(IsPoint);
             _count.Text = $"{points} point{(points == 1 ? "" : "s")}";
-            AutomationProperties.SetHelpText(_box, _count.Text);
+            AutomationProperties.SetHelpText(_box, $"{_count.Text}. {DataHelp}");
             if (points == 0) return "Add at least one row like Q1,10 — a label, a comma, then a number.";
             // A first line that isn't data is read as a header row, the same rule the renderers use.
             var bad = lines.Select((l, i) => (l, i)).Skip(1).Where(x => !IsPoint(x.l)).Select(x => x.i + 1).ToList();
@@ -733,7 +740,9 @@ public sealed class EmbedInsertControl : InsertDialogBody
             SelectedIndex = 0,
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };
-        ToolTipService.SetToolTip(_provider, "Video platform hosting the media");
+        // The provider follows the pasted link (see _url.TextChanged); the tooltip said nothing of it,
+        // so a changed selection looked like a mistake.
+        ToolTipService.SetToolTip(_provider, "Picked from the link you paste · Change it only if the guess is wrong");
         _provider.SelectionChanged += (_, _) => Refresh();
         _url = new TextBox
         {

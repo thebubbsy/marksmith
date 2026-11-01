@@ -82,7 +82,8 @@ public class Run314InsertDialogAndLineToolsTests
     {
         var lines = Class(Read(Dialogs), "LinesInsertControl");
         var count = lines.IndexOf("_count.Text = Services.InsertCountText.Lines(", StringComparison.Ordinal);
-        var help = lines.IndexOf("AutomationProperties.SetHelpText(_box, _count.Text);", StringComparison.Ordinal);
+        // Run #316: the count now leads a longer help text (the line rule and Ctrl+Enter follow it).
+        var help = lines.IndexOf("AutomationProperties.SetHelpText(_box, Services.InsertCountText.BoxHelp(_count.Text,", StringComparison.Ordinal);
         Assert.True(count >= 0 && help > count, "help text is set from the fresh count");
         // Before the early returns, so a short or malformed list still gets its count.
         Assert.True(help < lines.IndexOf("return Services.InsertCountText.Shortfall(", StringComparison.Ordinal));
@@ -93,7 +94,7 @@ public class Run314InsertDialogAndLineToolsTests
     {
         var chart = Class(Read(Dialogs), "ChartInsertControl");
         var count = chart.IndexOf("_count.Text = $\"{points} point", StringComparison.Ordinal);
-        var help = chart.IndexOf("AutomationProperties.SetHelpText(_box, _count.Text);", StringComparison.Ordinal);
+        var help = chart.IndexOf("AutomationProperties.SetHelpText(_box, $\"{_count.Text}. {DataHelp}\");", StringComparison.Ordinal);
         Assert.True(count >= 0 && help > count);
         Assert.True(help < chart.IndexOf("if (points == 0) return", StringComparison.Ordinal));
     }

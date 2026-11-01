@@ -81,6 +81,8 @@ public sealed class ImageInsertControl : InsertDialogBody
             HorizontalAlignment = HorizontalAlignment.Center,
             Margin = new Thickness(0, 6, 0, 0),
         };
+        // The button's name says it all; its icon and "Browse…" label were read again as a child.
+        AutomationProperties.SetAccessibilityView((UIElement)browse.Content, AccessibilityView.Raw);
         ToolTipService.SetToolTip(browse, "Pick an image file on this PC (Ctrl+O, Alt+B)");
         AutomationProperties.SetName(browse, "Browse for an image");
         browse.Click += OnBrowseClick;
