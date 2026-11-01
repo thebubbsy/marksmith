@@ -13,6 +13,9 @@ namespace MarkSmith.Services;
 /// </summary>
 public static class ContainerBlockParsers
 {
+    /// <summary>Most tabs a :::tabs group shows; the preview drops the rest (and the Insert dialog says so).</summary>
+    public const int MaxTabs = 16;
+
     private static readonly Regex TabLineRegex = new(@"^:::tab(?:\s+title=(?:""(?<t1>.*)""|(?<t2>\S+))|\s+(?<t3>[^\n]+))?$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex TabHeaderRegex = new(@"^={2,3}\s+(?:""(?<t1>.*)""|(?<t3>[^\n]+))$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex AttrRegex = new(@"(?<k>[A-Za-z][\w-]*)\s*=\s*(?:""(?<v>[^""]*)""|'(?<v>[^']*)'|(?<v>[^\s""']+))", RegexOptions.Compiled);

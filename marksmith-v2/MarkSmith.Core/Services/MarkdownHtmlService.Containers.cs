@@ -223,7 +223,7 @@ public sealed partial class MarkdownHtmlService
         {
             // Panel N shows while radio N is checked; generated for the most tabs a group can hold.
             var nth = new StringBuilder();
-            for (int n = 1; n <= 16; n++)
+            for (int n = 1; n <= ContainerBlockParsers.MaxTabs; n++)
                 nth.Append($".ms-tabs>input:nth-of-type({n}):checked~.ms-tab-panels>.ms-tab-panel:nth-of-type({n}){{display:block}}");
             sb.Append(TabsCss.Replace("{NTH}", nth.ToString()));
             cssEmitted = true;
@@ -231,7 +231,7 @@ public sealed partial class MarkdownHtmlService
 
         var group = $"ms-tabs-{blockIndex}";
         sb.Append($"<div class=\"ms-tabs\" style=\"--ms-bd:{Enc(theme.Border)};--ms-acc:{Enc(Accent(theme))};--ms-text:{Enc(theme.Text)};--ms-mute:{Enc(theme.Line)};--ms-bg:{Enc(theme.Background)}\">");
-        var shown = Math.Min(tabs.Count, 16);
+        var shown = Math.Min(tabs.Count, ContainerBlockParsers.MaxTabs);
         for (int t = 0; t < shown; t++)
         {
             var id = $"{group}-{t}";

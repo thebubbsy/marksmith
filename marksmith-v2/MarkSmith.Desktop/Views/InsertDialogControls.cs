@@ -404,24 +404,49 @@ public abstract class InsertDialogBody : UserControl
         return null;
     }
 
-    protected static NumberBox MakeNumberBox(string header, double value, double min, double max) => new()
+    protected static NumberBox MakeNumberBox(string header, double value, double min, double max)
     {
-        Header = header,
-        Value = value,
-        Minimum = min,
-        Maximum = max,
-        SmallChange = 1,
-        LargeChange = 5,
-        SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Inline,
-        ValidationMode = NumberBoxValidationMode.InvalidInputOverwritten,
-        HorizontalAlignment = HorizontalAlignment.Stretch,
-    };
+        var box = new NumberBox
+        {
+            Header = header,
+            Value = value,
+            Minimum = min,
+            Maximum = max,
+            SmallChange = 1,
+            LargeChange = 5,
+            SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Inline,
+            ValidationMode = NumberBoxValidationMode.InvalidInputOverwritten,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        AutomationProperties.SetHelpText(box, InsertCountText.NumberHelp(min, max, box.SmallChange, box.LargeChange));
+        return box;
+    }
 
-    /// <summary>Integer value of a NumberBox, clamped to its range; a cleared box reads as
-    /// <paramref name="fallback"/>.</summary>
+    /// <summary>Refreshes the card when the box's value changes and while digits are typed.
+    /// A NumberBox commits typed text to Value only on Enter or when focus leaves, so the card
+    /// still showed 2 columns while 4 sat in the box.</summary>
+    protected void RefreshOnEdit(NumberBox box)
+    {
+        box.ValueChanged += (_, _) => Refresh();
+        var hooked = false;
+        box.Loaded += (_, _) =>
+        {
+            if (hooked || InnerTextBox(box) is not { } inner) return;
+            hooked = true;
+            inner.TextChanged += (_, _) => Refresh();
+            // Focus lands in the inner box, which is what a screen reader reads.
+            AutomationProperties.SetHelpText(inner, AutomationProperties.GetHelpText(box));
+        };
+    }
+
+    /// <summary>Integer value of a NumberBox, clamped to its range: the typed text while it reads
+    /// as a number, else the committed value; a cleared box reads as <paramref name="fallback"/>.</summary>
     protected static int IntOf(NumberBox box, double fallback)
     {
         var v = box.Value;
+        if (InnerTextBox(box)?.Text is { Length: > 0 } typed
+            && double.TryParse(typed, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.CurrentCulture, out var t))
+            v = t;
         if (double.IsNaN(v)) v = fallback;
         return (int)Math.Round(Math.Clamp(v, box.Minimum, box.Maximum));
     }
@@ -468,24 +493,27 @@ public sealed class LinesInsertControl : InsertDialogBody
     private readonly Func<IReadOnlyList<string>, string> _build;
     private readonly string _noun;
     private readonly int _minimum;
+    private readonly int _maximum;
     private readonly Func<string, bool>? _lineIsValid;
     private readonly string? _lineHint;
     private readonly bool _headerFirst;
 
     /// <param name="noun">Singular name of one entry ("step"), used in the count and the hints.</param>
     /// <param name="minimum">Entries needed before Insert is enabled.</param>
+    /// <param name="maximum">Most entries the block can show (a tab group draws 16).</param>
     /// <param name="lineIsValid">Optional per-line shape check; failing lines are named in the hint.</param>
     /// <param name="headerFirst">The first line is a header, not an entry (data grid): it is left out
     /// of the count, and <paramref name="minimum"/> still counts it.</param>
     public LinesInsertControl(string description, string header, string defaultText,
         Func<IReadOnlyList<string>, string> build, string noun, int minimum = 1,
         string placeholder = "", Func<string, bool>? lineIsValid = null, string? lineHint = null,
-        bool headerFirst = false)
+        bool headerFirst = false, int maximum = int.MaxValue)
         : base(description)
     {
         _build = build;
         _noun = noun;
         _minimum = minimum;
+        _maximum = maximum;
         _lineIsValid = lineIsValid;
         _lineHint = lineHint;
         _headerFirst = headerFirst;
@@ -518,6 +546,8 @@ public sealed class LinesInsertControl : InsertDialogBody
             AutomationProperties.SetHelpText(_box, Services.InsertCountText.BoxHelp(_count.Text, _noun, _lineHint, _headerFirst));
             if (lines.Count < _minimum)
                 return Services.InsertCountText.Shortfall(_minimum, _noun, _headerFirst);
+            if (lines.Count > _maximum)
+                return Services.InsertCountText.Excess(_maximum, lines.Count, _noun);
             if (_lineIsValid is not null)
             {
                 var bad = lines.Select((l, i) => (l, i)).Where(x => !_lineIsValid(x.l)).Select(x => x.i + 1).ToList();
@@ -575,7 +605,7 @@ public sealed class ChartInsertControl : InsertDialogBody
         {
             var lines = Lines;
             var points = lines.Count(IsPoint);
-            _count.Text = $"{points} point{(points == 1 ? "" : "s")}";
+            _count.Text = CountText.Of(points, "point");
             AutomationProperties.SetHelpText(_box, $"{_count.Text}. {DataHelp}");
             if (points == 0) return "Add at least one row like Q1,10 — a label, a comma, then a number.";
             // A first line that isn't data is read as a header row, the same rule the renderers use.
@@ -602,8 +632,8 @@ public sealed class TableInsertControl : InsertDialogBody
         ToolTipService.SetToolTip(_cols, "Number of columns (1–20)");
         _header = new CheckBox { Content = "Include header row", IsChecked = true };
         ToolTipService.SetToolTip(_header, "Generate a header row separated from body cells");
-        _rows.ValueChanged += (_, _) => Refresh();
-        _cols.ValueChanged += (_, _) => Refresh();
+        RefreshOnEdit(_rows);
+        RefreshOnEdit(_cols);
         _header.Click += (_, _) => Refresh();
 
         var grid = new Grid { ColumnSpacing = 12, Children = { _rows, _cols } };
@@ -801,7 +831,7 @@ public sealed class ReferencesInsertControl : InsertDialogBody
         ToolTipService.SetToolTip(_author, "Who wrote it, surname first (e.g. Smith, J.) · Empty gets a placeholder");
         ToolTipService.SetToolTip(_title, "The book, article or page title · Empty gets a placeholder");
         ToolTipService.SetToolTip(_year, "Year of publication · Empty gets this year");
-        ToolTipService.SetToolTip(_id, "What you cite it by in the text (@id) · Empty uses the author's surname and the year");
+        ToolTipService.SetToolTip(_id, "What you cite it by in the text ([@id]): letters, digits, - and _ · Empty uses the author's surname and the year");
         foreach (var box in new[] { _author, _title, _year, _id }) box.TextChanged += (_, _) => Refresh();
         // The empty id box shows the id it will get, so its hint never disagrees with the preview.
         _author.TextChanged += (_, _) => _id.PlaceholderText = DerivedId is { Length: > 0 } d ? d : AutoIdHint;
@@ -843,6 +873,8 @@ public sealed class ReferencesInsertControl : InsertDialogBody
     public string Year => _year.Text;
     public override string Snippet => Snippets.References(Id, Author, Title, Year);
 
+    protected override string? Problem => InsertCountText.CitationIdProblem(Id);
+
     private static Microsoft.UI.Xaml.Input.InputScope NumberScope()
     {
         var scope = new Microsoft.UI.Xaml.Input.InputScope();
@@ -867,7 +899,7 @@ public sealed class NumbersInsertControl : InsertDialogBody
         {
             var (label, value, min, max) = fields[i];
             var box = MakeNumberBox($"{label} ({min:0}–{max:0})", value, min, max);
-            box.ValueChanged += (_, _) => Refresh();
+            RefreshOnEdit(box);
             _boxes.Add((box, value));
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             Grid.SetColumn(box, i);

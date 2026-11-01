@@ -37,4 +37,26 @@ public static class InsertCountText
         }
         return minimum == 1 ? $"Add at least one {noun}." : $"Add at least {minimum} {CountText.Noun(minimum, noun)}.";
     }
+    // More entries than the block can show: the preview draws at most 16 tabs and dropped the
+    // rest without a word, so the dialog inserted tabs nobody could ever open.
+    public static string Excess(int maximum, int count, string noun) =>
+        $"At most {CountText.Of(maximum, noun)} fit; remove {CountText.Of(count - maximum, noun)}.";
+
+    // Help text for the dialogs' number boxes (table size, column count, canvas and map size).
+    // Their range was only in the heading and the keys that change the value nowhere at all.
+    public static string NumberHelp(double minimum, double maximum, double smallChange = 1, double largeChange = 5) =>
+        $"From {minimum:0} to {maximum:0}. Up and Down change it by {smallChange:0}, Page Up and Page Down by {largeChange:0}. Ctrl+Enter inserts.";
+
+    // A citation id is cited as [@id], and every citation pattern in the app reads letters,
+    // digits, '-' and '_' only, so "smith 2024" or "smith.2024" made an entry nothing could cite.
+    public static string? CitationIdProblem(string? id)
+    {
+        foreach (var c in id ?? "")
+        {
+            if (char.IsLetterOrDigit(c) || c is '-' or '_') continue;
+            var what = char.IsWhiteSpace(c) ? "a space" : $"“{c}”";
+            return $"A citation id can only use letters, digits, - and _ (this one has {what}).";
+        }
+        return null;
+    }
 }

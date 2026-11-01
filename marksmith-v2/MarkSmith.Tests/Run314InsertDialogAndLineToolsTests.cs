@@ -93,7 +93,7 @@ public class Run314InsertDialogAndLineToolsTests
     public void ChartDialog_PointCountIsTheBoxHelpText()
     {
         var chart = Class(Read(Dialogs), "ChartInsertControl");
-        var count = chart.IndexOf("_count.Text = $\"{points} point", StringComparison.Ordinal);
+        var count = chart.IndexOf("_count.Text = CountText.Of(points, \"point\");", StringComparison.Ordinal); // run #324: CountText
         var help = chart.IndexOf("AutomationProperties.SetHelpText(_box, $\"{_count.Text}. {DataHelp}\");", StringComparison.Ordinal);
         Assert.True(count >= 0 && help > count);
         Assert.True(help < chart.IndexOf("if (points == 0) return", StringComparison.Ordinal));
