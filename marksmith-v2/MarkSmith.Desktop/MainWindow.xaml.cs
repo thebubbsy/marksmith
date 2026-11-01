@@ -16706,6 +16706,57 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         return !caretPlaced;
     }
 
+    // The whole lines a line-list Insert dialog opens with (SelectionPrefill.WholeLines), or null:
+    // nothing selected, a few words inside a paragraph, or the portal (it edits its own caret).
+    private (int Start, int Length, string Text)? SelectedLinesForInsert()
+    {
+        var tb = PasteTextBox;
+        if (_portalOpen || tb is null) return null;
+        var text = tb.Text ?? "";
+        return Services.SelectionPrefill.WholeLines(text, tb.SelectionStart, tb.SelectionLength) is { } r
+            ? (r.Start, r.Length, text.Substring(r.Start, r.Length))
+            : null;
+    }
+
+    // A dialog's opening text: the selected lines shaped by `shape`, else its sample.
+    private static string PrefillOr((int Start, int Length, string Text)? source,
+        Func<string?, IReadOnlyList<string>> shape, string sample) =>
+        source is { } s && shape(s.Text) is { Count: > 0 } lines ? string.Join("\n", lines) : sample;
+
+    // Opens a dialog's note when it was filled from the selected lines.
+    private static void NoteSelectionSource(Views.InsertDialogBody control, (int Start, int Length, string Text)? source)
+    {
+        if (source is { } s) control.ShowNote(Services.SelectionPrefill.Note(Services.SelectionPrefill.LineCount(s.Text)));
+    }
+
+    // Inserts a dialog's block over the lines it was filled from, when they are still there as
+    // they were; otherwise as a new block. The dialogs used to drop the block after the selection,
+    // leaving the list it was made from behind it.
+    private void InsertBlockFrom((int Start, int Length, string Text)? source, string block, string what)
+    {
+        var tb = PasteTextBox;
+        var text = tb?.Text ?? "";
+        if (source is not { } s || tb is null || _portalOpen || s.Start + s.Length > text.Length
+            || !string.Equals(text.Substring(s.Start, s.Length), s.Text, StringComparison.Ordinal))
+        {
+            InsertBlock(block);
+            return;
+        }
+
+        var plan = Services.BlockInsertion.Replace(text, s.Start, s.Length, block);
+        ViewModel.BreakUndoBurst(); // the replacement undoes as its own step
+        tb.Select(plan.Start, plan.Length);
+        tb.SelectedText = plan.Text;
+        tb.Select(Math.Clamp(plan.CaretStart, 0, (tb.Text ?? "").Length), 0);
+        ViewModel.EditorCaret = tb.SelectionStart;
+        SyncDocumentFromEditor();
+        ViewModel.BreakUndoBurst();
+        tb.Focus(FocusState.Programmatic);
+        _editorCaretPlaced = true;
+        ViewModel.StatusText = $"Replaced the {Services.CountText.Of(Services.SelectionPrefill.LineCount(s.Text), "selected line")} with {what}.";
+        ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
+    }
+
     private void InsertMarkdown(string prefix, string suffix = "")
     {
         // ISS-004: while a Looking Glass portal is open, the formatting toolbar drives the
@@ -16850,15 +16901,22 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             return;
         }
 
-        var control = new Views.CodeBlockInsertControl();
+        // Selected lines open as the code, so the card shows the block Insert makes; a selection
+        // of a few words still gets its lines wrapped by the empty-code path below.
+        var source = SelectedLinesForInsert();
+        var control = new Views.CodeBlockInsertControl(source?.Text ?? "");
+        NoteSelectionSource(control, source);
         if (await ShowInsertDialogAsync("Insert code block", control) != ContentDialogResult.Primary) return;
         if (string.IsNullOrWhiteSpace(control.Body))
         {
+            // The code was cleared: an empty fence after the lines, not one wrapped round them.
+            if (source is { } s && PasteTextBox is { } tb && s.Start + s.Length <= (tb.Text ?? "").Length)
+                tb.Select(s.Start + s.Length, 0);
             // No pasted code: insert prefix/suffix so the caret lands inside the fence.
             InsertBlock($"\n```{control.SelectedLanguage}\n", "\n```\n");
             return;
         }
-        InsertBlock(Services.InsertSnippetBuilder.CodeBlock(control.SelectedLanguage, control.Body));
+        InsertBlockFrom(source, Services.InsertSnippetBuilder.CodeBlock(control.SelectedLanguage, control.Body), "a code block");
     }
 
     private void OnBlockquoteClick(object sender, RoutedEventArgs e) => ApplyLineMarker(Services.LineMarker.Quote, "> ");
@@ -16871,12 +16929,14 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             return;
         }
 
+        var source = SelectedLinesForInsert();
         var control = new Views.LinesInsertControl(
             "A row of steps joined by arrows, in the order you list them.",
-            "Steps — one per line", "Step 1\nStep 2\nStep 3",
+            "Steps — one per line", PrefillOr(source, Services.SelectionPrefill.ListLines, "Step 1\nStep 2\nStep 3"),
             Services.InsertSnippetBuilder.Workflow, "step", minimum: 2);
+        NoteSelectionSource(control, source);
         if (await ShowInsertDialogAsync("Insert workflow", control) != ContentDialogResult.Primary) return;
-        InsertBlock(control.Snippet);
+        InsertBlockFrom(source, control.Snippet, "a workflow");
     }
 
     private async void OnInsertTimelineClick(object sender, RoutedEventArgs e)
@@ -16887,14 +16947,16 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             return;
         }
 
+        var source = SelectedLinesForInsert();
         var control = new Views.LinesInsertControl(
             "Milestones along a line, in the order you list them.",
-            "Milestones — when: what, one per line", "2020: Started\n2023: Progress\n2026: Done",
+            "Milestones — when: what, one per line", PrefillOr(source, Services.SelectionPrefill.ListLines, "2020: Started\n2023: Progress\n2026: Done"),
             Services.InsertSnippetBuilder.Timeline, "milestone",
             lineIsValid: MarkSmith.Core.AdvancedFeatures.TimelineDetector.IsTimelineEntry,
             lineHint: "write each milestone as when: what, e.g. 2026: Launch.");
+        NoteSelectionSource(control, source);
         if (await ShowInsertDialogAsync("Insert timeline", control) != ContentDialogResult.Primary) return;
-        InsertBlock(control.Snippet);
+        InsertBlockFrom(source, control.Snippet, "a timeline");
     }
 
     private async void OnInsertSmartArtClick(object sender, RoutedEventArgs e)
@@ -16921,14 +16983,16 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             return;
         }
 
+        var source = SelectedLinesForInsert();
         var control = new Views.LinesInsertControl(
             "Switchable tabs in the preview. PDF and Word show every tab, one after another.",
-            "Tab titles — one per line", "Tab 1\nTab 2",
+            "Tab titles — one per line", PrefillOr(source, Services.SelectionPrefill.ListLines, "Tab 1\nTab 2"),
             Services.InsertSnippetBuilder.Tabs, "tab", minimum: 2,
             // The preview draws 16 tabs and dropped the rest without a word.
             maximum: Services.ContainerBlockParsers.MaxTabs);
+        NoteSelectionSource(control, source);
         if (await ShowInsertDialogAsync("Insert tab group", control) != ContentDialogResult.Primary) return;
-        InsertBlock(control.Snippet);
+        InsertBlockFrom(source, control.Snippet, "a tab group");
     }
 
     private async void OnInsertColumnsClick(object sender, RoutedEventArgs e)
@@ -17196,9 +17260,11 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             return;
         }
 
-        var control = new Views.ChartInsertControl();
+        var source = SelectedLinesForInsert();
+        var control = new Views.ChartInsertControl(PrefillOr(source, Services.SelectionPrefill.ChartRows, ""));
+        NoteSelectionSource(control, source);
         if (await ShowInsertDialogAsync("Insert chart", control) != ContentDialogResult.Primary) return;
-        InsertBlock(control.Snippet);
+        InsertBlockFrom(source, control.Snippet, "a chart");
     }
 
     private async void OnInsertDatagridClick(object sender, RoutedEventArgs e)
@@ -17209,12 +17275,14 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             return;
         }
 
+        var source = SelectedLinesForInsert();
         var control = new Views.LinesInsertControl(
             "A styled data table. Numbers line up on the right; the first line is the header.",
-            "Rows — comma-separated, headers first", "label,value\nQ1,10\nQ2,25",
+            "Rows — comma-separated, headers first", PrefillOr(source, Services.SelectionPrefill.GridRows, "label,value\nQ1,10\nQ2,25"),
             Services.InsertSnippetBuilder.Datagrid, "row", minimum: 2, headerFirst: true);
+        NoteSelectionSource(control, source);
         if (await ShowInsertDialogAsync("Insert data grid", control) != ContentDialogResult.Primary) return;
-        InsertBlock(control.Snippet);
+        InsertBlockFrom(source, control.Snippet, "a data grid");
     }
 
     private async void OnInsertReferencesClick(object sender, RoutedEventArgs e)

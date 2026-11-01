@@ -88,6 +88,25 @@ public static class BlockInsertion
         return new BlockInsertPlan(start, length, text, caretStart, caretLength);
     }
 
+    /// <summary>Replaces the lines <paramref name="start"/>..+<paramref name="length"/> (whole lines,
+    /// from <see cref="SelectionPrefill.WholeLines"/>) with <paramref name="block"/>, kept apart
+    /// from its neighbours by one blank line the same as an inserted block; the caret goes after it.</summary>
+    public static BlockInsertPlan Replace(string? doc, int start, int length, string block)
+    {
+        doc ??= "";
+        start = Math.Clamp(start, 0, doc.Length);
+        length = Math.Clamp(length, 0, doc.Length - start);
+        string nl = NewLineOf(doc);
+        string body = Normalize(TrimBreaks(block), nl);
+        string before = doc.Substring(0, start);
+        string after = doc.Substring(start + length);
+        string lead = before.Length == 0 ? "" : Repeat(nl, Math.Max(0, 2 - TrailingBreaks(before)));
+        string trail = string.IsNullOrWhiteSpace(after)
+            ? (LeadingBreaks(after) > 0 ? "" : nl)
+            : Repeat(nl, Math.Max(0, 2 - LeadingBreaks(after)));
+        return new BlockInsertPlan(start, length, lead + body + trail, start + lead.Length + body.Length, 0);
+    }
+
     /// <summary>The document's line break. The WinUI editor stores a bare '\r'.</summary>
     public static string NewLineOf(string doc) =>
         doc.Contains("\r\n", StringComparison.Ordinal) ? "\r\n"

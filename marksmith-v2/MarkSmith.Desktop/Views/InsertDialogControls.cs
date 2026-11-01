@@ -35,6 +35,7 @@ public abstract class InsertDialogBody : UserControl
     public const string PreviewCardHelp = "Ctrl+Enter inserts it, Ctrl+Shift+C copies it, Shift+F10 for more.";
 
     private readonly StackPanel _fields = new() { Spacing = 12 };
+    private readonly StackPanel _root;
     private readonly TextBlock _preview;
     private readonly TextBlock _problem;
     private readonly Button _copySnippetButton;
@@ -143,7 +144,7 @@ public abstract class InsertDialogBody : UserControl
         // The keys were only in the "Inserts" label's tooltip, which keyboard focus never reaches.
         AutomationProperties.SetHelpText(previewCard, PreviewCardHelp);
 
-        Content = new StackPanel
+        Content = _root = new StackPanel
         {
             Width = BodyWidth,
             Spacing = 14,
@@ -172,6 +173,30 @@ public abstract class InsertDialogBody : UserControl
         AddHandler(PreviewKeyDownEvent, new KeyEventHandler(OnBodyPreviewKeyDown), true);
         AddHandler(KeyDownEvent, new KeyEventHandler(OnBodyKeyDown), true);
         Services.HoverPolish.Track(this);
+    }
+
+    /// <summary>A line under the description with an info glyph: a dialog filled from the editor's
+    /// selection says so, and that Insert replaces the selected lines.</summary>
+    public void ShowNote(string text)
+    {
+        var note = new TextBlock
+        {
+            Text = text,
+            TextWrapping = TextWrapping.Wrap,
+            FontSize = 12,
+            VerticalAlignment = VerticalAlignment.Center,
+        }.Themed(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
+        // A Grid, not a horizontal StackPanel: the note has to wrap at the dialog's width.
+        var row = new Grid { ColumnSpacing = 8 };
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        var icon = new FontIcon { Glyph = "\uE946", FontSize = 14, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 1, 0, 0) }
+            .Themed(IconElement.ForegroundProperty, "AccentTextFillColorPrimaryBrush");
+        AutomationProperties.SetAccessibilityView(icon, AccessibilityView.Raw);
+        Grid.SetColumn(note, 1);
+        row.Children.Add(icon);
+        row.Children.Add(note);
+        _root.Children.Insert(1, row);
     }
 
     // Enter that picks an item from an open list (an editable ComboBox's suggestions) belongs to
@@ -569,14 +594,14 @@ public sealed class ChartInsertControl : InsertDialogBody
     private readonly TextBox _box;
     private readonly TextBlock _count = CountBadge();
 
-    public ChartInsertControl()
+    public ChartInsertControl(string? initialData = null)
         : base("A chart drawn from your numbers — in the preview, the PDF and as a native, editable Word chart.")
     {
         _type = new RadioButtons { Header = "Chart type", MaxColumns = 3, SelectedIndex = 0 };
         foreach (var (label, _) in Types) _type.Items.Add(label);
         _type.SelectionChanged += (_, _) => Refresh();
 
-        _box = MultilineBox("Q1,10\nQ2,25\nQ3,15", "Label,Value");
+        _box = MultilineBox(string.IsNullOrWhiteSpace(initialData) ? "Q1,10\nQ2,25\nQ3,15" : initialData, "Label,Value");
         const string dataHeader = "Data — one label,value per line";
         AutomationProperties.SetName(_box, dataHeader);
         _box.TextChanged += (_, _) => Refresh();
@@ -721,7 +746,7 @@ public sealed class CodeBlockInsertControl : InsertDialogBody
 
     internal const string LanguageHelp = "Syntax highlighting language · Pick one or type any fence id (kotlin, ruby, diff…)";
 
-    public CodeBlockInsertControl()
+    public CodeBlockInsertControl(string initialBody = "")
         : base("A fenced code block with syntax highlighting. Leave the code empty to type it inside the fence.")
     {
         _lang = new ComboBox
@@ -743,7 +768,7 @@ public sealed class CodeBlockInsertControl : InsertDialogBody
             // Focus lands in the inner box, which had no help text of its own.
             AutomationProperties.SetHelpText(inner, LanguageHelp);
         };
-        _body = MultilineBox("", "Paste or type code (optional)", monospace: true);
+        _body = MultilineBox(initialBody, "Paste or type code (optional)", monospace: true);
         _body.Header = "Code";
         ToolTipService.SetToolTip(_body, "Initial code content (optional) · Press Ctrl+Enter to insert");
         _body.TextChanged += (_, _) => Refresh();
