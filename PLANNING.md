@@ -22745,3 +22745,86 @@ Insert box's help text).
   still reports the thebubbsy token as invalid.
 - This run's commits are on local `main` only, with the earlier unpushed ones.
 - `MarksmithBaseVersion` stays 3.97.0; tag v3.97.0 already exists on the remote.
+
+## 2026-11-01 · Run #318 (≈13:00–13:30 AEDT) · Claude Code
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running the scheduled routine in the Claude desktop app
+- Modes: Scheduled Hourly Automation Routine
+- Trigger: Scheduled hourly routine run
+- Agents Used: 1 (Orchestrator, who also did the coding and the skeptical review). No sub-agents, no conversation IDs.
+
+Picks up #317's "Next up" item 2 (help-text gaps in the studios and History). A source scan of the
+studio XAML for inputs with no tooltip and no help text found the gaps fixed below; SmartArt Studio
+had none.
+
+**User-visible improvements and fixes**
+1. **Diagram Studio: the node Shape box explains itself** ("Shape of the selected node · Alt+Down lists
+   the shapes, type a letter to jump, Esc returns to canvas"). It had no tooltip and no help text.
+2. **Diagram Studio: X, Y, Width and Height say what they measure and that Enter applies and returns to
+   the canvas** (Width/Height also name their 20 px minimum).
+3. **Diagram Studio: all four connector boxes explain themselves:** line style, arrow head, sequence
+   message type (call/reply/async/lost) and class relationship type, each naming Alt+Down and Esc.
+4. **Shape Studio: the eight mosaic tile-shape boxes say what they do and why they're greyed out**
+   ("Tile the mosaic with hexagons (used while Smart tiles is off)"). They start disabled, so this
+   reaches keyboard and screen reader users as help text.
+5. **Shape Studio: Line style, "Dark ink only" and Shape type explain themselves** ("Off: each line takes
+   the colour of the picture under it"; "Change the selected shape into another type, keeping its size,
+   colour and text").
+6. **Shape Studio fill flyout: "Use this colour" now lifts on hover like every other button** (HoverPolish
+   runs when the flyout opens) and says "Give the selected shape this colour · Ctrl+Z undoes it".
+7. **History: each version card names its keys** as help text ("Shows what changed in this version · S
+   stars it, F2 labels it, Ctrl+C copies its Markdown, Shift+F10 for more"). The cards opt out of
+   HoverPolish, so they never got tooltip-derived help.
+
+**Implementation Summary**
+- `Views/Mermaid/MermaidDiagramStudioControl.xaml`: tooltips on NodeShapeCombo, NodeX/Y/Width/HeightBox,
+  ConnectorLine/Head/Message/RelationCombo. The wording matches each field's key handler
+  (`OnInspectorSingleLineKeyDown`: Enter/Esc; `OnInspectorInputKeyDown`: Esc/Ctrl+Enter).
+- `Views/ShapeStudio/ShapeDesignStudioWindow.xaml`: tooltips on CompRoundRect…CompCloud, FuseModePicker,
+  FuseMonochrome and ShapeTypeCombo; the fill flyout's apply button is now `FillPickerApplyButton` with a tooltip.
+- `Views/ShapeStudio/ShapeDesignStudioWindow.xaml.cs`: `OnFillFlyoutOpening` calls
+  `HoverPolish.Apply(FillPickerApplyButton)`, because flyout content sits outside the tracked tree.
+- `Views/History/HistoryWindow.xaml`: `AutomationProperties.HelpText` on the version card button
+  template. The keys were checked against `HistoryWindow` key handling (S, F2, Ctrl+C on the focused version).
+- Tests: new `Run318StudioInspectorTipsTests` (23 cases). It covers each new tip, that tips match their key
+  handlers, the flyout polish call and the History help text. It also adds a guard that every
+  input in the Diagram and Shape Studio XAML has a tooltip or help text (the style preset buttons are
+  exempt because they get theirs at runtime).
+- Skeptical review: no control is hidden, disabled or refocused. No key handlers changed. The flyout
+  button is polished on open (idempotent). No resource lookups. Shape-type wording was checked against
+  `OnPrstChanged`, which keeps size/fill/text. Tooltips on the disabled tile boxes don't show on hover
+  (WinUI), but their help text does reach UIA, which is the point.
+- Build: `MarkSmith.Desktop` Debug x64 to `%TEMP%\ms_run318\b2\`, 0 errors. Tests: Run318/317 + ToolTipHelp
+  passed 50. Then Run* + Mermaid* + ShapeStudio* + History* + Style* passed 3219, 0 failed.
+- Live UIA (PID-tracked scratch instances 12476 and 7060, `MARKSMITH_CONFIG_DIR=%TEMP%\ms_run318\cfg`, both
+  stopped):
+  - Diagram Studio: after "Add a connected shape to the right", Node shape/X/Y/width/height read their
+    new help text.
+  - Shape Studio Picture tab: Rounded rect/Rectangle/Cloud (disabled), Line style and Dark ink read
+    theirs.
+  - With a 4-tier preset applied and a shape selected: Shape type read its help text. The fill
+    flyout's "Use this colour" read "Give the selected shape this colour · Ctrl+Z undoes it". The
+    PrintWindow screenshot `shape318.png` looks right.
+  - History: relaunched with a scratch .md argument; the "13:10, Opened" card read the new help text.
+  - Connector boxes weren't reached live (connectors have no UIA presence); they use the same mechanism
+    as the node boxes that were confirmed.
+
+**Next up (Run #319)**
+1. Once `gh`/git credentials are re-authenticated: push `main` (now 18 commits ahead of origin), bump
+   `MarksmithBaseVersion` to 3.98.0, tag v3.98.0.
+2. Settings: the source scan lists 20 ToggleSwitch/ComboBox rows without their own tooltip/help. Check
+   live whether their SettingsCard descriptions already reach UIA before adding anything.
+3. Find a key-free way to select a Diagram Studio connector, then live-check the connector boxes.
+4. Live-check a SmartArt Studio audit line (still unit-tested only); check the inline rename box after
+   a mouse quick-add (open since #313).
+
+**Total user-visible improvements: 7** (3 Diagram Studio inspector fixes over 9 fields, 3 Shape Studio
+fixes over 12 controls plus a hover/help fix in the fill flyout, 1 History keyboard-help fix).
+
+**Release (same run):** not cut.
+- `git push origin main` still fails (`unable to get password from user`), and `gh auth status` still
+  reports the thebubbsy token as invalid.
+- This run's commits are on local `main` only, with the earlier unpushed ones.
+- `MarksmithBaseVersion` stays 3.97.0.
