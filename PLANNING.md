@@ -22828,3 +22828,78 @@ fixes over 12 controls plus a hover/help fix in the fill flyout, 1 History keybo
   reports the thebubbsy token as invalid.
 - This run's commits are on local `main` only, with the earlier unpushed ones.
 - `MarksmithBaseVersion` stays 3.97.0.
+
+## 2026-11-01 · Run #319 (≈13:40–14:10 AEDT) · Claude Code
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running the scheduled routine in the Claude desktop app
+- Modes: Scheduled Hourly Automation Routine
+- Trigger: Scheduled hourly routine run
+- Agents Used: 1 (Orchestrator, who also did the coding and the skeptical review). No sub-agents, no conversation IDs.
+
+Picks up #318's "Next up" item 2. Settings needed nothing: `SettingsCard.ApplyToContent` already copies each
+card's Description into its control's help text. A source scan of every desktop XAML file for inputs with no
+tooltip and no help text then found the gaps below. The MainWindow hits are all filled in code (OptionRow,
+`UpdateThemeButtons`, banner setup), so they weren't changed.
+
+**User-visible improvements and fixes**
+1. **Document Galaxy: Esc now leaves the Notes box.** The window's key handler ignores keys typed in text
+   boxes, and Notes takes Enter for new lines, so nothing got you out of it except Tab. Esc now returns focus
+   to the map, like Title, Linked file and Tags already did.
+2. **Document Galaxy: Notes explains itself** ("Markdown notes about this node · Enter starts a new line, Esc
+   returns to the map").
+3. **Document Galaxy: Linked file names its keys** ("Path of the document this node stands for · Enter or Esc
+   returns to the map").
+4. **Document Galaxy: the node Type box lists the seven types and Alt+Down.**
+5. **Document Galaxy: Map appearance says it themes the whole map** (background, nodes and links) and names
+   Alt+Down.
+6. **Document Galaxy: "Add first node" (empty map) names Tab/N, and the tour banner's "Import folder" says what
+   importing does**, matching the toolbar's Import folder.
+7. **Diagram Studio: the connector Label box names Enter/Esc**, like the rest of the inspector since #318.
+8. **Shape palette: "Show all shapes" says it also resets the category to All** and returns to the search box,
+   which it did without saying.
+
+**Implementation Summary**
+- `Views/MindMap/MindMapGalaxyWindow.xaml`: tooltips on the empty-map Add first node, the tour-banner Import
+  folder, Map appearance, LinkedFileBox, NodeTypeCombo; Notes is now `NotesBox` with a tooltip and
+  `KeyDown="OnNotesBoxKeyDown"`.
+- `Views/MindMap/MindMapGalaxyWindow.xaml.cs`: `OnNotesBoxKeyDown` handles Esc only and focuses `GalaxyCanvas`.
+- `Views/Mermaid/MermaidDiagramStudioControl.xaml`: ConnectorLabelTextBox tooltip.
+- `Views/Mermaid/NodePaletteControl.xaml`: ClearSearchButton tooltip.
+- Tests: new `Run319MindMapInspectorTipsTests` (12 cases). It covers each tip, that all three Import folder
+  buttons explain themselves, that the Type tip names every `MindMapNodeType`, that the Add first node tip
+  matches the Tab/N canvas keys, and that Esc in Notes leaves Enter alone. It also adds a guard that every
+  Document Galaxy input has a tooltip or help text (the swatches are exempt: `OnSwatchLoaded` names them).
+- Skeptical review: no control is hidden or disabled. The one new key handler only takes Esc in a multi-line
+  box: Enter, arrows, Home/End and Delete still reach the TextBox. Esc is marked handled, so the window's own
+  Esc (clear selection) doesn't also fire. Focus goes to the canvas, as the other inspector fields do. No
+  resource lookups, no file access.
+- Build: `MarkSmith.Desktop` Debug x64 to `%TEMP%\ms_run319\b\`, 0 errors. Tests: Run319/318 + MindMap* +
+  NodePalette* + ToolTipHelp passed 322. Then Run* + Mermaid* + MindMap* + Style* passed 2981, 0 failed.
+- Live UIA (PID-tracked scratch instance 19748, `MARKSMITH_CONFIG_DIR=%TEMP%\ms_run319\cfg`, stopped):
+  - Document Galaxy: both Import folder buttons and Map appearance read their help text. After "Add child",
+    Linked file, Node type and Notes read theirs.
+  - With the window confirmed in the foreground, Esc in Notes moved focus to `GalaxyCanvas` ("Map canvas").
+  - PrintWindow screenshot `galaxy319.png` looks unchanged.
+  - Diagram Studio: searching the palette for "zzqqxx" showed "Show all shapes" with its new help text.
+    Invoking it cleared the search and left All checked.
+  - Not reached live: "Add first node" (the map opens with the tour vault, not empty) and the connector Label
+    (connectors still have no UIA presence).
+
+**Next up (Run #320)**
+1. Once `gh`/git credentials are re-authenticated: push `main` (now 20 commits ahead of origin), bump
+   `MarksmithBaseVersion` to 3.98.0, tag v3.98.0.
+2. Extend the help-text guard pattern to the OCR Inspection Studio and Theme Builder windows; run the
+   `%TEMP%\ms_run317\help.ps1` audit on them live.
+3. Find a key-free way to select a Diagram Studio connector (open since #318).
+4. Live-check a SmartArt Studio audit line and the inline rename box after a mouse quick-add (open since #313).
+
+**Total user-visible improvements: 8** (1 keyboard fix and 5 help-text fixes in Document Galaxy, 1 in Diagram
+Studio, 1 in the shape palette).
+
+**Release (same run):** not cut.
+- `git push origin main` still fails (`could not read Username for 'https://github.com'`), and `gh auth status`
+  still reports the thebubbsy token as invalid.
+- This run's commits are on local `main` only, with the earlier unpushed ones.
+- `MarksmithBaseVersion` stays 3.97.0.
