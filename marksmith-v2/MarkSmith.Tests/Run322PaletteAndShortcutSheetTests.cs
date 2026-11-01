@@ -13,7 +13,7 @@ namespace MarkSmith.Tests;
 // - its three "Paste into search" items paste one line at the caret and give the box its focus back;
 // - the search box's help text names every key it takes, and the footer names Shift+F10;
 // - the keyboard shortcuts sheet shows its copy results inside the dialog;
-// - typing on the closed recent-files and folder-preset boxes opens the list instead of acting.
+// - typing on the recent-files and folder-preset boxes, open or closed, only moves the highlight.
 public class Run322PaletteAndShortcutSheetTests
 {
     private static string RepoDir()
@@ -176,30 +176,71 @@ public class Run322PaletteAndShortcutSheetTests
         Assert.Contains("ViewModel.StatusText = message;", show);
     }
 
-    // ---- Type-ahead on the closed action boxes ----
+    // ---- Type-ahead on the action boxes ----
+
+    [Theory]
+    [InlineData(new[] { "alpha", "beta", "gamma" }, -1, "b", 1)]
+    [InlineData(new[] { "alpha", "beta", "gamma" }, -1, "G", 2)]
+    [InlineData(new[] { "alpha", "beta", "gamma" }, -1, "z", -1)]
+    [InlineData(new[] { "alpha", "beta", "gamma" }, -1, "", -1)]
+    // One letter again steps to the next row starting with it, wrapping round.
+    [InlineData(new[] { "bar", "alpha", "baz", "beta" }, 0, "b", 2)]
+    [InlineData(new[] { "bar", "alpha", "baz", "beta" }, 3, "b", 0)]
+    [InlineData(new[] { "bar", "alpha", "baz", "beta" }, 0, "bb", 2)]
+    // A longer prefix may stay on the current row.
+    [InlineData(new[] { "bar", "alpha", "baz", "beta" }, 2, "ba", 2)]
+    [InlineData(new[] { "bar", "alpha", "baz", "beta" }, 0, "be", 3)]
+    // The only match wraps back to itself.
+    [InlineData(new[] { "alpha", "beta", "gamma" }, 1, "b", 1)]
+    public void TypeAheadSearch_finds_the_row_a_prefix_lands_on(string[] names, int current, string prefix, int expected)
+    {
+        Assert.Equal(expected, TypeAheadSearch.Find(names, current, prefix));
+    }
 
     [Fact]
-    public void Type_ahead_opens_the_list_and_lets_the_letter_through()
+    public void TypeAheadSearch_skips_blank_names_and_handles_empty_lists()
+    {
+        Assert.Equal(-1, TypeAheadSearch.Find(Array.Empty<string?>(), -1, "a"));
+        Assert.Equal(1, TypeAheadSearch.Find(new string?[] { null, "apple", "" }, -1, "a"));
+    }
+
+    [Fact]
+    public void TypeAheadSearch_extends_quick_keys_and_restarts_after_a_pause()
+    {
+        Assert.Equal("be", TypeAheadSearch.Extend("b", 'e', TimeSpan.FromMilliseconds(200)));
+        Assert.Equal("e", TypeAheadSearch.Extend("b", 'e', TypeAheadSearch.Pause + TimeSpan.FromMilliseconds(1)));
+    }
+
+    [Fact]
+    public void Type_ahead_keys_are_handled_and_only_move_the_highlight()
     {
         var code = Read(Helper);
-        Assert.Contains("public static void Attach(ComboBox combo, bool typeAheadOpens = false)", code);
-        var branch = code[code.IndexOf("else if (typeAheadOpens", StringComparison.Ordinal)..];
-        branch = branch[..branch.IndexOf('}')];
-        Assert.Contains("IsTypeAheadKey(e.Key) && !ModifierDown()", branch);
-        Assert.Contains("combo.IsDropDownOpen = true;", branch);
-        // Left unhandled so the open list's type-ahead highlights the match.
-        Assert.DoesNotContain("e.Handled", branch);
+        Assert.Contains("public static void Attach(ComboBox combo, Func<object, string?>? typeAheadText = null)", code);
+        // WinUI's own type-ahead selects (commits) the match, open or closed, so the key is handled.
+        var tryTypeAhead = code[code.IndexOf("bool TryTypeAhead(KeyRoutedEventArgs e)", StringComparison.Ordinal)..];
+        tryTypeAhead = tryTypeAhead[..tryTypeAhead.IndexOf("return true;", StringComparison.Ordinal)];
+        Assert.Contains("ModifierDown()", tryTypeAhead);
+        Assert.Contains("e.Handled = true;", tryTypeAhead);
+        // Keys in the open list reach its popup, not the combo: the popup's child is hooked once.
+        Assert.Contains("combo.DropDownOpened += (_, _) =>", code);
+        Assert.Contains("FindPopup(combo)?.Child is UIElement list && Hooked.TryAdd(list, Marker)", code);
+        // The highlight is keyboard focus on a row; nothing sets SelectedIndex / SelectedItem.
+        var highlight = code[code.IndexOf("private static void HighlightMatch(", StringComparison.Ordinal)..];
+        Assert.Contains("TypeAheadSearch.Find(names, current, prefix)", highlight);
+        Assert.Contains("row.Focus(FocusState.Keyboard);", highlight);
+        Assert.DoesNotContain("SelectedIndex =", code);
+        Assert.DoesNotContain("SelectedItem =", code);
         foreach (var range in new[] { "VirtualKey.A and <= VirtualKey.Z", "VirtualKey.Number0 and <= VirtualKey.Number9", "VirtualKey.NumberPad0 and <= VirtualKey.NumberPad9" })
             Assert.Contains(range, code);
         Assert.Contains("IsDown(VirtualKey.Control) || IsDown(VirtualKey.Menu)", code);
     }
 
     [Theory]
-    [InlineData("MarkdownFilesCombo")]
-    [InlineData("WatchFolderPresets")]
-    public void Step_one_action_boxes_use_type_ahead_and_say_so(string combo)
+    [InlineData("MarkdownFilesCombo", "item => (item as Services.MarkdownFileEntry)?.Name")]
+    [InlineData("WatchFolderPresets", "item => (item as Services.AiAgentFolderPresets.FolderPreset)?.Name")]
+    public void Step_one_action_boxes_use_type_ahead_and_say_so(string combo, string text)
     {
-        Assert.Contains($"Services.ComboArrowOpens.Attach({combo}, typeAheadOpens: true);", Read(MainCode));
+        Assert.Contains($"Services.ComboArrowOpens.Attach({combo}, {text});", Read(MainCode));
         var help = Attr(Tag(Read(Main), $"x:Name=\"{combo}\""), "AutomationProperties.HelpText");
         Assert.StartsWith("Down arrow opens the list, and so does typing", help);
     }
@@ -210,6 +251,6 @@ public class Run322PaletteAndShortcutSheetTests
         // Keys 1 to 8 reclassify directly there, so those boxes don't take type-ahead.
         var code = Read("MarkSmith.Desktop/Views/Ocr/OcrInspectionStudioWindow.xaml.cs");
         Assert.Contains("ComboArrowOpens.Attach(QuickReclassifyComboBox);", code);
-        Assert.DoesNotContain("typeAheadOpens", code);
+        Assert.DoesNotContain("ComboArrowOpens.Attach(QuickReclassifyComboBox, ", code);
     }
 }

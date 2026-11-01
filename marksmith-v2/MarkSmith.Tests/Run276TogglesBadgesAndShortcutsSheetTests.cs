@@ -132,7 +132,8 @@ public class Run276TogglesBadgesAndShortcutsSheetTests
         Assert.Contains("IsTabStop = true,", body);
         Assert.Contains("AutomationProperties.SetName(sheet, \"Keyboard shortcuts list\");", body);
         Assert.Contains("dialog.Opened += (_, _) => sheet.Focus(FocusState.Programmatic);", body);
-        Assert.Contains("Content = sheet,", body);
+        // The sheet is the dialog's content (run #322 put a copy-status line under it).
+        Assert.Matches(@"Content = (sheet,|new StackPanel \{ Children = \{ sheet, )", body);
         // Focus must be set before the dialog is awaited, or it would run after it closed.
         Assert.True(body.IndexOf("dialog.Opened +=", StringComparison.Ordinal)
                     < body.IndexOf("ShowPolishedAsync(dialog)", StringComparison.Ordinal));

@@ -79,7 +79,7 @@ public class Run321ComboArrowKeysTests
     public void MainWindowActionCombosOpenOnArrows(string combo, string handler, string action)
     {
         var code = Read(MainCode);
-        Assert.Matches($@"Services\.ComboArrowOpens\.Attach\({combo}(, typeAheadOpens: true)?\);", code);
+        Assert.Matches($@"Services\.ComboArrowOpens\.Attach\({combo}(, [^;]+)?\);", code);
         // The reason: the selection handler acts straight away.
         Assert.Contains(action, Method(code, handler));
         Assert.StartsWith("Down arrow opens the list", Help(Tag(Read(Main), $"x:Name=\"{combo}\"")));
