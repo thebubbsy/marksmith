@@ -23237,3 +23237,7 @@ surface in the rotation (last real pass around run #200).
 **Total user-visible improvements: 7** (6 find and replace bar fixes covering a keyboard replace-all, regex
 error read-out, key help on both boxes, accelerator keys, "No matches" wording and the replace count; 1 shortcuts
 sheet copy fix).
+
+**Release (same run):** tagged **v3.101.0** on `e8bdaef4`. Release workflow run 41283859122 succeeded and published 5
+assets; user-facing notes for run #323 were put above the generated body. `MarksmithBaseVersion` was then
+bumped to 3.102.0.
