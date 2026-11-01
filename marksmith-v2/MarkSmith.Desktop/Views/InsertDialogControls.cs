@@ -664,10 +664,11 @@ public sealed class TableInsertControl : InsertDialogBody
         ToolTipService.SetToolTip(_cols, "Number of columns (1–20)");
         _header = new CheckBox { Content = "Include header row", IsChecked = true };
         // Markdown tables always have a header row, so clearing this leaves it blank rather
-        // than writing rows GitHub and the preview show as plain text.
+        // than writing rows GitHub and the preview show as plain text. The preview and the Word,
+        // PowerPoint and email exports leave a blank header row out (BlankTableHeader).
         ToolTipService.SetToolTip(_header, _cells is null
-            ? "Fill the header row with placeholder titles · Clear it to leave the header row blank"
-            : "The first selected row is the header · Clear it to make that row a body row under a blank header");
+            ? "Fill the header row with placeholder titles · Clear it to leave the header row blank (the preview and exports leave it out)"
+            : "The first selected row is the header · Clear it to make that row a body row under a blank header (the preview and exports leave it out)");
         RefreshOnEdit(_rows);
         RefreshOnEdit(_cols);
         _header.Click += (_, _) =>

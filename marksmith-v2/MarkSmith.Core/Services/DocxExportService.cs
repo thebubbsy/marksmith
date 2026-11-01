@@ -4176,6 +4176,9 @@ public sealed partial class DocxExportService
         for (int rIdx = 0; rIdx < rowList.Count; rIdx++)
         {
             var row = rowList[rIdx];
+            // A blank header row (the Table dialog's "no header row") is left out, so the table
+            // doesn't open on an empty shaded row that repeats on every page.
+            if (BlankTableHeader.IsBlank(row)) continue;
             var wRow = new W.TableRow();
             var banded = false;
             if (row.IsHeader)

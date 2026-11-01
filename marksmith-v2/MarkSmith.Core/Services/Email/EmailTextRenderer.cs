@@ -139,6 +139,7 @@ internal static class EmailTextRenderer
     private static void TableText(StringBuilder sb, Table table, string indent)
     {
         var rows = table.OfType<TableRow>()
+            .Where(r => !BlankTableHeader.IsBlank(r))
             .Select(r => (r.IsHeader, Cells: r.OfType<TableCell>().Select(c =>
                 string.Join(" ", c.OfType<LeafBlock>().Select(l => InlineText(l.Inline).Replace('\n', ' ').Trim()))).ToList()))
             .ToList();

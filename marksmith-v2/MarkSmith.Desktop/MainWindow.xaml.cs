@@ -16723,16 +16723,20 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         Func<string?, IReadOnlyList<string>> shape, string sample) =>
         source is { } s && shape(s.Text) is { Count: > 0 } lines ? string.Join("\n", lines) : sample;
 
-    // Opens a dialog's note when it was filled from the selected lines.
-    private static void NoteSelectionSource(Views.InsertDialogBody control, (int Start, int Length, string Text)? source)
+    // Opens a dialog's note when it was filled from the selected lines (or `counted` paragraphs).
+    private static void NoteSelectionSource(Views.InsertDialogBody control, (int Start, int Length, string Text)? source,
+        (int Count, string Noun)? counted = null)
     {
-        if (source is { } s) control.ShowNote(Services.SelectionPrefill.Note(Services.SelectionPrefill.LineCount(s.Text)));
+        if (source is { } s) control.ShowNote(counted is { } c
+            ? Services.SelectionPrefill.Note(c.Count, c.Noun)
+            : Services.SelectionPrefill.Note(Services.SelectionPrefill.LineCount(s.Text)));
     }
 
     // Inserts a dialog's block over the lines it was filled from, when they are still there as
     // they were; otherwise as a new block. The dialogs used to drop the block after the selection,
     // leaving the list it was made from behind it.
-    private void InsertBlockFrom((int Start, int Length, string Text)? source, string block, string what)
+    private void InsertBlockFrom((int Start, int Length, string Text)? source, string block, string what,
+        (int Count, string Noun)? counted = null)
     {
         var tb = PasteTextBox;
         var text = tb?.Text ?? "";
@@ -16753,7 +16757,10 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
         ViewModel.BreakUndoBurst();
         tb.Focus(FocusState.Programmatic);
         _editorCaretPlaced = true;
-        ViewModel.StatusText = $"Replaced {Services.SelectionPrefill.TheSelectedLines(Services.SelectionPrefill.LineCount(s.Text))} with {what}.";
+        var replaced = counted is { } c
+            ? Services.SelectionPrefill.TheSelected(c.Count, c.Noun)
+            : Services.SelectionPrefill.TheSelectedLines(Services.SelectionPrefill.LineCount(s.Text));
+        ViewModel.StatusText = $"Replaced {replaced} with {what}.";
         ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
     }
 
@@ -17020,9 +17027,11 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
                 ? Services.InsertSnippetBuilder.Columns(v[0], paragraphs)
                 : Services.InsertSnippetBuilder.Columns(v[0]),
             ("Columns", Math.Clamp(paragraphs.Count, 2, 4), 2, 4));
-        NoteSelectionSource(control, source);
+        // Counted in paragraphs: two of them read "the 4 selected lines" with the blank line between.
+        (int, string)? counted = paragraphs.Count > 0 ? (paragraphs.Count, "selected paragraph") : null;
+        NoteSelectionSource(control, source, counted);
         if (await ShowInsertDialogAsync("Insert multi-column section", control) != ContentDialogResult.Primary) return;
-        InsertBlockFrom(source, control.Snippet, "columns");
+        InsertBlockFrom(source, control.Snippet, "columns", counted);
     }
 
     private async void OnInsertCanvasClick(object sender, RoutedEventArgs e)

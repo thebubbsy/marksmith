@@ -132,20 +132,47 @@ public static class SelectionPrefill
 
     /// <summary>The paragraphs (split at blank lines) the Columns dialog opens with, one per column,
     /// each kept as written. Empty when a line starts a ":::" fence, which would end the columns
-    /// block early, or when nothing is left.</summary>
+    /// block early, or when nothing is left. A line that is only "===" starts the next column, as it
+    /// does inside the block; under paragraph text it underlines a heading, which is kept as a
+    /// "# " heading so it doesn't split the paragraph into an extra column.</summary>
     public static IReadOnlyList<string> ColumnParagraphs(string? text)
     {
         var lines = (text ?? "").Replace("\r\n", "\n").Replace('\r', '\n').Split('\n').Select(l => l.TrimEnd()).ToList();
         if (lines.Any(l => l.TrimStart().StartsWith(":::", StringComparison.Ordinal))) return Array.Empty<string>();
         var paragraphs = new List<string>();
         var current = new List<string>();
-        foreach (var line in lines.Append(""))
+        void EndParagraph()
         {
-            if (line.Trim().Length > 0) { current.Add(line); continue; }
             if (current.Count > 0) paragraphs.Add(string.Join("\n", current));
             current.Clear();
         }
+        foreach (var line in lines.Append(""))
+        {
+            if (ColumnBreak.IsMatch(line))
+            {
+                var heading = current.Skip(HeadingStart(current)).ToList();
+                if (heading.Count == 0) { EndParagraph(); continue; }
+                current.RemoveRange(current.Count - heading.Count, heading.Count);
+                current.Add("# " + string.Join(" ", heading.Select(l => l.Trim())));
+                continue;
+            }
+            if (line.Trim().Length > 0) { current.Add(line); continue; }
+            EndParagraph();
+        }
         return paragraphs;
+    }
+
+    // The column dialog's splitter (MarkdownHtmlService.ColumnsSegmentSplitRe): a line of 3+ '='.
+    private static readonly Regex ColumnBreak = new(@"^[ \t]*===+[ \t]*$", RegexOptions.CultureInvariant);
+    private static readonly Regex BlockStart = new(@"^\s{0,3}(?:[-*+>]\s|\d{1,9}[.)]\s|#{1,6}(?:\s|$)|```|~~~|\|)", RegexOptions.CultureInvariant);
+
+    // Where the plain text a "===" line would underline begins: after the last list item, quote,
+    // heading, fence or table line (those can't be a heading's text). Count when there is none.
+    private static int HeadingStart(List<string> lines)
+    {
+        var start = lines.Count;
+        while (start > 0 && !BlockStart.IsMatch(lines[start - 1])) start--;
+        return start;
     }
 
     /// <summary>A selected &lt;svg&gt;…&lt;/svg&gt; drawing for the canvas dialog, or "" for anything
@@ -161,13 +188,20 @@ public static class SelectionPrefill
     }
 
     /// <summary>The note a prefilled dialog shows, so Insert replacing the lines is no surprise.</summary>
-    public static string Note(int lines) =>
-        $"Filled from {TheSelectedLines(lines)}. Insert replaces {(lines == 1 ? "it" : "them")}.";
+    public static string Note(int lines) => Note(lines, "selected line");
+
+    /// <summary>The note counted in something other than lines ("selected paragraph" for Columns,
+    /// whose two paragraphs read "the 4 selected lines" with the blank line between them).</summary>
+    public static string Note(int count, string selectedNoun) =>
+        $"Filled from {TheSelected(count, selectedNoun)}. Insert replaces {(count == 1 ? "it" : "them")}.";
 
     /// <summary>"the selected line" or "the 4 selected lines": "the 1 selected line" read oddly in
     /// the note and the status bar.</summary>
-    public static string TheSelectedLines(int lines) =>
-        lines == 1 ? "the selected line" : $"the {CountText.Of(lines, "selected line")}";
+    public static string TheSelectedLines(int lines) => TheSelected(lines, "selected line");
+
+    /// <summary>"the selected paragraph" or "the 2 selected paragraphs".</summary>
+    public static string TheSelected(int count, string selectedNoun) =>
+        count == 1 ? $"the {selectedNoun}" : $"the {CountText.Of(count, selectedNoun)}";
 
     /// <summary>Lines in a selection, counting a WinUI bare '\r' as a break.</summary>
     public static int LineCount(string? text) =>

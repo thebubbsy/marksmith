@@ -138,7 +138,8 @@ public class Run327SelectionPrefillTests
         Assert.Contains("string.Equals(text.Substring(s.Start, s.Length), s.Text, StringComparison.Ordinal)", from);
         Assert.Contains("BlockInsertion.Replace(", from);
         Assert.Contains("ViewModel.BreakUndoBurst();", from);
-        Assert.Contains("ViewModel.StatusText = $\"Replaced {Services.SelectionPrefill.TheSelectedLines(", from);
+        Assert.Contains("Services.SelectionPrefill.TheSelectedLines(Services.SelectionPrefill.LineCount(s.Text))", from);
+        Assert.Contains("ViewModel.StatusText = $\"Replaced {replaced} with {what}.\";", from); // run #330: or counted paragraphs
         // The portal edits its own caret, so it never prefills from the main editor.
         Assert.Contains("if (_portalOpen || tb is null) return null;", Method(main, "private (int Start, int Length, string Text)? SelectedLinesForInsert()"));
     }

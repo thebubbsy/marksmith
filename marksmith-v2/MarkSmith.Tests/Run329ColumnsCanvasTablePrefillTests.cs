@@ -141,8 +141,9 @@ public class Run329ColumnsCanvasTablePrefillTests
         var columns = Method(code, "private async void OnInsertColumnsClick(");
         Assert.Contains("SelectionPrefill.ColumnParagraphs(s.Text)", columns);
         Assert.Contains("Math.Clamp(paragraphs.Count, 2, 4)", columns);
-        Assert.Contains("NoteSelectionSource(control, source);", columns);
-        Assert.Contains("InsertBlockFrom(source, control.Snippet, \"columns\");", columns);
+        // Run #330 counts the note and status in paragraphs.
+        Assert.Contains("NoteSelectionSource(control, source, counted);", columns);
+        Assert.Contains("InsertBlockFrom(source, control.Snippet, \"columns\", counted);", columns);
         Assert.DoesNotContain("InsertBlock(control.Snippet);", columns);
 
         var canvas = Method(code, "private async void OnInsertCanvasClick(");

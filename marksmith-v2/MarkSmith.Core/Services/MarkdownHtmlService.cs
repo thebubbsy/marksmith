@@ -1963,6 +1963,8 @@ public sealed partial class MarkdownHtmlService
             th, td { border: 1px solid {{theme.Border}}; padding: 8px 12px; text-align: left; overflow-wrap: break-word; }
             td a, td code, th a, th code { overflow-wrap: anywhere; }
             th { background: {{theme.Code}}; font-weight: bold; }
+            /* A blank header row (the Table dialog's "no header row") isn't shown: Markdown needs one, the reader doesn't. */
+            table:has(> tbody) > thead:not(:has(th:not(:empty))) { display: none; }
             /* Body copy the palette never reached: links were the browser's #0000EE (unreadable on
                every dark theme), blockquotes had no quote styling at all, and inline code, kbd,
                ==mark== and --- were browser defaults. Everything derives from the theme, so custom

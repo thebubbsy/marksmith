@@ -826,7 +826,8 @@ public static class SlideDeckBuilder
         private void AddTable(Table table, List<SlideBlock> flow)
         {
             var t = new TableSlideBlock();
-            var rows = table.OfType<TableRow>().ToList();
+            // A blank header row (the Table dialog's "no header row") is left out of the slide.
+            var rows = table.OfType<TableRow>().Where(r => !BlankTableHeader.IsBlank(r)).ToList();
             // Markdig adds a trailing column definition for "| a | b |", so count real cells.
             int cols = rows.Count == 0 ? table.ColumnDefinitions.Count : rows.Max(r => r.Count);
             if (cols == 0) return;

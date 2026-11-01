@@ -460,7 +460,8 @@ public sealed class EmailHtmlRenderer
     private void WriteTable(StringBuilder sb, Table table)
     {
         sb.Append($"<table cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"border-collapse:collapse;margin:0 0 16px 0;font-size:14px;\">\n");
-        foreach (var row in table.OfType<TableRow>())
+        // A blank header row (the Table dialog's "no header row") is left out of the email.
+        foreach (var row in table.OfType<TableRow>().Where(r => !BlankTableHeader.IsBlank(r)))
         {
             sb.Append("<tr>");
             // Markdig only fills ColumnIndex for grid tables; pipe tables need the running position.
