@@ -22975,3 +22975,80 @@ Studio, SmartArt Studio and Diagram Studio).
 **Release (same run):** tagged **v3.98.0** on `71b9d98d` (MarksmithBaseVersion first moved 3.97.0 → 3.98.0, since
 v3.97.0 was already tagged). Release workflow run 41272323429 succeeded and published 5 assets. User-facing notes
 covering runs #292–#320 were put above the generated body. `MarksmithBaseVersion` was then bumped to 3.99.0.
+
+## 2026-11-01 · Run #321 (≈15:45–16:30 AEDT) · Claude Code
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running the scheduled routine in the Claude desktop app
+- Modes: Scheduled Hourly Automation Routine
+- Trigger: Scheduled hourly routine run
+- Agents Used: 1 (Orchestrator, who also did the coding and the skeptical review). No sub-agents, no conversation IDs.
+
+Picked up #320's "Next up" item 4: other lists and boxes that act the moment their selection changes, so
+an arrow key acts once per press. The command palette's `Results` is safe (it acts on `ItemClick`). Closed
+combo boxes are not: WinUI moves a closed ComboBox's selection on Up/Down/Home/End/PageUp/PageDown, and four
+boxes act on every selection change.
+
+**User-visible improvements and fixes**
+1. **Step 1, Recent & found .md files: Down no longer opens the next file.** On the closed box, Down opened
+   the next file in the list and tucked the Source panel away, taking focus with it. Down now opens the
+   list; arrows move the highlight there and Enter opens the file.
+2. **Step 1, AI agent folder presets: arrows no longer overwrite the watch folder.** Each Down replaced the
+   watch folder with the next preset's path. The list now opens instead.
+3. **OCR Inspection Studio, Quick reclassify: arrows no longer reclassify the element once per key press**
+   (each press re-rendered the preview and logged a reclassification). The list opens; keys 1 to 8 still
+   reclassify directly.
+4. **OCR Inspection Studio: the same fix for each element card's reclassify box.**
+5. **All four boxes say how they work** ("Down arrow opens the list, Enter opens the file" and so on). The
+   card boxes had no help text at all.
+6. **Markdown issues list names its keys** (Enter/Space jumps to the line, Ctrl+C, Ctrl+Shift+C copies all,
+   Shift+F10).
+7. **Document outline list names its keys** (Enter/Space jumps, Ctrl+C, Ctrl+Shift+C copies a Markdown
+   link, Ctrl+F filters, Shift+F10).
+8. **Recent exports list names its keys** (Enter/Space opens, Ctrl+O shows in folder, Ctrl+C copies the
+   path, Delete removes it from the list, Shift+F10).
+
+**Implementation Summary**
+- New `Services/ComboArrowOpens.cs`: `Attach(combo)` adds a `PreviewKeyDown` that, while the box is closed,
+  turns Up/Down/Home/End/PageUp/PageDown into "open the list" (handled). An open list, Enter, Space, F4,
+  Alt+Down and type-ahead are untouched.
+- `MainWindow.xaml.cs`: attached to `MarkdownFilesCombo` and `WatchFolderPresets` in the constructor.
+  `MainWindow.xaml`: help text on those two boxes and on `LintList`, `TocList`, `HistoryList`.
+- `Views/Ocr/OcrInspectionStudioWindow.xaml(.cs)`: attached to `QuickReclassifyComboBox` and each card's
+  reclassify box; a shared `ReclassifyComboHelp` string, matching the XAML box's help text.
+- Tests: new `Run321ComboArrowKeysTests` (8 cases). It checks the helper's key set and that it leaves an
+  open list alone, each attach site and the selection handler that is the reason for it, each list's help
+  text against its key handler, and adds a guard: every main-window ListView/GridView with its own
+  `KeyDown` has help text (the main-window twin of #320's studio guard).
+- Skeptical review: nothing is hidden or disabled, and focus stays on the box. The handler only acts while
+  the box is closed, so arrows inside the open list (and in any TextBox) are never swallowed. Handling the
+  key in `PreviewKeyDown` also keeps it from bubbling to the OCR window's own Up/Down (next/previous
+  element), which already skipped combo boxes via `ChoiceKeys`. No resource lookups, no file access.
+- Build: `MarkSmith.Desktop` Debug x64 to `%TEMP%\ms_run321\b\`, 0 errors. Tests: Run321/320 + Ocr* +
+  ToolTipHelp passed 220. Then Run2* + Run3* + Ocr* + MainWindow* passed 2029, 0 failed.
+- Live UIA (PID-tracked scratch instance 1156, `MARKSMITH_CONFIG_DIR=%TEMP%\ms_run321\cfg` seeded with three
+  pinned scratch files, stopped). Keys were posted to the scratch window's own `InputSiteWindowClass` hwnd,
+  since the session's foreground belonged to another process; no SendKeys.
+  - Recent files: with nothing selected, Down expanded the box and selected nothing. A second Down and Enter
+    opened beta.md. With beta.md selected, Down expanded the box and beta.md stayed selected (before the fix
+    it would have opened gamma.md). Esc closed it.
+  - Folder presets (after expanding Automation and switching Watch a folder on): Down expanded the box and
+    the watch folder stayed empty. Esc closed it.
+  - Help text read back on both boxes and on the outline list.
+  - PrintWindow screenshot `main321.png`: layout unchanged. Switching Watch a folder on in the free scratch
+    profile raised the Pro gate, as designed.
+  - Not reached live: the OCR studio boxes (needs an image/PDF loaded) and the Lint/Recent exports lists
+    (empty in a fresh profile). All source-tested.
+
+**Noticed, not fixed**
+- Type-ahead (a letter key) on the closed recent-files box still selects, and so opens, the first matching
+  file. Changing that would also change how type-ahead works in the open list, so it's left for now.
+
+**Next up (Run #322)**
+1. Live-check the OCR reclassify boxes (load a scratch PNG) and the SmartArt palette flyout (open since #320).
+2. Decide on type-ahead in the recent-files box (above).
+3. Find a key-free way to select a Diagram Studio connector (open since #318).
+
+**Total user-visible improvements: 8** (4 keyboard fixes in action combo boxes across Step 1 and the OCR
+studio, 4 help-text fixes naming keys on those boxes and on the main window's three flyout lists).
