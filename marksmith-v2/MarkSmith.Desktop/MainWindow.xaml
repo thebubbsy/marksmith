@@ -717,9 +717,10 @@
                                             </Grid.ColumnDefinitions>
                                             <TextBox x:Name="FindTextBox" Grid.Column="0" PlaceholderText="Find in document…"
                                                      AutomationProperties.Name="Find in document"
+                                                     AutomationProperties.HelpText="Enter: next match · Shift+Enter: previous · Up and Down: earlier searches · Alt+Home or Alt+End: first or last match · Alt+C, Alt+W, Alt+R: match case, whole word, regular expression · Ctrl+H: replace · Ctrl+Alt+Enter: replace all · Esc: close"
                                                      Height="30" FontSize="13" KeyDown="OnFindTextBoxKeyDown"
                                                      TextChanged="OnFindTextChanged"
-                                                     ToolTipService.ToolTip="Text to find · Enter for the next match, Shift+Enter for the previous · Right-click or Shift+F10 for options" />
+                                                     ToolTipService.ToolTip="Text to find · Enter for the next match, Shift+Enter for the previous · Up and Down recall earlier searches · Right-click or Shift+F10 for options" />
                                             <!-- A button so the keyboard reaches it (a tab stop only while it shows a count):
                                                  Enter copies the count, Shift+F10 / the Menu key opens its menu. -->
                                             <HyperlinkButton x:Name="FindCountButton" Grid.Column="1" VerticalAlignment="Center"
@@ -734,19 +735,19 @@
                                                         XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
                                                         AutomationProperties.Name="Search options">
                                                 <ToggleButton x:Name="MatchCaseCheck" Width="32" Height="30" Padding="0"
-                                                              AutomationProperties.Name="Match case (Alt+C)"
+                                                              AutomationProperties.Name="Match case" AutomationProperties.AcceleratorKey="Alt+C"
                                                               ToolTipService.ToolTip="Match case (Alt+C)"
                                                               Checked="OnMatchCaseChanged" Unchecked="OnMatchCaseChanged">
                                                     <TextBlock Text="Aa" FontSize="12" FontWeight="SemiBold" />
                                                 </ToggleButton>
                                                 <ToggleButton x:Name="MatchWholeWordCheck" Width="32" Height="30" Padding="0"
-                                                              AutomationProperties.Name="Match whole word (Alt+W)"
+                                                              AutomationProperties.Name="Match whole word" AutomationProperties.AcceleratorKey="Alt+W"
                                                               ToolTipService.ToolTip="Match whole word (Alt+W)"
                                                               Checked="OnMatchWholeWordChanged" Unchecked="OnMatchWholeWordChanged">
                                                     <TextBlock Text="[W]" FontSize="11" FontWeight="SemiBold" />
                                                 </ToggleButton>
                                                 <ToggleButton x:Name="UseRegexCheck" Width="32" Height="30" Padding="0"
-                                                              AutomationProperties.Name="Use regular expression (Alt+R)"
+                                                              AutomationProperties.Name="Use regular expression" AutomationProperties.AcceleratorKey="Alt+R"
                                                               ToolTipService.ToolTip="Use regular expression (Alt+R)"
                                                               Checked="OnUseRegexChanged" Unchecked="OnUseRegexChanged">
                                                     <TextBlock Text=".*" FontSize="12" FontWeight="SemiBold" FontFamily="Cascadia Mono, Consolas, monospace" />
@@ -780,19 +781,20 @@
                                             </Grid.ColumnDefinitions>
                                             <TextBox x:Name="ReplaceTextBox" Grid.Column="0" PlaceholderText="Replace with…"
                                                      AutomationProperties.Name="Replace with"
+                                                     AutomationProperties.HelpText="Enter: replace this match and go to the next · Ctrl+Alt+Enter: replace all · Shift+Tab: back to Find · Esc: close"
                                                      Height="30" FontSize="13" KeyDown="OnReplaceTextBoxKeyDown"
-                                                     ToolTipService.ToolTip="Replacement text · Press Enter to replace next match · Right-click or Shift+F10 for options" />
+                                                     ToolTipService.ToolTip="Replacement text · Enter replaces this match, Ctrl+Alt+Enter replaces all · Right-click or Shift+F10 for options" />
                                             <StackPanel x:Name="ReplaceActionsCluster" Grid.Column="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
                                                         XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
                                                         AutomationProperties.Name="Replace actions">
                                                 <Button x:Name="ReplaceOneButton" Height="30" Padding="12,0" Click="OnReplaceClick"
-                                                        AutomationProperties.Name="Replace match (Enter)"
+                                                        AutomationProperties.Name="Replace match" AutomationProperties.AcceleratorKey="Enter"
                                                         ToolTipService.ToolTip="Replace this match and go to the next one (Enter)">
                                                     <TextBlock Text="Replace" FontSize="12" />
                                                 </Button>
                                                 <Button x:Name="ReplaceAllButton" Height="30" Padding="12,0" Click="OnReplaceAllClick"
-                                                        AutomationProperties.Name="Replace all matches"
-                                                        ToolTipService.ToolTip="Replace every match (one undo step)">
+                                                        AutomationProperties.Name="Replace all matches" AutomationProperties.AcceleratorKey="Ctrl+Alt+Enter"
+                                                        ToolTipService.ToolTip="Replace every match (Ctrl+Alt+Enter) · one undo step">
                                                     <TextBlock Text="Replace all" FontSize="12" />
                                                 </Button>
                                             </StackPanel>

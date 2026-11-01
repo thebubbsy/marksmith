@@ -6446,7 +6446,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 row.Children.Add(keys);
                 row.Children.Add(desc);
 
-                var chordText = shortcut.Gesture ?? (shortcut.Chords.Count > 0 ? string.Join(", ", shortcut.Chords.Select(c => c.Display)) : "");
+                // " or ", as "Copy all" writes it: "Ctrl+E, Ctrl+Shift+P" read like a two-step chord.
+                var chordText = shortcut.Gesture ?? (shortcut.Chords.Count > 0 ? string.Join(" or ", shortcut.Chords.Select(c => c.Display)) : "");
                 if (!string.IsNullOrEmpty(chordText))
                 {
                     ToolTipService.SetToolTip(row, $"{shortcut.Action} ({chordText}) — right-click to copy · Ctrl+C copies the whole list");
@@ -6460,7 +6461,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                     {
                         var err = await ClipboardWriter.TrySetTextAsync(chordText);
                         ShowCopyStatus(err is null
-                            ? $"Copied shortcut chord \u201C{chordText}\u201D to clipboard."
+                            ? $"Copied \u201C{chordText}\u201D ({shortcut.Action}) to the clipboard."
                             : $"Failed to copy shortcut: {err}", err is null);
                     };
                     flyout.Items.Add(copyItem);
@@ -8671,7 +8672,12 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private void OnFindTextBoxKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
     {
-        if (e.Key == Windows.System.VirtualKey.Enter)
+        if (e.Key == Windows.System.VirtualKey.Enter && CtrlDown() && AltDown())
+        {
+            ReplaceAllFromKeyboard();
+            e.Handled = true;
+        }
+        else if (e.Key == Windows.System.VirtualKey.Enter)
         {
             RecordFindHistory(FindTextBox.Text);
             if (ShiftDown()) FindPrev(); else FindNext();
@@ -9742,13 +9748,16 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             MarkSmith.Services.ThemeBrush.Set(FindCountText, TextBlock.ForegroundProperty,
                 hasQuery && count == 0 ? "SystemFillColorCriticalBrush" : "TextFillColorSecondaryBrush");
         }
-        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(FindCountText, FindCountText.Text);
+        // "Regex error" alone told a screen reader user something was wrong but not what; the reason
+        // was only in the tooltip. The name (and so the live announcement) carries it.
+        var countName = string.IsNullOrEmpty(_regexErrorMessage) ? FindCountText.Text : $"Regex error: {_regexErrorMessage}";
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(FindCountText, countName);
 
         // A tab stop only while there is a count to copy. An empty count that still has focus
         // (the query was cleared) hands focus back to the search box. With no count the name stays
         // short; left empty, UIA would read out the whole tooltip instead.
         var hasCount = !string.IsNullOrEmpty(FindCountText.Text);
-        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(FindCountButton, hasCount ? FindCountText.Text : "Search match count");
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(FindCountButton, hasCount ? countName : "Search match count");
         if (!hasCount && FindCountButton.FocusState != FocusState.Unfocused)
             FindTextBox?.Focus(FocusState.Programmatic);
         FindCountButton.IsTabStop = hasCount;
@@ -9931,7 +9940,12 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private void OnReplaceTextBoxKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
     {
-        if (e.Key == Windows.System.VirtualKey.Enter)
+        if (e.Key == Windows.System.VirtualKey.Enter && CtrlDown() && AltDown())
+        {
+            ReplaceAllFromKeyboard();
+            e.Handled = true;
+        }
+        else if (e.Key == Windows.System.VirtualKey.Enter)
         {
             OnReplaceClick(sender, new RoutedEventArgs());
             e.Handled = true;
@@ -10022,6 +10036,28 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         FindTextBox?.Focus(FocusState.Keyboard);
     }
 
+    // Ctrl+Alt+Enter from either find box (the VS Code key). Replace All was mouse-only: its button
+    // sits after Replace in a one-stop cluster, so keyboard users had to arrow across to it. From the
+    // Find box with the replace row closed it opens the row instead, so a hidden, stale replacement
+    // can't be applied unseen; an invalid pattern says so rather than replacing nothing.
+    private void ReplaceAllFromKeyboard()
+    {
+        if (ReplaceRow.Visibility != Visibility.Visible)
+        {
+            ReplaceExpandToggle.IsChecked = true;
+            ReplaceTextBox.Focus(FocusState.Keyboard);
+            ReplaceTextBox.SelectAll();
+            AnnounceStatus("Type the replacement, then press Ctrl+Alt+Enter again to replace every match.");
+            return;
+        }
+        if (!string.IsNullOrEmpty(_regexErrorMessage))
+        {
+            AnnounceStatus($"Fix the regular expression first: {_regexErrorMessage}");
+            return;
+        }
+        OnReplaceAllClick(ReplaceAllButton, new RoutedEventArgs());
+    }
+
     // Replace every match in the document in one pass (one undo step).
     private void OnReplaceAllClick(object sender, RoutedEventArgs e)
     {
@@ -10054,7 +10090,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             if (sv is not null)
                 DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
                     () => sv.ChangeView(null, offset, null, disableAnimation: true));
-            ViewModel.StatusText = $"Replaced {count} occurrence{(count == 1 ? "" : "s")} of \u201C{query}\u201D. Ctrl+Z undoes it.";
+            ViewModel.StatusText = $"Replaced {CountText.Of(count, "occurrence")} of \u201C{query}\u201D. Ctrl+Z undoes it.";
             ViewModel.StatusSeverity = Models.StatusSeverity.Success;
         }
         else

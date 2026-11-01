@@ -151,7 +151,7 @@ public class Run225StatusReadoutKeyboardTests
         var focus = code.IndexOf("if (!hasCount && FindCountButton.FocusState != FocusState.Unfocused)", update, StringComparison.Ordinal);
         var tab = code.IndexOf("FindCountButton.IsTabStop = hasCount;", update, StringComparison.Ordinal);
         Assert.True(update > 0 && focus > update && tab > focus);
-        Assert.Contains("AutomationProperties.SetName(FindCountButton, hasCount ? FindCountText.Text : \"Search match count\");", code);
+        Assert.Contains("AutomationProperties.SetName(FindCountButton, hasCount ? countName : \"Search match count\");", code);
         // The tooltip is set on the button (the old one on the text told users to right-click only).
         Assert.Contains("ToolTipService.SetToolTip(FindCountButton, _lastFindWrapped", code);
         Assert.Contains("Click to copy · Alt+Home/End to jump · Right-click or Shift+F10 for options", code);

@@ -328,12 +328,12 @@ public static class TextSearch
     }
 
     /// <summary>
-    /// Formats the find match count display (e.g. "3 of 12", "1 of 5 (wrapped)", "No results").
+    /// Formats the find match count display (e.g. "3 of 12", "1 of 5 (wrapped)", "No matches").
     /// </summary>
     public static string FormatFindMatchStatus(int currentIndex, int totalCount, bool wrapped = false)
     {
         if (totalCount <= 0)
-            return "No results";
+            return "No matches";
 
         if (currentIndex <= 0 || currentIndex > totalCount)
             return totalCount == 1 ? "1 match" : $"{totalCount} matches";

@@ -268,8 +268,8 @@ public class TextSearchTests
     }
 
     [Theory]
-    [InlineData(0, 0, false, "No results")]
-    [InlineData(1, 0, false, "No results")]
+    [InlineData(0, 0, false, "No matches")]
+    [InlineData(1, 0, false, "No matches")]
     [InlineData(0, 5, false, "5 matches")]
     [InlineData(0, 1, false, "1 match")]
     [InlineData(1, 1, false, "1 of 1")]
