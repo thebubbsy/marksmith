@@ -16879,9 +16879,7 @@ var auditTablePipeAlignmentItem = new MenuFlyoutItem
             "Switchable tabs in the preview. PDF and Word show every tab, one after another.",
             "Tab titles — one per line", "Tab 1\nTab 2",
             Services.InsertSnippetBuilder.Tabs, "tab", minimum: 2,
-            // A ":::" title ends the block early (or opens another), and the preview draws 16 tabs.
-            lineIsValid: l => !l.StartsWith(":::", StringComparison.Ordinal),
-            lineHint: "one tab title per line, not starting with :::",
+            // The preview draws 16 tabs and dropped the rest without a word.
             maximum: Services.ContainerBlockParsers.MaxTabs);
         if (await ShowInsertDialogAsync("Insert tab group", control) != ContentDialogResult.Primary) return;
         InsertBlock(control.Snippet);

@@ -8,7 +8,7 @@ namespace MarkSmith.Tests;
 // Run #324, the Insert dialogs (tab group, columns, table, canvas, tile map, references, chart):
 // - the number boxes refresh the "Inserts" card while digits are typed, not only on Tab/Enter;
 // - the number boxes' help text gives their range and the keys that change them;
-// - the tab group dialog refuses more tabs than the preview draws (16) and titles starting ":::";
+// - the tab group dialog refuses more tabs than the preview draws (16);
 // - the references dialog refuses a citation id that [@id] can't cite;
 // - the chart's point count goes through CountText.
 public class Run324InsertDialogLimitsTests
@@ -75,15 +75,15 @@ public class Run324InsertDialogLimitsTests
     }
 
     [Fact]
-    public void Tab_group_dialog_refuses_too_many_tabs_and_colon_titles()
+    public void Tab_group_dialog_refuses_more_tabs_than_the_preview_draws()
     {
         var main = Read(MainCode);
         var at = main.IndexOf("private async void OnInsertTabsClick", StringComparison.Ordinal);
         Assert.True(at >= 0);
         var body = main.Substring(at, main.IndexOf("ShowInsertDialogAsync(\"Insert tab group\"", at, StringComparison.Ordinal) - at);
         Assert.Contains("maximum: Services.ContainerBlockParsers.MaxTabs", body);
-        Assert.Contains("lineIsValid: l => !l.StartsWith(\":::\", StringComparison.Ordinal)", body);
-        Assert.Contains("not starting with :::", body);
+        // Every title is written after "=== ", so a title starting ":::" can't close the block.
+        Assert.DoesNotContain("lineIsValid", body);
 
         var dialogs = Read(Dialogs);
         Assert.Contains("if (lines.Count > _maximum)\n                return Services.InsertCountText.Excess(_maximum, lines.Count, _noun);", dialogs);
