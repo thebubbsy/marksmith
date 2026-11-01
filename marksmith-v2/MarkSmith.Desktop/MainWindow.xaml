@@ -363,7 +363,8 @@
                                       SelectionChanged="OnMarkdownFileSelected" Margin="0,-8,0,0"
                                       RightTapped="OnMarkdownFilesComboRightTapped"
                                       ToolTipService.ToolTip="Recent and discovered Markdown files on this PC (Right-click or Shift+F10 for options)"
-                                      AutomationProperties.Name="Recent and found Markdown files" PlaceholderText="Pick a Markdown file from your PC…" HorizontalAlignment="Stretch">
+                                      AutomationProperties.Name="Recent and found Markdown files"
+                                      AutomationProperties.HelpText="Down arrow opens the list, Enter opens the file. Shift+F10 for options." PlaceholderText="Pick a Markdown file from your PC…" HorizontalAlignment="Stretch">
                                 <ComboBox.ItemTemplate>
                                     <DataTemplate>
                                         <StackPanel Padding="0,2">
@@ -467,6 +468,7 @@
                                             <ComboBox x:Name="WatchFolderPresets" HorizontalAlignment="Stretch"
                                                       PlaceholderText="Quick pick an AI agent folder…"
                                                       AutomationProperties.Name="AI agent folder presets"
+                                                      AutomationProperties.HelpText="Down arrow opens the list, Enter makes that folder the watch folder."
                                                       ToolTipService.ToolTip="Pre-configured export folders for local AI agents and CLIs"
                                                       SelectionChanged="OnWatchFolderPresetSelected">
                                                 <ComboBox.ItemTemplate>
@@ -955,7 +957,8 @@
                                                     <ListView x:Name="LintList" Grid.Row="1" MaxHeight="300" SelectionMode="None"
                                                               IsItemClickEnabled="True" ItemClick="OnLintItemClick"
                                                               RightTapped="OnLintListRightTapped" KeyDown="OnLintListKeyDown"
-                                                              AutomationProperties.Name="Markdown issues list">
+                                                              AutomationProperties.Name="Markdown issues list"
+                                                              AutomationProperties.HelpText="Enter or Space jumps to the line. Ctrl+C copies the issue, Ctrl+Shift+C copies all, Shift+F10 for options.">
                                                         <ListView.ItemTemplate>
                                                             <DataTemplate>
                                                                 <StackPanel Orientation="Horizontal" Spacing="8" Padding="0,2"
@@ -1469,7 +1472,8 @@
                                                   RightTapped="OnTocListRightTapped"
                                                   KeyDown="OnTocListKeyDown"
                                                   ContainerContentChanging="OnTocListContainerContentChanging"
-                                                  AutomationProperties.Name="Document outline headings">
+                                                  AutomationProperties.Name="Document outline headings"
+                                                  AutomationProperties.HelpText="Enter or Space jumps to the heading. Ctrl+C copies it, Ctrl+Shift+C copies a Markdown link to it, Ctrl+F filters, Shift+F10 for options.">
                                             <ListView.ItemTemplate>
                                                 <DataTemplate>
                                                     <TextBlock Text="{Binding Text}" TextTrimming="CharacterEllipsis"
@@ -1542,7 +1546,8 @@
                                                   ItemClick="OnHistoryItemClick"
                                                   RightTapped="OnHistoryListRightTapped"
                                                   KeyDown="OnHistoryListKeyDown"
-                                                  AutomationProperties.Name="Recent exports list">
+                                                  AutomationProperties.Name="Recent exports list"
+                                                  AutomationProperties.HelpText="Enter or Space opens the file. Ctrl+O shows it in its folder, Ctrl+C copies its path, Delete removes it from the list, Shift+F10 for options.">
                                             <ListView.ItemTemplate>
                                                 <DataTemplate>
                                                     <StackPanel Padding="0,6" Spacing="2"

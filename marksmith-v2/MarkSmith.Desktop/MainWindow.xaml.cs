@@ -430,6 +430,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             if (e.PropertyName == nameof(ViewModel.InputFilePath)) DispatcherQueue.TryEnqueue(SelectOpenFileInPicker);
         };
 
+        // Picking a recent file opens it, and picking a folder preset replaces the watch folder, so
+        // arrows on these closed boxes open their lists instead of acting once per key press.
+        Services.ComboArrowOpens.Attach(MarkdownFilesCombo);
+        Services.ComboArrowOpens.Attach(WatchFolderPresets);
+
         // Persistent undo/redo: the editor owns its undo stack (native TextBox undo is disabled in
         // XAML). Keep the caret in the ViewModel so undo snapshots can restore it exactly.
         PasteTextBox.SelectionChanged += (_, _) => ViewModel.EditorCaret = PasteTextBox.SelectionStart;

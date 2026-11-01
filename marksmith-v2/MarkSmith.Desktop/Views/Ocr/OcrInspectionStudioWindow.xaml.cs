@@ -34,6 +34,10 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
 {
     private static readonly FontFamily MonoFont = new("Consolas");
 
+    // Arrows on a closed reclassify box open its list (ComboArrowOpens) instead of reclassifying.
+    internal const string ReclassifyComboHelp =
+        "Down arrow opens the list, Enter picks a kind. Keys 1 to 8 reclassify directly, R resets.";
+
     private static readonly (OcrBlockKind Kind, string Label, int ShortcutNumber)[] ReclassifyKindOptions =
     {
         (OcrBlockKind.Picture, "Picture", 1),
@@ -112,6 +116,10 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
         {
             MarkdownScopeComboBox.SelectedIndex = 0;
         }
+
+        // Each pick reclassifies, so arrows on the closed box open the list rather than
+        // reclassifying once per key press.
+        ComboArrowOpens.Attach(QuickReclassifyComboBox);
 
         HoverPolish.Apply(RootGrid);
 
@@ -859,6 +867,8 @@ public sealed partial class OcrInspectionStudioWindow : Window, IOcrObserver
             Padding = new Thickness(8, 3, 8, 3),
         };
         AutomationProperties.SetName(combo, $"Reclassify element {elem.Id}");
+        AutomationProperties.SetHelpText(combo, ReclassifyComboHelp);
+        ComboArrowOpens.Attach(combo);
 
         int selectedIdx = 0;
         for (int i = 0; i < ReclassifyKindOptions.Length; i++)

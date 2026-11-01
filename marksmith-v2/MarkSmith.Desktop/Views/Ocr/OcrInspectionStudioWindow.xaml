@@ -304,6 +304,7 @@
                                           SelectionChanged="OnQuickReclassifySelectionChanged"
                                           HorizontalAlignment="Stretch"
                                           AutomationProperties.Name="Quick reclassify selected element"
+                                          AutomationProperties.HelpText="Down arrow opens the list, Enter picks a kind. Keys 1 to 8 reclassify directly, R resets."
                                           ToolTipService.ToolTip="Reclassify the selected element (Keys 1–8)">
                                     <ComboBoxItem Content="1 · Picture" Tag="Picture" />
                                     <ComboBoxItem Content="2 · Mosaic / Shape" Tag="ShapeMosaic" />
