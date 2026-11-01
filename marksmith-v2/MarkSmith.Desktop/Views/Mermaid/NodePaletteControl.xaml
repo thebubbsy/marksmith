@@ -66,6 +66,7 @@
         <ListView x:Name="PaletteListView"
                   Grid.Row="2"
                   AutomationProperties.Name="Shape palette"
+                  AutomationProperties.HelpText="Enter or Space adds the shape, or drag it onto the canvas · Ctrl+C copies its name, Shift+F10 opens its menu, Esc returns to search"
                   ItemsSource="{Binding PaletteItems}"
                   SelectionMode="None"
                   IsItemClickEnabled="True"

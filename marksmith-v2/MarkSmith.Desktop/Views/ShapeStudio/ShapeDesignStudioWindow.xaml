@@ -956,9 +956,13 @@
                                         <StackPanel Spacing="8" Width="240">
                                             <TextBlock Text="Colour scheme" Style="{StaticResource SectionHeader}" />
                                             <TextBlock Text="Recolours the canvas now, and every preset you add after." Style="{StaticResource PaneCaption}" />
+                                            <!-- SingleSelectionFollowsFocus off: selecting applies the scheme and closes the flyout, so an
+                                                 arrow key used to apply the next scheme and close it before you could browse. -->
                                             <ListView x:Name="PaletteList" SelectionMode="Single" Margin="-12,0" SelectionChanged="OnPaletteListSelectionChanged"
+                                                      SingleSelectionFollowsFocus="False"
                                                       XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
-                                                      AutomationProperties.Name="Colour schemes">
+                                                      AutomationProperties.Name="Colour schemes"
+                                                      AutomationProperties.HelpText="Arrow keys browse the schemes · Enter or Space applies one">
                                                 <ListView.ItemTemplate>
                                                     <DataTemplate>
                                                         <StackPanel Padding="0,6" Spacing="6" AutomationProperties.Name="{Binding Name}">
@@ -1520,6 +1524,7 @@
                         </TextBlock>
                         <ListView Grid.Row="2" x:Name="ShapesList" ItemsSource="{Binding ListedShapes}" SelectedItem="{Binding SelectedShape, Mode=TwoWay}"
                                   Margin="-10,4,-10,0" AutomationProperties.Name="Shapes on canvas"
+                                  AutomationProperties.HelpText="Arrow keys select a shape · Delete removes it, Ctrl+D duplicates it, F2 edits its label, Shift+F10 opens its menu"
                                   XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
                                   KeyDown="OnShapesListKeyDown">
                             <ListView.ItemTemplate>

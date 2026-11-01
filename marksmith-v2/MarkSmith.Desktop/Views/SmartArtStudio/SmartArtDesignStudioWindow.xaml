@@ -122,7 +122,9 @@
                                   ToolTipService.ToolTip="Filter by layout category (Enter to browse, Esc to reset, Double-click to cycle, Right-click or Shift+F10 for options)" />
                     </StackPanel>
                     <ListView Grid.Row="1" x:Name="LayoutList" ItemsSource="{Binding Layouts}" SelectedItem="{Binding SelectedLayout, Mode=TwoWay}"
-                              Padding="4,0,4,8" AutomationProperties.Name="Layouts" RightTapped="OnLayoutListRightTapped" KeyDown="OnLayoutListKeyDown"
+                              Padding="4,0,4,8" AutomationProperties.Name="Layouts"
+                              AutomationProperties.HelpText="Arrow keys switch layout · Enter edits the outline, Esc returns to search, Ctrl+C copies the layout name, Shift+F10 opens its menu, double-click inserts it"
+                              RightTapped="OnLayoutListRightTapped" KeyDown="OnLayoutListKeyDown"
                               XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
                               DoubleTapped="OnLayoutListDoubleTapped">
                         <ListView.ItemTemplate>
@@ -803,7 +805,10 @@
                                         <StackPanel Spacing="8" Width="260">
                                             <TextBlock Text="SmartArt colour palette" FontWeight="SemiBold" FontSize="13" />
                                             <TextBlock Text="Recolours the diagram SVG preview to match your document theme." FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                                            <ListView x:Name="PaletteList" SelectionMode="Single" Margin="-12,0" SelectionChanged="OnPaletteListSelectionChanged" XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once" AutomationProperties.Name="SmartArt colour palettes">
+                                            <!-- SingleSelectionFollowsFocus off: selecting applies the palette and closes the flyout, so an
+                                                 arrow key used to apply the next palette and close it before you could browse. -->
+                                            <ListView x:Name="PaletteList" SelectionMode="Single" Margin="-12,0" SelectionChanged="OnPaletteListSelectionChanged" SingleSelectionFollowsFocus="False" XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once" AutomationProperties.Name="SmartArt colour palettes"
+                                                      AutomationProperties.HelpText="Arrow keys browse the palettes · Enter or Space applies one">
                                                 <ListView.ItemTemplate>
                                                     <DataTemplate>
                                                         <StackPanel Padding="0,6" Spacing="6" AutomationProperties.Name="{Binding Name}">
@@ -1070,6 +1075,7 @@
                                       XYFocusKeyboardNavigation="Enabled"
                                       TabFocusNavigation="Once"
                                       AutomationProperties.Name="Quick layout carousel"
+                                      AutomationProperties.HelpText="Left and Right arrows switch layout and update the preview"
                                       IsItemClickEnabled="True"
                                       ItemClick="OnCarouselLayoutItemClick"
                                       ScrollViewer.HorizontalScrollBarVisibility="Hidden"
