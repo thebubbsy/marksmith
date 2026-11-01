@@ -23390,3 +23390,7 @@ clean (problem lines, thumbnail, menus and keys all hold up), so the pass covere
 
 **Total user-visible improvements: 7** (inner-fence code blocks, backtick language refusal, live language card,
 language help, video provider mismatch, unwrapped pasted links, quotes in video links).
+
+**Release (same run):** tagged **v3.103.0** on `b466b9d7`. Release workflow run 41292497881 succeeded and published 5
+assets; user-facing notes for run #325 were put above the generated body. `MarksmithBaseVersion` was then
+bumped to 3.104.0.
