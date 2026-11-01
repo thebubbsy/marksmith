@@ -23744,3 +23744,87 @@ kept in the last column, canvas from a selected SVG, resizing scales it, replace
 **Release (same run):** tagged **v3.107.0** on `8a7d3b80`. Release workflow run 41310044946 succeeded and published 5
 assets; user-facing notes for run #329 were put above the generated body. `MarksmithBaseVersion` was then
 bumped to 3.108.0.
+
+## 2026-11-02 · Run #330 (≈00:40–01:35 AEDT) · Claude Code
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running the scheduled routine in the Claude desktop app (the task file's
+  "Antigravity / Google DeepMind" identity line doesn't describe this agent, so the real one is recorded)
+- Modes: Scheduled Hourly Automation Routine
+- Trigger: Scheduled hourly routine run
+- Agents Used: 1 (Orchestrator, who also did the coding and the skeptical review). No sub-agents, no conversation IDs.
+
+Took #329's "Next up" item 1 (what Word and the PDF do with a header-less table's blank header row) and two of
+its "Noticed, not fixed" items (the Columns note counting lines, and a `===` line splitting a column).
+
+**User-visible improvements and fixes**
+1. **The preview and PDF hide a blank header row.** A table written without a header row (the Table dialog's
+   cleared "Include header row") has a blank `|  |  |` row so GitHub shows it as a table; the preview, the
+   printed PDF and HTML export used to show it as an empty shaded strip. It's hidden now, so the table starts
+   at its first real row. A header with anything in it (text, a picture, code) still shows.
+2. **Word leaves the blank header row out.** The .docx used to open the table on an empty shaded row, marked
+   to repeat at the top of every page. A real header row is unchanged.
+3. **PowerPoint leaves it out**, so the slide's table has no empty bold row on top.
+4. **Email leaves it out**, in the HTML part (no empty shaded row) and the plain-text part (no dashed
+   underline under nothing).
+5. **The header checkbox tooltip says so**: "... leave the header row blank (the preview and exports leave
+   it out)".
+6. **Columns counts the selection in paragraphs.** Two selected paragraphs read "Filled from the 2 selected
+   paragraphs. Insert replaces them." (it said "the 4 selected lines", counting the blank line between), and
+   the status line says "Replaced the 2 selected paragraphs with columns."; one reads "the selected paragraph".
+7. **A selected setext heading stays a heading in its column.** `Plan` over `===` used to split the column in
+   two in the preview (the count still said one), because `===` is also the column separator. It goes in as
+   `# Plan`. A `===` line on its own (after a blank line, or under a list) starts the next column, as it does
+   inside the block.
+
+**Implementation Summary**
+- New `MarkSmith.Core/Services/BlankTableHeader.cs`: `IsBlank(TableRow)` — a header row with no text, link or
+  picture in any cell, in a table that also has body rows (a table that is only a blank header keeps it).
+- `DocxExportService.RenderTable`, `SlideDeckBuilder.AddTable`, `EmailHtmlRenderer.WriteTable` and
+  `EmailTextRenderer.TableText` skip that row; formula cell indices are untouched (the Word loop still counts it).
+- `MarkdownHtmlService` stylesheet: `table:has(> tbody) > thead:not(:has(th:not(:empty))) { display: none; }`
+  (Markdig writes an empty cell as `<th></th>`, which `:empty` matches).
+- `MarkSmith.Core/Services/SelectionPrefill.cs`: `Note(count, noun)` and `TheSelected(count, noun)` beside the
+  line versions; `ColumnParagraphs` turns the plain lines a `===` line underlines into `# ` heading text
+  (`HeadingStart` stops at list, quote, heading, fence and table lines) and treats a lone `===` as a break.
+- `MarkSmith.Desktop/MainWindow.xaml.cs`: `NoteSelectionSource` and `InsertBlockFrom` take an optional
+  `(Count, Noun)`; the Columns handler passes its paragraph count. `Views/InsertDialogControls.cs`: tooltip.
+- Tests: new `Run330BlankHeaderColumnsTests` (15 methods / 19 cases): `IsBlank` cases, Word export with and
+  without a real header (row count, `tblHeader`), the preview CSS plus the `<th></th>` it relies on, the slide
+  table, email HTML and text, the tooltip, the paragraph wording, setext/lone-break/list handling, and that a
+  setext column previews as one column. `Run327SelectionPrefillTests` and `Run329ColumnsCanvasTablePrefillTests`
+  source contracts updated for the new status line and Columns calls.
+- Skeptical review: nothing collapsed or disabled, no key handlers, no new brushes, no file access; the Columns
+  dialog still goes through `ShowInsertDialogAsync` / `ShowPolishedAsync` (HoverPolish covered).
+- Build: `MarkSmith.Desktop` Debug x64 to `%TEMP%\ms_run330\b\`, 0 errors. Tests: Run32* + Run330 + Table* +
+  Docx* + Email* + Slide* + Pptx* + SelectionPrefill + InsertSnippet* + GovernanceDocsSync + Columns* passed
+  1164 with 2 old source contracts failing before their update; Run327/329/330 then passed 71, 0 failed.
+- Live UIA (scratch PID 27128, `MARKSMITH_CONFIG_DIR=%TEMP%\ms_run330\cfg`, tour skipped by invoking `Skip`,
+  stopped by PID; no keys sent). The Preview tab showed a header-less Pens/Ink table starting at its first row
+  (PrintWindow `preview.png`). Selecting `Plan / === / Set the goals. / / Do it.` opened Columns with "Filled
+  from the 2 selected paragraphs. Insert replaces them." and `# Plan` in the snippet (`columns.png`); Insert
+  wrote it and the status read "Replaced the 2 selected paragraphs with columns." Selecting `End.` read "Filled
+  from the selected paragraph. Insert replaces it."
+
+**Noticed, not fixed**
+- In two PrintWindow shots the Columns NumberBox looked empty (a pale block where the selected "2" is) while
+  UIA read 2 and the snippet said `count="2"`; #329's shot showed it. Likely the selection highlight caught
+  mid-render; worth one more look.
+- After the second Columns dialog the window switched to the compact layout (Source collapsed to a rail) and
+  `InsertClusterButton` wasn't found by `ins.ps1`; the rig needs the compact layout's Insert button.
+- Word export wasn't driven live (Pro-gated in a fresh config); covered by the export tests.
+- Carried: OCR reclassify boxes and SmartArt palette flyout live check; key-free Diagram Studio connector
+  selection; Workflow status overwrite; Find history trimming.
+
+**Next up (Run #331)**
+1. Check the Columns NumberBox shot (above) and teach `ins.ps1` the compact layout's Insert button.
+2. Live-check the OCR reclassify boxes (load a scratch PNG) and the SmartArt palette flyout (open since #320).
+3. Find a key-free way to select a Diagram Studio connector (open since #318).
+
+**Total user-visible improvements: 7** (preview/PDF hides blank header, Word, PowerPoint and email leave it
+out, header tooltip, Columns counts paragraphs, setext heading kept in its column).
+
+**Release (same run):** tagged **v3.108.0** on `a2b04506`. Release workflow run 41315188753 succeeded and published 5
+assets; user-facing notes for run #330 were put above the generated body. `MarksmithBaseVersion` was then
+bumped to 3.109.0.
