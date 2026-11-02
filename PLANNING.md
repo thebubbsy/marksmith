@@ -23828,3 +23828,100 @@ out, header tooltip, Columns counts paragraphs, setext heading kept in its colum
 **Release (same run):** tagged **v3.108.0** on `a2b04506`. Release workflow run 41315188753 succeeded and published 5
 assets; user-facing notes for run #330 were put above the generated body. `MarksmithBaseVersion` was then
 bumped to 3.109.0.
+
+## 2026-11-03 · Run #331 (≈01:30–02:10 AEDT) · Claude Code
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running the scheduled routine in the Claude desktop app (the task file's
+  "Antigravity / Google DeepMind" identity line doesn't describe this agent, so the real one is recorded)
+- Modes: Scheduled Hourly Automation Routine
+- Trigger: Scheduled hourly routine run
+- Agents Used: 1 (Orchestrator, who also did the coding and the skeptical review). No sub-agents, no conversation IDs.
+
+Rotated off the Insert dialogs (runs #324–#330) to the Version History window, last looked at in #318. Found
+everything below by screenshotting it with two same-named documents in history.
+
+**User-visible improvements and fixes**
+1. **No empty last line in the diff.** A newline that ends both versions used to show as an extra empty
+   line (a first version of a 7-line file listed 8 added lines, the last one blank). It's gone when both
+   versions end with a newline. When only one does, the line stays, so that difference still shows.
+2. **A first version's card counts its real lines.** New first versions get "+7", not "+8". Versions
+   already saved keep their stored counts.
+3. **The word pill leaves out a zero side.** It said "+11 words / -0 words"; now it says "+11 words",
+   "-3 words", or "no word changes". The copy commands still give both sides plus the net.
+4. **"No matches"**: the search pill said "0 matches". Counts use the right noun ("1 match", "2 matches").
+5. **The diff pane explains a filtered-out timeline.** With the search or the starred filter hiding every
+   version, it asked you to "Select a version on the timeline", which you couldn't do. Now it says, for
+   example, "The search hides all 2 versions of this document. Clear filters on the timeline to pick one.",
+   or names the starred filter, or both. One version reads "this document's only version".
+6. **Same-named documents show their folder.** Two "doc.md" rows from different folders looked identical.
+   Each row whose name another row shares now reads "ms_run331 · 3 Nov" on its second line. That's the
+   folder as spelled on disk (the store keeps paths in lower case) and the day. The year is added only
+   when it isn't this year. The full date and time ran off the 240 px row.
+7. **Screen readers hear which document a row is.** The row's name was just "doc.md". It now reads
+   "doc.md in ms_run331, 2 versions, last changed 3 Nov 2026 at 01:47".
+8. **The search box stays put.** Typing in it used to move it 47 px left when the match pill appeared.
+   The first fix stopped the move but shrank the box from 215 to 164 px, so its column now has almost
+   all the star weight. Live, the box stayed 280 px wide at the same spot with and without the pill.
+
+**Implementation Summary**
+- `MarkSmith.Core/Services/LineDiff.cs`: `Diff` drops the shared final empty element when both texts end
+  with a newline (`\n` or bare `\r`); `AllAdded` drops it when the text ends with one; new `EndsWithNewline`.
+- `MarkSmith.Core/Services/VersionHistoryService.cs`: a first version's `LinesAdded` is
+  `LineDiff.AllAdded(content).Count`.
+- `MarkSmith.Core/Services/CountText.cs`: new `Change(added, removed, noun)`. `Delta` is unchanged (the copies
+  and its tests use it).
+- `MarkSmith.Core/ViewModels/History/HistoryWindowViewModel.cs`: `SearchMatchText` ("No matches", `CountText`);
+  `DiffPlaceholderText` plus `FilterHidesAllPlaceholder()`, raised from `ApplyTimelineFilter`.
+  `FileSummaryViewModel` gets `FolderHint`, `SubLabel`, `AutomationName`, `MarkSharedNames` (called after
+  `Files` loads), `FolderOf` (folder name as spelled on disk) and `ShortDate`. `VersionCountLabel` now uses
+  `CountText`.
+- `MarkSmith.Desktop/Views/History/HistoryWindow.xaml`: the document row binds `AutomationName` and `SubLabel`.
+  `TimelineSearchCluster` now has three columns: `SearchBoxColumn` (`100*`, 160–280), the pill, and a filler.
+- `MarkSmith.Desktop/Views/History/HistoryWindow.xaml.cs`: the word pill uses `CountText.Change`.
+- Tests: new `Run331HistoryPolishTests` (19 methods / 30 cases). They cover final-newline line counts
+  (`\n`, `\r\n`, bare `\r`, none, only newlines), one-sided newlines still diffing, the first-version card
+  count, `Change`, the pill source, the match wording, the three placeholder wordings, shared-name hints and
+  `SubLabel`, `AutomationName`, on-disk folder casing, `ShortDate`, the row bindings, and the search columns.
+  Updated old pins: `AdversarialLineDiffAndMermaidTests` (2 tests counted the phantom line) and the two
+  Run280 source contracts (pill moved to `Change`).
+- Skeptical review: nothing collapsed or disabled, no key handlers, no new brushes or resource lookups.
+  `FolderOf` touches the disk (`Directory.Exists` + `GetDirectories`) only for rows whose name is shared,
+  each inside try/catch. On a disconnected network share it could still pause the list load; left as is
+  (it's rare, and the same load already reads the store).
+- Build: `MarkSmith.Desktop` Debug x64 to `%TEMP%\ms_run331\b\`, 0 errors, three times. Tests: Run3* + Run280 +
+  History* + *Diff* + Version* + Compare* + Adversarial* + CountText + Snapshot* passed 1488, 0 failed (after
+  the two LineDiff pins were updated). Then Run331 + HistoryPolish + HistoryWindow passed 174, and Run331
+  alone passed 26 after the date change.
+- Live UIA (scratch PIDs 25472, 8540, 25988 and 21088, one after another, with
+  `MARKSMITH_CONFIG_DIR=%TEMP%\ms_run331\cfg`, the scratch .md as the CLI argument, History opened by invoking
+  `HistoryButton`, all stopped by PID, no keys sent):
+  - The two rows read "doc.md in ms_run331, 2 versions, last changed 3 Nov 2026 at 01:47" and
+    "... in ms_run330, 3 versions ...".
+  - Screenshots `live1.png` and `live4.png` show "ms_run331 · 3 Nov".
+  - The 01:47 diff ends at old line 7 / new line 4 with no blank row.
+  - The first version (01:35) shows 7 "+ " rows (it showed 8) and the pill reads "+11 words".
+  - SearchBox ValuePattern "zzz" gave "No matches" and the new pane text (`live2.png`); "Opened" gave
+    "2 matches". The box's rectangle was 280 px wide at the same x before and after.
+  - Toggling `StarredFilterToggle` gave "The starred filter hides all 2 versions of this document...".
+
+**Noticed, not fixed**
+- Version cards saved before this run keep their stored "+8"-style counts (one too many for a first
+  version). Recounting old entries would mean rewriting the index; not worth it.
+- The window header's document name (`FileNameTextBlock`) still says just "doc.md" when two documents share
+  the name. Its tooltip copies the path.
+- Each unified diff row reaches UIA as four separate Text elements (old no., new no., marker, text). A
+  screen reader reads them piece by piece.
+- Carried: the Columns NumberBox screenshot and `ins.ps1` in the compact layout; the OCR reclassify boxes and
+  the SmartArt palette flyout live check; key-free Diagram Studio connector selection.
+
+**Next up (Run #332)**
+1. History: give the header document name the same folder hint when the name is shared, and give each
+   unified diff row one accessible name ("line 3 added: First paragraph.").
+2. Check the Columns NumberBox shot and teach `ins.ps1` the compact layout's Insert button.
+3. Live-check the OCR reclassify boxes (load a scratch PNG) and the SmartArt palette flyout.
+
+**Total user-visible improvements: 8** (no phantom last diff line, first-version card count, word pill without
+a zero side, "No matches", filtered-out diff pane text, folder hint on same-named documents, document row
+screen reader names, search box that keeps its place and width).
