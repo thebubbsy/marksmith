@@ -23929,3 +23929,79 @@ screen reader names, search box that keeps its place and width).
 **Release (same run):** tagged **v3.109.0** on `fe667197`. Release workflow run 41466390008 succeeded (about 25 minutes)
 and published 5 assets; user-facing notes for run #331 were put above the generated body. `MarksmithBaseVersion`
 was then bumped to 3.110.0.
+
+## 2026-11-03 · Run #332 (≈02:10–02:35 AEDT) · Claude Code
+
+**Agent / Execution Metadata**
+- Model: Claude Opus 5.5 (`claude-opus-5-5`)
+- Identity: Claude Code (Anthropic), running the scheduled routine in the Claude desktop app (the task file's
+  "Antigravity / Google DeepMind" identity line doesn't describe this agent, so the real one is recorded)
+- Modes: Scheduled Hourly Automation Routine
+- Trigger: Scheduled hourly routine run
+- Agents Used: 1 (Orchestrator, who also did the coding and the skeptical review). No sub-agents, no conversation IDs.
+
+Picked up run #331's "Next up" item 1 (Version History header and diff-row accessibility). While reading the
+code I found a bug: the folder hint disappeared from a row after a version was deleted.
+
+**User-visible improvements and fixes**
+1. **The header names the folder.** With two "doc.md" documents in history, the list named their folders
+   but the header said just "doc.md". It now says "doc.md · ms_run330". The bare name is still used for
+   the copied diff headers (`--- a/doc.md`).
+2. **Screen readers hear the header's folder.** The header button reads "doc.md in ms_run330".
+3. **The header tooltip names the path it copies**: "Current document: C:\…\doc.md · Click to copy…".
+4. **A row keeps its folder after a delete or checkpoint.** Deleting a version or taking a checkpoint
+   swaps in a fresh row view model with the new count. That row lost "ms_run330 ·" and the header lost
+   its folder with it. The hint is now carried across.
+5. **One name per unified diff row.** Each row reached UIA as four Text elements (old number, new number,
+   marker, text) that a screen reader read one by one. The numbers and marker are now Raw. The text reads
+   "Line 3 added: First paragraph.", "Line 5 removed: …", "Line 6 (was 4) unchanged: …", or "Line 2 added,
+   blank". Fold rows keep their "4 unchanged lines" text.
+6. **Side-by-side cells say which version they're on**: "Previous version, line 8 removed: :::" and
+   "Selected version, line 8 added: :::". The line numbers are Raw.
+
+**Implementation Summary**
+- `MarkSmith.Core/Services/LineDiff.cs`: new `SpokenLine(kind, number, text, wasNumber)` and
+  `UnifiedRow.AutomationName`.
+- `MarkSmith.Core/ViewModels/History/HistoryWindowViewModel.cs`: `HeaderFileName` and `HeaderFileAutomationName`,
+  raised from both `FileName` and `SelectedFile` (switching between two "doc.md"s doesn't change
+  `FileName`). `RefreshSelectedFileCount` copies `FolderHint`. `DiffCellViewModel` takes a side and exposes
+  `AutomationName`.
+- `MarkSmith.Desktop/Views/History/HistoryWindow.xaml`: the header binds the new names. The diff templates
+  mark the number and marker TextBlocks `AccessibilityView="Raw"` and name the text TextBlock.
+- `MarkSmith.Desktop/Views/History/HistoryWindow.xaml.cs`: `UpdateFileNameButton` puts the path
+  (`SelectedFile.Detail`) in the tooltip, but not for unsaved text.
+- Tests: new `Run332HistoryAccessibilityTests` (12 methods / 18 cases). They cover the header with and
+  without a shared name, the header switching between same-named documents (it checks the
+  PropertyChanged event), the folder hint after `DeleteVersionCommand`, the header XAML and the tooltip
+  source, `SpokenLine` wordings, the unified row names, the gap row, split cell sides, and the Raw/Name
+  template bindings.
+- Skeptical review: nothing was collapsed or disabled and no key handlers were added. There are no new
+  brushes, resource lookups or file I/O. `AutomationName` slices `spoken[1..]`, which is safe because a
+  spoken line always starts with "Line".
+- Build: `MarkSmith.Desktop` Debug x64 to `%TEMP%\ms_run332\b\`, 0 errors. Tests: Run332 + Run331 +
+  HistoryPolish + HistoryWindow + AdversarialLineDiff + Run280 passed 264, 0 failed.
+- Live UIA (scratch PID 20412, `MARKSMITH_CONFIG_DIR=%TEMP%\ms_run332\cfg` copied from run #331's two
+  "doc.md" histories, History opened by invoking `HistoryButton`, stopped by PID, no keys sent):
+  - The header button read "doc.md in ms_run331" and its text "doc.md · ms_run331". After invoking the
+    ms_run330 row, they read "doc.md in ms_run330" and "doc.md · ms_run330".
+  - `UnifiedScroll` exposed one Text per row: "Line 1 removed: # Run 331 history", "Line 2 (was 4)
+    unchanged, blank", "4 unchanged lines", and so on.
+  - After toggling `SplitToggle`, `SplitScroll` read "Previous version, line 8 removed: :::" and "Selected
+    version, line 8 added: :::".
+  - Screenshot `%TEMP%\ms_run332\split.png` shows "doc.md · ms_run330" under the title.
+
+**Noticed, not fixed**
+- A removed line's name keeps its trailing spaces ("Line 8 removed: :::      "). A screen reader ignores
+  them. Spoken names don't mark whitespace-only changes, but the visible diff does.
+- The header tooltip couldn't be read over UIA (a ToolTip isn't HelpText), so a source contract covers it.
+- Carried: the Columns NumberBox screenshot and `ins.ps1` in the compact layout; the OCR reclassify boxes and
+  the SmartArt palette flyout live check; key-free Diagram Studio connector selection.
+
+**Next up (Run #333)**
+1. Check the Columns NumberBox shot and teach `ins.ps1` the compact layout's Insert button.
+2. Live-check the OCR reclassify boxes (load a scratch PNG) and the SmartArt palette flyout.
+3. Rotate to the Theme Builder (last looked at many runs ago). Check its preset list's screen reader names
+   and its empty and error states.
+
+**Total user-visible improvements: 6** (header folder hint, header screen reader name, header tooltip path,
+folder hint kept after delete/checkpoint, one-name unified diff rows, side-labelled split cells).
