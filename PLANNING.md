@@ -24005,3 +24005,7 @@ code I found a bug: the folder hint disappeared from a row after a version was d
 
 **Total user-visible improvements: 6** (header folder hint, header screen reader name, header tooltip path,
 folder hint kept after delete/checkpoint, one-name unified diff rows, side-labelled split cells).
+
+**Release (same run):** tagged **v3.110.0** on `8f5ee038`. Release workflow run 41470438918 succeeded and
+published 5 assets; user-facing notes for run #332 were put above the generated body. `MarksmithBaseVersion`
+was then bumped to 3.111.0.
