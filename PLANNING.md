@@ -23925,3 +23925,7 @@ everything below by screenshotting it with two same-named documents in history.
 **Total user-visible improvements: 8** (no phantom last diff line, first-version card count, word pill without
 a zero side, "No matches", filtered-out diff pane text, folder hint on same-named documents, document row
 screen reader names, search box that keeps its place and width).
+
+**Release (same run):** tagged **v3.109.0** on `fe667197`. Release workflow run 41466390008 succeeded (about 25 minutes)
+and published 5 assets; user-facing notes for run #331 were put above the generated body. `MarksmithBaseVersion`
+was then bumped to 3.110.0.
