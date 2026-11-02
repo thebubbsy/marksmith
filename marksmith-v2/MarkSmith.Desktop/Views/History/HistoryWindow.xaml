@@ -57,9 +57,13 @@
                 <Grid x:Name="TimelineSearchCluster" Grid.Column="1" VerticalAlignment="Center" Margin="0,0,4,0"
                       XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
                       AutomationProperties.Name="Timeline search and match">
+                    <!-- The box's column is capped and a filler column takes the rest, so the match
+                         pill appears beside the box. With one star column the capped box sat centred
+                         in it and jumped 47 px left as soon as the pill showed. -->
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition x:Name="SearchBoxColumn" Width="*" MinWidth="160" MaxWidth="280" />
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
                     <TextBox AutomationProperties.Name="Search versions" x:Name="SearchBox" Grid.Column="0"
                              Text="{Binding SearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
@@ -235,7 +239,7 @@
                                             HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
                                             VerticalContentAlignment="Stretch"
                                             ToolTipService.ToolTip="{Binding Detail}"
-                                            AutomationProperties.Name="{Binding FileName}">
+                                            AutomationProperties.Name="{Binding AutomationName}">
                                       <Grid>
                                         <!-- Selection: an accent wash and a pill, in theme resources so they
                                              follow a theme switch (a brush resolved in code did not), and
@@ -262,7 +266,8 @@
                                                  240 px pane. The count sits on the date line instead. -->
                                             <TextBlock Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding FileName}" FontSize="13" FontWeight="SemiBold"
                                                        Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextTrimming="CharacterEllipsis" />
-                                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding LastModifiedLabel}" VerticalAlignment="Center"
+                                            <!-- SubLabel names the folder first when another row has the same file name. -->
+                                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SubLabel}" VerticalAlignment="Center"
                                                        FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" TextTrimming="CharacterEllipsis" />
                                             <Border Grid.Row="1" Grid.Column="2" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="10"
                                                     Padding="6,1" Margin="6,0,0,0" VerticalAlignment="Center">

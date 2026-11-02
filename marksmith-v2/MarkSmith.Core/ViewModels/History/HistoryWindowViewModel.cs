@@ -127,8 +127,46 @@ public sealed partial class FileSummaryViewModel : ObservableObject
         Summary = summary;
         IsScratch = summary.FilePath.StartsWith("scratch://", StringComparison.OrdinalIgnoreCase);
         Detail = IsScratch ? "Text typed or pasted without a file" : DisplayPath(summary);
-        VersionCountLabel = summary.VersionCount + (summary.VersionCount == 1 ? " version" : " versions");
+        VersionCountLabel = CountText.Of(summary.VersionCount, "version");
         LastModifiedLabel = summary.LastModified.LocalDateTime.ToString("d MMM yyyy · HH:mm");
+    }
+
+    /// <summary>
+    /// Two "doc.md" rows from different folders looked identical (and read the same to a screen
+    /// reader). Each row whose file name another row shares names its folder on the date line.
+    /// </summary>
+    public static void MarkSharedNames(IEnumerable<FileSummaryViewModel> files)
+    {
+        var list = files.Where(f => !f.IsScratch).ToList();
+        foreach (var group in list.GroupBy(f => f.FileName, StringComparer.OrdinalIgnoreCase))
+        {
+            bool shared = group.Count() > 1;
+            foreach (var f in group) f.FolderHint = shared ? FolderOf(f.Summary.FilePath) : "";
+        }
+    }
+
+    // The folder's name as spelled on disk: the history store keys paths in lower case.
+    internal static string FolderOf(string filePath)
+    {
+        string dir, name;
+        try
+        {
+            dir = Path.GetDirectoryName(filePath) ?? "";
+            name = Path.GetFileName(dir);
+        }
+        catch { return ""; }
+        if (string.IsNullOrEmpty(name)) return dir;
+        try
+        {
+            var parent = Path.GetDirectoryName(dir);
+            if (parent is not null && Directory.Exists(dir))
+            {
+                var onDisk = Directory.GetDirectories(parent, name).FirstOrDefault();
+                if (onDisk is not null) return Path.GetFileName(onDisk);
+            }
+        }
+        catch { }
+        return name;
     }
 
     // The store keys paths in lower case; the file name half carries the on-disk spelling.
@@ -144,6 +182,20 @@ public sealed partial class FileSummaryViewModel : ObservableObject
     public string Detail { get; }
     public string VersionCountLabel { get; }
     public string LastModifiedLabel { get; }
+
+    /// <summary>The folder's name when another row has the same file name, else empty.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SubLabel), nameof(AutomationName))]
+    private string _folderHint = "";
+
+    /// <summary>The row's second line: "ms_run331 · 3 Nov 2026 · 01:35" when the name is shared.</summary>
+    public string SubLabel => string.IsNullOrEmpty(FolderHint) ? LastModifiedLabel : $"{FolderHint} · {LastModifiedLabel}";
+
+    /// <summary>What a screen reader hears for the row: the name alone said nothing about which
+    /// "doc.md" it was, how many versions it has or when it last changed.</summary>
+    public string AutomationName =>
+        (string.IsNullOrEmpty(FolderHint) ? FileName : $"{FileName} in {FolderHint}")
+        + $", {VersionCountLabel}, last changed {LastModifiedLabel.Replace(" · ", " at ")}";
 
     [ObservableProperty]
     private bool _isSelected;
@@ -222,9 +274,21 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
     /// The diff pane's empty line. With no history at all there is no timeline to pick from, so
     /// it says how history starts instead of asking for a selection that can't be made.
     /// </summary>
-    public string DiffPlaceholderText => HasFiles
-        ? "Select a version on the timeline to see what changed in it."
-        : "Nothing to compare yet. Open, edit or export a document and its versions will appear on the timeline.";
+    public string DiffPlaceholderText => !HasFiles
+        ? "Nothing to compare yet. Open, edit or export a document and its versions will appear on the timeline."
+        : HasVersions && FilterHidesAll ? FilterHidesAllPlaceholder()
+        : "Select a version on the timeline to see what changed in it.";
+
+    // With the search or starred filter hiding every version, "Select a version on the timeline"
+    // asked for something the empty timeline beside it could not give.
+    private string FilterHidesAllPlaceholder()
+    {
+        string what = HasSearchQuery && IsStarredOnlyFilter ? "The search and the starred filter hide"
+            : HasSearchQuery ? "The search hides" : "The starred filter hides";
+        string versions = _allVersions.Count == 1 ? "this document's only version"
+            : $"all {CountText.Of(_allVersions.Count, "version")} of this document";
+        return $"{what} {versions}. Clear filters on the timeline to pick one.";
+    }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowNoFiles), nameof(HasLoadError))]
@@ -287,7 +351,9 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
     private string _searchQuery = "";
 
     public bool HasSearchQuery => !string.IsNullOrWhiteSpace(SearchQuery);
-    public string SearchMatchText => HasSearchQuery ? $"{VisibleVersions.Count} match{(VisibleVersions.Count == 1 ? "" : "es")}" : "";
+    // "No matches" rather than a bare "0 matches" beside the box.
+    public string SearchMatchText => !HasSearchQuery ? ""
+        : VisibleVersions.Count == 0 ? "No matches" : CountText.Of(VisibleVersions.Count, "match", "matches");
 
     partial void OnSearchQueryChanged(string value) => ApplyTimelineFilter();
 
@@ -494,6 +560,7 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
         Files.Clear();
         foreach (var summary in overview)
             Files.Add(new FileSummaryViewModel(summary));
+        FileSummaryViewModel.MarkSharedNames(Files);
         HasFiles = Files.Count > 0;
 
         // Pre-select the file that's open in the editor if it has history, else the most recent.
@@ -686,6 +753,7 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
 
         OnPropertyChanged(nameof(HasSearchQuery));
         OnPropertyChanged(nameof(SearchMatchText));
+        OnPropertyChanged(nameof(DiffPlaceholderText));
 
         if (autoSelectFirst && !keptSelection)
         {

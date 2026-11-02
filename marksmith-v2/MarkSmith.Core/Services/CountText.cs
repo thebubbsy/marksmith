@@ -16,4 +16,15 @@ public static class CountText
     // said "+1 / -0 words", one plural for two counts.
     public static string Delta(int added, int removed, string singular, string? plural = null) =>
         $"+{Of(added, singular, plural)} / -{Of(removed, singular, plural)}";
+
+    // The same pair without a side that is zero: "+11 words", "-3 words", "+2 words / -1 word",
+    // "no word changes". History's word pill read "+11 words / -0 words" for a first version.
+    public static string Change(int added, int removed, string singular, string? plural = null) =>
+        (added, removed) switch
+        {
+            (0, 0) => $"no {singular} changes",
+            (_, 0) => $"+{Of(added, singular, plural)}",
+            (0, _) => $"-{Of(removed, singular, plural)}",
+            _ => Delta(added, removed, singular, plural),
+        };
 }

@@ -589,7 +589,8 @@ public sealed partial class HistoryWindow : Window
         DiffWordDeltaPill.Visibility = Visibility.Visible;
         int net = addedWords - removedWords;
         string netSign = net >= 0 ? $"+{net:N0}" : $"{net:N0}";
-        DiffWordDeltaText.Text = CountText.Delta(addedWords, removedWords, "word");
+        // A zero side is left out: a first version read "+11 words / -0 words".
+        DiffWordDeltaText.Text = CountText.Change(addedWords, removedWords, "word");
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(DiffWordDeltaPill, $"Word delta {DiffWordDeltaText.Text}");
         ToolTipService.SetToolTip(DiffWordDeltaPill, $"Word delta: +{addedWords:N0} added, -{removedWords:N0} removed (net {netSign} {CountText.Noun(Math.Abs(net), "word")}) · Click to copy, Right-click or Shift+F10 for options");
     }

@@ -74,6 +74,20 @@ public static class LineDiff
 
         var b = SplitLines(after);
 
+        // A newline that ends both texts is not a line: it used to show as an empty last line.
+
+        // When only one side ends with one, the empty line stays so the difference still shows.
+
+        if (EndsWithNewline(before) && EndsWithNewline(after))
+
+        {
+
+            a = a[..^1];
+
+            b = b[..^1];
+
+        }
+
 
 
         // Trim the common prefix and suffix so the LCS only runs over the changed middle.
@@ -474,9 +488,25 @@ public static class LineDiff
 
     /// Diff("", text) would also emit the empty text's one blank line as Removed.</summary>
 
-    public static List<Line> AllAdded(string text) =>
+    public static List<Line> AllAdded(string text)
 
-        SplitLines(text).Select((line, i) => new Line(Kind.Added, null, i + 1, line)).ToList();
+    {
+
+        // A final newline ends the last line; it is not an empty line of its own.
+
+        var lines = SplitLines(text);
+
+        if (EndsWithNewline(text)) lines = lines[..^1];
+
+        return lines.Select((line, i) => new Line(Kind.Added, null, i + 1, line)).ToList();
+
+    }
+
+
+
+    private static bool EndsWithNewline(string text) =>
+
+        text.Length > 0 && (text[^1] == '\n' || text[^1] == '\r');
 
 
 

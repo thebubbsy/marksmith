@@ -347,9 +347,10 @@ public class AdversarialLineDiffAndMermaidTests
         var before = "\n\n";
         var after = "\n";
         var diff = LineDiff.Diff(before, after);
-        // "\n\n" has 3 empty lines; "\n" has 2 empty lines
-        Assert.Equal(3, diff.Count);
-        Assert.Equal(2, diff.Count(l => l.Kind == LineDiff.Kind.Same));
+        // Run #331: a newline ending both texts is not a line of its own, so "\n\n" has 2 empty
+        // lines and "\n" has 1 (it was 3 and 2, the extra one shown as an empty last line).
+        Assert.Equal(2, diff.Count);
+        Assert.Equal(1, diff.Count(l => l.Kind == LineDiff.Kind.Same));
         Assert.Equal(1, diff.Count(l => l.Kind == LineDiff.Kind.Removed));
     }
 
@@ -360,7 +361,7 @@ public class AdversarialLineDiffAndMermaidTests
         var after = "a\nb\nc\n";
         var diff = LineDiff.Diff(before, after);
         Assert.All(diff, l => Assert.Equal(LineDiff.Kind.Same, l.Kind));
-        Assert.Equal(4, diff.Count);
+        Assert.Equal(3, diff.Count); // a, b, c: the final newline is not a fourth line (run #331)
     }
 
     [Fact]

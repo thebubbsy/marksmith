@@ -78,7 +78,7 @@ public class Run280LiveStatusAndPluralsTests
     public void HistoryWindow_UsesCountTextDelta_ForWordDelta()
     {
         var src = Read(History);
-        Assert.Contains("CountText.Delta(addedWords, removedWords, \"word\")", src);
+        Assert.Contains("CountText.Change(addedWords, removedWords, \"word\")", src);
         Assert.Contains("CountText.Delta(_lastAddedWords, _lastRemovedWords, \"word\")", src);
     }
 }

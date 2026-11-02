@@ -91,8 +91,9 @@ public sealed class VersionHistoryService
             }
             else
             {
-                // Bare-\r breaks count too: that is how the WinUI editor stores text.
-                added = content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None).Length;
+                // Bare-\r breaks count too: that is how the WinUI editor stores text. Counted the
+                // way the diff pane lists them, so a final newline isn't an extra line on the card.
+                added = LineDiff.AllAdded(content).Count;
             }
 
             versions ??= new List<VersionEntry>();

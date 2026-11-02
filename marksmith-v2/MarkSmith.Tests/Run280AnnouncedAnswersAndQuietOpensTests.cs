@@ -75,7 +75,8 @@ public class Run280AnnouncedAnswersAndQuietOpensTests
         var src = Read(History);
         Assert.DoesNotContain("/ -{removedWords:N0} words", src);
         Assert.DoesNotContain("/ -{_lastRemovedWords:N0} words", src);
-        Assert.Contains("DiffWordDeltaText.Text = CountText.Delta(addedWords, removedWords, \"word\");", src);
+        // Run #331: the pill moved to CountText.Change (no "-0 words"); the copies keep Delta.
+        Assert.Contains("DiffWordDeltaText.Text = CountText.Change(addedWords, removedWords, \"word\");", src);
         Assert.Equal(2, CountOf(src, "CountText.Delta(_lastAddedWords, _lastRemovedWords, \"word\")"));
     }
 
