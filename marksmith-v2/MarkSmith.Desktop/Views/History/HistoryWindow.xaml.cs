@@ -133,8 +133,10 @@ public sealed partial class HistoryWindow : Window
         var hasFile = _vm.SelectedFile is not null;
         if (!hasFile && ReferenceEquals(FocusedElement(), FileNameButton)) SearchBox.Focus(FocusState.Programmatic);
         FileNameButton.IsTabStop = hasFile;
+        // The tooltip names the path it copies: with two "doc.md"s the name alone didn't say which.
         ToolTipService.SetToolTip(FileNameButton, hasFile
-            ? "Current document · Click to copy the full path, Right-click or Shift+F10 for path options"
+            ? (_vm.SelectedFile!.IsScratch ? "Current document" : $"Current document: {_vm.SelectedFile.Detail}")
+              + " · Click to copy the full path, Right-click or Shift+F10 for path options"
             : "No document selected · Versions appear here once a document is saved");
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(FileNameButton, hasFile
             ? "Current document. Enter copies its full path, Shift+F10 for path options."

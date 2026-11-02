@@ -52,6 +52,26 @@ public static class LineDiff
 
 
 
+    /// <summary>One line as a screen reader hears it ("Line 3 added: First paragraph."). A diff row
+
+    /// was four separate Text elements (old number, new number, marker, text) read piece by piece.</summary>
+
+    public static string SpokenLine(Kind kind, int? number, string text, int? wasNumber = null)
+
+    {
+
+        var what = kind switch { Kind.Added => "added", Kind.Removed => "removed", _ => "unchanged" };
+
+        var line = number is null ? "Line" : $"Line {number}";
+
+        if (wasNumber is not null && number is not null && wasNumber != number) line += $" (was {wasNumber})";
+
+        return string.IsNullOrWhiteSpace(text) ? $"{line} {what}, blank" : $"{line} {what}: {text}";
+
+    }
+
+
+
     // Beyond this many LCS cells we fall back to a whole-block replace rather than O(n*m) DP.
 
     private const long MaxLcsCells = 4_000_000;
@@ -337,6 +357,14 @@ public static class LineDiff
         public bool IsAdded => Kind == Kind.Added;
 
         public bool IsSame => Kind == Kind.Same;
+
+        /// <summary>The row's one accessible name: the fold text for a gap, else the spoken line.</summary>
+
+        public string AutomationName => IsGap ? Text
+
+            : Kind == Kind.Removed ? SpokenLine(Kind, OldNumber, Text)
+
+            : SpokenLine(Kind, NewNumber, Text, Kind == Kind.Same ? OldNumber : null);
 
     }
 

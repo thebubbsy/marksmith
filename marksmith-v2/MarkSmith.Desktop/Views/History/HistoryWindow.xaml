@@ -44,10 +44,10 @@
                                    Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
                         <HyperlinkButton x:Name="FileNameButton" Padding="0" MinHeight="0" HorizontalAlignment="Left"
                                          Click="OnFileNameButtonClick" RightTapped="OnFileNameRightTapped"
-                                         AutomationProperties.Name="{Binding FileName}"
+                                         AutomationProperties.Name="{Binding HeaderFileAutomationName}"
                                          AutomationProperties.HelpText="Current document. Enter copies its full path, Shift+F10 for path options."
                                          ToolTipService.ToolTip="Current document · Click to copy the full path, Right-click or Shift+F10 for path options">
-                            <TextBlock x:Name="FileNameTextBlock" Text="{Binding FileName}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            <TextBlock x:Name="FileNameTextBlock" Text="{Binding HeaderFileName}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                        TextTrimming="CharacterEllipsis" MaxWidth="320" />
                         </HyperlinkButton>
                     </StackPanel>
@@ -854,13 +854,19 @@
                                                     <ColumnDefinition Width="16" />
                                                     <ColumnDefinition Width="*" />
                                                 </Grid.ColumnDefinitions>
+                                                <!-- One accessible element per row: the numbers and marker are Raw and the
+                                                     text carries the whole line ("Line 3 added: ..."). -->
                                                 <TextBlock Text="{Binding OldNumberLabel}" FontSize="12" FontFamily="Cascadia Mono, Consolas, monospace"
+                                                           AutomationProperties.AccessibilityView="Raw"
                                                            Foreground="{ThemeResource TextFillColorTertiaryBrush}" HorizontalAlignment="Right" />
                                                 <TextBlock Grid.Column="1" Text="{Binding NewNumberLabel}" FontSize="12" FontFamily="Cascadia Mono, Consolas, monospace"
+                                                           AutomationProperties.AccessibilityView="Raw"
                                                            Foreground="{ThemeResource TextFillColorTertiaryBrush}" HorizontalAlignment="Right" />
                                                 <TextBlock Grid.Column="2" Text="{Binding Prefix}" FontSize="12" FontFamily="Cascadia Mono, Consolas, monospace"
+                                                           AutomationProperties.AccessibilityView="Raw"
                                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontWeight="Bold" />
                                                 <TextBlock Grid.Column="3" Text="{Binding Text}" FontSize="12" FontFamily="Cascadia Mono, Consolas, monospace"
+                                                           AutomationProperties.Name="{Binding AutomationName}"
                                                            Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextWrapping="NoWrap" />
                                             </Grid>
                                         </Border>
@@ -908,8 +914,10 @@
                                                         <ColumnDefinition Width="*" />
                                                     </Grid.ColumnDefinitions>
                                                     <TextBlock Text="{Binding Left.NumberLabel}" FontSize="12" FontFamily="Cascadia Mono, Consolas, monospace"
+                                                               AutomationProperties.AccessibilityView="Raw"
                                                                Foreground="{ThemeResource TextFillColorTertiaryBrush}" HorizontalAlignment="Right" />
                                                     <TextBlock Grid.Column="1" Text="{Binding Left.Text}" FontSize="12" FontFamily="Cascadia Mono, Consolas, monospace"
+                                                               AutomationProperties.Name="{Binding Left.AutomationName}"
                                                                Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextWrapping="Wrap" />
                                                 </Grid>
                                             </Border>
@@ -925,8 +933,10 @@
                                                         <ColumnDefinition Width="*" />
                                                     </Grid.ColumnDefinitions>
                                                     <TextBlock Text="{Binding Right.NumberLabel}" FontSize="12" FontFamily="Cascadia Mono, Consolas, monospace"
+                                                               AutomationProperties.AccessibilityView="Raw"
                                                                Foreground="{ThemeResource TextFillColorTertiaryBrush}" HorizontalAlignment="Right" />
                                                     <TextBlock Grid.Column="1" Text="{Binding Right.Text}" FontSize="12" FontFamily="Cascadia Mono, Consolas, monospace"
+                                                               AutomationProperties.Name="{Binding Right.AutomationName}"
                                                                Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextWrapping="Wrap" />
                                                 </Grid>
                                             </Border>

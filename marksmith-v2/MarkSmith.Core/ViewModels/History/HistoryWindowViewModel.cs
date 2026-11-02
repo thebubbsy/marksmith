@@ -244,7 +244,18 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
     public ObservableCollection<TimeBandViewModel> Bands { get; } = new();
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HeaderFileName), nameof(HeaderFileAutomationName))]
     private string _fileName = "No document selected";
+
+    /// <summary>The header's document name. With two "doc.md" documents in history the header
+    /// said just "doc.md" while the list beside it named the folder; it names it too now
+    /// ("doc.md · Drafts"). <see cref="FileName"/> stays bare for the copied diff headers.</summary>
+    public string HeaderFileName => string.IsNullOrEmpty(SelectedFile?.FolderHint)
+        ? FileName : $"{FileName} · {SelectedFile!.FolderHint}";
+
+    /// <summary>What a screen reader hears for the header's document name ("doc.md in Drafts").</summary>
+    public string HeaderFileAutomationName => string.IsNullOrEmpty(SelectedFile?.FolderHint)
+        ? FileName : $"{FileName} in {SelectedFile!.FolderHint}";
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasSelectedHeader))]
@@ -341,7 +352,7 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
     }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowNoVersions))]
+    [NotifyPropertyChangedFor(nameof(ShowNoVersions), nameof(HeaderFileName), nameof(HeaderFileAutomationName))]
     private FileSummaryViewModel? _selectedFile;
 
     /// <summary>The selected file is the document open in the editor, so a checkpoint can capture
@@ -1041,7 +1052,9 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
             LastModified = _allVersions[0].CreatedAt,
             LatestSource = _allVersions[0].Source,
         };
-        var replacement = new FileSummaryViewModel(s) { IsSelected = true };
+        // Keep the folder hint: the new row is still one of two "doc.md"s, and it lost "Drafts ·"
+        // (and the header its folder) as soon as a version was deleted or a checkpoint taken.
+        var replacement = new FileSummaryViewModel(s) { IsSelected = true, FolderHint = SelectedFile.FolderHint };
         Files[i] = replacement;
         SelectedFile = replacement;
     }
@@ -1310,8 +1323,8 @@ public sealed class DiffRowViewModel
 {
     public DiffRowViewModel(LineDiff.Row row)
     {
-        Left = row.Left is null ? null : new DiffCellViewModel(row.Left);
-        Right = row.Right is null ? null : new DiffCellViewModel(row.Right);
+        Left = row.Left is null ? null : new DiffCellViewModel(row.Left, "Previous");
+        Right = row.Right is null ? null : new DiffCellViewModel(row.Right, "Selected");
     }
 
     private DiffRowViewModel(string gapText)
@@ -1331,12 +1344,19 @@ public sealed class DiffRowViewModel
 
 public sealed class DiffCellViewModel
 {
-    public DiffCellViewModel(LineDiff.Cell cell)
+    public DiffCellViewModel(LineDiff.Cell cell, string side = "")
     {
         Kind = cell.Kind;
         NumberLabel = cell.NumberLabel;
         Text = cell.Text;
+        var spoken = LineDiff.SpokenLine(cell.Kind, cell.LineNumber, cell.Text);
+        AutomationName = string.IsNullOrEmpty(side) ? spoken
+            : $"{side} version, {char.ToLowerInvariant(spoken[0])}{spoken[1..]}";
     }
+
+    /// <summary>"Previous version, line 3 removed: First paragraph." The number and the text were
+    /// two Text elements, and nothing said which side of the comparison they were on.</summary>
+    public string AutomationName { get; }
 
     public LineDiff.Kind Kind { get; }
     public string NumberLabel { get; }
