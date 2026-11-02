@@ -188,8 +188,14 @@ public sealed partial class FileSummaryViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(SubLabel), nameof(AutomationName))]
     private string _folderHint = "";
 
-    /// <summary>The row's second line: "ms_run331 · 3 Nov 2026 · 01:35" when the name is shared.</summary>
-    public string SubLabel => string.IsNullOrEmpty(FolderHint) ? LastModifiedLabel : $"{FolderHint} · {LastModifiedLabel}";
+    /// <summary>The row's second line: "Drafts · 3 Nov" when the name is shared. Beside a folder
+    /// the date is just the day (and the year when it isn't this one): the full date and time
+    /// ran off a 240 px row. The screen reader name keeps the full date and time.</summary>
+    public string SubLabel => string.IsNullOrEmpty(FolderHint) ? LastModifiedLabel
+        : $"{FolderHint} · {ShortDate(Summary.LastModified.LocalDateTime, DateTime.Now)}";
+
+    internal static string ShortDate(DateTime when, DateTime now) =>
+        when.ToString(when.Year == now.Year ? "d MMM" : "d MMM yyyy");
 
     /// <summary>What a screen reader hears for the row: the name alone said nothing about which
     /// "doc.md" it was, how many versions it has or when it last changed.</summary>

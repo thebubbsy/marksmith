@@ -182,6 +182,8 @@ public class Run331HistoryPolishTests : IDisposable
         Assert.Equal(2, docs.Count);
         Assert.Equal(new[] { "alpha", "beta" }, docs.Select(f => f.FolderHint).OrderBy(x => x));
         Assert.All(docs, f => Assert.StartsWith(f.FolderHint + " · ", f.SubLabel));
+        // This year's date drops its year beside a folder, so the time still fits the row.
+        Assert.All(docs, f => Assert.DoesNotContain(DateTime.Now.Year.ToString(), f.SubLabel));
 
         var other = vm.Files.Single(f => f.FileName == "other.md");
         Assert.Equal("", other.FolderHint);
@@ -215,6 +217,14 @@ public class Run331HistoryPolishTests : IDisposable
     }
 
     [Fact]
+    public void ShortDate_DropsOnlyThisYearsYear()
+    {
+        var now = new DateTime(2026, 11, 3, 9, 0, 0);
+        Assert.Equal("2 Nov", FileSummaryViewModel.ShortDate(new DateTime(2026, 11, 2, 1, 13, 0), now));
+        Assert.Equal("30 Dec 2025", FileSummaryViewModel.ShortDate(new DateTime(2025, 12, 30, 8, 0, 0), now));
+    }
+
+    [Fact]
     public void DocumentRowTemplate_BindsTheNewLabels()
     {
         var xaml = HistoryXaml();
@@ -232,7 +242,8 @@ public class Run331HistoryPolishTests : IDisposable
         int start = xaml.IndexOf("x:Name=\"TimelineSearchCluster\"", StringComparison.Ordinal);
         int end = xaml.IndexOf("<TextBox", start, StringComparison.Ordinal);
         var defs = xaml[start..end];
-        Assert.Contains("<ColumnDefinition x:Name=\"SearchBoxColumn\" Width=\"*\" MinWidth=\"160\" MaxWidth=\"280\" />", defs);
+        // Nearly all the star weight, so the box keeps its width when the pill takes space.
+        Assert.Contains("<ColumnDefinition x:Name=\"SearchBoxColumn\" Width=\"100*\" MinWidth=\"160\" MaxWidth=\"280\" />", defs);
         Assert.Equal(3, defs.Split("<ColumnDefinition ").Length - 1);
     }
 }

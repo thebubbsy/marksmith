@@ -59,9 +59,11 @@
                       AutomationProperties.Name="Timeline search and match">
                     <!-- The box's column is capped and a filler column takes the rest, so the match
                          pill appears beside the box. With one star column the capped box sat centred
-                         in it and jumped 47 px left as soon as the pill showed. -->
+                         in it and jumped 47 px left as soon as the pill showed. The box's column has
+                         nearly all the star weight, so it keeps its width while the filler gives way
+                         (equal weights shrank the box from 215 to 164 px when the pill showed). -->
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition x:Name="SearchBoxColumn" Width="*" MinWidth="160" MaxWidth="280" />
+                        <ColumnDefinition x:Name="SearchBoxColumn" Width="100*" MinWidth="160" MaxWidth="280" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
